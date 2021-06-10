@@ -185,6 +185,7 @@ mali_kbase-y += \
     mali_kbase_mem_profile_debugfs.o \
     mali_kbase_disjoint_events.o \
     mali_kbase_debug_mem_view.o \
+    mali_kbase_gator_api.o \
     mali_kbase_smc.o \
     mali_kbase_mem_pool.o \
     mali_kbase_mem_pool_debugfs.o \
