@@ -31,6 +31,12 @@ struct kbase_vinstr_context;
 struct kbase_hwcnt_virtualizer;
 struct kbase_ioctl_hwcnt_reader_setup;
 
+typedef enum {
+	pm_non,
+	pm_ltr,
+	pm_swpm,
+	pm_met
+} mtk_pm_tool_used;
 /**
  * kbase_vinstr_init() - Initialise a vinstr context.
  * @hvirt:    Non-NULL pointer to the hardware counter virtualizer.
@@ -87,4 +93,12 @@ int kbase_vinstr_hwcnt_reader_setup(
 	struct kbase_vinstr_context *vinstr_ctx,
 	struct kbase_ioctl_hwcnt_reader_setup *setup);
 
+int MTK_kbase_vinstr_hwcnt_reader_setup(
+	struct kbase_vinstr_context *vctx,
+	struct kbase_ioctl_hwcnt_reader_setup *setup);
+void MTK_update_mtk_pm(int flag);
+int MTK_get_mtk_pm(void);
+void MTK_kbasep_vinstr_hwcnt_set_interval(unsigned int interval);
+void MTK_kbasep_vinstr_hwcnt_release(void);
+void MTK_update_gpu_LTR(void);
 #endif /* _KBASE_VINSTR_H_ */
