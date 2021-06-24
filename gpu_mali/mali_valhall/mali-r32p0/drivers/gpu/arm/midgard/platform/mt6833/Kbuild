@@ -29,3 +29,6 @@ ccflags-y += \
 ccflags-y += \
 	-I$(srctree)/drivers/misc/mediatek/include/mt-plat
 
+# /*set interval to 9600-10000us */
+ccflags-y += -DDEFAULT_PM_POWEROFF_TICK_SHADER=25
+
