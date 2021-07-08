@@ -18,4 +18,6 @@
 #
 #
 
-obj-$(CONFIG_DMA_SHARED_BUFFER_TEST_EXPORTER) += dma-buf-test-exporter.o
+ifeq ($(CONFIG_DMA_SHARED_BUFFER_TEST_EXPORTER), y)
+obj-m += dma-buf-test-exporter.o
+endif

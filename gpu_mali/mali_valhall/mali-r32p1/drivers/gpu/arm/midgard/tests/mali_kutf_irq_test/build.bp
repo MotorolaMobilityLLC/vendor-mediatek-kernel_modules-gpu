@@ -23,6 +23,7 @@ bob_kernel_module {
     name: "mali_kutf_irq_test",
     defaults: [
         "mali_kbase_shared_config_defaults",
+        "kernel_test_configs",
         "kernel_test_includes",
     ],
     srcs: [
@@ -34,8 +35,8 @@ bob_kernel_module {
         "kutf",
     ],
     enabled: false,
-    base_build_kutf: {
+    mali_kutf_irq_test: {
+        kbuild_options: ["CONFIG_MALI_KUTF_IRQ_TEST=y"],
         enabled: true,
-        kbuild_options: ["CONFIG_MALI_IRQ_LATENCY=y"],
     },
 }

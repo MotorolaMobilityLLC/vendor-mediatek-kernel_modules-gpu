@@ -299,8 +299,8 @@ struct kbase_pm_callback_conf {
  * and such alignment should be maintained.
  *
  * @gpu_clk_handle: Handle of the GPU clock for which notifier was registered.
- * @old_rate:       Previous rate of this GPU clock.
- * @new_rate:       New rate of this GPU clock.
+ * @old_rate:       Previous rate of this GPU clock in Hz.
+ * @new_rate:       New rate of this GPU clock in Hz.
  */
 struct kbase_gpu_clk_notifier_data {
 	void *gpu_clk_handle;

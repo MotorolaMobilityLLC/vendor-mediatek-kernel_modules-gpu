@@ -315,10 +315,9 @@ struct kbase_clk_rate_listener;
  * sleep. No clock rate manager functions must be called from here, as
  * its lock is taken.
  */
-typedef void (*kbase_clk_rate_listener_on_change_t)(
-	struct kbase_clk_rate_listener *listener,
-	u32 clk_index,
-	u32 clk_rate_hz);
+typedef void
+kbase_clk_rate_listener_on_change_t(struct kbase_clk_rate_listener *listener,
+				    u32 clk_index, u32 clk_rate_hz);
 
 /**
  * struct kbase_clk_rate_listener - Clock frequency listener
@@ -328,7 +327,7 @@ typedef void (*kbase_clk_rate_listener_on_change_t)(
  */
 struct kbase_clk_rate_listener {
 	struct list_head node;
-	kbase_clk_rate_listener_on_change_t notify;
+	kbase_clk_rate_listener_on_change_t *notify;
 };
 
 /**
@@ -927,6 +926,8 @@ struct kbase_process {
  * @dummy_job_wa.jc:        dummy job workaround job
  * @dummy_job_wa.slot:      dummy job workaround slot
  * @dummy_job_wa.flags:     dummy job workaround flags
+ * @dummy_job_wa_loaded:    Flag for indicating that the workaround blob has
+ *                          been loaded. Protected by @fw_load_lock.
  * @arb:                    Pointer to the arbiter device
  * @pcm_dev:                The priority control manager device.
  * @oom_notifier_block:     notifier_block containing kernel-registered out-of-
@@ -961,16 +962,6 @@ struct kbase_device {
 #endif /* CONFIG_REGULATOR */
 	char devname[DEVNAME_SIZE];
 	u32  id;
-
-#ifdef CONFIG_MALI_NO_MALI
-	void *model;
-	struct kmem_cache *irq_slab;
-	struct workqueue_struct *irq_workq;
-	atomic_t serving_job_irq;
-	atomic_t serving_gpu_irq;
-	atomic_t serving_mmu_irq;
-	spinlock_t reg_op_lock;
-#endif	/* CONFIG_MALI_NO_MALI */
 
 	struct kbase_pm_device_data pm;
 
@@ -1185,6 +1176,7 @@ struct kbase_device {
 		int slot;
 		u64 flags;
 	} dummy_job_wa;
+	bool dummy_job_wa_loaded;
 
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 		struct kbase_arbiter_device arb;
