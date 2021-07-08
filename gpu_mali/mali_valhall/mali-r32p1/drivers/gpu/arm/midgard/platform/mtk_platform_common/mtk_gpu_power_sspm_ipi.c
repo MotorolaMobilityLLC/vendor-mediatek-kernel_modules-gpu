@@ -13,48 +13,37 @@
 #include "mtk_gpu_power_sspm_ipi.h"
 #include "mali_kbase.h"
 #include "mali_kbase_vinstr.h"
-#ifdef CONFIG_MTK_TINYSYS_SSPM_SUPPORT
-#include <sspm_ipi_id.h>
-#include <sspm_define.h>
-#endif
+#include <linux/scmi_protocol.h>
+#include <linux/module.h>
+#include <tinysys-scmi.h>
 
 static int init_flag;
 static bool ipi_register_flag;
 
 struct kbase_device *pm_kbdev;
 int gpu_pm_ipi_ackdata;
+static int gpu_pm_id;
+static struct scmi_tinysys_info_st *_tinfo;
 
 
 static DEFINE_MUTEX(gpu_pmu_info_lock);
 static void gpu_send_enable_ipi(unsigned int type, unsigned int enable)
 {
-#ifdef CONFIG_MTK_TINYSYS_SSPM_SUPPORT
-	int cmd_len, ret;
+	int ret;
 	struct gpu_pm_ipi_cmds ipi_cmd;
 	if (!ipi_register_flag) {
-		ret = mtk_ipi_register(&sspm_ipidev, IPIS_C_GPU_PM, NULL, NULL,
-				(void *) &gpu_pm_ipi_ackdata);
-		if (ret) {
-			pr_info("[gpu sspm] IPIS_C_GPU_PM ipi_register fail, ret %d\n", ret);
-			return;
-		}
-		ipi_register_flag = true;
+		pr_info("ipi_register_flag fail");
 	}
-	cmd_len = sizeof(struct gpu_pm_ipi_cmds) / SSPM_MBOX_SLOT_SIZE;
-	ipi_cmd.cmd[0] = type;
-	ipi_cmd.cmd[1] = enable;
-	ret = mtk_ipi_send_compl(&sspm_ipidev, IPIS_C_GPU_PM,
-		IPI_SEND_POLLING, &ipi_cmd,
-		cmd_len, 5000);
-
+	ipi_cmd.cmd = type;
+	ipi_cmd.power_statue= enable;
+	ret = scmi_tinysys_common_set(_tinfo->ph, gpu_pm_id,
+			ipi_cmd.cmd, ipi_cmd.power_statue, 0, 0, 0);
 	if (ret) {
 		pr_info("gpu_send_enable_ipi %d send fail,ret=%d\n",
-		ipi_cmd.cmd[0], ret);
+		ipi_cmd.cmd, ret);
 	}
-#else
-	return;
-#endif
 }
+
 
 static void MTKGPUPower_model_kbase_setup(int flag, unsigned int interval_ns) {
 	struct kbase_ioctl_hwcnt_reader_setup setup;
@@ -181,17 +170,18 @@ void MTKGPUPower_model_resume(void){
 EXPORT_SYMBOL(MTKGPUPower_model_resume);
 
 int MTKGPUPower_model_init(void) {
-#ifdef CONFIG_MTK_TINYSYS_SSPM_SUPPORT
 	int ret;
 
-	ret = mtk_ipi_register(&sspm_ipidev, IPIS_C_GPU_PM, NULL, NULL,
-			(void *) &gpu_pm_ipi_ackdata);
-	if (ret) {
-		pr_info("IPIS_C_GPU_PM ipi_register fail, ret %d\n", ret);
-		return -1;
-	}
+	_tinfo = get_scmi_tinysys_info();
+
+	ret = of_property_read_u32(_tinfo->sdev->dev.of_node, "scmi_gpupm",
+			&gpu_pm_id);
 	ipi_register_flag = true;
-#endif
+	if (ret) {
+		pr_info("get scmi_qos fail, ret %d\n", ret);
+		ipi_register_flag = false;
+	}
+
 	mtk_ltr_gpu_pmu_start_fp = MTKGPUPower_model_start;
 	mtk_ltr_gpu_pmu_stop_fp = MTKGPUPower_model_stop;
 
