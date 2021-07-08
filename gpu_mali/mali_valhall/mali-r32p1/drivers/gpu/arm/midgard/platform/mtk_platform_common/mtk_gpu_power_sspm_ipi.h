@@ -29,7 +29,8 @@ enum {
 };
 
 struct gpu_pm_ipi_cmds {
-	unsigned int cmd[GPU_PM_LAST];
+	unsigned int cmd;	
+	unsigned int power_statue;
 };
 
 void MTKGPUPower_model_stop(void);
