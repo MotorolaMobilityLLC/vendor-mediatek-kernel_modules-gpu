@@ -41,10 +41,16 @@ config MALI_PLATFORM_NAME
 	  When PLATFORM_CUSTOM is set, this needs to be set manually to
 	  pick up the desired platform files.
 
+config MALI_REAL_HW
+	bool
+	depends on MALI_MIDGARD
+	default y
+	default n if NO_MALI
+
 config MALI_CSF_SUPPORT
 	bool "Enable Mali CSF based GPU support"
 	depends on MALI_MIDGARD
-	default n
+	default y if GPU_HAS_CSF
 	help
 	  Enables support for CSF based GPUs.
 
@@ -96,7 +102,7 @@ config MALI_DMA_FENCE
 
 config MALI_ARBITER_SUPPORT
 	bool "Enable arbiter support for Mali"
-	depends on MALI_MIDGARD && !GPU_HAS_CSF
+	depends on MALI_MIDGARD && !MALI_CSF_SUPPORT
 	default n
 	help
 	  Enable support for the arbiter interface in the driver.
@@ -105,6 +111,11 @@ config MALI_ARBITER_SUPPORT
 
 	  If unsure, say N.
 
+config DMA_BUF_SYNC_IOCTL_SUPPORTED
+	bool "Enable Kernel DMA buffers support DMA_BUF_IOCTL_SYNC"
+	depends on MALI_MIDGARD && BACKEND_KERNEL
+	default y
+
 config MALI_DMA_BUF_MAP_ON_DEMAND
 	bool "Enable map imported dma-bufs on demand"
 	depends on MALI_MIDGARD
@@ -112,7 +123,7 @@ config MALI_DMA_BUF_MAP_ON_DEMAND
 	default y if !DMA_BUF_SYNC_IOCTL_SUPPORTED
 	help
 	  This option caused kbase to set up the GPU mapping of imported
-	  dma-buf when needed to run atoms. This is the legacy behaviour.
+	  dma-buf when needed to run atoms. This is the legacy behavior.
 
 	  This is intended for testing and the option will get removed in the
 	  future.
@@ -152,6 +163,7 @@ config MALI_2MB_ALLOC
 
 config MALI_MEMORY_FULLY_BACKED
 	bool "Enable memory fully physically-backed"
+	depends on MALI_MIDGARD && MALI_EXPERT
 	default n
 	help
 	  This option enables full physical backing of all virtual
@@ -172,19 +184,16 @@ config MALI_CORESTACK
 
 	  If unsure, say N.
 
-config MALI_REAL_HW
-	bool
-	default y
-	default n if NO_MALI
-
 choice
 	prompt "Error injection level"
+	depends on MALI_MIDGARD && MALI_EXPERT
 	default MALI_ERROR_INJECT_NONE
 	help
 	  Enables insertion of errors to test module failure and recovery mechanisms.
 
 config MALI_ERROR_INJECT_NONE
 	bool "disabled"
+	depends on MALI_MIDGARD && MALI_EXPERT
 	help
 	  Error injection is disabled.
 
@@ -204,17 +213,19 @@ endchoice
 
 config MALI_ERROR_INJECT_ON
 	string
+	depends on MALI_MIDGARD && MALI_EXPERT
 	default "0" if MALI_ERROR_INJECT_NONE
 	default "1" if MALI_ERROR_INJECT_TRACK_LIST
 	default "2" if MALI_ERROR_INJECT_RANDOM
 
 config MALI_ERROR_INJECT
 	bool
+	depends on MALI_MIDGARD && MALI_EXPERT
 	default y if !MALI_ERROR_INJECT_NONE
 
 config MALI_GEM5_BUILD
 	bool "Enable build of Mali kernel driver for GEM5"
-	depends on MALI_MIDGARD
+	depends on MALI_MIDGARD && MALI_EXPERT
 	default n
 	help
 	  This option is to do a Mali GEM5 build.
@@ -262,7 +273,16 @@ config MALI_SYSTEM_TRACE
 # config MALI_PRFCNT_SET_SECONDARY exists in the Kernel Kconfig but is configured using CINSTR_SECONDARY_HWC in Mconfig.
 # config MALI_PRFCNT_SET_TERTIARY exists in the Kernel Kconfig but is configured using CINSTR_TERTIARY_HWC in Mconfig.
 # config MALI_PRFCNT_SET_SELECT_VIA_DEBUG_FS exists in the Kernel Kconfig but is configured using CINSTR_HWC_SET_SELECT_VIA_DEBUG_FS in Mconfig.
-# config MALI_JOB_DUMP exists in the Kernel Kconfig but is configured using CINSTR_JOB_DUMP in Mconfig.
+
+config MALI_JOB_DUMP
+	bool "Enable system level support needed for job dumping"
+	depends on MALI_MIDGARD && MALI_EXPERT
+	default n
+	help
+	  Choose this option to enable system level support needed for
+	  job dumping. This is typically used for instrumentation but has
+	  minimal overhead when not in use. Enable only if you know what
+	  you are doing.
 
 config MALI_PWRSOFT_765
 	bool "Enable workaround for PWRSOFT-765"

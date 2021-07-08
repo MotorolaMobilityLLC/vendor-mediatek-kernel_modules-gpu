@@ -298,8 +298,6 @@ int kbase_device_misc_init(struct kbase_device * const kbdev)
 	mutex_init(&kbdev->kctx_list_lock);
 	INIT_LIST_HEAD(&kbdev->kctx_list);
 
-	spin_lock_init(&kbdev->hwaccess_lock);
-
 	dev_dbg(kbdev->dev, "Registering mali_oom_notifier_handlern");
 	kbdev->oom_notifier_block.notifier_call = mali_oom_notifier_handler;
 	err = register_oom_notifier(&kbdev->oom_notifier_block);
@@ -472,6 +470,10 @@ int kbase_device_early_init(struct kbase_device *kbdev)
 	/* We're done accessing the GPU registers for now. */
 	kbase_pm_register_access_disable(kbdev);
 
+	/* This spinlock has to be initialized before installing interrupt
+	 * handlers that require to hold it to process interrupts.
+	 */
+	spin_lock_init(&kbdev->hwaccess_lock);
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 	if (kbdev->arb.arb_if)
 		err = kbase_arbiter_pm_install_interrupts(kbdev);

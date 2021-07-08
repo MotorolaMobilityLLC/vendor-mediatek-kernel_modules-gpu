@@ -21,12 +21,16 @@
 
 bob_kernel_module {
     name: "dma-buf-test-exporter",
+    defaults: [
+        "kernel_defaults"
+    ],
     srcs: [
         "Kbuild",
         "dma-buf-test-exporter.c",
     ],
-    kbuild_options: [
-        "CONFIG_DMA_SHARED_BUFFER_TEST_EXPORTER=m",
-    ],
-    defaults: ["kernel_defaults"],
+    enabled: false,
+    dma_shared_buffer_test_exporter: {
+        kbuild_options: ["CONFIG_DMA_SHARED_BUFFER_TEST_EXPORTER=y"],
+        enabled: true,
+    },
 }

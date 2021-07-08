@@ -31,18 +31,11 @@
 #include <ipa/mali_kbase_ipa_debugfs.h>
 #endif /* CONFIG_DEVFREQ_THERMAL */
 #endif /* CONFIG_MALI_DEVFREQ */
-#ifdef CONFIG_MALI_NO_MALI
-#include "backend/gpu/mali_kbase_model_linux.h"
-#include <backend/gpu/mali_kbase_model_dummy.h>
-#endif /* CONFIG_MALI_NO_MALI */
 #include "mali_kbase_mem_profile_debugfs_buf_size.h"
 #include "mali_kbase_mem.h"
 #include "mali_kbase_mem_pool_debugfs.h"
 #include "mali_kbase_mem_pool_group.h"
 #include "mali_kbase_debugfs_helper.h"
-#if !MALI_CUSTOMER_RELEASE
-#include "mali_kbase_regs_dump_debugfs.h"
-#endif /* !MALI_CUSTOMER_RELEASE */
 #include "mali_kbase_regs_history_debugfs.h"
 #include <mali_kbase_hwaccess_backend.h>
 #include <mali_kbase_hwaccess_time.h>
@@ -1036,17 +1029,6 @@ static int kbase_api_get_cpu_gpu_timeinfo(struct kbase_context *kctx,
 	return 0;
 }
 
-#ifdef CONFIG_MALI_NO_MALI
-static int kbase_api_hwcnt_set(struct kbase_context *kctx,
-		struct kbase_ioctl_hwcnt_values *values)
-{
-	gpu_model_set_dummy_prfcnt_sample(
-			(u32 __user *)(uintptr_t)values->data,
-			values->size);
-
-	return 0;
-}
-#endif
 
 static int kbase_api_disjoint_query(struct kbase_context *kctx,
 		struct kbase_ioctl_disjoint_query *query)
@@ -1936,14 +1918,6 @@ static long kbase_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				union kbase_ioctl_get_cpu_gpu_timeinfo,
 				kctx);
 		break;
-#ifdef CONFIG_MALI_NO_MALI
-	case KBASE_IOCTL_HWCNT_SET:
-		KBASE_HANDLE_IOCTL_IN(KBASE_IOCTL_HWCNT_SET,
-				kbase_api_hwcnt_set,
-				struct kbase_ioctl_hwcnt_values,
-				kctx);
-		break;
-#endif
 #ifdef CONFIG_MALI_CINSTR_GWT
 	case KBASE_IOCTL_CINSTR_GWT_START:
 		KBASE_HANDLE_IOCTL(KBASE_IOCTL_CINSTR_GWT_START,
@@ -3018,7 +2992,7 @@ static DEVICE_ATTR(js_softstop_always, S_IRUGO | S_IWUSR, show_js_softstop_alway
 #endif /* !MALI_USE_CSF */
 
 #ifdef CONFIG_MALI_DEBUG
-typedef void (kbasep_debug_command_func) (struct kbase_device *);
+typedef void kbasep_debug_command_func(struct kbase_device *);
 
 enum kbasep_debug_command_code {
 	KBASEP_DEBUG_COMMAND_DUMPTRACE,
@@ -3320,7 +3294,8 @@ static ssize_t set_pm_poweroff(struct device *dev,
 
 	stt = &kbdev->pm.backend.shader_tick_timer;
 	stt->configured_interval = HR_TIMER_DELAY_NSEC(gpu_poweroff_time);
-	stt->configured_ticks = poweroff_shader_ticks;
+	stt->default_ticks = poweroff_shader_ticks;
+	stt->configured_ticks = stt->default_ticks;
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
@@ -3358,7 +3333,7 @@ static ssize_t show_pm_poweroff(struct device *dev,
 	stt = &kbdev->pm.backend.shader_tick_timer;
 	ret = scnprintf(buf, PAGE_SIZE, "%llu %u 0\n",
 			ktime_to_ns(stt->configured_interval),
-			stt->configured_ticks);
+			stt->default_ticks);
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
@@ -4266,15 +4241,6 @@ void kbase_protected_mode_term(struct kbase_device *kbdev)
 	kfree(kbdev->protected_dev);
 }
 
-#ifdef CONFIG_MALI_NO_MALI
-static int kbase_common_reg_map(struct kbase_device *kbdev)
-{
-	return 0;
-}
-static void kbase_common_reg_unmap(struct kbase_device * const kbdev)
-{
-}
-#else /* CONFIG_MALI_NO_MALI */
 static int kbase_common_reg_map(struct kbase_device *kbdev)
 {
 	int err = 0;
@@ -4310,7 +4276,6 @@ static void kbase_common_reg_unmap(struct kbase_device * const kbdev)
 		kbdev->reg_size = 0;
 	}
 }
-#endif /* CONFIG_MALI_NO_MALI */
 
 int registers_map(struct kbase_device * const kbdev)
 {
@@ -4814,9 +4779,6 @@ int kbase_device_debugfs_init(struct kbase_device *kbdev)
 		goto out;
 	}
 
-#if !MALI_CUSTOMER_RELEASE
-	kbasep_regs_dump_debugfs_init(kbdev);
-#endif /* !MALI_CUSTOMER_RELEASE */
 	kbasep_regs_history_debugfs_init(kbdev);
 
 #if !MALI_USE_CSF
@@ -4937,7 +4899,7 @@ int kbase_device_coherency_init(struct kbase_device *kbdev)
 
 		override_coherency = be32_to_cpup(coherency_override_dts);
 
-#if MALI_USE_CSF && !defined(CONFIG_MALI_NO_MALI)
+#if MALI_USE_CSF && !IS_ENABLED(CONFIG_MALI_NO_MALI)
 		/* ACE coherency mode is not supported by Driver on CSF GPUs.
 		 * Return an error to signal the invalid device tree configuration.
 		 */

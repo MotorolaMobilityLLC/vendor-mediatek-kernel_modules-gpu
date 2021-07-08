@@ -74,7 +74,16 @@ ifeq ($(CONFIG_MALI_MIDGARD),m)
         ifeq ($(CONFIG_MALI_DEBUG), y)
             CONFIG_MALI_MIDGARD_ENABLE_TRACE ?= y
             CONFIG_MALI_SYSTEM_TRACE ?= y
-            CONFIG_MALI_FENCE_DEBUG ?= y
+
+            ifeq ($(CONFIG_SYNC), y)
+                CONFIG_MALI_FENCE_DEBUG ?= y
+            else
+                ifeq ($(CONFIG_SYNC_FILE), y)
+                    CONFIG_MALI_FENCE_DEBUG ?= y
+                else
+                    CONFIG_MALI_FENCE_DEBUG = n
+                endif
+            endif
         else
             # Prevent misuse when CONFIG_MALI_DEBUG=n
             CONFIG_MALI_MIDGARD_ENABLE_TRACE = n
@@ -100,27 +109,28 @@ ifeq ($(CONFIG_MALI_MIDGARD),m)
         CONFIG_MALI_FENCE_DEBUG = n
     endif
 
-    CONFIG_MALI_KUTF ?= y
-    ifeq ($(CONFIG_MALI_KUTF), y)
-        ifeq ($(CONFIG_MALI_DEBUG), y)
-            CONFIG_MALI_IRQ_LATENCY ?= y
-            CONFIG_MALI_CLK_RATE_TRACE_PORTAL ?= y
+    ifeq ($(CONFIG_MALI_DEBUG), y)
+        CONFIG_MALI_KUTF ?= y
+        ifeq ($(CONFIG_MALI_KUTF), y)
+            CONFIG_MALI_KUTF_IRQ_TEST ?= y
+            CONFIG_MALI_KUTF_CLK_RATE_TRACE ?= y
         else
-            # Prevent misuse when CONFIG_MALI_DEBUG=n
-            CONFIG_MALI_IRQ_LATENCY = n
-            CONFIG_MALI_CLK_RATE_TRACE_PORTAL = n
+            # Prevent misuse when CONFIG_MALI_KUTF=n
+            CONFIG_MALI_KUTF_IRQ_TEST = n
+            CONFIG_MALI_KUTF_CLK_RATE_TRACE = n
         endif
     else
-        # Prevent misuse when CONFIG_MALI_KUTF=n
-        CONFIG_MALI_IRQ_LATENCY = n
-        CONFIG_MALI_CLK_RATE_TRACE_PORTAL = n
+        # Prevent misuse when CONFIG_MALI_DEBUG=n
+        CONFIG_MALI_KUTF = n
+        CONFIG_MALI_KUTF_IRQ_TEST = n
+        CONFIG_MALI_KUTF_CLK_RATE_TRACE = n
     endif
 else
     # Prevent misuse when CONFIG_MALI_MIDGARD=n
     CONFIG_MALI_ARBITRATION = n
     CONFIG_MALI_KUTF = n
-    CONFIG_MALI_IRQ_LATENCY = n
-    CONFIG_MALI_CLK_RATE_TRACE_PORTAL = n
+    CONFIG_MALI_KUTF_IRQ_TEST = n
+    CONFIG_MALI_KUTF_CLK_RATE_TRACE = n
 endif
 
 # All Mali CONFIG should be listed here
@@ -157,20 +167,31 @@ CONFIGS := \
     CONFIG_MALI_SYSTEM_TRACE \
     CONFIG_MALI_FENCE_DEBUG \
     CONFIG_MALI_KUTF \
-    CONFIG_MALI_IRQ_LATENCY \
-    CONFIG_MALI_CLK_RATE_TRACE_PORTAL
+    CONFIG_MALI_KUTF_IRQ_TEST \
+    CONFIG_MALI_KUTF_CLK_RATE_TRACE
 
 
-# Find which config options were enabled. $(value config) is the name of the
-# config option (CONFIG_MALI_...), $(value $(value config)) is its value (y, m,
-# or n).
-ENABLED_CONFIGS := $(foreach config,$(CONFIGS),$(if $(filter y m,$(value $(value config))),$(config)))
+#
+# MAKE_ARGS to pass the custom CONFIGs on out-of-tree build
+#
+# Generate the list of CONFIGs and values.
+# $(value config) is the name of the CONFIG option.
+# $(value $(value config)) is its value (y, m).
+# When the CONFIG is not set to y or m, it defaults to n.
+MAKE_ARGS := $(foreach config,$(CONFIGS), \
+                    $(if $(filter y m,$(value $(value config))), \
+                        $(value config)=$(value $(value config)), \
+                        $(value config)=n))
 
-# For each enabled option, generate a command line argument e.g.
-# CONFIG_MALI_MIDGARD=m.
-MAKE_ARGS := $(foreach config,$(ENABLED_CONFIGS),$(value config)=$(value $(value config)))
-# For each enabled option, generate a compiler '-DCONFIG_...=$(CONFIG_...)' flag.
-EXTRA_CFLAGS := $(foreach config,$(ENABLED_CONFIGS),-D$(value config)=$(value config))
+#
+# EXTRA_CFLAGS to define the custom CONFIGs on out-of-tree build
+#
+# Generate the list of CONFIGs defines with values from CONFIGS.
+# $(value config) is the name of the CONFIG option.
+# When set to y or m, the CONFIG gets defined to 1.
+EXTRA_CFLAGS := $(foreach config,$(CONFIGS), \
+                    $(if $(filter y m,$(value $(value config))), \
+                        -D$(value config)=1))
 
 #
 # KBUILD_EXTRA_SYMBOLS to prevent warnings about unknown functions

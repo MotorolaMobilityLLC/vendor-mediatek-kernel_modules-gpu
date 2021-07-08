@@ -18,8 +18,6 @@
 #
 #
 
-menu "Arm GPU extra modules"
-
 menuconfig MALI_BASE_MODULES
 	bool "Mali Base extra modules"
 	default n
@@ -28,9 +26,39 @@ menuconfig MALI_BASE_MODULES
 	  Those modules provide extra features or debug interfaces and,
 	  are optional for the use of the Mali GPU modules.
 
-source "drivers/base/arm/dma_buf_test_exporter/Kconfig"
-source "drivers/base/arm/memory_group_manager/Kconfig"
-source "drivers/base/arm/protected_memory_allocator/Kconfig"
+config DMA_SHARED_BUFFER_TEST_EXPORTER
+	bool "Build dma-buf framework test exporter module"
+	depends on MALI_BASE_MODULES && DMA_SHARED_BUFFER
+	default y
+	help
+	  This option will build the dma-buf framework test exporter module.
+	  Usable to help test importers.
 
+	  Modules:
+	    - dma-buf-test-exporter.ko
 
-endmenu
+config MALI_MEMORY_GROUP_MANAGER
+	bool "Build Mali Memory Group Manager module"
+	depends on MALI_BASE_MODULES
+	default y
+	help
+	  This option will build the memory group manager module.
+	  This is an example implementation for allocation and release of pages
+	  for memory pools managed by Mali GPU device drivers.
+
+	  Modules:
+	    - memory_group_manager.ko
+
+config MALI_PROTECTED_MEMORY_ALLOCATOR
+	bool "Build Mali Protected Memory Allocator module"
+	depends on MALI_BASE_MODULES && MALI_CSF_SUPPORT
+	default y
+	help
+	  This option will build the protected memory allocator module.
+	  This is an example implementation for allocation and release of pages
+	  of secure memory intended to be used by the firmware
+	  of Mali GPU device drivers.
+
+	  Modules:
+	    - protected_memory_allocator.ko
+

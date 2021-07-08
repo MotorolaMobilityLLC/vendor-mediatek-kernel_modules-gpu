@@ -1676,6 +1676,25 @@ u32 kbase_csf_firmware_set_mcu_core_pwroff_time(struct kbase_device *kbdev, u32 
 }
 
 
+int kbase_csf_firmware_early_init(struct kbase_device *kbdev)
+{
+	init_waitqueue_head(&kbdev->csf.event_wait);
+	kbdev->csf.interrupt_received = false;
+	kbdev->csf.fw_timeout_ms = CSF_FIRMWARE_TIMEOUT_MS;
+
+	INIT_LIST_HEAD(&kbdev->csf.firmware_interfaces);
+	INIT_LIST_HEAD(&kbdev->csf.firmware_config);
+	INIT_LIST_HEAD(&kbdev->csf.firmware_timeline_metadata);
+	INIT_LIST_HEAD(&kbdev->csf.firmware_trace_buffers.list);
+	INIT_WORK(&kbdev->csf.firmware_reload_work,
+		  kbase_csf_firmware_reload_worker);
+	INIT_WORK(&kbdev->csf.fw_error_work, firmware_error_worker);
+
+	mutex_init(&kbdev->csf.reg_lock);
+
+	return 0;
+}
+
 int kbase_csf_firmware_init(struct kbase_device *kbdev)
 {
 	const struct firmware *firmware;
@@ -1701,31 +1720,18 @@ int kbase_csf_firmware_init(struct kbase_device *kbdev)
 		return ret;
 	}
 
-	init_waitqueue_head(&kbdev->csf.event_wait);
-	kbdev->csf.interrupt_received = false;
-	kbdev->csf.fw_timeout_ms = CSF_FIRMWARE_TIMEOUT_MS;
-
-	INIT_LIST_HEAD(&kbdev->csf.firmware_interfaces);
-	INIT_LIST_HEAD(&kbdev->csf.firmware_config);
-	INIT_LIST_HEAD(&kbdev->csf.firmware_timeline_metadata);
-	INIT_LIST_HEAD(&kbdev->csf.firmware_trace_buffers.list);
-	INIT_WORK(&kbdev->csf.firmware_reload_work,
-		  kbase_csf_firmware_reload_worker);
-	INIT_WORK(&kbdev->csf.fw_error_work, firmware_error_worker);
-
-	mutex_init(&kbdev->csf.reg_lock);
-
 	kbdev->csf.gpu_idle_hysteresis_ms = FIRMWARE_IDLE_HYSTERESIS_TIME_MS;
-	kbdev->csf.gpu_idle_dur_count = convert_dur_to_idle_count(kbdev,
-						FIRMWARE_IDLE_HYSTERESIS_TIME_MS);
+	kbdev->csf.gpu_idle_dur_count = convert_dur_to_idle_count(
+		kbdev, FIRMWARE_IDLE_HYSTERESIS_TIME_MS);
 
 	kbdev->csf.mcu_core_pwroff_dur_us = DEFAULT_GLB_PWROFF_TIMEOUT_US;
-	kbdev->csf.mcu_core_pwroff_dur_count =
-		convert_dur_to_core_pwroff_count(kbdev, DEFAULT_GLB_PWROFF_TIMEOUT_US);
+	kbdev->csf.mcu_core_pwroff_dur_count = convert_dur_to_core_pwroff_count(
+		kbdev, DEFAULT_GLB_PWROFF_TIMEOUT_US);
 
 	ret = kbase_mcu_shared_interface_region_tracker_init(kbdev);
 	if (ret != 0) {
-		dev_err(kbdev->dev, "Failed to setup the rb tree for managing shared interface segment\n");
+		dev_err(kbdev->dev,
+			"Failed to setup the rb tree for managing shared interface segment\n");
 		goto error;
 	}
 

@@ -38,16 +38,16 @@ ifeq ($(CONFIG_MALI_BASE_MODULES),y)
     CONFIG_MALI_CSF_SUPPORT ?= n
 
     ifneq ($(CONFIG_DMA_SHARED_BUFFER),n)
-        CONFIG_DMA_SHARED_BUFFER_TEST_EXPORTER ?= m
+        CONFIG_DMA_SHARED_BUFFER_TEST_EXPORTER ?= y
     else
         # Prevent misuse when CONFIG_DMA_SHARED_BUFFER=n
         CONFIG_DMA_SHARED_BUFFER_TEST_EXPORTER = n
     endif
 
-    CONFIG_MALI_MEMORY_GROUP_MANAGER ?= m
+    CONFIG_MALI_MEMORY_GROUP_MANAGER ?= y
 
     ifneq ($(CONFIG_MALI_CSF_SUPPORT), n)
-        CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR ?= m
+        CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR ?= y
     endif
 
 else
@@ -66,16 +66,27 @@ CONFIGS := \
     CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR
 
 
-# Find which config options were enabled. $(value config) is the name of the
-# config option (CONFIG_MALI_...), $(value $(value config)) is its value (y, m,
-# or n).
-ENABLED_CONFIGS := $(foreach config,$(CONFIGS),$(if $(filter y m,$(value $(value config))),$(config)))
+#
+# MAKE_ARGS to pass the custom CONFIGs on out-of-tree build
+#
+# Generate the list of CONFIGs and values.
+# $(value config) is the name of the CONFIG option.
+# $(value $(value config)) is its value (y, m).
+# When the CONFIG is not set to y or m, it defaults to n.
+MAKE_ARGS := $(foreach config,$(CONFIGS), \
+                    $(if $(filter y m,$(value $(value config))), \
+                        $(value config)=$(value $(value config)), \
+                        $(value config)=n))
 
-# For each enabled option, generate a command line argument e.g.
-# CONFIG_MALI_BASE_MODULES=y.
-MAKE_ARGS := $(foreach config,$(ENABLED_CONFIGS),$(value config)=$(value $(value config)))
-# For each enabled option, generate a compiler '-DCONFIG_...=$(CONFIG_...)' flag.
-EXTRA_CFLAGS := $(foreach config,$(ENABLED_CONFIGS),-D$(value config)=$(value config))
+#
+# EXTRA_CFLAGS to define the custom CONFIGs on out-of-tree build
+#
+# Generate the list of CONFIGs defines with values from CONFIGS.
+# $(value config) is the name of the CONFIG option.
+# When set to y or m, the CONFIG gets defined to 1.
+EXTRA_CFLAGS := $(foreach config,$(CONFIGS), \
+                    $(if $(filter y m,$(value $(value config))), \
+                        -D$(value config)=1))
 
 all:
 	$(MAKE) -C $(KDIR) M=$(CURDIR) $(MAKE_ARGS) EXTRA_CFLAGS="$(EXTRA_CFLAGS)" KBUILD_EXTRA_SYMBOLS="$(EXTRA_SYMBOLS)" modules

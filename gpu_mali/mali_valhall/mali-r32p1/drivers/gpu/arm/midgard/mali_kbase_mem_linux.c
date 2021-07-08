@@ -3269,10 +3269,8 @@ static unsigned long get_queue_doorbell_pfn(struct kbase_device *kbdev,
 	 * assigned one, otherwise a dummy page. Always return the
 	 * dummy page in no mali builds.
 	 */
-	if ((queue->doorbell_nr == KBASEP_USER_DB_NR_INVALID) ||
-			IS_ENABLED(CONFIG_MALI_NO_MALI))
+	if (queue->doorbell_nr == KBASEP_USER_DB_NR_INVALID)
 		return PFN_DOWN(as_phys_addr_t(kbdev->csf.dummy_db_page));
-
 	return (PFN_DOWN(kbdev->reg_start + CSF_HW_DOORBELL_PAGE_OFFSET +
 			 (u64)queue->doorbell_nr * CSF_HW_DOORBELL_PAGE_SIZE));
 }
@@ -3518,7 +3516,7 @@ static vm_fault_t kbase_csf_user_reg_vm_fault(struct vm_fault *vmf)
 	/* Don't map in the actual register page if GPU is powered down.
 	 * Always map in the dummy page in no mali builds.
 	 */
-	if (!kbdev->pm.backend.gpu_powered || IS_ENABLED(CONFIG_MALI_NO_MALI))
+	if (!kbdev->pm.backend.gpu_powered)
 		pfn = PFN_DOWN(as_phys_addr_t(kbdev->csf.dummy_user_reg_page));
 
 	ret = mgm_dev->ops.mgm_vmf_insert_pfn_prot(mgm_dev,
