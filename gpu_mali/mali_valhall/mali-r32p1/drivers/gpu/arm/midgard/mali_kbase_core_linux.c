@@ -5275,8 +5275,13 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 #if defined(CONFIG_MALI_MTK_GPU_BM_2)
 		mtk_bandwith_resource_init(kbdev);
 #endif
+#if MALI_USE_CSF
 		dev_info(kbdev->dev,
-			"Probed as %s\n", dev_name(kbdev->mdev.this_device));
+			"Probed as %s (CSF)\n", dev_name(kbdev->mdev.this_device));
+#else
+		dev_info(kbdev->dev,
+			"Probed as %s (JM)\n", dev_name(kbdev->mdev.this_device));
+#endif
 #endif /* MALI_KBASE_BUILD */
 		kbase_increment_device_id();
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
