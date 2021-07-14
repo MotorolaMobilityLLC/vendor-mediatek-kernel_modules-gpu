@@ -41,8 +41,6 @@
 
 #include "../../platform/mtk_platform_common.h"
 
-static int kbase_device_csf_firmware_init(struct kbase_device *kbdev);
-
 /**
  * kbase_device_firmware_hwcnt_term - Terminate CSF firmware and HWC
  *
@@ -287,9 +285,6 @@ static const struct kbase_device_init dev_init[] = {
 	  "Late backend initialization failed" },
 	{ kbase_csf_early_init, kbase_csf_early_term,
 	  "Early CSF initialization failed" },
-	/* MTK: load csf firmware when probe */
-	{ kbase_device_csf_firmware_init, NULL,
-	  "Firmware initialization failed" },
 	{ NULL, kbase_device_firmware_hwcnt_term, NULL },
 #ifdef MALI_KBASE_BUILD
 	{ kbase_device_debugfs_init, kbase_device_debugfs_term,
@@ -449,40 +444,10 @@ static int kbase_csf_firmware_deferred_init(struct kbase_device *kbdev)
 	return err;
 }
 
-static int kbase_device_csf_firmware_init(struct kbase_device *kbdev)
-{
-	int ret = 0;
-
-	mutex_lock(&kbdev->fw_load_lock);
-
-	if (!kbdev->csf.firmware_inited) {
-		ret = kbase_csf_firmware_deferred_init(kbdev);
-		if (ret)
-			goto out;
-
-		ret = kbase_device_hwcnt_csf_deferred_init(kbdev);
-		if (ret) {
-			kbase_csf_firmware_term(kbdev);
-			goto out;
-		}
-
-		kbase_csf_debugfs_init(kbdev);
-	}
-
-out:
-	mutex_unlock(&kbdev->fw_load_lock);
-
-	return ret;
-}
-
 int kbase_device_firmware_init_once(struct kbase_device *kbdev)
 {
 	int ret = 0;
-	/* MTK: load firmware here will meet selinux never allow
-	 * coredomain process(Surfaceflinger) can't read vendor file.
-	 * We will load WA firmware when probe.
-	 */
-#if 0
+
 	mutex_lock(&kbdev->fw_load_lock);
 
 	if (!kbdev->csf.firmware_inited) {
@@ -501,6 +466,6 @@ int kbase_device_firmware_init_once(struct kbase_device *kbdev)
 
 out:
 	mutex_unlock(&kbdev->fw_load_lock);
-#endif
+
 	return ret;
 }
