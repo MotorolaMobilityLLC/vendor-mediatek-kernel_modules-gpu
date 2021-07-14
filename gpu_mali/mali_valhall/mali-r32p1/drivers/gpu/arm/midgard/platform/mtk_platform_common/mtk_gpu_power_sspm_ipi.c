@@ -22,22 +22,26 @@ static bool ipi_register_flag;
 
 struct kbase_device *pm_kbdev;
 int gpu_pm_ipi_ackdata;
+#ifdef CONFIG_MALI_SCMI_ENABLE
 static int gpu_pm_id;
 static struct scmi_tinysys_info_st *_tinfo;
-
+#endif
 
 static DEFINE_MUTEX(gpu_pmu_info_lock);
 static void gpu_send_enable_ipi(unsigned int type, unsigned int enable)
 {
-	int ret;
+	int ret = 0;
 	struct gpu_pm_ipi_cmds ipi_cmd;
 	if (!ipi_register_flag) {
 		pr_info("ipi_register_flag fail");
 	}
+
 	ipi_cmd.cmd = type;
 	ipi_cmd.power_statue= enable;
+#ifdef CONFIG_MALI_SCMI_ENABLE
 	ret = scmi_tinysys_common_set(_tinfo->ph, gpu_pm_id,
 			ipi_cmd.cmd, ipi_cmd.power_statue, 0, 0, 0);
+#endif
 	if (ret) {
 		pr_info("gpu_send_enable_ipi %d send fail,ret=%d\n",
 		ipi_cmd.cmd, ret);
@@ -170,10 +174,9 @@ void MTKGPUPower_model_resume(void){
 EXPORT_SYMBOL(MTKGPUPower_model_resume);
 
 int MTKGPUPower_model_init(void) {
+#ifdef CONFIG_MALI_SCMI_ENABLE
 	int ret;
-
 	_tinfo = get_scmi_tinysys_info();
-
 	ret = of_property_read_u32(_tinfo->sdev->dev.of_node, "scmi_gpupm",
 			&gpu_pm_id);
 	ipi_register_flag = true;
@@ -181,6 +184,7 @@ int MTKGPUPower_model_init(void) {
 		pr_info("get scmi_qos fail, ret %d\n", ret);
 		ipi_register_flag = false;
 	}
+#endif
 
 	mtk_ltr_gpu_pmu_start_fp = MTKGPUPower_model_start;
 	mtk_ltr_gpu_pmu_stop_fp = MTKGPUPower_model_stop;
