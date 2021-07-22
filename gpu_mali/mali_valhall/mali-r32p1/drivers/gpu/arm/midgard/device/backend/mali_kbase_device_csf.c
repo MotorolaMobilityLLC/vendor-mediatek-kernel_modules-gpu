@@ -462,6 +462,7 @@ int kbase_device_firmware_init_once(struct kbase_device *kbdev)
 		}
 
 		kbase_csf_debugfs_init(kbdev);
+		dev_info(kbdev->dev, "CSF firmware was initialized successfully\n");
 	}
 
 out:
