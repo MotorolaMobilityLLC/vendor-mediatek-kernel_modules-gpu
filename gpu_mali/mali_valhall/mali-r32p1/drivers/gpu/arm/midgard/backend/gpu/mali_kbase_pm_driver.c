@@ -59,6 +59,14 @@
 #include <ged_log.h>
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <mtk_gpufreq.h>
+#if IS_ENABLED(CONFIG_MTK_IRQ_DBG)
+#include <linux/of_irq.h>
+extern void mt_irq_dump_status(int irq);
+#endif
+#endif
+
 #ifdef CONFIG_MALI_CORESTACK
 bool corestack_driver_control = true;
 #else
@@ -2553,6 +2561,12 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 {
 	struct kbasep_reset_timeout_data rtdata;
 	int ret;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#if IS_ENABLED(CONFIG_MTK_IRQ_DBG)
+	int i;
+	unsigned int irq;
+#endif
+#endif
 
 	KBASE_KTRACE_ADD(kbdev, CORE_GPU_SOFT_RESET, NULL, 0);
 
@@ -2602,6 +2616,25 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		 * interrupts are not getting to the CPU
 		 */
 		dev_err(kbdev->dev, "Reset interrupt didn't reach CPU. Check interrupt assignments.\n");
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		dev_info(kbdev->dev, "GPU_IRQ_RAWSTAT=0x%08x GPU_IRQ_MASK=0x%08x GPU_IRQ_STATUS=0x%08x\n",
+						kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_RAWSTAT)),
+						kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_MASK)),
+						kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_STATUS)));
+#if IS_ENABLED(CONFIG_MTK_IRQ_DBG)
+		for (i = 0; i < 3; i++) {
+			// 0: GPU, 1: MMU, 2: JOB
+			irq = irq_of_parse_and_map(kbdev->dev->of_node, i);
+			if (irq)
+				mt_irq_dump_status(irq);
+		}
+#endif
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+		gpufreq_dump_infra_status();
+#else
+		mt_gpufreq_dump_infra_status();
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+#endif
 		/* If interrupts aren't working we can't continue. */
 		destroy_hrtimer_on_stack(&rtdata.timer);
 		return -EINVAL;
