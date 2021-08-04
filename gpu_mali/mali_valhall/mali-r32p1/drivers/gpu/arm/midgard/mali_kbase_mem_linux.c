@@ -1235,8 +1235,8 @@ retry:
 
 #if defined(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && defined(CONFIG_MTK_GZ_KREE)
 		if (reg->flags & KBASE_REG_PROTECTED) {
-			u32 sec_handle = sg_dma_address(s);
 			struct dma_buf *dma_buf = reg->gpu_alloc->imported.umm.dma_buf;
+			u32 sec_handle = dmabuf_to_secure_handle(dmabuf);
 			enum TRUSTED_MEM_REQ_TYPE sec_mem_type =
 				ion_get_trust_mem_type(dma_buf);
 
