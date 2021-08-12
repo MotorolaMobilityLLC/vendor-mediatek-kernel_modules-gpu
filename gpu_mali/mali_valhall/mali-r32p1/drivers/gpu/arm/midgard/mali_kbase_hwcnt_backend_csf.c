@@ -1797,8 +1797,10 @@ int kbase_hwcnt_backend_csf_metadata_init(
 	 * Dump abstraction size should be exactly the same size and layout as
 	 * the physical dump size, for backwards compatibility.
 	 */
+#if !IS_ENABLED(CONFIG_MALI_MTK_NO_THERMAL)
 	WARN_ON(csf_info->prfcnt_info.dump_bytes !=
 		csf_info->metadata->dump_buf_bytes);
+#endif
 
 	return 0;
 }
