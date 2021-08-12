@@ -41,4 +41,7 @@ extern void (*ged_dvfs_gpu_freq_commit_fp)(unsigned long ui32NewFreqID,
              GED_DVFS_COMMIT_TYPE eCommitType, int *pbCommited);
 #endif
 
+void MTKGPUFreq_change_notify(u32 clk_idx, u32 gpufreq);
+extern void (*mtk_notify_gpu_freq_change_fp)(u32 clk_idx, u32 gpufreq);
+
 #endif /* __MTK_GPU_DVFS_H__ */

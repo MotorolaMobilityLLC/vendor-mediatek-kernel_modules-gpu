@@ -22,6 +22,7 @@
 #include <mali_kbase.h>
 #include "backend/gpu/mali_kbase_clk_rate_trace_mgr.h"
 #include "mali_kbase_csf_ipa_control.h"
+#include "mali_kbase_csf_ipa_control_ex.h"
 
 /*
  * Status flags from the STATUS register of the IPA Control interface.
@@ -314,6 +315,25 @@ kbase_ipa_control_rate_change_notify(struct kbase_clk_rate_listener *listener,
 	}
 }
 
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+		IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+static
+int kbase_ipa_control_rate_change_notify_ex(struct kbase_device *kbdev,
+					       u32 clk_index, u32 clk_rate_hz)
+{
+
+	struct kbase_ipa_control *ipa_ctrl = &kbdev->csf.ipa_control;
+	struct kbase_ipa_control_listener_data *listener_data =
+		ipa_ctrl->rtm_listener_data;
+
+	kbase_ipa_control_rate_change_notify(&listener_data->listener,
+					     clk_index, clk_rate_hz * 1000);
+
+	return 0;
+}
+#endif
+
+
 void kbase_ipa_control_init(struct kbase_device *kbdev)
 {
 	struct kbase_ipa_control *ipa_ctrl = &kbdev->csf.ipa_control;
@@ -329,7 +349,6 @@ void kbase_ipa_control_init(struct kbase_device *kbdev)
 		ipa_ctrl->blocks[i].num_available_counters =
 			KBASE_IPA_CONTROL_NUM_BLOCK_COUNTERS;
 	}
-
 	spin_lock_init(&ipa_ctrl->lock);
 	ipa_ctrl->num_active_sessions = 0;
 	for (i = 0; i < KBASE_IPA_CONTROL_MAX_SESSIONS; i++) {
@@ -353,6 +372,11 @@ void kbase_ipa_control_init(struct kbase_device *kbdev)
 		kbase_clk_rate_trace_manager_subscribe_no_lock(
 			clk_rtm, &listener_data->listener);
 	spin_unlock(&clk_rtm->lock);
+
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	mtk_common_rate_change_notify_fp = kbase_ipa_control_rate_change_notify_ex;
+#endif
 }
 KBASE_EXPORT_TEST_API(kbase_ipa_control_init);
 

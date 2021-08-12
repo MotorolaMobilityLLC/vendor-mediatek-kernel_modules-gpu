@@ -685,9 +685,17 @@ int kbase_get_real_power_locked(struct kbase_device *kbdev, u32 *power,
 		/* time_busy / total_time cannot be >1, so assigning the 64-bit
 		 * result of div_u64 to *power cannot overflow.
 		 */
+
+#if MALI_USE_CSF && IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+		total_time = diff.time_busy[0] + (u64) diff.time_idle[0];
+		*power = div_u64(*power * (u64) diff.time_busy[0],
+				 max(total_time, 1ull));
+#else
 		total_time = diff.time_busy + (u64) diff.time_idle;
 		*power = div_u64(*power * (u64) diff.time_busy,
 				 max(total_time, 1ull));
+#endif
 	}
 
 	*power += get_static_power_locked(kbdev, model,
