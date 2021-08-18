@@ -115,7 +115,7 @@
 #include "platform/mtk_platform_common.h"
 #include <mtk_gpufreq.h>
 
-#if defined(CONFIG_MALI_MTK_GPU_BM_2)
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
 #include <gpu_bm.h>
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
 #include <sspm_reservedmem_define.h>
@@ -123,6 +123,10 @@ static phys_addr_t rec_phys_addr, rec_virt_addr;
 static unsigned long long rec_size;
 struct v1_data *gpu_info_ref;
 #endif
+#endif
+
+#if defined(CONFIG_MALI_MTK_GPU_BM_CSF)
+#include <ged_gpu_bm.h>
 #endif
 
 /* GPU IRQ Tags */
@@ -172,7 +176,7 @@ static mali_kbase_capability_def kbase_caps_table[MALI_KBASE_NUM_CAPS] = {
 #endif
 };
 
-#if defined(CONFIG_MALI_MTK_GPU_BM_2)
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
 static void get_rec_addr(void)
 {
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
@@ -5272,9 +5276,17 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		mtk_common_procfs_init();
 #endif
 
-#if defined(CONFIG_MALI_MTK_GPU_BM_2)
-		mtk_bandwith_resource_init(kbdev);
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+		err = mtk_bandwith_resource_init(kbdev);
+		if (err)
+			pr_info("@%s: GPU BM init failed (JM)\n", __func__);
 #endif
+#if defined(CONFIG_MALI_MTK_GPU_BM_CSF)
+		err = mtk_bandwidth_resource_init();
+		if (err)
+			pr_info("@%s: GPU BM init failed (CSF)\n", __func__);
+#endif
+
 #if MALI_USE_CSF
 		dev_info(kbdev->dev,
 			"Probed as %s (CSF)\n", dev_name(kbdev->mdev.this_device));
