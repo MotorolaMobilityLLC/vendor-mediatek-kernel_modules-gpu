@@ -157,7 +157,7 @@ int kbase_context_common_init(struct kbase_context *kctx)
 #if IS_ENABLED(CONFIG_GPU_TRACEPOINTS)
 	atomic_set(&kctx->jctx.work_id, 0);
 #endif
-#if defined(CONFIG_MALI_MTK_GPU_BM_2)
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
 	atomic_set(&kctx->jctx.work_id, 0);
 #endif
 #endif
