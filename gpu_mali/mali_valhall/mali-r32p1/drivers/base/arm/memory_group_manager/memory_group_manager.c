@@ -362,7 +362,7 @@ static u64 example_mgm_update_gpu_pte(
 	struct mgm_groups *const data = mgm_dev->data;
 	const u32 pbha_bit_pos = 59; /* bits 62:59 */
 	const u32 pbha_bit_mask = 0xf; /* 4-bit */
-	int default_group_id = data->default_group_id != 0?data->default_group_id:group_id;
+	int default_group_id = data->default_group_id != 0?data->default_group_id:6;
 
 	dev_dbg(data->dev,
 		"%s(mgm_dev=%p, group_id=%d, mmu_level=%d, pte=0x%llx)\n",
