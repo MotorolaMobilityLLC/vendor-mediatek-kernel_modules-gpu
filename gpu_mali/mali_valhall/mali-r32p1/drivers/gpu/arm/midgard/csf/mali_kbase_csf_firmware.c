@@ -46,6 +46,11 @@
 #include <mmu/mali_kbase_mmu.h>
 #include <asm/arch_timer.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <mtk_gpufreq.h>
+#include "platform/mtk_platform_common.h"
+#endif
+
 #define MALI_MAX_FIRMWARE_NAME_LEN ((size_t)30)
 
 // for same_process_hal_file label (First device_open)
@@ -276,8 +281,22 @@ static void wait_ready(struct kbase_device *kbdev)
 	while (--max_loops && (val & AS_STATUS_AS_ACTIVE))
 		val = kbase_reg_read(kbdev, MMU_AS_REG(MCU_AS_NR, AS_STATUS));
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	if (max_loops == 0) {
+		dev_info(kbdev->dev, "AS_ACTIVE bit stuck when MCU load the MMU tables\n");
+		if (!mtk_common_gpufreq_bringup()) {
+			mtk_common_debug_dump();
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+			gpufreq_dump_infra_status();
+#else
+			mt_gpufreq_dump_infra_status();
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+		}
+	}
+#else
 	if (max_loops == 0)
 		dev_err(kbdev->dev, "AS_ACTIVE bit stuck, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n");
+#endif
 }
 
 static void unload_mmu_tables(struct kbase_device *kbdev)
