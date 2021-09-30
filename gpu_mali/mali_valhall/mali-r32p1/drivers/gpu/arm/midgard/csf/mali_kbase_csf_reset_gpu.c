@@ -432,12 +432,8 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev,
 		kbase_csf_hwcnt_on_reset_error(kbdev);
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 		if (!mtk_common_gpufreq_bringup()) {
-			mtk_common_debug_dump();
-#if defined(CONFIG_MTK_GPUFREQ_V2)
 			gpufreq_dump_infra_status();
-#else
-			mt_gpufreq_dump_infra_status();
-#endif /* CONFIG_MTK_GPUFREQ_V2 */
+			mtk_common_debug_dump();
 		}
 #endif
 		return err;
@@ -462,12 +458,8 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev,
 		kbase_csf_hwcnt_on_reset_error(kbdev);
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 		if (!mtk_common_gpufreq_bringup()) {
-			mtk_common_debug_dump();
-#if defined(CONFIG_MTK_GPUFREQ_V2)
 			gpufreq_dump_infra_status();
-#else
-			mt_gpufreq_dump_infra_status();
-#endif /* CONFIG_MTK_GPUFREQ_V2 */
+			mtk_common_debug_dump();
 		}
 #endif
 		return err;

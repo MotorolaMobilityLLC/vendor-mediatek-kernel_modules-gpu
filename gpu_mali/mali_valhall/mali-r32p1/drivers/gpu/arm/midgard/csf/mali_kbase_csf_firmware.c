@@ -285,12 +285,8 @@ static void wait_ready(struct kbase_device *kbdev)
 	if (max_loops == 0) {
 		dev_info(kbdev->dev, "AS_ACTIVE bit stuck when MCU load the MMU tables\n");
 		if (!mtk_common_gpufreq_bringup()) {
-			mtk_common_debug_dump();
-#if defined(CONFIG_MTK_GPUFREQ_V2)
 			gpufreq_dump_infra_status();
-#else
-			mt_gpufreq_dump_infra_status();
-#endif /* CONFIG_MTK_GPUFREQ_V2 */
+			mtk_common_debug_dump();
 		}
 	}
 #else
