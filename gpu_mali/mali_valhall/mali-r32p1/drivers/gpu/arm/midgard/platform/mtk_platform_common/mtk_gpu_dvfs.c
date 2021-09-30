@@ -201,10 +201,8 @@ void MTKGPUFreq_change_notify(u32 clk_idx, u32 gpufreq)
 {
 	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
 
-	if (!IS_ERR_OR_NULL(kbdev)) {
-		if (mtk_common_rate_change_notify_fp && kbdev->pm.backend.gpu_ready)
-			mtk_common_rate_change_notify_fp(kbdev, clk_idx, gpufreq);
-	}
+	if (mtk_common_rate_change_notify_fp && !IS_ERR_OR_NULL(kbdev))
+		mtk_common_rate_change_notify_fp(kbdev, clk_idx, gpufreq);
 }
 #endif
 #endif
