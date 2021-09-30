@@ -2694,10 +2694,8 @@ static void program_suspending_csg_slots(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 				if (!mtk_common_gpufreq_bringup()) {
-					mtk_common_debug_dump();
-#if defined(CONFIG_MTK_GPUFREQ_V2)
 					gpufreq_dump_infra_status();
-#endif /* CONFIG_MTK_GPUFREQ_V2 */
+					mtk_common_debug_dump();
 				}
 #endif
 
@@ -3807,10 +3805,8 @@ static void schedule_actions(struct kbase_device *kbdev)
 		dev_err(kbdev->dev, "Wait for MCU power on failed");
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 		if (!mtk_common_gpufreq_bringup()) {
-			mtk_common_debug_dump();
-#if defined(CONFIG_MTK_GPUFREQ_V2)
 			gpufreq_dump_infra_status();
-#endif /* CONFIG_MTK_GPUFREQ_V2 */
+			mtk_common_debug_dump();
 		}
 #endif
 		return;
