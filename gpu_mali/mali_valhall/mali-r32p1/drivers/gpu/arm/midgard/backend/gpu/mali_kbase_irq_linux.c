@@ -69,7 +69,7 @@ static irqreturn_t kbase_job_irq_handler(int irq, void *data)
 		return IRQ_NONE;
 	}
 
-	dev_dbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
+//	dev_dbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
 
 #if MALI_USE_CSF
 	/* call the csf interrupt handler */
@@ -113,7 +113,7 @@ static irqreturn_t kbase_mmu_irq_handler(int irq, void *data)
 		return IRQ_NONE;
 	}
 
-	dev_dbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
+//	dev_dbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
 
 	kbase_mmu_interrupt(kbdev, val);
 
@@ -148,7 +148,7 @@ static irqreturn_t kbase_gpu_irq_handler(int irq, void *data)
 	if (!val)
 		return IRQ_NONE;
 
-	dev_dbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
+//	dev_dbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
 
 	kbase_gpu_interrupt(kbdev, val);
 

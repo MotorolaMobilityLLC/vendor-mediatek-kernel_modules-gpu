@@ -1105,9 +1105,9 @@ void kbase_csf_firmware_cs_input(
 	const struct kbase_csf_cmd_stream_info *const info, const u32 offset,
 	const u32 value)
 {
-	const struct kbase_device * const kbdev = info->kbdev;
+//	const struct kbase_device * const kbdev = info->kbdev;
 
-	dev_dbg(kbdev->dev, "cs input w: reg %08x val %08x\n", offset, value);
+//	dev_dbg(kbdev->dev, "cs input w: reg %08x val %08x\n", offset, value);
 	input_page_write(info->input, offset, value);
 }
 
@@ -1115,10 +1115,10 @@ u32 kbase_csf_firmware_cs_input_read(
 	const struct kbase_csf_cmd_stream_info *const info,
 	const u32 offset)
 {
-	const struct kbase_device * const kbdev = info->kbdev;
+//	const struct kbase_device * const kbdev = info->kbdev;
 	u32 const val = input_page_read(info->input, offset);
 
-	dev_dbg(kbdev->dev, "cs input r: reg %08x val %08x\n", offset, val);
+//	dev_dbg(kbdev->dev, "cs input r: reg %08x val %08x\n", offset, val);
 	return val;
 }
 
@@ -1126,20 +1126,20 @@ void kbase_csf_firmware_cs_input_mask(
 	const struct kbase_csf_cmd_stream_info *const info, const u32 offset,
 	const u32 value, const u32 mask)
 {
-	const struct kbase_device * const kbdev = info->kbdev;
+//	const struct kbase_device * const kbdev = info->kbdev;
 
-	dev_dbg(kbdev->dev, "cs input w: reg %08x val %08x mask %08x\n",
-			offset, value, mask);
+//	dev_dbg(kbdev->dev, "cs input w: reg %08x val %08x mask %08x\n",
+//			offset, value, mask);
 	input_page_partial_write(info->input, offset, value, mask);
 }
 
 u32 kbase_csf_firmware_cs_output(
 	const struct kbase_csf_cmd_stream_info *const info, const u32 offset)
 {
-	const struct kbase_device * const kbdev = info->kbdev;
+//	const struct kbase_device * const kbdev = info->kbdev;
 	u32 const val = output_page_read(info->output, offset);
 
-	dev_dbg(kbdev->dev, "cs output r: reg %08x val %08x\n", offset, val);
+//	dev_dbg(kbdev->dev, "cs output r: reg %08x val %08x\n", offset, val);
 	return val;
 }
 
@@ -1147,10 +1147,10 @@ void kbase_csf_firmware_csg_input(
 	const struct kbase_csf_cmd_stream_group_info *const info,
 	const u32 offset, const u32 value)
 {
-	const struct kbase_device * const kbdev = info->kbdev;
+//	const struct kbase_device * const kbdev = info->kbdev;
 
-	dev_dbg(kbdev->dev, "csg input w: reg %08x val %08x\n",
-			offset, value);
+//	dev_dbg(kbdev->dev, "csg input w: reg %08x val %08x\n",
+//			offset, value);
 	input_page_write(info->input, offset, value);
 }
 
@@ -1158,10 +1158,10 @@ u32 kbase_csf_firmware_csg_input_read(
 	const struct kbase_csf_cmd_stream_group_info *const info,
 	const u32 offset)
 {
-	const struct kbase_device * const kbdev = info->kbdev;
+//	const struct kbase_device * const kbdev = info->kbdev;
 	u32 const val = input_page_read(info->input, offset);
 
-	dev_dbg(kbdev->dev, "csg input r: reg %08x val %08x\n", offset, val);
+//	dev_dbg(kbdev->dev, "csg input r: reg %08x val %08x\n", offset, val);
 	return val;
 }
 
@@ -1169,10 +1169,10 @@ void kbase_csf_firmware_csg_input_mask(
 	const struct kbase_csf_cmd_stream_group_info *const info,
 	const u32 offset, const u32 value, const u32 mask)
 {
-	const struct kbase_device * const kbdev = info->kbdev;
+//	const struct kbase_device * const kbdev = info->kbdev;
 
-	dev_dbg(kbdev->dev, "csg input w: reg %08x val %08x mask %08x\n",
-			offset, value, mask);
+//	dev_dbg(kbdev->dev, "csg input w: reg %08x val %08x mask %08x\n",
+//			offset, value, mask);
 	input_page_partial_write(info->input, offset, value, mask);
 }
 
@@ -1180,10 +1180,10 @@ u32 kbase_csf_firmware_csg_output(
 	const struct kbase_csf_cmd_stream_group_info *const info,
 	const u32 offset)
 {
-	const struct kbase_device * const kbdev = info->kbdev;
+//	const struct kbase_device * const kbdev = info->kbdev;
 	u32 const val = output_page_read(info->output, offset);
 
-	dev_dbg(kbdev->dev, "csg output r: reg %08x val %08x\n", offset, val);
+//	dev_dbg(kbdev->dev, "csg output r: reg %08x val %08x\n", offset, val);
 	return val;
 }
 
@@ -1191,9 +1191,9 @@ void kbase_csf_firmware_global_input(
 	const struct kbase_csf_global_iface *const iface, const u32 offset,
 	const u32 value)
 {
-	const struct kbase_device * const kbdev = iface->kbdev;
+//	const struct kbase_device * const kbdev = iface->kbdev;
 
-	dev_dbg(kbdev->dev, "glob input w: reg %08x val %08x\n", offset, value);
+//	dev_dbg(kbdev->dev, "glob input w: reg %08x val %08x\n", offset, value);
 	input_page_write(iface->input, offset, value);
 }
 
@@ -1201,30 +1201,30 @@ void kbase_csf_firmware_global_input_mask(
 	const struct kbase_csf_global_iface *const iface, const u32 offset,
 	const u32 value, const u32 mask)
 {
-	const struct kbase_device * const kbdev = iface->kbdev;
+//	const struct kbase_device * const kbdev = iface->kbdev;
 
-	dev_dbg(kbdev->dev, "glob input w: reg %08x val %08x mask %08x\n",
-			offset, value, mask);
+//	dev_dbg(kbdev->dev, "glob input w: reg %08x val %08x mask %08x\n",
+//			offset, value, mask);
 	input_page_partial_write(iface->input, offset, value, mask);
 }
 
 u32 kbase_csf_firmware_global_input_read(
 	const struct kbase_csf_global_iface *const iface, const u32 offset)
 {
-	const struct kbase_device * const kbdev = iface->kbdev;
+//	const struct kbase_device * const kbdev = iface->kbdev;
 	u32 const val = input_page_read(iface->input, offset);
 
-	dev_dbg(kbdev->dev, "glob input r: reg %08x val %08x\n", offset, val);
+//	dev_dbg(kbdev->dev, "glob input r: reg %08x val %08x\n", offset, val);
 	return val;
 }
 
 u32 kbase_csf_firmware_global_output(
 	const struct kbase_csf_global_iface *const iface, const u32 offset)
 {
-	const struct kbase_device * const kbdev = iface->kbdev;
+//	const struct kbase_device * const kbdev = iface->kbdev;
 	u32 const val = output_page_read(iface->output, offset);
 
-	dev_dbg(kbdev->dev, "glob output r: reg %08x val %08x\n", offset, val);
+//	dev_dbg(kbdev->dev, "glob output r: reg %08x val %08x\n", offset, val);
 	return val;
 }
 
