@@ -2875,6 +2875,80 @@ static void process_prfcnt_interrupts(struct kbase_device *kbdev, u32 glb_req,
 	}
 }
 
+/**
+ * check_protm_enter_req_complete - Check if PROTM_ENTER request completed
+ *
+ * @kbdev: Instance of a GPU platform device that implements a CSF interface.
+ * @glb_req: Global request register value.
+ * @glb_ack: Global acknowledge register value.
+ *
+ * This function checks if the PROTM_ENTER Global request had completed and
+ * appropriately sends notification about the protected mode entry to components
+ * like IPA, HWC, IPA_CONTROL.
+ */
+static inline void check_protm_enter_req_complete(struct kbase_device *kbdev,
+						  u32 glb_req, u32 glb_ack)
+{
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
+
+	if (likely(!kbdev->csf.scheduler.active_protm_grp))
+		return;
+
+	if (kbdev->protected_mode)
+		return;
+
+	if ((glb_req & GLB_REQ_PROTM_ENTER_MASK) !=
+	    (glb_ack & GLB_REQ_PROTM_ENTER_MASK))
+		return;
+
+	dev_dbg(kbdev->dev, "Protected mode entry interrupt received");
+
+	kbdev->protected_mode = true;
+	kbase_ipa_protection_mode_switch_event(kbdev);
+	kbase_ipa_control_protm_entered(kbdev);
+	kbase_hwcnt_backend_csf_protm_entered(&kbdev->hwcnt_gpu_iface);
+}
+
+/**
+ * process_protm_exit - Handle the protected mode exit interrupt
+ *
+ * @kbdev: Instance of a GPU platform device that implements a CSF interface.
+ * @glb_ack: Global acknowledge register value.
+ *
+ * This function handles the PROTM_EXIT interrupt and sends notification
+ * about the protected mode exit to components like HWC, IPA_CONTROL.
+ */
+static inline void process_protm_exit(struct kbase_device *kbdev, u32 glb_ack)
+{
+	const struct kbase_csf_global_iface *const global_iface =
+		&kbdev->csf.global_iface;
+	struct kbase_csf_scheduler *scheduler =	&kbdev->csf.scheduler;
+
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
+
+	dev_dbg(kbdev->dev, "Protected mode exit interrupt received");
+
+	kbase_csf_firmware_global_input_mask(global_iface, GLB_REQ, glb_ack,
+					     GLB_REQ_PROTM_EXIT_MASK);
+
+	if (likely(scheduler->active_protm_grp)) {
+		KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_EXIT_PROTM,
+					 scheduler->active_protm_grp, 0u);
+		scheduler->apply_pmode_exit_wa = true;
+		scheduler->active_protm_grp = NULL;
+	} else {
+		dev_warn(kbdev->dev, "PROTM_EXIT interrupt after no pmode group");
+	}
+
+	if (!WARN_ON(!kbdev->protected_mode)) {
+		kbdev->protected_mode = false;
+		kbase_ipa_control_protm_exited(kbdev);
+		kbase_hwcnt_backend_csf_protm_exited(&kbdev->hwcnt_gpu_iface);
+	}
+}
+
 void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 {
 	unsigned long flags;
@@ -2905,19 +2979,10 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 					global_iface, GLB_ACK);
 			KBASE_KTRACE_ADD(kbdev, GLB_REQ_ACQ, NULL, glb_req ^ glb_ack);
 
-			if ((glb_req ^ glb_ack) & GLB_REQ_PROTM_EXIT_MASK) {
-				dev_dbg(kbdev->dev, "Protected mode exit interrupt received");
-				kbase_csf_firmware_global_input_mask(
-						global_iface, GLB_REQ, glb_ack,
-						GLB_REQ_PROTM_EXIT_MASK);
-				WARN_ON(!kbase_csf_scheduler_protected_mode_in_use(kbdev));
-				KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_EXIT_PROTM, scheduler->active_protm_grp, 0u);
-				scheduler->active_protm_grp = NULL;
-				kbdev->protected_mode = false;
-				kbase_ipa_control_protm_exited(kbdev);
-				kbase_hwcnt_backend_csf_protm_exited(
-					&kbdev->hwcnt_gpu_iface);
-			}
+			check_protm_enter_req_complete(kbdev, glb_req, glb_ack);
+
+			if ((glb_req ^ glb_ack) & GLB_REQ_PROTM_EXIT_MASK)
+				process_protm_exit(kbdev, glb_ack);
 
 			/* Handle IDLE Hysteresis notification event */
 			if ((glb_req ^ glb_ack) & GLB_REQ_IDLE_EVENT_MASK) {
