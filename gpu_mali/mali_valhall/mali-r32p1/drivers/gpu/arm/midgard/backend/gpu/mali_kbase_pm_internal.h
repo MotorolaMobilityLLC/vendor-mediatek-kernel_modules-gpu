@@ -806,9 +806,6 @@ int kbase_pm_apply_pmode_entry_wa(struct kbase_device *kbdev);
  * kbase_pm_apply_pmode_exit_wa - Apply the WA, after protected mode exit, to
  *                                perform the PDCA switching and then re-enable
  *                                the power control of SC on FW side.
- *                                Caller is supposed to invoke the state machine
- *                                to send the request to FW for taking over
- *                                power control of SC.
  *
  * @kbdev: Device pointer
  *
