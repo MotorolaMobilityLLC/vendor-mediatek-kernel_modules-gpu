@@ -362,6 +362,13 @@ static bool queue_group_idle_locked(struct kbase_queue_group *group)
 		group->run_state == KBASE_CSF_GROUP_SUSPENDED_ON_IDLE);
 }
 
+static bool on_slot_group_idle_locked(struct kbase_queue_group *group)
+{
+	lockdep_assert_held(&group->kctx->kbdev->csf.scheduler.lock);
+
+	return (group->run_state == KBASE_CSF_GROUP_IDLE);
+}
+
 static bool queue_group_scheduled(struct kbase_queue_group *group)
 {
 	return (group->run_state != KBASE_CSF_GROUP_INACTIVE &&
@@ -3314,8 +3321,9 @@ static void scheduler_ctx_scan_groups(struct kbase_device *kbdev,
 		group->scan_seq_num = scheduler->csg_scan_count_for_tick++;
 
 		if (queue_group_idle_locked(group)) {
-			list_add_tail(&group->link_to_schedule,
-				      &scheduler->idle_groups_to_schedule);
+			if (on_slot_group_idle_locked(group))
+				list_add_tail(&group->link_to_schedule,
+					&scheduler->idle_groups_to_schedule);
 			continue;
 		}
 
@@ -3600,7 +3608,7 @@ static void scheduler_scan_idle_groups(struct kbase_device *kbdev)
 	list_for_each_entry_safe(group, n, &scheduler->idle_groups_to_schedule,
 				 link_to_schedule) {
 
-		WARN_ON(!queue_group_idle_locked(group));
+		WARN_ON(!on_slot_group_idle_locked(group));
 
 		if (!scheduler->ngrp_to_schedule) {
 			/* keep the top csg's origin */
@@ -3821,8 +3829,7 @@ static int scheduler_prepare(struct kbase_device *kbdev)
 	/* Adds those idle but runnable groups to the scanout list */
 	scheduler_scan_idle_groups(kbdev);
 
-	/* After adding the idle CSGs, the two counts should be the same */
-	WARN_ON(scheduler->csg_scan_count_for_tick != scheduler->ngrp_to_schedule);
+	WARN_ON(scheduler->csg_scan_count_for_tick < scheduler->ngrp_to_schedule);
 
 	KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_TOP_GRP, scheduler->top_grp,
 			scheduler->num_active_address_spaces |
