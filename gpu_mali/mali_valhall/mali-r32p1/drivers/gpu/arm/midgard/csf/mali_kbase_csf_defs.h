@@ -323,6 +323,7 @@ struct kbase_csf_notification {
  *                    queue.
  * @cs_fatal_info:    Records additional information about the CS fatal event.
  * @cs_fatal:         Records information about the CS fatal event.
+ * @pending:          Indicating whether the queue has new submitted work.
  */
 struct kbase_queue {
 	struct kbase_context *kctx;
@@ -356,6 +357,7 @@ struct kbase_queue {
 	struct work_struct fatal_event_work;
 	u64 cs_fatal_info;
 	u32 cs_fatal;
+	atomic_t pending;
 };
 
 /**
@@ -655,6 +657,7 @@ struct kbase_csf_scheduler_context {
  *                    Link of fatal error is
  *                    &struct_kbase_csf_notification.link.
  *                    @event_lock needs to be held to access this list.
+ * @pending_submission_work: Work item to process pending kicked GPU command queues.
  * @cpu_queue:        CPU queue information. Only be available when DEBUG_FS
  *                    is enabled.
  */
@@ -675,6 +678,7 @@ struct kbase_csf_context {
 	struct vm_area_struct *user_reg_vma;
 	struct kbase_csf_scheduler_context sched;
 	struct list_head error_list;
+	struct work_struct pending_submission_work;
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	struct kbase_csf_cpu_queue_context cpu_queue;
 #endif
