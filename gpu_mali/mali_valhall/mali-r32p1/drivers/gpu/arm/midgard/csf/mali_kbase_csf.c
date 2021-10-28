@@ -526,24 +526,24 @@ static int csf_queue_register_internal(struct kbase_context *kctx,
 	if (reg_ex && reg_ex->ex_buffer_size) {
 		int buf_pages = (reg_ex->ex_buffer_size +
 				 (1 << PAGE_SHIFT) - 1) >> PAGE_SHIFT;
+		struct kbase_va_region *region_ex =
+			kbase_region_tracker_find_region_enclosing_address(kctx,
+									   reg_ex->ex_buffer_base);
 
-		region = kbase_region_tracker_find_region_enclosing_address(
-				kctx, reg_ex->ex_buffer_base);
-		if (kbase_is_region_invalid_or_free(region)) {
+		if (kbase_is_region_invalid_or_free(region_ex)) {
 			ret = -ENOENT;
 			goto out_unlock_vm;
 		}
 
-		if (buf_pages > (region->nr_pages -
-				 ((reg_ex->ex_buffer_base >> PAGE_SHIFT) -
-				 region->start_pfn))) {
+		if (buf_pages > (region_ex->nr_pages -
+				 ((reg_ex->ex_buffer_base >> PAGE_SHIFT) - region_ex->start_pfn))) {
 			ret = -EINVAL;
 			goto out_unlock_vm;
 		}
 
-		region = kbase_region_tracker_find_region_enclosing_address(
-				kctx, reg_ex->ex_offset_var_addr);
-		if (kbase_is_region_invalid_or_free(region)) {
+		region_ex = kbase_region_tracker_find_region_enclosing_address(
+			kctx, reg_ex->ex_offset_var_addr);
+		if (kbase_is_region_invalid_or_free(region_ex)) {
 			ret = -ENOENT;
 			goto out_unlock_vm;
 		}
@@ -578,6 +578,8 @@ static int csf_queue_register_internal(struct kbase_context *kctx,
 	queue->sb_status = 0;
 	queue->blocked_reason = CS_STATUS_BLOCKED_REASON_REASON_UNBLOCKED;
 
+	atomic_set(&queue->pending, 0);
+
 	INIT_LIST_HEAD(&queue->link);
 	INIT_LIST_HEAD(&queue->error.link);
 	INIT_WORK(&queue->oom_event_work, oom_event_worker);
@@ -585,6 +587,7 @@ static int csf_queue_register_internal(struct kbase_context *kctx,
 	list_add(&queue->link, &kctx->csf.queue_list);
 
 	region->flags |= KBASE_REG_NO_USER_FREE;
+	region->user_data = queue;
 
 	/* Initialize the cs_trace configuration parameters, When buffer_size
 	 * is 0, trace is disabled. Here we only update the fields when
@@ -683,10 +686,11 @@ void kbase_csf_queue_terminate(struct kbase_context *kctx,
 			/* After this the Userspace would be able to free the
 			 * memory for GPU queue. In case the Userspace missed
 			 * terminating the queue, the cleanup will happen on
-			 * context termination where teardown of region tracker
+			 * context termination where tear down of region tracker
 			 * would free up the GPU queue memory.
 			 */
 			queue->queue_reg->flags &= ~KBASE_REG_NO_USER_FREE;
+			queue->queue_reg->user_data = NULL;
 		}
 		kbase_gpu_vm_unlock(kctx);
 
@@ -777,6 +781,48 @@ static struct kbase_queue_group *get_bound_queue_group(
 	return group;
 }
 
+/**
+ * pending_submission_worker() - Work item to process pending kicked GPU command queues.
+ *
+ * @work: Pointer to pending_submission_work.
+ *
+ * This function starts all pending queues, for which the work
+ * was previously submitted via ioctl call from application thread.
+ * If the queue is already scheduled and resident, it will be started
+ * right away, otherwise once the group is made resident.
+ */
+static void pending_submission_worker(struct work_struct *work)
+{
+	struct kbase_context *kctx =
+		container_of(work, struct kbase_context, csf.pending_submission_work);
+	struct kbase_device *kbdev = kctx->kbdev;
+	struct kbase_queue *queue;
+	int err = kbase_reset_gpu_prevent_and_wait(kbdev);
+
+	if (err) {
+		dev_dbg(kbdev->dev, "Unsuccessful GPU reset detected when kicking queue ");
+		return;
+	}
+
+	mutex_lock(&kctx->csf.lock);
+
+	/* Iterate through the queue list and schedule the pending ones for submission. */
+	list_for_each_entry(queue, &kctx->csf.queue_list, link) {
+		if (atomic_cmpxchg(&queue->pending, 1, 0) == 1) {
+			struct kbase_queue_group *group = get_bound_queue_group(queue);
+
+			if (!group || queue->bind_state != KBASE_CSF_QUEUE_BOUND)
+				dev_dbg(kbdev->dev, "queue is not bound to a group");
+			else
+				WARN_ON(kbase_csf_scheduler_queue_start(queue));
+		}
+	}
+
+	mutex_unlock(&kctx->csf.lock);
+
+	kbase_reset_gpu_allow(kbdev);
+}
+
 void kbase_csf_ring_csg_doorbell(struct kbase_device *kbdev, int slot)
 {
 	if (WARN_ON(slot < 0))
@@ -842,40 +888,44 @@ void kbase_csf_ring_cs_kernel_doorbell(struct kbase_device *kbdev,
 		kbase_csf_ring_csg_doorbell(kbdev, csg_nr);
 }
 
+static void enqueue_gpu_submission_work(struct kbase_context *const kctx)
+{
+	queue_work(system_highpri_wq, &kctx->csf.pending_submission_work);
+}
+
 int kbase_csf_queue_kick(struct kbase_context *kctx,
 			 struct kbase_ioctl_cs_queue_kick *kick)
 {
 	struct kbase_device *kbdev = kctx->kbdev;
-	struct kbase_queue_group *group;
-	struct kbase_queue *queue;
+	bool trigger_submission = false;
+	struct kbase_va_region *region;
 	int err = 0;
 
-	err = kbase_reset_gpu_prevent_and_wait(kbdev);
-	if (err) {
-		dev_warn(
-			kbdev->dev,
-			"Unsuccessful GPU reset detected when kicking queue (buffer_addr=0x%.16llx)",
-			kick->buffer_gpu_addr);
-		return err;
-	}
+	/* GPU work submission happening asynchronously to prevent the contention with
+	 * scheduler lock and as the result blocking application thread. For this reason,
+	 * the vm_lock is used here to get the reference to the queue based on its buffer_gpu_addr
+	 * from the context list of active va_regions.
+	 * Once the target queue is found the pending flag is set to one atomically avoiding
+	 * a race between submission ioctl thread and the work item.
+	 */
+	kbase_gpu_vm_lock(kctx);
+	region = kbase_region_tracker_find_region_enclosing_address(kctx, kick->buffer_gpu_addr);
+	if (!kbase_is_region_invalid_or_free(region)) {
+		struct kbase_queue *queue = region->user_data;
 
-	mutex_lock(&kctx->csf.lock);
-	queue = find_queue(kctx, kick->buffer_gpu_addr);
-	if (!queue)
-		err = -EINVAL;
-
-	if (!err) {
-		group = get_bound_queue_group(queue);
-		if (!group) {
-			dev_err(kctx->kbdev->dev, "queue not bound\n");
-			err = -EINVAL;
+		if (queue) {
+			atomic_cmpxchg(&queue->pending, 0, 1);
+			trigger_submission = true;
 		}
+	} else {
+		dev_dbg(kbdev->dev,
+			"Attempt to kick GPU queue without a valid command buffer region");
+		err = -EFAULT;
 	}
+	kbase_gpu_vm_unlock(kctx);
 
-	if (!err)
-		err = kbase_csf_scheduler_queue_start(queue);
-	mutex_unlock(&kctx->csf.lock);
-	kbase_reset_gpu_allow(kbdev);
+	if (likely(trigger_submission))
+		enqueue_gpu_submission_work(kctx);
 
 	return err;
 }
@@ -1738,9 +1788,11 @@ int kbase_csf_ctx_init(struct kbase_context *kctx)
 			if (likely(!err)) {
 				err = kbase_csf_tiler_heap_context_init(kctx);
 
-				if (likely(!err))
+				if (likely(!err)) {
 					mutex_init(&kctx->csf.lock);
-				else
+					INIT_WORK(&kctx->csf.pending_submission_work,
+						  pending_submission_worker);
+				} else
 					kbase_csf_kcpu_queue_context_term(kctx);
 			}
 
@@ -1835,7 +1887,10 @@ void kbase_csf_ctx_term(struct kbase_context *kctx)
 	else
 		reset_prevented = true;
 
+	cancel_work_sync(&kctx->csf.pending_submission_work);
+
 	mutex_lock(&kctx->csf.lock);
+
 	/* Iterate through the queue groups that were not terminated by
 	 * userspace and issue the term request to firmware for them.
 	 */
