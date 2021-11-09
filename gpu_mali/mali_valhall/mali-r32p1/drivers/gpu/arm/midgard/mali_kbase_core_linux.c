@@ -4866,6 +4866,10 @@ void kbase_device_debugfs_term(struct kbase_device *kbdev)
 #endif /* CONFIG_DEBUG_FS */
 #endif /* MALI_KBASE_BUILD */
 
+static u32 config_system_coherency;
+module_param(config_system_coherency, uint, 0444);
+MODULE_PARM_DESC(config_system_coherency, ".");
+
 int kbase_device_coherency_init(struct kbase_device *kbdev)
 {
 #if IS_ENABLED(CONFIG_OF)
@@ -4899,7 +4903,7 @@ int kbase_device_coherency_init(struct kbase_device *kbdev)
 	coherency_override_dts = of_get_property(kbdev->dev->of_node,
 						"system-coherency",
 						NULL);
-	if (coherency_override_dts) {
+	if (coherency_override_dts && config_system_coherency == 0) {
 
 		override_coherency = be32_to_cpup(coherency_override_dts);
 
@@ -4933,6 +4937,7 @@ int kbase_device_coherency_init(struct kbase_device *kbdev)
 
 	kbdev->gpu_props.props.raw_props.coherency_mode =
 		kbdev->system_coherency;
+	config_system_coherency = kbdev->system_coherency;
 
 	return 0;
 }
