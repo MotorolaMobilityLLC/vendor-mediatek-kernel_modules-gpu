@@ -67,7 +67,7 @@ static int pm_callback_power_on_nolock(struct kbase_device *kbdev)
 #if defined(CONFIG_MTK_GPUFREQ_V2)
 	if (mtk_common_gpufreq_bringup()) {
 		mtk_common_pm_mfg_active();
-		return 1;
+		return 0;
 	}
 
 	if (!gpufreq_power_ctrl_enable()) {
@@ -75,7 +75,7 @@ static int pm_callback_power_on_nolock(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 		ged_dvfs_gpu_clock_switch_notify(1);
 #endif
-		return 1;
+		return 0;
 	}
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
 
@@ -90,7 +90,7 @@ static int pm_callback_power_on_nolock(struct kbase_device *kbdev)
 #if defined(CONFIG_MTK_GPUFREQ_V2)
 	if (gpufreq_power_control(POWER_ON) < 0) {
 		dev_info(kbdev->dev, "GPU PM Callback - Power On Failed");
-		return 0;
+		return 1;
 	}
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
 
@@ -116,7 +116,7 @@ static int pm_callback_power_on_nolock(struct kbase_device *kbdev)
 
 	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_5);
 
-	return 1;
+	return 0;
 }
 
 static void pm_callback_power_off_nolock(struct kbase_device *kbdev)
