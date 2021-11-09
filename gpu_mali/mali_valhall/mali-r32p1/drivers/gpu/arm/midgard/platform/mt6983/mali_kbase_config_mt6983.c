@@ -9,6 +9,7 @@
 #include <linux/device.h>
 #include <linux/delay.h>
 #include <linux/spinlock.h>
+#include <linux/pm_qos.h>
 #include <mali_kbase.h>
 #include <mali_kbase_defs.h>
 #include <mali_kbase_config.h>
@@ -26,6 +27,7 @@
 
 DEFINE_MUTEX(g_mfg_lock);
 static int g_cur_opp_idx;
+static struct pm_qos_request g_qos_request;
 
 enum gpu_dvfs_status_step {
 	GPU_DVFS_STATUS_STEP_1 = 0x1,
@@ -172,6 +174,10 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 {
 	int ret = 0;
 
+	if (kbdev->gpu_props.props.raw_props.coherency_mode == COHERENCY_ACE_LITE) {
+		cpu_latency_qos_update_request(&g_qos_request, 149);
+	}
+
 	mutex_lock(&g_mfg_lock);
 	ret = pm_callback_power_on_nolock(kbdev);
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
@@ -192,6 +198,10 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 #endif
 	pm_callback_power_off_nolock(kbdev);
 	mutex_unlock(&g_mfg_lock);
+
+	if (kbdev->gpu_props.props.raw_props.coherency_mode == COHERENCY_ACE_LITE) {
+		cpu_latency_qos_update_request(&g_qos_request, PM_QOS_DEFAULT_VALUE);
+	}
 }
 
 static void pm_callback_power_suspend(struct kbase_device *kbdev)
@@ -248,10 +258,15 @@ int mtk_platform_device_init(struct kbase_device *kbdev)
 		return -1;
 	}
 
+	cpu_latency_qos_add_request(&g_qos_request,
+		PM_QOS_DEFAULT_VALUE);
+
 	gpu_dvfs_status_reset_footprint();
 	dev_info(kbdev->dev, "GPU PM Callback - Initialize Done");
 
 	return 0;
 }
 
-void mtk_platform_device_term(struct kbase_device *kbdev) { }
+void mtk_platform_device_term(struct kbase_device *kbdev) {
+	cpu_latency_qos_remove_request(&g_qos_request);
+}
