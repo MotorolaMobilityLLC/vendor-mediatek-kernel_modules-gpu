@@ -41,6 +41,7 @@
 #include <mmu/mali_kbase_mmu_internal.h>
 #include <mali_kbase_cs_experimental.h>
 #include <device/mali_kbase_device.h>
+#include <backend/gpu/mali_kbase_pm_internal.h>
 
 #include <mali_kbase_trace_gpu_mem.h>
 #define KBASE_MMU_PAGE_ENTRIES 512
@@ -1607,6 +1608,9 @@ static void kbase_mmu_flush_invalidate_as(struct kbase_device *kbdev,
 		 */
 		return;
 	}
+
+	/* Make sure L2 cache is powered up */
+	kbase_pm_wait_for_desired_state(kbdev);
 
 	/* AS transaction begin */
 	mutex_lock(&kbdev->mmu_hw_mutex);
