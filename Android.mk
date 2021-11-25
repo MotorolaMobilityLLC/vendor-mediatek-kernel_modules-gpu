@@ -30,7 +30,7 @@ GPU_OPTS += CONFIG_MALI_PMU_LP4=y
 GPU_OPTS += CONFIG_MALI_MTK_DEVFREQ=y
 GPU_OPTS += CONFIG_MALI_MTK_DEVFREQ_THERMAL=y
 GPU_OPTS += CONFIG_MALI_MTK_GPU_BM_2=y
-GPU_OPTS += CONFIG_MALI_PMU_LP4=y
+GPU_OPTS += CONFIG_MALI_SCMI_ENABLE=y
 include $(LOCAL_PATH_B)/gpu_$(word 1,$(subst _, ,$(LOCAL_MTK_GPU_VERSION)))/mali_$(word 2,$(subst _, ,$(LOCAL_MTK_GPU_VERSION)))/mali-$(word 3,$(subst _, ,$(LOCAL_MTK_GPU_VERSION)))/drivers/gpu/arm/midgard/Android.mk
 
 
