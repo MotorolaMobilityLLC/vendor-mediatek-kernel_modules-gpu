@@ -3014,17 +3014,15 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 {
 	unsigned long flags;
 	u32 remaining = val;
-	ktime_t start, spin_start;
-	s64 diff_us;
+	ktime_t spin_start;
 
-	start = ktime_get();
+	kbdev->csf.csf_interrupt_start_tm = ktime_get();
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
 	KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT, NULL, val);
 	kbase_reg_write(kbdev, JOB_CONTROL_REG(JOB_IRQ_CLEAR), val);
 
-	kbdev->csf.job_irq_val = val;
 	kbdev->csf.glb_start_tm = ktime_get();
 
 	if (val & JOB_IRQ_GLOBAL_IF) {
@@ -3096,24 +3094,11 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 		}
 
 		if (!remaining) {
-			diff_us = ktime_to_us(ktime_sub(ktime_get(), start));
 			kbdev->csf.glb_end_tm = ktime_get();
-			// cout glb information if execution time exceed 100ms
-			if(diff_us > (5 * 1000)) {
-				dev_info(kbdev->dev,
-					"kbase_job_irq_handler long hit no csg %lld us\n",
-					diff_us);
-				dev_info(kbdev->dev,
-					"total glb interrupt, duration: %lld us, req: 0x%x, ack: 0x%x\n",
-					ktime_to_us(ktime_sub(kbdev->csf.glb_end_tm, kbdev->csf.glb_start_tm)),
-					kbdev->csf.glb_req,
-					kbdev->csf.glb_ack);
-				dev_info(kbdev->dev,
-					"csf_scheduler_spin_lock duration %lld us\n",
-					kbdev->csf.spin_delta_us_1);
-			}
+			kbdev->csf.csg_remaining = 0;
 			wake_up_all(&kbdev->csf.event_wait);
 			KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT_END, NULL, val);
+			kbdev->csf.csf_interrupt_end_tm = ktime_get();
 			return;
 		}
 	}
@@ -3133,39 +3118,9 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 	}
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 
-	diff_us = ktime_to_us(ktime_sub(ktime_get(), start));
-	// cout glb, csg/cs information if execution time exceed 100ms
-	if(diff_us > (5 * 1000)) {
-		dev_info(kbdev->dev,
-			"kbase_job_irq_handler long hit %lld us\n",
-			diff_us);
-		dev_info(kbdev->dev,
-			"total glb interrupt, duration: %lld us, req: 0x%x, ack: 0x%x\n",
-			ktime_to_us(ktime_sub(kbdev->csf.glb_end_tm, kbdev->csf.glb_start_tm)),
-			kbdev->csf.glb_req,
-			kbdev->csf.glb_ack);
-
-		remaining = kbdev->csf.csg_remaining;
-		while(remaining != 0) {
-			int const i = ffs(remaining) - 1;
-			dev_info(kbdev->dev,
-				"csg[%d] interrupt, duration: %lld us, req: 0x%x, ack: 0x%x, irqreq: 0x%x, irqack: 0x%x\n",
-				i,
-				ktime_to_us(ktime_sub(kbdev->csf.csg_end_tm[i], kbdev->csf.csg_start_tm[i])),
-				kbdev->csf.csg_req[i],
-				kbdev->csf.csg_ack[i],
-				kbdev->csf.csg_irqreq[i],
-				kbdev->csf.csg_irqack[i]);
-			remaining &= ~(1 << i);
-		}
-		dev_info(kbdev->dev,
-			"csf_scheduler_spin_lock duration: %lld us, %lld us\n",
-			kbdev->csf.spin_delta_us_1,
-			kbdev->csf.spin_delta_us_2);
-	}
-
 	wake_up_all(&kbdev->csf.event_wait);
 	KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT_END, NULL, val);
+	kbdev->csf.csf_interrupt_end_tm = ktime_get();
 }
 
 void kbase_csf_doorbell_mapping_term(struct kbase_device *kbdev)
