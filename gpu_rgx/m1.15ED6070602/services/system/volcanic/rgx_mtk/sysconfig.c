@@ -20,8 +20,6 @@
 /* MTK */
 #include "mtk_mfgsys.h"
 
-#define RGX_CR_ISP_GRIDOFFSET   (0x0FA0U)
-
 static RGX_TIMING_INFORMATION   gsRGXTimingInfo;
 static RGX_DATA                 gsRGXData;
 static PVRSRV_DEVICE_CONFIG     gsDevices[1];
@@ -31,37 +29,38 @@ static PHYS_HEAP_CONFIG         gsPhysHeapConfig;
 static struct platform_device   *gpsPVRCfgDev;
 
 /* CPU to Device physcial address translation */
-static void UMAPhysHeapCpuPAddrToDevPAddr(IMG_HANDLE hPrivData,
-				   IMG_UINT32 ui32NumOfAddr,
-				   IMG_DEV_PHYADDR *psDevPAddr,
-				   IMG_CPU_PHYADDR *psCpuPAddr)
+static void UMAPhysHeapCpuPAddrToDevPAddr(
+	IMG_HANDLE hPrivData,
+	IMG_UINT32 ui32NumOfAddr,
+	IMG_DEV_PHYADDR *psDevPAddr,
+	IMG_CPU_PHYADDR *psCpuPAddr)
 {
 	PVR_UNREFERENCED_PARAMETER(hPrivData);
+	IMG_UINT32 ui32Idx;
 
 	/* Optimise common case */
 	psDevPAddr[0].uiAddr = psCpuPAddr[0].uiAddr;
 
 	if (ui32NumOfAddr > 1) {
-		IMG_UINT32 ui32Idx;
-
 		for (ui32Idx = 1; ui32Idx < ui32NumOfAddr; ++ui32Idx)
 			psDevPAddr[ui32Idx].uiAddr = psCpuPAddr[ui32Idx].uiAddr;
 	}
 }
 
 /* Device to CPU physcial address translation */
-static void UMAPhysHeapDevPAddrToCpuPAddr(IMG_HANDLE hPrivData,
-				   IMG_UINT32 ui32NumOfAddr,
-				   IMG_CPU_PHYADDR *psCpuPAddr,
-				   IMG_DEV_PHYADDR *psDevPAddr)
+static void UMAPhysHeapDevPAddrToCpuPAddr(
+	IMG_HANDLE hPrivData,
+	IMG_UINT32 ui32NumOfAddr,
+	IMG_CPU_PHYADDR *psCpuPAddr,
+	IMG_DEV_PHYADDR *psDevPAddr)
 {
 	PVR_UNREFERENCED_PARAMETER(hPrivData);
+	IMG_UINT32 ui32Idx;
 
 	/* Optimise common case */
 	psCpuPAddr[0].uiAddr = psDevPAddr[0].uiAddr;
-	if (ui32NumOfAddr > 1) {
-		IMG_UINT32 ui32Idx;
 
+	if (ui32NumOfAddr > 1) {
 		for (ui32Idx = 1; ui32Idx < ui32NumOfAddr; ++ui32Idx)
 			psCpuPAddr[ui32Idx].uiAddr = psDevPAddr[ui32Idx].uiAddr;
 	}
@@ -79,57 +78,55 @@ PVRSRV_ERROR SysDevInit(void *pvOSDevice, PVRSRV_DEVICE_CONFIG **ppsDevConfig)
 	gsPhysHeapConfig.eType = PHYS_HEAP_TYPE_UMA;
 	gsPhysHeapConfig.psMemFuncs = &gsPhysHeapFuncs;
 	gsPhysHeapConfig.hPrivData = (IMG_HANDLE)&gsDevices[0];
-	// [TIM] hack
 	gsPhysHeapConfig.ui32UsageFlags = PHYS_HEAP_USAGE_GPU_LOCAL;
 
 	gsDevices[0].pvOSDevice = pvOSDevice;
 	gsDevices[0].pasPhysHeaps = &gsPhysHeapConfig;
+	gsDevices[0].ui32PhysHeapCount = sizeof(gsPhysHeapConfig) / sizeof(PHYS_HEAP_CONFIG);
 
-	gsDevices[0].ui32PhysHeapCount =
-			sizeof(gsPhysHeapConfig) / sizeof(PHYS_HEAP_CONFIG);
-
-	/* Setup RGX specific timing data */
+	/* set GPU init frequency */
 	gsRGXTimingInfo.ui32CoreClockSpeed = RGX_HW_CORE_CLOCK_SPEED;
 
+#if defined(MTK_PM_POLICY_AO)
+	gsRGXTimingInfo.bEnableActivePM = false;
+#else
 	gsRGXTimingInfo.bEnableActivePM = true;
 	gsRGXTimingInfo.ui32ActivePMLatencyms = SYS_RGX_ACTIVE_POWER_LATENCY_MS,
+#endif /* MTK_PM_POLICY_AO */
 
-	/* define HW APM */
 #if defined(MTK_USE_HW_APM)
 	gsRGXTimingInfo.bEnableRDPowIsland = true;
 #else
 	gsRGXTimingInfo.bEnableRDPowIsland = false;
-#endif
+#endif /* MTK_USE_HW_APM */
 
-	/* Setup RGX specific data */
+	/* set GPU PM info */
 	gsRGXData.psRGXTimingInfo = &gsRGXTimingInfo;
 
-	/* Setup RGX device */
+	/* set RGX device */
 	gsDevices[0].pszName = "RGX";
 	gsDevices[0].pszVersion = NULL;
 
 	gpsPVRCfgDev = to_platform_device((struct device *)pvOSDevice);
-	irq_res = platform_get_resource(gpsPVRCfgDev, IORESOURCE_IRQ, 0);
 
+	/* setup IRQ from dts */
+	irq_res = platform_get_resource(gpsPVRCfgDev, IORESOURCE_IRQ, 0);
 	if (irq_res) {
 		gsDevices[0].ui32IRQ = irq_res->start;
-		PVR_LOG(("irq_res = 0x%x", (int)irq_res->start));
+		PVR_LOG(("irq_res = 0x%llx", irq_res->start));
 	} else {
-		PVR_DPF((PVR_DBG_ERROR, "irq_res = NULL!"));
+		MTK_LOGE("irq_res = NULL");
 		return PVRSRV_ERROR_INIT_FAILURE;
 	}
 
+	/* setup register base from dts */
 	reg_res = platform_get_resource(gpsPVRCfgDev, IORESOURCE_MEM, 0);
-
 	if (reg_res) {
 		gsDevices[0].sRegsCpuPBase.uiAddr = reg_res->start;
 		gsDevices[0].ui32RegsSize = resource_size(reg_res);
-
-		PVR_LOG(("reg_res = 0x%x, 0x%x",
-				(int)reg_res->start,
-				(int)resource_size(reg_res)));
+		PVR_LOG(("reg_res = 0x%llx, size = 0x%x", reg_res->start, resource_size(reg_res)));
 	} else {
-		PVR_DPF((PVR_DBG_ERROR, "reg_res = NULL!"));
+		MTK_LOGE("reg_res = NULL");
 		return PVRSRV_ERROR_INIT_FAILURE;
 	}
 
@@ -137,11 +134,11 @@ PVRSRV_ERROR SysDevInit(void *pvOSDevice, PVRSRV_DEVICE_CONFIG **ppsDevConfig)
 	gsDevices[0].sAltRegsGpuPBase.uiAddr = 0x7F000000;
 #endif
 
-	/* Power management on HW system */
+	/* power management on HW system */
 	gsDevices[0].pfnPrePowerState = MTKSysPrePowerState;
 	gsDevices[0].pfnPostPowerState = MTKSysPostPowerState;
 
-	/* Clock frequency */
+	/* clock frequency */
 	gsDevices[0].pfnClockFreqGet = NULL;
 
 	gsDevices[0].hDevData = &gsRGXData;
@@ -162,6 +159,12 @@ PVRSRV_ERROR SysDevInit(void *pvOSDevice, PVRSRV_DEVICE_CONFIG **ppsDevConfig)
 	*ppsDevConfig = &gsDevices[0];
 
 	err = MTKRGXDeviceInit(gsDevices);
+
+	MTK_LOGI("ActivePM: %s, ActivePMLatency: %d ms, HWAPM: %s",
+		gsRGXTimingInfo.bEnableActivePM ? "enable" : "disable",
+		gsRGXTimingInfo.ui32ActivePMLatencyms,
+		gsRGXTimingInfo.bEnableRDPowIsland ? "enable" : "disable");
+
 	return err;
 }
 
