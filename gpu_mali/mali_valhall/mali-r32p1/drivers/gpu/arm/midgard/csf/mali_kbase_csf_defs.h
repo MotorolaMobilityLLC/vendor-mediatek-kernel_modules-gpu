@@ -323,6 +323,9 @@ struct kbase_csf_notification {
  *                    queue.
  * @cs_fatal_info:    Records additional information about the CS fatal event.
  * @cs_fatal:         Records information about the CS fatal event.
+ * @extract_ofs: The current EXTRACT offset, this is updated during certain
+ *               events such as GPU idle IRQ in order to help detect a
+ *               queue's true idle status.
  * @pending:          Indicating whether the queue has new submitted work.
  */
 struct kbase_queue {
@@ -357,6 +360,7 @@ struct kbase_queue {
 	struct work_struct fatal_event_work;
 	u64 cs_fatal_info;
 	u32 cs_fatal;
+	u64 extract_ofs;
 	atomic_t pending;
 };
 
@@ -816,11 +820,19 @@ struct kbase_csf_csg_slot {
  * @apply_pmode_exit_wa:    Flag to indicate that exit from protected mode has
  *                          happened and a platform specific workaround needs to
  *                          be applied.
- * @gpu_idle_fw_timer_enabled: Whether the CSF scheduler has activiated the
- *                            firmware idle hysteresis timer for preparing a
- *                            GPU suspend on idle.
+ *                          This pointer is set and PROTM_ENTER request is sent
+ *                          atomically with @interrupt_lock held.
+ *                          This pointer being set doesn't necessarily indicates
+ *                          that GPU is in protected mode, kbdev->protected_mode
+ *                          needs to be checked for that.
+ * @idle_wq:                Workqueue for executing GPU idle notification
+ *                          handler.
  * @gpu_idle_work:          Work item for facilitating the scheduler to bring
  *                          the GPU to a low-power mode on becoming idle.
+ * @gpu_no_longer_idle:     Effective only when the GPU idle worker has been
+ *                          queued for execution, this indicates whether the
+ *                          GPU has become non-idle since the last time the
+ *                          idle notification was received.
  * @non_idle_offslot_grps:  Count of off-slot non-idle groups. Reset during
  *                          the scheduler active phase in a tick. It then
  *                          tracks the count of non-idle groups across all the
@@ -874,8 +886,9 @@ struct kbase_csf_scheduler {
 	struct kbase_queue_group *active_protm_grp;
 	struct work_struct pmode_exit_wa_work;
 	bool apply_pmode_exit_wa;
-	bool gpu_idle_fw_timer_enabled;
+	struct workqueue_struct *idle_wq;
 	struct work_struct gpu_idle_work;
+	atomic_t gpu_no_longer_idle;
 	atomic_t non_idle_offslot_grps;
 	u32 non_idle_scanout_grps;
 	u32 pm_active_count;
