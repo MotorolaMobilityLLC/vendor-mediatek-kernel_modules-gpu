@@ -49,6 +49,7 @@ ifeq ($(BUILD_RULE),OOT)
     CONFIG_MALI_MTK_GPU_BM_2 := y
     CONFIG_MALI_PMU_LP4 := y
     CONFIG_MALI_SCMI_ENABLE := y
+    CONFIG_MALI_MTK_DUMMY_CM := y
     endif
 
     ifeq ($(MTK_PLATFORM_VERSION),mt6895)
