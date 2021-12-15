@@ -5,6 +5,7 @@
 
 /* LINUX */
 #include <linux/module.h>
+#include <linux/dma-mapping.h>
 /* RGX */
 #include "ospvr_gputrace.h"
 #include "rgxdevice.h"
@@ -216,6 +217,10 @@ PVRSRV_ERROR MTKRGXDeviceInit(PVRSRV_DEVICE_CONFIG *psDevConfig)
 	/* user must be registered before monitor GPU utilization */
 	if (ghRGXUtilUser == NULL)
 		SORgxGpuUtilStatsRegister(&ghRGXUtilUser);
+
+	/* set bit mask to 64-bit to pass "dma_capable" check */
+	dma_set_mask(psDevConfig->pvOSDevice, DMA_BIT_MASK(64));
+	dma_set_coherent_mask(psDevConfig->pvOSDevice, DMA_BIT_MASK(64));
 
 	return PVRSRV_OK;
 }
