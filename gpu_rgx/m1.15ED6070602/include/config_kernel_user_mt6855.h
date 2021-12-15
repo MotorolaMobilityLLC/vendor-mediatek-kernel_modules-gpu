@@ -172,6 +172,7 @@
 #define PVRSRV_RGX_LOG2_CLIENT_CCB_MAX_SIZE_TDM 17
 #define ANDROID
 #define SUPPORT_ION
+#define DMABUF_DEFAULT_HEAP_NAME "system"
 #define PVR_ANDROID_ION_HEADER "linux/ion.h"
 #define PVR_ANDROID_ION_PRIV_HEADER "../drivers/gpu/ion/ion_priv.h"
 #define PVR_ANDROID_SYNC_HEADER "linux/sync.h"
