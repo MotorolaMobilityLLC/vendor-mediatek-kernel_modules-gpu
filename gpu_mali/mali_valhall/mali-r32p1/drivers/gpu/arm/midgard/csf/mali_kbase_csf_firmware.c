@@ -27,6 +27,7 @@
 #include "mali_kbase_reset_gpu.h"
 #include "mali_kbase_ctx_sched.h"
 #include "mali_kbase_csf_scheduler.h"
+#include <mali_kbase_hwaccess_time.h>
 #include "device/mali_kbase_device.h"
 #include "backend/gpu/mali_kbase_pm_internal.h"
 #include "tl/mali_kbase_timeline_priv.h"
@@ -1334,7 +1335,8 @@ static int wait_for_global_request(struct kbase_device *const kbdev,
 				       wait_timeout);
 
 	if (!remaining) {
-		dev_warn(kbdev->dev, "Timed out (%d ms) waiting for global request %x to complete",
+		dev_warn(kbdev->dev, "[%llu] Timeout (%d ms) waiting for global request %x to complete",
+			 kbase_backend_get_cycle_cnt(kbdev),
 			 kbdev->csf.fw_timeout_ms,
 			 req_mask);
 		err = -ETIMEDOUT;
