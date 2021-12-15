@@ -945,18 +945,6 @@ retry:
 					kbase_csf_timeout_in_jiffies(kbdev->csf.fw_timeout_ms));
 
 				if (!remaining) {
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-					// Just debug for accessing cycle counters
-					dev_info(kbdev->dev,
-						 "Timeout (%d ms) waiting for queue stop ack on csi %d bound to group %d on slot %d",
-						 kbdev->csf.fw_timeout_ms,
-						 queue->csi_index,
-						 group->handle, group->csg_nr);
-					if (!mtk_common_gpufreq_bringup()) {
-						gpufreq_dump_infra_status();
-						mtk_common_debug_dump();
-					}
-#endif
 					dev_warn(kbdev->dev,
 						 "[%llu] Timeout (%d ms) waiting for queue stop ack on csi %d bound to group %d on slot %d",
 						 kbase_backend_get_cycle_cnt(kbdev), kbdev->csf.fw_timeout_ms,
@@ -967,16 +955,6 @@ retry:
 			}
 		}
 	} else if (!remaining) {
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		// Just debug for accessing cycle counters
-		dev_info(kbdev->dev, "Group-%d failed to get a slot for stopping the queue on csi %d (timeout %d ms)",
-			 group->handle, queue->csi_index,
-			 group_schedule_timeout);
-		if (!mtk_common_gpufreq_bringup()) {
-			gpufreq_dump_infra_status();
-			mtk_common_debug_dump();
-		}
-#endif
 		dev_warn(kbdev->dev, "[%llu] Group-%d failed to get a slot for stopping the queue on csi %d (timeout %d ms)",
 			 kbase_backend_get_cycle_cnt(kbdev),
 			 group->handle, queue->csi_index,
