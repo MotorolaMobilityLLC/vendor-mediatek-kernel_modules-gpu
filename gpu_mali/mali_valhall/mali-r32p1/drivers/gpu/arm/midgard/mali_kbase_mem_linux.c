@@ -315,7 +315,7 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx,
 	KBASE_DEBUG_ASSERT(gpu_va);
 
 	dev = kctx->kbdev->dev;
-	dev_dbg(dev,
+	dev_vdbg(dev,
 		"Allocating %lld va_pages, %lld commit_pages, %lld extension, 0x%llX flags\n",
 		va_pages, commit_pages, extension, *flags);
 
@@ -1016,7 +1016,7 @@ int kbase_mem_flags_change(struct kbase_context *kctx, u64 gpu_addr, unsigned in
 		 * addresses from buffer with different shareability
 		 * properties.
 		 */
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Updating page tables on mem flag change\n");
 		ret = kbase_mmu_update_pages(kctx, reg->start_pfn,
 				kbase_get_gpu_phy_pages(reg),
@@ -1078,7 +1078,7 @@ int kbase_mem_do_sync_imported(struct kbase_context *kctx,
 
 	switch (sync_fn) {
 	case KBASE_SYNC_TO_DEVICE:
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Syncing imported buffer at GPU VA %llx to GPU\n",
 			reg->start_pfn);
 #ifdef KBASE_MEM_ION_SYNC_WORKAROUND
@@ -1107,7 +1107,7 @@ int kbase_mem_do_sync_imported(struct kbase_context *kctx,
 #endif /* KBASE_MEM_ION_SYNC_WORKAROUND */
 		break;
 	case KBASE_SYNC_TO_CPU:
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Syncing imported buffer at GPU VA %llx to CPU\n",
 			reg->start_pfn);
 #ifdef KBASE_MEM_ION_SYNC_WORKAROUND
@@ -2690,7 +2690,7 @@ static int kbase_mmu_dump_mmap(struct kbase_context *kctx,
 	size_t size;
 	int err = 0;
 
-	dev_dbg(kctx->kbdev->dev, "in kbase_mmu_dump_mmap\n");
+	dev_vdbg(kctx->kbdev->dev, "in kbase_mmu_dump_mmap\n");
 	size = (vma->vm_end - vma->vm_start);
 	nr_pages = size >> PAGE_SHIFT;
 
@@ -2735,7 +2735,7 @@ static int kbase_mmu_dump_mmap(struct kbase_context *kctx,
 	*kmap_addr = kaddr;
 	*reg = new_reg;
 
-	dev_dbg(kctx->kbdev->dev, "kbase_mmu_dump_mmap done\n");
+	dev_vdbg(kctx->kbdev->dev, "kbase_mmu_dump_mmap done\n");
 	return 0;
 
 out_no_alloc:
@@ -2770,7 +2770,7 @@ static int kbasep_reg_mmap(struct kbase_context *kctx,
 
 	*aligned_offset = 0;
 
-	dev_dbg(kctx->kbdev->dev, "in kbasep_reg_mmap\n");
+	dev_vdbg(kctx->kbdev->dev, "in kbasep_reg_mmap\n");
 
 	/* SAME_VA stuff, fetch the right region */
 	reg = kctx->pending_regions[cookie];
@@ -2827,7 +2827,7 @@ static int kbasep_reg_mmap(struct kbase_context *kctx,
 	vma->vm_pgoff = reg->start_pfn - ((*aligned_offset)>>PAGE_SHIFT);
 out:
 	*regm = reg;
-	dev_dbg(kctx->kbdev->dev, "kbasep_reg_mmap done\n");
+	dev_vdbg(kctx->kbdev->dev, "kbasep_reg_mmap done\n");
 
 	return err;
 }
@@ -2843,7 +2843,7 @@ int kbase_context_mmap(struct kbase_context *const kctx,
 	struct device *dev = kctx->kbdev->dev;
 	size_t aligned_offset = 0;
 
-	dev_dbg(dev, "kbase_mmap\n");
+	dev_vdbg(dev, "kbase_mmap\n");
 
 	if (!(vma->vm_flags & VM_READ))
 		vma->vm_flags &= ~VM_MAYREAD;
