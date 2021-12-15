@@ -214,7 +214,8 @@ PVRSRV_ERROR MTKRGXDeviceInit(PVRSRV_DEVICE_CONFIG *psDevConfig)
 	ged_dvfs_gpu_freq_commit_fp = MTKDVFSCommit;
 
 	/* user must be registered before monitor GPU utilization */
-	SORgxGpuUtilStatsRegister(ghRGXUtilUser);
+	if (ghRGXUtilUser == NULL)
+		SORgxGpuUtilStatsRegister(&ghRGXUtilUser);
 
 	return PVRSRV_OK;
 }
