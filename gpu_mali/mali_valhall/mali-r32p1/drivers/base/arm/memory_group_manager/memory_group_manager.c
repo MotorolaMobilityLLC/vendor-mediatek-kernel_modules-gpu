@@ -234,7 +234,7 @@ static int mgm_initialize_debugfs(struct mgm_groups *mgm_data)
 	e = debugfs_create_file("default_group", 0444, mgm_data->mgm_debugfs_root, &mgm_data->default_group_id,
 			&fops_mgm_default_group);
 	if (IS_ERR(e)) {
-		dev_dbg(mgm_data->dev, "fail to create default_group\n");
+		dev_vdbg(mgm_data->dev, "fail to create default_group\n");
 		goto remove_debugfs;
 	}
 

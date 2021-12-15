@@ -63,7 +63,7 @@ get_clk_rate_trace_callbacks(struct kbase_device *kbdev __maybe_unused)
 	if (arbiter_if_node)
 		callbacks = &arb_clk_rate_trace_ops;
 	else
-		dev_dbg(kbdev->dev,
+		dev_vdbg(kbdev->dev,
 			"Arbitration supported but disabled by platform. Leaving clk rate callbacks as default.\n");
 
 #endif
@@ -299,7 +299,7 @@ void kbase_clk_rate_trace_manager_notify_all(
 
 	kbdev = container_of(clk_rtm, struct kbase_device, pm.clk_rtm);
 
-	dev_dbg(kbdev->dev, "%s - GPU clock %u rate changed to %lu, pid: %d",
+	dev_vdbg(kbdev->dev, "%s - GPU clock %u rate changed to %lu, pid: %d",
 		__func__, clk_index, new_rate, current->pid);
 
 	/* Raise standard `power/gpu_frequency` ftrace event */

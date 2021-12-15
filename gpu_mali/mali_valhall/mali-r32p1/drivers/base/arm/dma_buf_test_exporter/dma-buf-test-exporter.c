@@ -241,16 +241,16 @@ static int dma_buf_te_sync(struct dma_buf *dmabuf,
 		struct dma_buf_te_attachment *pa = attachment->priv;
 		struct sg_table *sg = pa->sg;
 		if (!sg) {
-			dev_dbg(te_device.this_device, "no mapping for device %s\n", dev_name(attachment->dev));
+			dev_vdbg(te_device.this_device, "no mapping for device %s\n", dev_name(attachment->dev));
 			continue;
 		}
 
 		if (start_cpu_access) {
-			dev_dbg(te_device.this_device, "sync cpu with device %s\n", dev_name(attachment->dev));
+			dev_vdbg(te_device.this_device, "sync cpu with device %s\n", dev_name(attachment->dev));
 
 			dma_sync_sg_for_cpu(attachment->dev, sg->sgl, sg->nents, direction);
 		} else {
-			dev_dbg(te_device.this_device, "sync device %s with cpu\n", dev_name(attachment->dev));
+			dev_vdbg(te_device.this_device, "sync device %s with cpu\n", dev_name(attachment->dev));
 
 			dma_sync_sg_for_device(attachment->dev, sg->sgl, sg->nents, direction);
 		}

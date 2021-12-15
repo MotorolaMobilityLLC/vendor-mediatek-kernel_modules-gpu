@@ -203,7 +203,7 @@ static struct protected_memory_allocation *simple_pma_alloc_page(
 	size_t bit;
 	size_t count;
 
-	dev_dbg(epma_dev->dev, "%s(pma_dev=%px, order=%u\n",
+	dev_vdbg(epma_dev->dev, "%s(pma_dev=%px, order=%u\n",
 		__func__, (void *)pma_dev, order);
 
 	/* This is an example function that follows an extremely simple logic
@@ -341,7 +341,7 @@ static phys_addr_t simple_pma_get_phys_addr(
 	struct simple_pma_device *const epma_dev =
 		container_of(pma_dev, struct simple_pma_device, pma_dev);
 
-	dev_dbg(epma_dev->dev, "%s(pma_dev=%px, pma=%px, pa=%llx\n",
+	dev_vdbg(epma_dev->dev, "%s(pma_dev=%px, pma=%px, pa=%llx\n",
 		__func__, (void *)pma_dev, (void *)pma,
 		(unsigned long long)pma->pa);
 
@@ -366,7 +366,7 @@ static void simple_pma_free_page(
 
 	WARN_ON(pma == NULL);
 
-	dev_dbg(epma_dev->dev, "%s(pma_dev=%px, pma=%px, pa=%llx\n",
+	dev_vdbg(epma_dev->dev, "%s(pma_dev=%px, pma=%px, pa=%llx\n",
 		__func__, (void *)pma_dev, (void *)pma,
 		(unsigned long long)pma->pa);
 

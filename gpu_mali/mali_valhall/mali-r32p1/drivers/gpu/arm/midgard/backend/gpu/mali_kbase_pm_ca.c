@@ -82,7 +82,7 @@ void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
 unlock:
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
-	dev_dbg(kbdev->dev, "Devfreq policy : new core mask=%llX\n",
+	dev_vdbg(kbdev->dev, "Devfreq policy : new core mask=%llX\n",
 			pm_backend->ca_cores_enabled);
 }
 KBASE_EXPORT_TEST_API(kbase_devfreq_set_core_mask);

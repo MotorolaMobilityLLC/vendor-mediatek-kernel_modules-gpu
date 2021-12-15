@@ -144,7 +144,7 @@ int kbase_ipa_model_add_param_s32(struct kbase_ipa_model *model,
 			snprintf(elem_name, sizeof(elem_name), "%s.%d",
 				name, i);
 
-		dev_dbg(model->kbdev->dev, "%s.%s = %d (%s)\n",
+		dev_vdbg(model->kbdev->dev, "%s.%s = %d (%s)\n",
 			model->ops->name, elem_name, addr[i], origin);
 
 		err = kbase_ipa_model_param_add(model, elem_name,
@@ -191,7 +191,7 @@ int kbase_ipa_model_add_param_string(struct kbase_ipa_model *model,
 
 	addr[size - 1] = '\0';
 
-	dev_dbg(model->kbdev->dev, "%s.%s = \'%s\' (%s)\n",
+	dev_vdbg(model->kbdev->dev, "%s.%s = \'%s\' (%s)\n",
 		model->ops->name, name, string_prop_value, origin);
 
 	err = kbase_ipa_model_param_add(model, name, addr, size,
@@ -300,12 +300,12 @@ int kbase_ipa_init(struct kbase_device *kbdev)
 
 		gpu_id = kbdev->gpu_props.props.raw_props.gpu_id;
 		model_name = kbase_ipa_model_name_from_id(gpu_id);
-		dev_dbg(kbdev->dev,
+		dev_vdbg(kbdev->dev,
 			"Inferring model from GPU ID 0x%x: \'%s\'\n",
 			gpu_id, model_name);
 		err = 0;
 	} else {
-		dev_dbg(kbdev->dev,
+		dev_vdbg(kbdev->dev,
 			"Using ipa-model parameter from DT: \'%s\'\n",
 			model_name);
 	}
