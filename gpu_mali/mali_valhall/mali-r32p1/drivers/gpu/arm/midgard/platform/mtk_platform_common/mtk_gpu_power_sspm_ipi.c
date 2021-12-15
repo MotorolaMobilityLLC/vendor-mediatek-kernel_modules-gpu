@@ -141,11 +141,12 @@ void MTKGPUPower_model_stop(void){
 		if (init_flag == gpm_sspm_side) {
 			gpu_send_enable_ipi(GPU_PM_SWITCH, 0);
 			gpu_send_enable_ipi(GPU_PM_POWER_STATUE, 0);
+		} else {
+			MTK_kbasep_vinstr_hwcnt_release();
+			mtk_gpu_stall_stop();
+			mtk_gpu_stall_delete_subfs();
 		}
 		MTK_update_mtk_pm(pm_non);
-		MTK_kbasep_vinstr_hwcnt_release();
-		mtk_gpu_stall_stop();
-		mtk_gpu_stall_delete_subfs();
 		init_flag = gpm_off;
 	}
 	mutex_unlock(&gpu_pmu_info_lock);
