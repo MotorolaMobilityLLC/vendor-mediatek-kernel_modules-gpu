@@ -1597,9 +1597,9 @@ static int kbasep_ioctl_context_priority_check(struct kbase_context *kctx,
 	do {                                                                   \
 		int ret;                                                       \
 		BUILD_BUG_ON(_IOC_DIR(cmd) != _IOC_NONE);                      \
-		dev_dbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
+		dev_vdbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
 		ret = function(arg);                                           \
-		dev_dbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
+		dev_vdbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
 			#function);                                            \
 		return ret;                                                    \
 	} while (0)
@@ -1608,14 +1608,14 @@ static int kbasep_ioctl_context_priority_check(struct kbase_context *kctx,
 	do {                                                                   \
 		type param;                                                    \
 		int ret, err;                                                  \
-		dev_dbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
+		dev_vdbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
 		BUILD_BUG_ON(_IOC_DIR(cmd) != _IOC_WRITE);                     \
 		BUILD_BUG_ON(sizeof(param) != _IOC_SIZE(cmd));                 \
 		err = copy_from_user(&param, uarg, sizeof(param));             \
 		if (err)                                                       \
 			return -EFAULT;                                        \
 		ret = function(arg, &param);                                   \
-		dev_dbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
+		dev_vdbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
 			#function);                                            \
 		return ret;                                                    \
 	} while (0)
@@ -1624,7 +1624,7 @@ static int kbasep_ioctl_context_priority_check(struct kbase_context *kctx,
 	do {                                                                   \
 		type param;                                                    \
 		int ret, err;                                                  \
-		dev_dbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
+		dev_vdbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
 		BUILD_BUG_ON(_IOC_DIR(cmd) != _IOC_READ);                      \
 		BUILD_BUG_ON(sizeof(param) != _IOC_SIZE(cmd));                 \
 		memset(&param, 0, sizeof(param));                              \
@@ -1632,7 +1632,7 @@ static int kbasep_ioctl_context_priority_check(struct kbase_context *kctx,
 		err = copy_to_user(uarg, &param, sizeof(param));               \
 		if (err)                                                       \
 			return -EFAULT;                                        \
-		dev_dbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
+		dev_vdbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
 			#function);                                            \
 		return ret;                                                    \
 	} while (0)
@@ -1641,7 +1641,7 @@ static int kbasep_ioctl_context_priority_check(struct kbase_context *kctx,
 	do {                                                                   \
 		type param;                                                    \
 		int ret, err;                                                  \
-		dev_dbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
+		dev_vdbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
 		BUILD_BUG_ON(_IOC_DIR(cmd) != (_IOC_WRITE | _IOC_READ));       \
 		BUILD_BUG_ON(sizeof(param) != _IOC_SIZE(cmd));                 \
 		err = copy_from_user(&param, uarg, sizeof(param));             \
@@ -1651,7 +1651,7 @@ static int kbasep_ioctl_context_priority_check(struct kbase_context *kctx,
 		err = copy_to_user(uarg, &param, sizeof(param));               \
 		if (err)                                                       \
 			return -EFAULT;                                        \
-		dev_dbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
+		dev_vdbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
 			#function);                                            \
 		return ret;                                                    \
 	} while (0)
@@ -2350,6 +2350,60 @@ static ssize_t set_policy(struct device *dev, struct device_attribute *attr, con
  */
 static DEVICE_ATTR(power_policy, S_IRUGO | S_IWUSR, show_policy, set_policy);
 
+#if MALI_USE_CSF
+#if defined(CONFIG_MALI_MTK_DUMMY_CM)
+static ssize_t show_dummy_debug(struct device *dev, struct device_attribute *attr, char * const buf)
+{
+	struct kbase_device *kbdev;
+	unsigned long flags;
+	ssize_t ret = 0;
+
+	kbdev = to_kbase_device(dev);
+
+	if (!kbdev)
+		return -ENODEV;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+			 "Support debug core mask : %d\n",
+			 kbdev->pm.debug_core_mask_en);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+			 "Current dummy core mask : 0x%llX\n",
+			 kbdev->pm.dummy_core_mask);
+
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	return ret;
+}
+
+static ssize_t set_dummy_debug(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct kbase_device *kbdev;
+	unsigned long flags;
+	bool enable;
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	if (kstrtobool(buf, &enable)) {
+		return -EINVAL;
+	}
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+
+	kbdev->pm.debug_core_mask_en = enable;
+
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	return count;
+}
+
+static DEVICE_ATTR(dummy_debug, S_IRUGO | S_IWUSR, show_dummy_debug, set_dummy_debug);
+#endif
+#endif
+
 /*
  * show_core_mask - Show callback for the core_mask sysfs file.
  *
@@ -2375,15 +2429,31 @@ static ssize_t show_core_mask(struct device *dev, struct device_attribute *attr,
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 #if MALI_USE_CSF
-	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
-			 "Current debug core mask : 0x%llX\n",
-			 kbdev->pm.debug_core_mask);
-	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
-			 "Current desired core mask : 0x%llX\n",
-			 kbase_pm_ca_get_core_mask(kbdev));
-	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
-			 "Current in use core mask : 0x%llX\n",
-			 kbdev->pm.backend.shaders_avail);
+#if defined(CONFIG_MALI_MTK_DUMMY_CM)
+	if (kbdev->pm.debug_core_mask_en) {
+#endif
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+				 "Current debug core mask : 0x%llX\n",
+				 kbdev->pm.debug_core_mask);
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+				 "Current desired core mask : 0x%llX\n",
+				 kbase_pm_ca_get_core_mask(kbdev));
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+				 "Current in use core mask : 0x%llX\n",
+				 kbdev->pm.backend.shaders_avail);
+#if defined(CONFIG_MALI_MTK_DUMMY_CM)
+	} else {
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+				 "Current debug core mask : 0x%llX\n",
+				 kbdev->pm.dummy_core_mask);
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+				 "Current desired core mask : 0x%llX\n",
+				 kbdev->pm.dummy_core_mask);
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+				 "Current in use core mask : 0x%llX\n",
+				 kbdev->pm.dummy_core_mask);
+	}
+#endif
 #else
 	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
 			"Current core mask (JS0) : 0x%llX\n",
@@ -2489,8 +2559,15 @@ static ssize_t set_core_mask(struct device *dev, struct device_attribute *attr, 
 		goto unlock;
 	}
 
+#if defined(CONFIG_MALI_MTK_DUMMY_CM)
+	if (!kbdev->pm.debug_core_mask_en)
+		kbdev->pm.dummy_core_mask = new_core_mask;
+	else if (kbdev->pm.debug_core_mask != new_core_mask)
+		kbase_pm_set_debug_core_mask(kbdev, new_core_mask);
+#else
 	if (kbdev->pm.debug_core_mask != new_core_mask)
 		kbase_pm_set_debug_core_mask(kbdev, new_core_mask);
+#endif
 #else
 	group0_core_mask = kbdev->gpu_props.props.coherency_info.group[0].core_mask;
 
@@ -5118,6 +5195,11 @@ static struct attribute *kbase_attrs[] = {
 	&dev_attr_fw_timeout.attr,
 #endif /* !MALI_USE_CSF */
 	&dev_attr_power_policy.attr,
+#if MALI_USE_CSF
+#if defined(CONFIG_MALI_MTK_DUMMY_CM)
+	&dev_attr_dummy_debug.attr,
+#endif
+#endif
 	&dev_attr_core_mask.attr,
 	&dev_attr_mem_pool_size.attr,
 	&dev_attr_mem_pool_max_size.attr,

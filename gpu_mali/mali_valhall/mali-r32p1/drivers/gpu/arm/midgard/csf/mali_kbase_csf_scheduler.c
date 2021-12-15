@@ -3818,7 +3818,7 @@ static bool scheduler_idle_suspendable(struct kbase_device *kbdev)
 	 */
 	if (suspend && (unlikely(atomic_read(&scheduler->gpu_no_longer_idle)) ||
 			unlikely(!all_on_slot_groups_remained_idle(kbdev)))) {
-		dev_info(kbdev->dev,
+		dev_dbg(kbdev->dev,
 			 "GPU suspension skipped due to active CSGs");
 		suspend = false;
 	}
