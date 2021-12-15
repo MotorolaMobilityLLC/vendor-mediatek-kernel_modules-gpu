@@ -351,6 +351,15 @@ static INLINE void GetApphints(PVRSRV_RGXDEV_INFO *psDevInfo, RGX_SRVINIT_APPHIN
 		}
 #endif
 
+		/* MTK FW debug log flags */
+#if defined(MTK_FW_DEBUG_LOG)
+		BITMASK_SET(ui32LogGroup, RGXFWIF_LOG_TYPE_TRACE);
+		BITMASK_SET(ui32LogGroup, RGXFWIF_LOG_TYPE_GROUP_MAIN);
+		BITMASK_SET(ui32LogGroup, RGXFWIF_LOG_TYPE_GROUP_PM);
+		BITMASK_SET(ui32LogGroup, RGXFWIF_LOG_TYPE_GROUP_POW);
+		BITMASK_SET(ui32LogGroup, RGXFWIF_LOG_TYPE_GROUP_HWR);
+#endif /* MTK_FW_DEBUG_LOG */
+
 		psHints->ui32LogType = ui32LogGroup;
 	}
 
