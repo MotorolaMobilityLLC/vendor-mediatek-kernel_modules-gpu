@@ -2726,8 +2726,24 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 		}
 	}
 
-	if (protm_pend)
-		queue_work(group->kctx->csf.wq, &group->protm_event_work);
+	if (protm_pend) {
+		struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
+		u32 current_protm_pending_seq =
+			scheduler->tick_protm_pending_seq;
+
+		if (current_protm_pending_seq > group->scan_seq_num) {
+			scheduler->tick_protm_pending_seq = group->scan_seq_num;
+			queue_work(group->kctx->csf.wq, &group->protm_event_work);
+		}
+
+		if (test_bit(group->csg_nr, scheduler->csg_slots_idle_mask)) {
+			clear_bit(group->csg_nr,
+				  scheduler->csg_slots_idle_mask);
+			dev_dbg(kbdev->dev,
+				"Group-%d on slot %d de-idled by protm request",
+				group->handle, group->csg_nr);
+		}
+	}
 }
 
 /**
@@ -2827,6 +2843,19 @@ static void process_csg_interrupts(struct kbase_device *const kbdev,
 			 * a tock for a replacement.
 			 */
 			mod_delayed_work(scheduler->wq, &scheduler->tock_work, 0);
+		} else {
+			u32 current_protm_pending_seq = scheduler->tick_protm_pending_seq;
+
+			if ((current_protm_pending_seq !=
+				KBASEP_TICK_PROTM_PEND_SCAN_SEQ_NR_INVALID) &&
+			    (group->scan_seq_num < current_protm_pending_seq)) {
+				/* If the protm enter was prevented due to groups
+				 * priority, then fire a tock for the scheduler
+				 * to re-examine the case.
+				 */
+				mod_delayed_work(scheduler->wq,
+						 &scheduler->tock_work, 0);
+			}
 		}
 	}
 

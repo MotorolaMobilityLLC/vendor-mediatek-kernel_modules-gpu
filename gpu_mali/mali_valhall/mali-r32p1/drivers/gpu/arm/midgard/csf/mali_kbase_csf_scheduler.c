@@ -3245,6 +3245,10 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 				KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_ENTER_PROTM,
 							 input_grp, 0u);
 
+				/* Reset the tick's pending protm seq number */
+				scheduler->tick_protm_pending_seq =
+					KBASEP_TICK_PROTM_PEND_SCAN_SEQ_NR_INVALID;
+
 				kbase_csf_enter_protected_mode(kbdev);
 				spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 
@@ -3341,6 +3345,7 @@ static void scheduler_ctx_scan_groups(struct kbase_device *kbdev,
 	struct kbase_queue_group *group;
 
 	lockdep_assert_held(&scheduler->lock);
+	lockdep_assert_held(&scheduler->interrupt_lock);
 	if (WARN_ON(priority < 0) ||
 	    WARN_ON(priority >= KBASE_QUEUE_GROUP_PRIORITY_COUNT))
 		return;
@@ -3359,6 +3364,14 @@ static void scheduler_ctx_scan_groups(struct kbase_device *kbdev,
 
 		/* Set the scanout sequence number, starting from 0 */
 		group->scan_seq_num = scheduler->csg_scan_count_for_tick++;
+
+		if (scheduler->tick_protm_pending_seq ==
+				KBASEP_TICK_PROTM_PEND_SCAN_SEQ_NR_INVALID) {
+			if (!bitmap_empty(group->protm_pending_bitmap,
+			     kbdev->csf.global_iface.groups[0].stream_num))
+				scheduler->tick_protm_pending_seq =
+					group->scan_seq_num;
+		}
 
 		if (queue_group_idle_locked(group)) {
 			if (on_slot_group_idle_locked(group))
@@ -3879,6 +3892,7 @@ static void gpu_idle_worker(struct work_struct *work)
 static int scheduler_prepare(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
+	unsigned long flags;
 	int i;
 
 	lockdep_assert_held(&scheduler->lock);
@@ -3904,6 +3918,9 @@ static int scheduler_prepare(struct kbase_device *kbdev)
 	scheduler->num_csg_slots_for_tick = 0;
 	bitmap_zero(scheduler->csg_slots_prio_update, MAX_SUPPORTED_CSGS);
 
+	spin_lock_irqsave(&scheduler->interrupt_lock, flags);
+	scheduler->tick_protm_pending_seq =
+		KBASEP_TICK_PROTM_PEND_SCAN_SEQ_NR_INVALID;
 	/* Scan out to run groups */
 	for (i = 0; i < KBASE_QUEUE_GROUP_PRIORITY_COUNT; ++i) {
 		struct kbase_context *kctx;
@@ -3911,6 +3928,7 @@ static int scheduler_prepare(struct kbase_device *kbdev)
 		list_for_each_entry(kctx, &scheduler->runnable_kctxs, csf.link)
 			scheduler_ctx_scan_groups(kbdev, kctx, i);
 	}
+	spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 
 	/* Update this tick's non-idle groups */
 	scheduler->non_idle_scanout_grps = scheduler->ngrp_to_schedule;
@@ -4868,6 +4886,8 @@ void kbase_csf_scheduler_group_protm_enter(struct kbase_queue_group *group)
 
 	mutex_lock(&scheduler->lock);
 
+	if (group->run_state == KBASE_CSF_GROUP_IDLE)
+		group->run_state = KBASE_CSF_GROUP_RUNNABLE;
 	/* Check if the group is now eligible for execution in protected mode. */
 	if (scheduler_get_protm_enter_async_group(kbdev, group))
 		scheduler_group_check_protm_enter(kbdev, group);
