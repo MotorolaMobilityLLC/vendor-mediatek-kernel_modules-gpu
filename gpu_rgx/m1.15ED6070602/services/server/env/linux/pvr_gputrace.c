@@ -232,7 +232,6 @@ void PVRGpuTraceInitIfEnabled(PVRSRV_DEVICE_NODE *psDeviceNode)
 		/* single events can be enabled by calling trace_set_clr_event()
 		 * with the event name, e.g.:
 		 * trace_set_clr_event("rogue", "rogue_ufo_update", 1) */
-#if defined(CONFIG_MTK_IOMMU_DEBUG)
 #if defined(CONFIG_EVENT_TRACING) /* this is a kernel config option */
 #if defined(ANDROID) || defined(CHROMIUMOS_KERNEL)
 		if (trace_set_clr_event("gpu", NULL, 1))
@@ -255,7 +254,6 @@ void PVRGpuTraceInitIfEnabled(PVRSRV_DEVICE_NODE *psDeviceNode)
 			PVR_LOG(("FTrace events from \"rogue\" group enabled"));
 		}
 #endif /* defined(CONFIG_EVENT_TRACING) */
-#endif
 	}
 }
 

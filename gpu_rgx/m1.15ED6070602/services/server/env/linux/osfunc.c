@@ -409,11 +409,9 @@ IMG_UINT32 OSVSScanf(const IMG_CHAR *pStr, const IMG_CHAR *pszFormat, ...)
 	va_list argList;
 	IMG_INT32 iCount = 0;
 
-#if defined(CONFIG_MTK_IOMMU_DEBUG)
 	va_start(argList, pszFormat);
 	iCount = vsscanf(pStr, pszFormat, argList);
 	va_end(argList);
-#endif
 
 	return iCount;
 }
@@ -902,13 +900,11 @@ static int OSThreadRun(void *data)
 		_ThreadSetStopped(psOSThreadData);
 	}
 
-#if defined(CONFIG_MTK_IOMMU_DEBUG)
 	/* Wait for OSThreadDestroy() to call kthread_stop() */
 	while (!kthread_freezable_should_stop(NULL))
 	{
 		 schedule();
 	}
-#endif
 
 	LinuxBridgeNumActiveKernelThreadsDecrement();
 
@@ -1699,10 +1695,7 @@ PVRSRV_ERROR OSDebugSignalPID(IMG_UINT32 ui32PID)
 		return PVRSRV_ERROR_NOT_FOUND;
 	}
 
-#if defined(CONFIG_MTK_IOMMU_DEBUG)
 	err = kill_pid(psPID, SIGTRAP, 0);
-#endif
-
 	if (err != 0)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "%s: Signal Failure %d", __func__, err));
