@@ -45,6 +45,9 @@ endif
 ifneq (,$(wildcard mt6893))
 	$(call build_kernel_modules_mali,mt6893,mali_valhall,mali-r32p1,mali_valhall_r32p1_mt6893)
 endif
+ifneq (,$(wildcard mt6833))
+	$(call build_kernel_modules_mali,mt6833,mali_valhall,mali-r32p1,mali_valhall_r32p1_mt6833)
+endif
 ifneq (,$(wildcard mt6895))
 	$(call build_kernel_modules_mali,mt6895,mali_valhall,mali-r32p1,mali_valhall_r32p1_mt6895)
 endif
@@ -65,6 +68,9 @@ endif
 ifneq (,$(wildcard mt6893))
 	$(call install_kernel_modules_mali,mt6893,mali_valhall,mali-r32p1,mali_valhall_r32p1_mt6893)
 endif
+ifneq (,$(wildcard mt6833))
+	$(call install_kernel_modules_mali,mt6833,mali_valhall,mali-r32p1,mali_valhall_r32p1_mt6833)
+endif
 ifneq (,$(wildcard mt6895))
 	$(call install_kernel_modules_mali,mt6895,mali_valhall,mali-r32p1,mali_valhall_r32p1_mt6895)
 endif
@@ -84,6 +90,9 @@ ifneq (,$(wildcard mt6879))
 endif
 ifneq (,$(wildcard mt6893))
 	$(call clean_kernel_modules_mali,mt6893,mali_valhall,mali-r32p1,mali_valhall_r32p1_mt6893)
+endif
+ifneq (,$(wildcard mt6833))
+	$(call clean_kernel_modules_mali,mt6833,mali_valhall,mali-r32p1,mali_valhall_r32p1_mt6833)
 endif
 ifneq (,$(wildcard mt6895))
 	$(call clean_kernel_modules_mali,mt6895,mali_valhall,mali-r32p1,mali_valhall_r32p1_mt6895)
