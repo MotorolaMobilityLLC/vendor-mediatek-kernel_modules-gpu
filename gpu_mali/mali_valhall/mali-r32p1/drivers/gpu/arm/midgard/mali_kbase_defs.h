@@ -77,6 +77,11 @@
 
 #include "debug/mali_kbase_debug_ktrace_defs.h"
 
+#if defined(CONFIG_GPU_MT6833)
+#define CONFIG_MALI_MTK_GPU_BM_JM
+#endif
+
+
 /** Number of milliseconds before we time out on a GPU soft/hard reset */
 #define RESET_TIMEOUT           500
 
@@ -1937,5 +1942,9 @@ static inline bool kbase_device_is_cpu_coherent(struct kbase_device *kbdev)
 #define KBASE_CLEAN_CACHE_MAX_LOOPS     100000
 /* Maximum number of loops polling the GPU for an AS command to complete before we assume the GPU has hung */
 #define KBASE_AS_INACTIVE_MAX_LOOPS     100000000
+
+#if defined(CONFIG_GPU_MT6833)
+#undef CONFIG_MALI_MTK_GPU_BM_JM
+#endif
 
 #endif				/* _KBASE_DEFS_H_ */
