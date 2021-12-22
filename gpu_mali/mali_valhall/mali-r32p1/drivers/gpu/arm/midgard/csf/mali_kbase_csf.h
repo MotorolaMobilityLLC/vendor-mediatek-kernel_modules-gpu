@@ -39,6 +39,11 @@
  */
 #define KBASEP_USER_DB_NR_INVALID ((s8)-1)
 
+/* Indicates an invalid value for the scan out sequence number, used to
+* signify there is no group that has protected mode execution pending.
+*/
+#define KBASEP_TICK_PROTM_PEND_SCAN_SEQ_NR_INVALID (U32_MAX)
+
 #define FIRMWARE_PING_INTERVAL_MS (15000) /* 15 seconds */
 
 #define FIRMWARE_IDLE_HYSTERESIS_TIME_MS (5) /* Default 10 milliseconds */
