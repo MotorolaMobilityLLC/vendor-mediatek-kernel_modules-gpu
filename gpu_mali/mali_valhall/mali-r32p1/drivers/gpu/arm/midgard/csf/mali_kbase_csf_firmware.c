@@ -1653,6 +1653,24 @@ u32 kbase_csf_firmware_set_gpu_idle_hysteresis_time(struct kbase_device *kbdev, 
 	unsigned long flags;
 	const u32 hysteresis_val = convert_dur_to_idle_count(kbdev, dur);
 
+	/* skip idle set if dur is no change */
+	if(kbdev->csf.gpu_idle_hysteresis_ms == dur) {
+		dev_dbg(kbdev->dev,
+			"no need to set because dur is no change");
+		return kbdev->csf.gpu_idle_dur_count;
+	}
+	/* check CSF ready, avoid gpu hang on other boot flow */
+	if (IS_ERR_OR_NULL(kbdev->csf.global_iface.input)) {
+		dev_dbg(kbdev->dev,
+			"Unable to set gpu_idle_hysteresis_time, no csf input");
+		return kbdev->csf.gpu_idle_dur_count;
+	}
+	if (IS_ERR_OR_NULL(kbdev->csf.global_iface.output)) {
+		dev_dbg(kbdev->dev,
+			"Unable to set gpu_idle_hysteresis_time, no csf output");
+		return kbdev->csf.gpu_idle_dur_count;
+	}
+	
 	kbase_csf_scheduler_pm_active(kbdev);
 	if (kbase_pm_wait_for_desired_state(kbdev)) {
 		dev_vdbg(kbdev->dev,
