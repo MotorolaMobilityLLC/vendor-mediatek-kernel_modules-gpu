@@ -52,6 +52,9 @@ void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
 {
 	struct kbase_pm_backend_data *pm_backend = &kbdev->pm.backend;
 	unsigned long flags;
+#if MALI_USE_CSF
+	u64 old_core_mask = 0;
+#endif
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
@@ -62,6 +65,8 @@ void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
 			core_mask, kbdev->pm.debug_core_mask);
 		goto unlock;
 	}
+
+	old_core_mask = pm_backend->ca_cores_enabled;
 #else
 	if (!(core_mask & kbdev->pm.debug_core_mask_all)) {
 		dev_err(kbdev->dev, "OPP core mask 0x%llX does not intersect with debug mask 0x%llX\n",
@@ -79,11 +84,47 @@ void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
 
 	kbase_pm_update_state(kbdev);
 
-unlock:
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
-	dev_dbg(kbdev->dev, "Devfreq policy : new core mask=%llX\n",
+#if MALI_USE_CSF
+	/* Check if old_core_mask contained the undesired cores and wait
+	 * for those cores to get powered down
+	 */
+	if ((core_mask & old_core_mask) != old_core_mask) {
+		bool can_wait;
+
+		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+		can_wait = kbdev->pm.backend.gpu_ready &&
+			   kbase_pm_is_mcu_desired(kbdev);
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+		/* This check is ideally not required, the wait function can
+		 * deal with the gpu power down. But it has been added to
+		 * address the scenario where down-scaling request comes from
+		 * the platform specific code soon after the GPU power down
+		 * and at the time same time Application thread tries to
+		 * power up the GPU (on the flush of GPU queue).
+		 * The platform specific callback_power_on() that gets
+		 * invoked on power up does not return until down-scaling
+		 * request is complete. The check will minimize the race
+		 * window but may not be able to eliminate it completely
+		 */
+		if (can_wait) {
+			if (kbase_pm_wait_for_desired_state(kbdev)) {
+				dev_info(kbdev->dev,
+					 "Wait for update of core_mask from %llx to %llx failed",
+					 old_core_mask, core_mask);
+			}
+		}
+	}
+#endif
+
+	dev_vdbg(kbdev->dev, "Devfreq policy : new core mask=%llX\n",
 			pm_backend->ca_cores_enabled);
+
+	return;
+unlock:
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 }
 KBASE_EXPORT_TEST_API(kbase_devfreq_set_core_mask);
 #endif

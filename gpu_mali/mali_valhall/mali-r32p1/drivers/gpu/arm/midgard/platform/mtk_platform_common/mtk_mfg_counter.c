@@ -467,10 +467,10 @@ static void _mtk_mfg_init_counter(void)
 	}
 
 	/* Default doesn't enable all HWC */
-	info.bitmask[0] = 0x57; /* JM */
+	info.bitmask[0] = 0x157; /* JM */
 	info.bitmask[1] = 0x2; /* Tiler */
 	info.bitmask[2] = 0xffff; /* Shader */
-	info.bitmask[3] = 0x19CF; /* L2 & MMU */
+	info.bitmask[3] = 0x1FCF; /* L2 & MMU */
 	handle = kbase_gator_hwcnt_init(&info);
 	if (!handle) {
 		pr_info("[PMU]Error init hwcnt\n");

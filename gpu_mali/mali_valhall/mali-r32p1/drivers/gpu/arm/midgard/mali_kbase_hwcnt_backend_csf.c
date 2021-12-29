@@ -1237,6 +1237,7 @@ kbasep_hwcnt_backend_csf_create(struct kbase_hwcnt_backend_csf_info *csf_info,
 		&backend_csf->ring_buf_cpu_base, &backend_csf->ring_buf);
 	if (errcode)
 		goto err_ring_buf_alloc;
+	errcode = -ENOMEM;
 
 	/* Zero all performance enable header to prepare for first enable. */
 	kbasep_hwcnt_backend_csf_zero_all_prfcnt_en_header(backend_csf);

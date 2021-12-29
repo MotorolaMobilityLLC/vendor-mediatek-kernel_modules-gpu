@@ -307,7 +307,7 @@ int kbase_dummy_job_wa_load(struct kbase_device *kbdev)
 	fw = firmware->data;
 	fw_end = fw + firmware->size;
 
-	dev_dbg(kbdev->dev, "Loaded firmware of size %zu bytes\n",
+	dev_vdbg(kbdev->dev, "Loaded firmware of size %zu bytes\n",
 		firmware->size);
 
 	if (!in_range(fw, fw_end, 0, sizeof(*header))) {

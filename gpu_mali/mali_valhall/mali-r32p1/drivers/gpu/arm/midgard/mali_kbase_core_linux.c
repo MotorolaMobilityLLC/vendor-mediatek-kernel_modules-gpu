@@ -410,7 +410,7 @@ static void kbase_file_delete(struct kbase_file *const kfile)
 
 		kbase_destroy_context(kctx);
 
-		dev_dbg(kbdev->dev, "deleted base context\n");
+		dev_vdbg(kbdev->dev, "deleted base context\n");
 	}
 
 	kbase_release_device(kbdev);
@@ -715,7 +715,7 @@ static int kbase_file_create_kctx(struct kbase_file *const kfile,
 	}
 #endif /* CONFIG_DEBUG_FS */
 
-	dev_dbg(kbdev->dev, "created base context\n");
+	dev_vdbg(kbdev->dev, "created base context\n");
 
 	kfile->kctx = kctx;
 	atomic_set(&kfile->setup_state, KBASE_FILE_COMPLETE);
@@ -1597,9 +1597,9 @@ static int kbasep_ioctl_context_priority_check(struct kbase_context *kctx,
 	do {                                                                   \
 		int ret;                                                       \
 		BUILD_BUG_ON(_IOC_DIR(cmd) != _IOC_NONE);                      \
-		dev_dbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
+		dev_vdbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
 		ret = function(arg);                                           \
-		dev_dbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
+		dev_vdbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
 			#function);                                            \
 		return ret;                                                    \
 	} while (0)
@@ -1608,14 +1608,14 @@ static int kbasep_ioctl_context_priority_check(struct kbase_context *kctx,
 	do {                                                                   \
 		type param;                                                    \
 		int ret, err;                                                  \
-		dev_dbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
+		dev_vdbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
 		BUILD_BUG_ON(_IOC_DIR(cmd) != _IOC_WRITE);                     \
 		BUILD_BUG_ON(sizeof(param) != _IOC_SIZE(cmd));                 \
 		err = copy_from_user(&param, uarg, sizeof(param));             \
 		if (err)                                                       \
 			return -EFAULT;                                        \
 		ret = function(arg, &param);                                   \
-		dev_dbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
+		dev_vdbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
 			#function);                                            \
 		return ret;                                                    \
 	} while (0)
@@ -1624,7 +1624,7 @@ static int kbasep_ioctl_context_priority_check(struct kbase_context *kctx,
 	do {                                                                   \
 		type param;                                                    \
 		int ret, err;                                                  \
-		dev_dbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
+		dev_vdbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
 		BUILD_BUG_ON(_IOC_DIR(cmd) != _IOC_READ);                      \
 		BUILD_BUG_ON(sizeof(param) != _IOC_SIZE(cmd));                 \
 		memset(&param, 0, sizeof(param));                              \
@@ -1632,7 +1632,7 @@ static int kbasep_ioctl_context_priority_check(struct kbase_context *kctx,
 		err = copy_to_user(uarg, &param, sizeof(param));               \
 		if (err)                                                       \
 			return -EFAULT;                                        \
-		dev_dbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
+		dev_vdbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
 			#function);                                            \
 		return ret;                                                    \
 	} while (0)
@@ -1641,7 +1641,7 @@ static int kbasep_ioctl_context_priority_check(struct kbase_context *kctx,
 	do {                                                                   \
 		type param;                                                    \
 		int ret, err;                                                  \
-		dev_dbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
+		dev_vdbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
 		BUILD_BUG_ON(_IOC_DIR(cmd) != (_IOC_WRITE | _IOC_READ));       \
 		BUILD_BUG_ON(sizeof(param) != _IOC_SIZE(cmd));                 \
 		err = copy_from_user(&param, uarg, sizeof(param));             \
@@ -1651,7 +1651,7 @@ static int kbasep_ioctl_context_priority_check(struct kbase_context *kctx,
 		err = copy_to_user(uarg, &param, sizeof(param));               \
 		if (err)                                                       \
 			return -EFAULT;                                        \
-		dev_dbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
+		dev_vdbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
 			#function);                                            \
 		return ret;                                                    \
 	} while (0)
@@ -2087,7 +2087,7 @@ static ssize_t kbase_read(struct file *filp, char __user *buf, size_t count, lof
 		 * queue group was already terminated by the userspace.
 		 */
 		if (!dump)
-			dev_dbg(kctx->kbdev->dev,
+			dev_vdbg(kctx->kbdev->dev,
 				"Neither event nor error signaled");
 	}
 
@@ -2167,7 +2167,7 @@ static unsigned int kbase_poll(struct file *filp, poll_table *wait)
 void kbase_event_wakeup(struct kbase_context *kctx)
 {
 	KBASE_DEBUG_ASSERT(kctx);
-	dev_dbg(kctx->kbdev->dev, "Waking event queue for context %pK\n",
+	dev_vdbg(kctx->kbdev->dev, "Waking event queue for context %pK\n",
 		(void *)kctx);
 	wake_up_interruptible(&kctx->event_queue);
 }
@@ -2350,6 +2350,60 @@ static ssize_t set_policy(struct device *dev, struct device_attribute *attr, con
  */
 static DEVICE_ATTR(power_policy, S_IRUGO | S_IWUSR, show_policy, set_policy);
 
+#if MALI_USE_CSF
+#if defined(CONFIG_MALI_MTK_DUMMY_CM)
+static ssize_t show_dummy_debug(struct device *dev, struct device_attribute *attr, char * const buf)
+{
+	struct kbase_device *kbdev;
+	unsigned long flags;
+	ssize_t ret = 0;
+
+	kbdev = to_kbase_device(dev);
+
+	if (!kbdev)
+		return -ENODEV;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+			 "Support debug core mask : %d\n",
+			 kbdev->pm.debug_core_mask_en);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+			 "Current dummy core mask : 0x%llX\n",
+			 kbdev->pm.dummy_core_mask);
+
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	return ret;
+}
+
+static ssize_t set_dummy_debug(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct kbase_device *kbdev;
+	unsigned long flags;
+	bool enable;
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	if (kstrtobool(buf, &enable)) {
+		return -EINVAL;
+	}
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+
+	kbdev->pm.debug_core_mask_en = enable;
+
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	return count;
+}
+
+static DEVICE_ATTR(dummy_debug, S_IRUGO | S_IWUSR, show_dummy_debug, set_dummy_debug);
+#endif
+#endif
+
 /*
  * show_core_mask - Show callback for the core_mask sysfs file.
  *
@@ -2375,15 +2429,31 @@ static ssize_t show_core_mask(struct device *dev, struct device_attribute *attr,
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 #if MALI_USE_CSF
-	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
-			 "Current debug core mask : 0x%llX\n",
-			 kbdev->pm.debug_core_mask);
-	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
-			 "Current desired core mask : 0x%llX\n",
-			 kbase_pm_ca_get_core_mask(kbdev));
-	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
-			 "Current in use core mask : 0x%llX\n",
-			 kbdev->pm.backend.shaders_avail);
+#if defined(CONFIG_MALI_MTK_DUMMY_CM)
+	if (kbdev->pm.debug_core_mask_en) {
+#endif
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+				 "Current debug core mask : 0x%llX\n",
+				 kbdev->pm.debug_core_mask);
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+				 "Current desired core mask : 0x%llX\n",
+				 kbase_pm_ca_get_core_mask(kbdev));
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+				 "Current in use core mask : 0x%llX\n",
+				 kbdev->pm.backend.shaders_avail);
+#if defined(CONFIG_MALI_MTK_DUMMY_CM)
+	} else {
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+				 "Current debug core mask : 0x%llX\n",
+				 kbdev->pm.dummy_core_mask);
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+				 "Current desired core mask : 0x%llX\n",
+				 kbdev->pm.dummy_core_mask);
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+				 "Current in use core mask : 0x%llX\n",
+				 kbdev->pm.dummy_core_mask);
+	}
+#endif
 #else
 	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
 			"Current core mask (JS0) : 0x%llX\n",
@@ -2489,8 +2559,15 @@ static ssize_t set_core_mask(struct device *dev, struct device_attribute *attr, 
 		goto unlock;
 	}
 
+#if defined(CONFIG_MALI_MTK_DUMMY_CM)
+	if (!kbdev->pm.debug_core_mask_en)
+		kbdev->pm.dummy_core_mask = new_core_mask;
+	else if (kbdev->pm.debug_core_mask != new_core_mask)
+		kbase_pm_set_debug_core_mask(kbdev, new_core_mask);
+#else
 	if (kbdev->pm.debug_core_mask != new_core_mask)
 		kbase_pm_set_debug_core_mask(kbdev, new_core_mask);
+#endif
 #else
 	group0_core_mask = kbdev->gpu_props.props.coherency_info.group[0].core_mask;
 
@@ -2686,7 +2763,7 @@ static ssize_t set_js_timeouts(struct device *dev, struct device_attribute *attr
 #define UPDATE_TIMEOUT(ticks_name, ms_name, default) do {\
 	js_data->ticks_name = timeout_ms_to_ticks(kbdev, ms_name, \
 			default, js_data->ticks_name); \
-	dev_dbg(kbdev->dev, "Overriding " #ticks_name \
+	dev_vdbg(kbdev->dev, "Overriding " #ticks_name \
 			" with %lu ticks (%lu ms)\n", \
 			(unsigned long)js_data->ticks_name, \
 			ms_name); \
@@ -2897,7 +2974,7 @@ static ssize_t set_js_scheduling_period(struct device *dev,
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	mutex_unlock(&js_data->runpool_mutex);
 
-	dev_dbg(kbdev->dev, "JS scheduling period: %dms\n",
+	dev_vdbg(kbdev->dev, "JS scheduling period: %dms\n",
 			js_scheduling_period);
 
 	return count;
@@ -2958,7 +3035,7 @@ static ssize_t set_js_softstop_always(struct device *dev,
 	}
 
 	kbdev->js_data.softstop_always = (bool) softstop_always;
-	dev_dbg(kbdev->dev, "Support for softstop on a single context: %s\n",
+	dev_vdbg(kbdev->dev, "Support for softstop on a single context: %s\n",
 			(kbdev->js_data.softstop_always) ?
 			"Enabled" : "Disabled");
 	return count;
@@ -3220,7 +3297,7 @@ static ssize_t set_dvfs_period(struct device *dev,
 	}
 
 	kbdev->pm.dvfs_period = dvfs_period;
-	dev_dbg(kbdev->dev, "DVFS period: %dms\n", dvfs_period);
+	dev_vdbg(kbdev->dev, "DVFS period: %dms\n", dvfs_period);
 
 	return count;
 }
@@ -3447,7 +3524,7 @@ static ssize_t set_reset_timeout(struct device *dev,
 	}
 
 	kbdev->reset_timeout_ms = reset_timeout;
-	dev_dbg(kbdev->dev, "Reset timeout: %dms\n", reset_timeout);
+	dev_vdbg(kbdev->dev, "Reset timeout: %dms\n", reset_timeout);
 
 	return count;
 }
@@ -3924,7 +4001,7 @@ static ssize_t set_js_ctx_scheduling_mode(struct device *dev,
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	mutex_unlock(&kbdev->kctx_list_lock);
 
-	dev_dbg(kbdev->dev, "JS ctx scheduling mode: %u\n", new_js_ctx_scheduling_mode);
+	dev_vdbg(kbdev->dev, "JS ctx scheduling mode: %u\n", new_js_ctx_scheduling_mode);
 
 	return count;
 }
@@ -4496,7 +4573,7 @@ int power_control_init(struct kbase_device *kbdev)
 	}
 
 	kbdev->nr_regulators = i;
-	dev_dbg(&pdev->dev, "Regulators probed: %u\n", kbdev->nr_regulators);
+	dev_vdbg(&pdev->dev, "Regulators probed: %u\n", kbdev->nr_regulators);
 #endif
 
 	/* Having more clocks than regulators is acceptable, while the
@@ -4535,7 +4612,7 @@ int power_control_init(struct kbase_device *kbdev)
 	}
 
 	kbdev->nr_clocks = i;
-	dev_dbg(&pdev->dev, "Clocks probed: %u\n", kbdev->nr_clocks);
+	dev_vdbg(&pdev->dev, "Clocks probed: %u\n", kbdev->nr_clocks);
 
 	/* Any error in parsing the OPP table from the device file
 	 * shall be ignored. The fact that the table may be absent or wrong
@@ -4866,6 +4943,10 @@ void kbase_device_debugfs_term(struct kbase_device *kbdev)
 #endif /* CONFIG_DEBUG_FS */
 #endif /* MALI_KBASE_BUILD */
 
+static u32 config_system_coherency;
+module_param(config_system_coherency, uint, 0444);
+MODULE_PARM_DESC(config_system_coherency, ".");
+
 int kbase_device_coherency_init(struct kbase_device *kbdev)
 {
 #if IS_ENABLED(CONFIG_OF)
@@ -4899,7 +4980,7 @@ int kbase_device_coherency_init(struct kbase_device *kbdev)
 	coherency_override_dts = of_get_property(kbdev->dev->of_node,
 						"system-coherency",
 						NULL);
-	if (coherency_override_dts) {
+	if (coherency_override_dts && config_system_coherency == 0) {
 
 		override_coherency = be32_to_cpup(coherency_override_dts);
 
@@ -4933,6 +5014,7 @@ int kbase_device_coherency_init(struct kbase_device *kbdev)
 
 	kbdev->gpu_props.props.raw_props.coherency_mode =
 		kbdev->system_coherency;
+	config_system_coherency = kbdev->system_coherency;
 
 	return 0;
 }
@@ -4974,7 +5056,7 @@ static ssize_t csg_scheduling_period_store(struct device *dev,
 
 	kbase_csf_scheduler_lock(kbdev);
 	kbdev->csf.scheduler.csg_scheduling_period_ms = csg_scheduling_period;
-	dev_dbg(kbdev->dev, "CSG scheduling period: %ums\n",
+	dev_vdbg(kbdev->dev, "CSG scheduling period: %ums\n",
 		csg_scheduling_period);
 	kbase_csf_scheduler_unlock(kbdev);
 
@@ -5048,7 +5130,7 @@ static ssize_t fw_timeout_store(struct device *dev,
 	kbase_csf_scheduler_lock(kbdev);
 	kbdev->csf.fw_timeout_ms = fw_timeout;
 	kbase_csf_scheduler_unlock(kbdev);
-	dev_dbg(kbdev->dev, "Firmware timeout: %ums\n", fw_timeout);
+	dev_vdbg(kbdev->dev, "Firmware timeout: %ums\n", fw_timeout);
 
 	return count;
 }
@@ -5113,6 +5195,11 @@ static struct attribute *kbase_attrs[] = {
 	&dev_attr_fw_timeout.attr,
 #endif /* !MALI_USE_CSF */
 	&dev_attr_power_policy.attr,
+#if MALI_USE_CSF
+#if defined(CONFIG_MALI_MTK_DUMMY_CM)
+	&dev_attr_dummy_debug.attr,
+#endif
+#endif
 	&dev_attr_core_mask.attr,
 	&dev_attr_mem_pool_size.attr,
 	&dev_attr_mem_pool_max_size.attr,
@@ -5331,7 +5418,7 @@ static int kbase_device_suspend(struct device *dev)
 #endif
 
 #ifdef CONFIG_MALI_DEVFREQ
-	dev_dbg(dev, "Callback %s\n", __func__);
+	dev_vdbg(dev, "Callback %s\n", __func__);
 	if (kbdev->devfreq) {
 		kbase_devfreq_enqueue_work(kbdev, DEVFREQ_WORK_SUSPEND);
 		flush_workqueue(kbdev->devfreq_queue.workq);
@@ -5363,7 +5450,7 @@ static int kbase_device_resume(struct device *dev)
 #endif
 
 #ifdef CONFIG_MALI_DEVFREQ
-	dev_dbg(dev, "Callback %s\n", __func__);
+	dev_vdbg(dev, "Callback %s\n", __func__);
 	if (kbdev->devfreq) {
 		mutex_lock(&kbdev->pm.lock);
 		if (kbdev->pm.active_count > 0)
@@ -5394,7 +5481,7 @@ static int kbase_device_runtime_suspend(struct device *dev)
 	if (!kbdev)
 		return -ENODEV;
 
-	dev_dbg(dev, "Callback %s\n", __func__);
+	dev_vdbg(dev, "Callback %s\n", __func__);
 
 #ifdef CONFIG_MALI_MIDGARD_DVFS
 	kbase_pm_metrics_stop(kbdev);
@@ -5407,7 +5494,7 @@ static int kbase_device_runtime_suspend(struct device *dev)
 
 	if (kbdev->pm.backend.callback_power_runtime_off) {
 		kbdev->pm.backend.callback_power_runtime_off(kbdev);
-		dev_dbg(dev, "runtime suspend\n");
+		dev_vdbg(dev, "runtime suspend\n");
 	}
 	return 0;
 }
@@ -5432,10 +5519,10 @@ static int kbase_device_runtime_resume(struct device *dev)
 	if (!kbdev)
 		return -ENODEV;
 
-	dev_dbg(dev, "Callback %s\n", __func__);
+	dev_vdbg(dev, "Callback %s\n", __func__);
 	if (kbdev->pm.backend.callback_power_runtime_on) {
 		ret = kbdev->pm.backend.callback_power_runtime_on(kbdev);
-		dev_dbg(dev, "runtime resume\n");
+		dev_vdbg(dev, "runtime resume\n");
 	}
 
 #ifdef CONFIG_MALI_MIDGARD_DVFS
@@ -5470,7 +5557,7 @@ static int kbase_device_runtime_idle(struct device *dev)
 	if (!kbdev)
 		return -ENODEV;
 
-	dev_dbg(dev, "Callback %s\n", __func__);
+	dev_vdbg(dev, "Callback %s\n", __func__);
 	/* Use platform specific implementation if it exists. */
 	if (kbdev->pm.backend.callback_power_runtime_idle)
 		return kbdev->pm.backend.callback_power_runtime_idle(kbdev);

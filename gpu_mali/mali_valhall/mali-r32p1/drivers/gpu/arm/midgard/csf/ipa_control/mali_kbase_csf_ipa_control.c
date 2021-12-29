@@ -301,7 +301,7 @@ kbase_ipa_control_rate_change_notify(struct kbase_clk_rate_listener *listener,
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 		if (!kbdev->pm.backend.gpu_ready) {
-			dev_dbg(kbdev->dev,
+			dev_vdbg(kbdev->dev,
 				"%s: backup clk rate:%u change while gpu power off", __func__,
 				clk_rate_hz);
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)

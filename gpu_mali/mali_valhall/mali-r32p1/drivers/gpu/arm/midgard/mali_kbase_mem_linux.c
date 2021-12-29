@@ -315,7 +315,7 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx,
 	KBASE_DEBUG_ASSERT(gpu_va);
 
 	dev = kctx->kbdev->dev;
-	dev_dbg(dev,
+	dev_vdbg(dev,
 		"Allocating %lld va_pages, %lld commit_pages, %lld extension, 0x%llX flags\n",
 		va_pages, commit_pages, extension, *flags);
 
@@ -1016,7 +1016,7 @@ int kbase_mem_flags_change(struct kbase_context *kctx, u64 gpu_addr, unsigned in
 		 * addresses from buffer with different shareability
 		 * properties.
 		 */
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Updating page tables on mem flag change\n");
 		ret = kbase_mmu_update_pages(kctx, reg->start_pfn,
 				kbase_get_gpu_phy_pages(reg),
@@ -1078,7 +1078,7 @@ int kbase_mem_do_sync_imported(struct kbase_context *kctx,
 
 	switch (sync_fn) {
 	case KBASE_SYNC_TO_DEVICE:
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Syncing imported buffer at GPU VA %llx to GPU\n",
 			reg->start_pfn);
 #ifdef KBASE_MEM_ION_SYNC_WORKAROUND
@@ -1107,7 +1107,7 @@ int kbase_mem_do_sync_imported(struct kbase_context *kctx,
 #endif /* KBASE_MEM_ION_SYNC_WORKAROUND */
 		break;
 	case KBASE_SYNC_TO_CPU:
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Syncing imported buffer at GPU VA %llx to CPU\n",
 			reg->start_pfn);
 #ifdef KBASE_MEM_ION_SYNC_WORKAROUND
@@ -2690,7 +2690,7 @@ static int kbase_mmu_dump_mmap(struct kbase_context *kctx,
 	size_t size;
 	int err = 0;
 
-	dev_dbg(kctx->kbdev->dev, "in kbase_mmu_dump_mmap\n");
+	dev_vdbg(kctx->kbdev->dev, "in kbase_mmu_dump_mmap\n");
 	size = (vma->vm_end - vma->vm_start);
 	nr_pages = size >> PAGE_SHIFT;
 
@@ -2735,7 +2735,7 @@ static int kbase_mmu_dump_mmap(struct kbase_context *kctx,
 	*kmap_addr = kaddr;
 	*reg = new_reg;
 
-	dev_dbg(kctx->kbdev->dev, "kbase_mmu_dump_mmap done\n");
+	dev_vdbg(kctx->kbdev->dev, "kbase_mmu_dump_mmap done\n");
 	return 0;
 
 out_no_alloc:
@@ -2770,7 +2770,7 @@ static int kbasep_reg_mmap(struct kbase_context *kctx,
 
 	*aligned_offset = 0;
 
-	dev_dbg(kctx->kbdev->dev, "in kbasep_reg_mmap\n");
+	dev_vdbg(kctx->kbdev->dev, "in kbasep_reg_mmap\n");
 
 	/* SAME_VA stuff, fetch the right region */
 	reg = kctx->pending_regions[cookie];
@@ -2827,7 +2827,7 @@ static int kbasep_reg_mmap(struct kbase_context *kctx,
 	vma->vm_pgoff = reg->start_pfn - ((*aligned_offset)>>PAGE_SHIFT);
 out:
 	*regm = reg;
-	dev_dbg(kctx->kbdev->dev, "kbasep_reg_mmap done\n");
+	dev_vdbg(kctx->kbdev->dev, "kbasep_reg_mmap done\n");
 
 	return err;
 }
@@ -2843,7 +2843,7 @@ int kbase_context_mmap(struct kbase_context *const kctx,
 	struct device *dev = kctx->kbdev->dev;
 	size_t aligned_offset = 0;
 
-	dev_dbg(dev, "kbase_mmap\n");
+	dev_vdbg(dev, "kbase_mmap\n");
 
 	if (!(vma->vm_flags & VM_READ))
 		vma->vm_flags &= ~VM_MAYREAD;
@@ -3376,9 +3376,10 @@ static vm_fault_t kbase_csf_user_io_pages_vm_fault(struct vm_fault *vmf)
 	    (vma->vm_pgoff != queue->db_file_offset))
 		return VM_FAULT_SIGBUS;
 
-	mutex_lock(&queue->kctx->csf.lock);
 	kbdev = queue->kctx->kbdev;
 	mgm_dev = kbdev->mgm_dev;
+
+	mutex_lock(&kbdev->csf.reg_lock);
 
 	/* Always map the doorbell page as uncached */
 	doorbell_pgprot = pgprot_device(vma->vm_page_prot);
@@ -3406,12 +3407,10 @@ static vm_fault_t kbase_csf_user_io_pages_vm_fault(struct vm_fault *vmf)
 #else
 	if (vmf->address == doorbell_cpu_addr) {
 #endif
-		mutex_lock(&kbdev->csf.reg_lock);
 		doorbell_page_pfn = get_queue_doorbell_pfn(kbdev, queue);
 		ret = mgm_dev->ops.mgm_vmf_insert_pfn_prot(mgm_dev,
 			KBASE_MEM_GROUP_CSF_IO, vma, doorbell_cpu_addr,
 			doorbell_page_pfn, doorbell_pgprot);
-		mutex_unlock(&kbdev->csf.reg_lock);
 	} else {
 		/* Map the Input page */
 		input_cpu_addr = doorbell_cpu_addr + PAGE_SIZE;
@@ -3431,7 +3430,7 @@ static vm_fault_t kbase_csf_user_io_pages_vm_fault(struct vm_fault *vmf)
 	}
 
 exit:
-	mutex_unlock(&queue->kctx->csf.lock);
+	mutex_unlock(&kbdev->csf.reg_lock);
 	return ret;
 }
 
@@ -3541,6 +3540,7 @@ static vm_fault_t kbase_csf_user_reg_vm_fault(struct vm_fault *vmf)
 	unsigned long pfn = PFN_DOWN(kbdev->reg_start + USER_BASE);
 	size_t nr_pages = PFN_DOWN(vma->vm_end - vma->vm_start);
 	vm_fault_t ret = VM_FAULT_SIGBUS;
+	unsigned long flags;
 
 	/* Few sanity checks up front */
 	if (WARN_ON(nr_pages != 1) ||
@@ -3549,20 +3549,20 @@ static vm_fault_t kbase_csf_user_reg_vm_fault(struct vm_fault *vmf)
 			PFN_DOWN(BASEP_MEM_CSF_USER_REG_PAGE_HANDLE)))
 		return VM_FAULT_SIGBUS;
 
-	mutex_lock(&kbdev->pm.lock);
-
+	mutex_lock(&kbdev->csf.reg_lock);
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	/* Don't map in the actual register page if GPU is powered down.
 	 * Always map in the dummy page in no mali builds.
 	 */
 	if (!kbdev->pm.backend.gpu_powered)
 		pfn = PFN_DOWN(as_phys_addr_t(kbdev->csf.dummy_user_reg_page));
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	ret = mgm_dev->ops.mgm_vmf_insert_pfn_prot(mgm_dev,
 						   KBASE_MEM_GROUP_CSF_FW, vma,
 						   vma->vm_start, pfn,
 						   vma->vm_page_prot);
-
-	mutex_unlock(&kbdev->pm.lock);
+	mutex_unlock(&kbdev->csf.reg_lock);
 
 	return ret;
 }

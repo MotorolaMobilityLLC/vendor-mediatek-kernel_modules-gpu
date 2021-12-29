@@ -323,6 +323,10 @@ struct kbase_csf_notification {
  *                    queue.
  * @cs_fatal_info:    Records additional information about the CS fatal event.
  * @cs_fatal:         Records information about the CS fatal event.
+ * @extract_ofs: The current EXTRACT offset, this is updated during certain
+ *               events such as GPU idle IRQ in order to help detect a
+ *               queue's true idle status.
+ * @pending:          Indicating whether the queue has new submitted work.
  */
 struct kbase_queue {
 	struct kbase_context *kctx;
@@ -356,6 +360,8 @@ struct kbase_queue {
 	struct work_struct fatal_event_work;
 	u64 cs_fatal_info;
 	u32 cs_fatal;
+	u64 extract_ofs;
+	atomic_t pending;
 };
 
 /**
@@ -655,6 +661,7 @@ struct kbase_csf_scheduler_context {
  *                    Link of fatal error is
  *                    &struct_kbase_csf_notification.link.
  *                    @event_lock needs to be held to access this list.
+ * @pending_submission_work: Work item to process pending kicked GPU command queues.
  * @cpu_queue:        CPU queue information. Only be available when DEBUG_FS
  *                    is enabled.
  */
@@ -675,6 +682,7 @@ struct kbase_csf_context {
 	struct vm_area_struct *user_reg_vma;
 	struct kbase_csf_scheduler_context sched;
 	struct list_head error_list;
+	struct work_struct pending_submission_work;
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	struct kbase_csf_cpu_queue_context cpu_queue;
 #endif
@@ -802,11 +810,29 @@ struct kbase_csf_csg_slot {
  * @active_protm_grp:       Indicates if firmware has been permitted to let GPU
  *                          enter protected mode with the given group. On exit
  *                          from protected mode the pointer is reset to NULL.
- * @gpu_idle_fw_timer_enabled: Whether the CSF scheduler has activiated the
- *                            firmware idle hysteresis timer for preparing a
- *                            GPU suspend on idle.
+ *                          This pointer is set and PROTM_ENTER request is sent
+ *                          atomically with @interrupt_lock held.
+ *                          This pointer being set doesn't necessarily indicates
+ *                          that GPU is in protected mode, kbdev->protected_mode
+ *                          needs to be checked for that.
+ * @pmode_exit_wa_work:     Work item for quickly executing the platform specific
+ *                          workaround after executing protected mode.
+ * @apply_pmode_exit_wa:    Flag to indicate that exit from protected mode has
+ *                          happened and a platform specific workaround needs to
+ *                          be applied.
+ *                          This pointer is set and PROTM_ENTER request is sent
+ *                          atomically with @interrupt_lock held.
+ *                          This pointer being set doesn't necessarily indicates
+ *                          that GPU is in protected mode, kbdev->protected_mode
+ *                          needs to be checked for that.
+ * @idle_wq:                Workqueue for executing GPU idle notification
+ *                          handler.
  * @gpu_idle_work:          Work item for facilitating the scheduler to bring
  *                          the GPU to a low-power mode on becoming idle.
+ * @gpu_no_longer_idle:     Effective only when the GPU idle worker has been
+ *                          queued for execution, this indicates whether the
+ *                          GPU has become non-idle since the last time the
+ *                          idle notification was received.
  * @non_idle_offslot_grps:  Count of off-slot non-idle groups. Reset during
  *                          the scheduler active phase in a tick. It then
  *                          tracks the count of non-idle groups across all the
@@ -827,6 +853,12 @@ struct kbase_csf_csg_slot {
  *                          when scheduling tick needs to be advanced from
  *                          interrupt context, without actually deactivating
  *                          the @tick_timer first and then enqueing @tick_work.
+ * @tick_protm_pending_seq: Scan out sequence number of the group that has
+ *                          protected mode execution pending for the queue(s)
+ *                          bound to it and will be considered first for the
+ *                          protected mode execution compared to other such
+ *                          groups. It is updated on every tick/tock.
+ *                          @interrupt_lock is used to serialize the access.
  */
 struct kbase_csf_scheduler {
 	struct mutex lock;
@@ -858,13 +890,17 @@ struct kbase_csf_scheduler {
 	struct kbase_queue_group *top_grp;
 	bool tock_pending_request;
 	struct kbase_queue_group *active_protm_grp;
-	bool gpu_idle_fw_timer_enabled;
+	struct work_struct pmode_exit_wa_work;
+	bool apply_pmode_exit_wa;
+	struct workqueue_struct *idle_wq;
 	struct work_struct gpu_idle_work;
+	atomic_t gpu_no_longer_idle;
 	atomic_t non_idle_offslot_grps;
 	u32 non_idle_scanout_grps;
 	u32 pm_active_count;
 	unsigned int csg_scheduling_period_ms;
 	bool tick_timer_active;
+	u32 tick_protm_pending_seq;
 };
 
 /**
@@ -883,7 +919,7 @@ struct kbase_csf_scheduler {
 /**
  * Default GLB_PWROFF_TIMER_TIMEOUT value in unit of micro-seconds.
  */
-#define DEFAULT_GLB_PWROFF_TIMEOUT_US (800)
+#define DEFAULT_GLB_PWROFF_TIMEOUT_US (300)
 
 /**
  * In typical operations, the management of the shader core power transitions
@@ -1225,6 +1261,22 @@ struct kbase_csf_device {
 	u32 gpu_idle_dur_count;
 	unsigned int fw_timeout_ms;
 	struct kbase_csf_hwcnt hwcnt;
+	ktime_t glb_start_tm;
+	ktime_t glb_end_tm;
+	ktime_t csf_interrupt_start_tm;
+	ktime_t csf_interrupt_end_tm;
+	u32 csg_remaining;
+	ktime_t csg_start_tm[MAX_SUPPORTED_CSGS];
+	ktime_t csg_end_tm[MAX_SUPPORTED_CSGS];
+	u32 glb_req;
+	u32 glb_ack;
+	u32 csg_req[MAX_SUPPORTED_CSGS];
+	u32 csg_ack[MAX_SUPPORTED_CSGS];
+	u32 csg_irqreq[MAX_SUPPORTED_CSGS];
+	u32 csg_irqack[MAX_SUPPORTED_CSGS];
+	s64 spin_delta_us_0;
+	s64 spin_delta_us_1;
+	s64 spin_delta_us_2;
 };
 
 /**

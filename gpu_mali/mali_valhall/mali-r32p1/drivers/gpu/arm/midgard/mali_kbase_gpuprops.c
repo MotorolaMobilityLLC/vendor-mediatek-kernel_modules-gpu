@@ -169,6 +169,12 @@ int kbase_gpuprops_get_curr_config_props(struct kbase_device *kbdev,
 
 	curr_config->update_needed = false;
 
+#if MALI_USE_CSF
+#if defined(CONFIG_MALI_MTK_DUMMY_CM)
+	kbdev->pm.dummy_core_mask = curr_config->shader_present;
+#endif
+#endif
+
 	return 0;
 }
 

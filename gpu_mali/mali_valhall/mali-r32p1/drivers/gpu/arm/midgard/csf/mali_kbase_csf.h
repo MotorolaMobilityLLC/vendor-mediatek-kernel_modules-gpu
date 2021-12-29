@@ -39,9 +39,14 @@
  */
 #define KBASEP_USER_DB_NR_INVALID ((s8)-1)
 
-#define FIRMWARE_PING_INTERVAL_MS (4000) /* 4 seconds */
+/* Indicates an invalid value for the scan out sequence number, used to
+* signify there is no group that has protected mode execution pending.
+*/
+#define KBASEP_TICK_PROTM_PEND_SCAN_SEQ_NR_INVALID (U32_MAX)
 
-#define FIRMWARE_IDLE_HYSTERESIS_TIME_MS (50) /* Default 10 milliseconds */
+#define FIRMWARE_PING_INTERVAL_MS (15000) /* 15 seconds */
+
+#define FIRMWARE_IDLE_HYSTERESIS_TIME_MS (5) /* Default 10 milliseconds */
 
 /**
  * enum kbase_csf_event_callback_action - return type for CSF event callbacks.
@@ -559,6 +564,5 @@ static inline u8 kbase_csf_priority_queue_group_priority_to_relative(u8 priority
 		priority = BASE_QUEUE_GROUP_PRIORITY_LOW;
 	return kbasep_csf_queue_group_priority_to_relative[priority];
 }
-
 
 #endif /* _KBASE_CSF_H_ */
