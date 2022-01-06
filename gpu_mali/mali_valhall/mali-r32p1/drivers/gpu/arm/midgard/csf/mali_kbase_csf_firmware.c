@@ -293,7 +293,7 @@ static void wait_ready(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	if (max_loops == 0) {
-		dev_info(kbdev->dev, "AS_ACTIVE bit stuck when enabling AS0 for MCU\n");
+		dev_info(kbdev->dev, "AS_ACTIVE bit stuck when MCU load the MMU tables\n");
 		if (!mtk_common_gpufreq_bringup()) {
 			gpufreq_dump_infra_status();
 			mtk_common_debug_dump();
@@ -301,7 +301,7 @@ static void wait_ready(struct kbase_device *kbdev)
 	}
 #else
 	if (max_loops == 0)
-		dev_err(kbdev->dev, "AS_ACTIVE bit stuck when enabling AS0 for MCU, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n");
+		dev_info(kbdev->dev, "AS_ACTIVE bit stuck, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n");
 #endif
 }
 

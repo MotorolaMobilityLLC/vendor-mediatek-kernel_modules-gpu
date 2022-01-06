@@ -151,13 +151,11 @@ static int wait_ready(struct kbase_device *kbdev,
 			mt_gpufreq_dump_infra_status();
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
 		}
-		dump_stack();
 		return -1;
 	}
 #else
 	if (max_loops == 0) {
 		dev_err(kbdev->dev, "AS_ACTIVE bit stuck, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n");
-		dump_stack();
 		return -1;
 	}
 #endif
@@ -229,8 +227,6 @@ void kbase_mmu_hw_configure(struct kbase_device *kbdev, struct kbase_as *as)
 			transcfg);
 
 	write_cmd(kbdev, as->number, AS_COMMAND_UPDATE);
-	/* Wait for UPDATE command to complete */
-	wait_ready(kbdev, as->number);
 }
 
 int kbase_mmu_hw_do_operation(struct kbase_device *kbdev, struct kbase_as *as,
