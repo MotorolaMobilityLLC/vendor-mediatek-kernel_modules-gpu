@@ -106,17 +106,8 @@ u64 kbase_backend_get_cycle_cnt(struct kbase_device *kbdev)
 {
 	u32 hi1, hi2, lo;
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	if (!kbdev->pm.backend.gpu_powered) {
-		/* Already turned off */
-		dev_info(kbdev->dev, "@%s: GPU is turned off", __func__);
-		if (!mtk_common_gpufreq_bringup()) {
-			gpufreq_dump_infra_status();
-			mtk_common_debug_dump();
-		}
+	if (!kbdev->pm.backend.gpu_powered)
 		return 0;
-	}
-#endif
 
 	/* Read hi, lo, hi to ensure a coherent u64 */
 	do {
