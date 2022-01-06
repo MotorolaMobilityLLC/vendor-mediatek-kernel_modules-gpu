@@ -19,6 +19,7 @@
 #include <mtk_gpufreq.h>
 #include <mtk_gpu_utility.h>
 #include <ged_log.h>
+#include <ged_gpu_bm.h>
 
 static GED_LOG_BUF_HANDLE ghMTKGEDLog;
 static IMG_HANDLE ghRGXUtilUser;
@@ -221,6 +222,9 @@ PVRSRV_ERROR MTKRGXDeviceInit(PVRSRV_DEVICE_CONFIG *psDevConfig)
 	/* set bit mask to 64-bit to pass "dma_capable" check */
 	dma_set_mask(psDevConfig->pvOSDevice, DMA_BIT_MASK(64));
 	dma_set_coherent_mask(psDevConfig->pvOSDevice, DMA_BIT_MASK(64));
+
+	/* init gpu bandwidth monitor */
+	mtk_bandwidth_resource_init();
 
 	return PVRSRV_OK;
 }
