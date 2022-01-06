@@ -142,7 +142,9 @@ static int wait_ready(struct kbase_device *kbdev,
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	if (max_loops == 0) {
-		dev_info(kbdev->dev, "AS_ACTIVE bit stuck when issue an operation to the MMU\n");
+		dev_info(kbdev->dev,
+			"AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty FPGA connector",
+			as_nr);
 		if (!mtk_common_gpufreq_bringup()) {
 			mtk_common_debug_dump();
 #if defined(CONFIG_MTK_GPUFREQ_V2)
@@ -154,8 +156,10 @@ static int wait_ready(struct kbase_device *kbdev,
 		return -1;
 	}
 #else
-	if (max_loops == 0) {
-		dev_err(kbdev->dev, "AS_ACTIVE bit stuck, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n");
+	if (WARN_ON_ONCE(max_loops == 0)) {
+		dev_info(kbdev->dev,
+			"AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty FPGA connector",
+			as_nr);
 		return -1;
 	}
 #endif
@@ -175,6 +179,11 @@ static int write_cmd(struct kbase_device *kbdev, int as_nr, u32 cmd)
 	status = wait_ready(kbdev, as_nr);
 	if (status == 0)
 		kbase_reg_write(kbdev, MMU_AS_REG(as_nr, AS_COMMAND), cmd);
+	else {
+		dev_info(kbdev->dev,
+			"Wait for AS_ACTIVE bit failed for as %u, before sending MMU command %u",
+			as_nr, cmd);
+	}
 
 	return status;
 }
@@ -183,6 +192,9 @@ void kbase_mmu_hw_configure(struct kbase_device *kbdev, struct kbase_as *as)
 {
 	struct kbase_mmu_setup *current_setup = &as->current_setup;
 	u64 transcfg = 0;
+
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+	lockdep_assert_held(&kbdev->mmu_hw_mutex);
 
 	transcfg = current_setup->transcfg;
 
@@ -227,6 +239,10 @@ void kbase_mmu_hw_configure(struct kbase_device *kbdev, struct kbase_as *as)
 			transcfg);
 
 	write_cmd(kbdev, as->number, AS_COMMAND_UPDATE);
+#if MALI_USE_CSF
+	/* Wait for UPDATE command to complete */
+	wait_ready(kbdev, as->number);
+#endif
 }
 
 int kbase_mmu_hw_do_operation(struct kbase_device *kbdev, struct kbase_as *as,
@@ -239,7 +255,10 @@ int kbase_mmu_hw_do_operation(struct kbase_device *kbdev, struct kbase_as *as,
 
 	if (op == AS_COMMAND_UNLOCK) {
 		/* Unlock doesn't require a lock first */
-		ret = write_cmd(kbdev, as->number, AS_COMMAND_UNLOCK);
+		write_cmd(kbdev, as->number, AS_COMMAND_UNLOCK);
+
+		/* Wait for UNLOCK command to complete */
+		ret = wait_ready(kbdev, as->number);
 	} else {
 		u64 lock_addr;
 

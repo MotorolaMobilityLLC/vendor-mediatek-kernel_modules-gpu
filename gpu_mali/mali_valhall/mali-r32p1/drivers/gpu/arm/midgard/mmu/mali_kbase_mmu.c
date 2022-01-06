@@ -45,6 +45,45 @@
 #include <mali_kbase_trace_gpu_mem.h>
 #define KBASE_MMU_PAGE_ENTRIES 512
 
+#include <backend/gpu/mali_kbase_pm_internal.h>
+
+static void mmu_hw_operation_begin(struct kbase_device *kbdev)
+{
+#if MALI_USE_CSF
+	if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_GPU2019_3878)) {
+		unsigned long flags;
+
+		lockdep_assert_held(&kbdev->mmu_hw_mutex);
+
+		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+		WARN_ON_ONCE(kbdev->mmu_hw_operation_in_progress);
+		kbdev->mmu_hw_operation_in_progress = true;
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+	}
+#else
+	CSTD_UNUSED(kbdev);
+#endif
+}
+
+static void mmu_hw_operation_end(struct kbase_device *kbdev)
+{
+#if MALI_USE_CSF
+	if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_GPU2019_3878)) {
+		unsigned long flags;
+
+		lockdep_assert_held(&kbdev->mmu_hw_mutex);
+
+		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+		WARN_ON_ONCE(!kbdev->mmu_hw_operation_in_progress);
+		kbdev->mmu_hw_operation_in_progress = false;
+		kbase_pm_update_state(kbdev);
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+	}
+#else
+	CSTD_UNUSED(kbdev);
+#endif
+}
+
 /**
  * kbase_mmu_flush_invalidate() - Flush and invalidate the GPU caches.
  * @kctx: The KBase context.
@@ -200,8 +239,10 @@ static void kbase_gpu_mmu_handle_write_faulting_as(
 
 	kbase_mmu_hw_clear_fault(kbdev, faulting_as,
 			KBASE_MMU_FAULT_TYPE_PAGE);
+	mmu_hw_operation_begin(kbdev);
 	kbase_mmu_hw_do_operation(kbdev, faulting_as, start_pfn,
 			nr, op, 1);
+	mmu_hw_operation_end(kbdev);
 
 	mutex_unlock(&kbdev->mmu_hw_mutex);
 
@@ -738,8 +779,10 @@ page_fault_retry:
 		 * transaction (which should cause the other page fault to be
 		 * raised again).
 		 */
+		mmu_hw_operation_begin(kbdev);
 		kbase_mmu_hw_do_operation(kbdev, faulting_as, 0, 0,
 				AS_COMMAND_UNLOCK, 1);
+		mmu_hw_operation_end(kbdev);
 
 		mutex_unlock(&kbdev->mmu_hw_mutex);
 
@@ -764,8 +807,10 @@ page_fault_retry:
 		kbase_mmu_hw_clear_fault(kbdev, faulting_as,
 				KBASE_MMU_FAULT_TYPE_PAGE);
 		/* See comment [1] about UNLOCK usage */
+		mmu_hw_operation_begin(kbdev);
 		kbase_mmu_hw_do_operation(kbdev, faulting_as, 0, 0,
 				AS_COMMAND_UNLOCK, 1);
+		mmu_hw_operation_end(kbdev);
 
 		mutex_unlock(&kbdev->mmu_hw_mutex);
 
@@ -868,9 +913,17 @@ page_fault_retry:
 		kbase_mmu_hw_clear_fault(kbdev, faulting_as,
 					 KBASE_MMU_FAULT_TYPE_PAGE);
 
-		kbase_mmu_hw_do_operation(kbdev, faulting_as,
+		mmu_hw_operation_begin(kbdev);
+		err = kbase_mmu_hw_do_operation(kbdev, faulting_as,
 				fault->addr >> PAGE_SHIFT,
 				new_pages, op, 1);
+		mmu_hw_operation_end(kbdev);
+
+		if (err) {
+			dev_info(kbdev->dev,
+				"Flush for GPU page table update did not complete on handling page fault @ 0x%llx",
+				fault->addr);
+		}
 
 		mutex_unlock(&kbdev->mmu_hw_mutex);
 		/* AS transaction end */
@@ -1551,6 +1604,9 @@ static void kbase_mmu_flush_invalidate_noretain(struct kbase_context *kctx,
 	int err;
 	u32 op;
 
+	lockdep_assert_held(&kctx->kbdev->hwaccess_lock);
+	lockdep_assert_held(&kctx->kbdev->mmu_hw_mutex);
+
 	/* Early out if there is nothing to do */
 	if (nr == 0)
 		return;
@@ -1616,8 +1672,10 @@ static void kbase_mmu_flush_invalidate_as(struct kbase_device *kbdev,
 	else
 		op = AS_COMMAND_FLUSH_PT;
 
+	mmu_hw_operation_begin(kbdev);
 	err = kbase_mmu_hw_do_operation(kbdev,
 			as, vpfn, nr, op, 0);
+	mmu_hw_operation_end(kbdev);
 
 	if (err) {
 		/* Flush failed to complete, assume the GPU has hung and
