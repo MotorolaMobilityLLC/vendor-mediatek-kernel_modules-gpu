@@ -4980,6 +4980,7 @@ int kbase_device_coherency_init(struct kbase_device *kbdev)
 	coherency_override_dts = of_get_property(kbdev->dev->of_node,
 						"system-coherency",
 						NULL);
+	config_system_coherency = 31; // force disable coherency.
 	if (coherency_override_dts && config_system_coherency == 0) {
 
 		override_coherency = be32_to_cpup(coherency_override_dts);
