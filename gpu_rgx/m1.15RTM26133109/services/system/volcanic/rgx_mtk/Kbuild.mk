@@ -43,3 +43,4 @@ ccflags-y += \
 	-I$(srctree)/drivers/gpu/mediatek/mt-plat \
 	-I$(srctree)/drivers/gpu/mediatek/gpu_bm \
 	-I$(srctree)/drivers/gpu/mediatek/gpufreq \
+	-I$(srctree)/drivers/gpu/mediatek/gpueb/include \

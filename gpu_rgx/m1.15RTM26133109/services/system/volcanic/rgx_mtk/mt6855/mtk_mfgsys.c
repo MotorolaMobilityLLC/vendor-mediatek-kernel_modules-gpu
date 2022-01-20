@@ -20,6 +20,11 @@
 #include <mtk_gpu_utility.h>
 #include <ged_log.h>
 #include <ged_gpu_bm.h>
+#if defined(SUPPORT_TRUSTED_DEVICE)
+#include <linux/soc/mediatek/mtk_tinysys_ipi.h>
+#include <gpueb_ipi.h>
+#include <gpueb_reserved_mem.h>
+#endif
 
 static GED_LOG_BUF_HANDLE ghMTKGEDLog;
 static IMG_HANDLE ghRGXUtilUser;
@@ -264,3 +269,264 @@ void MTKFWDump(void)
 #endif /* MTK_DEBUG_PROC_PRINT */
 }
 EXPORT_SYMBOL(MTKFWDump);
+
+#if defined(SUPPORT_TRUSTED_DEVICE)
+#include "rgxstartstop.h"
+#include "rgxfwimageutils.h"
+#include "rgxinit.h"
+#include "rgxfwutils.h"
+#include "rgxlayer_impl.h"
+
+static int g_secgpu_ipi_channel;
+static phys_addr_t g_secgpu_ipi_shared_mem_va;
+int g_secgpu_ipi_shared_mem_pa;
+int g_secgpu_ipi_shared_mem_size;
+static phys_addr_t g_secgpu_fw_reservd_mem_va;
+int g_secgpu_fw_reservd_mem_pa;
+int g_secgpu_fw_reservd_mem_size;
+
+static struct secgpu_ipi_data g_secgpu_recv_msg;
+
+static int secgpu_ipi_to_gpueb(struct secgpu_ipi_data data)
+{
+	int ret = SECGPU_SUCCESS;
+	int timeout = IPI_TIMEOUT_MS;
+
+	if(g_secgpu_recv_msg.cmd_id == CMD_SECGPU_INIT_SHARED_MEM){
+		timeout = IPI_TIMEOUT_MS*10;
+	}
+	ret = mtk_ipi_send_compl(get_gpueb_ipidev(), g_secgpu_ipi_channel, IPI_SEND_POLLING,
+		(void *)&data, SECGPU_IPI_DATA_LEN, timeout);
+
+	if (unlikely(ret != IPI_ACTION_DONE)) {
+		MTK_LOGE("[SECGPU] fail to send IPI command: cmd id %d (ret %d)", data.cmd_id, ret);
+		return SECGPU_EINVAL;
+	}
+
+	if (g_secgpu_recv_msg.cmd_id == CMD_SECGPU_INIT_SHARED_MEM)
+	{
+
+		phys_addr_t shared_mem_pa = 0, shared_mem_va = 0, shared_mem_size = 0;
+		IMG_CPU_PHYADDR sPhyAddr;
+		sPhyAddr.uiAddr = g_secgpu_recv_msg.reserved_fw_mem_base;
+		g_secgpu_fw_reservd_mem_pa = g_secgpu_recv_msg.reserved_fw_mem_base;
+		g_secgpu_fw_reservd_mem_size = g_secgpu_recv_msg.reserved_fw_mem_size;
+		g_secgpu_fw_reservd_mem_va = 0;
+		//MTK_LOGI("[SECGPU] got reserved memory for fw phy_addr: 0x%x, virt_addr: 0x%llx, size: 0x%x",
+		//			g_secgpu_fw_reservd_mem_pa, g_secgpu_fw_reservd_mem_va, g_secgpu_fw_reservd_mem_size);
+	}
+	return SECGPU_SUCCESS;
+}
+
+int secgpu_gpueb_init(void)
+{
+	struct secgpu_ipi_data send_msg = {};
+
+	phys_addr_t shared_mem_va = 0;
+	unsigned int shared_mem_pa = 0, shared_mem_size = 0;
+	int ret = SECGPU_SUCCESS;
+
+	// init ipi channel
+	g_secgpu_ipi_channel = gpueb_get_send_PIN_ID_by_name("IPI_ID_SECURE_GPU");
+	if (unlikely(g_secgpu_ipi_channel < 0)) {
+		MTK_LOGE("[SECGPU] fail to get secgpu IPI channel id (ENOENT)");
+		ret = SECGPU_EINVAL;
+		return ret;
+	}
+	mtk_ipi_register(get_gpueb_ipidev(), g_secgpu_ipi_channel, NULL, NULL, (void *)&g_secgpu_recv_msg);
+
+	// init shared memory
+	shared_mem_va = gpueb_get_reserve_mem_virt_by_name("MEM_ID_SECGPU");
+	MTK_LOGI("[SECGPU] status shared memory virt_addr: 0x%llx shared_mem_va", shared_mem_va);
+	if (!shared_mem_va) {
+		MTK_LOGE("[SECGPU] fail to get secgpu reserved memory virtual addr (ENOENT)");
+		ret = SECGPU_EINVAL;
+		return ret;
+	}
+	shared_mem_pa = gpueb_get_reserve_mem_phys_by_name("MEM_ID_SECGPU");
+	if (!shared_mem_pa) {
+		MTK_LOGE("[SECGPU] fail to get secgpu reserved memory physical addr (ENOENT)");
+		ret = SECGPU_EINVAL;
+		return ret;
+	}
+	shared_mem_size = gpueb_get_reserve_mem_size_by_name("MEM_ID_SECGPU");
+	if (!shared_mem_size) {
+		MTK_LOGE("[SECGPU] fail to get secgpu reserved memory size (ENOENT)");
+		ret = SECGPU_EINVAL;
+		return ret;
+	}
+
+	g_secgpu_ipi_shared_mem_va = shared_mem_va;
+	//MTK_LOGI("[SECGPU] status shared memory virt_addr: 0x%llx g_secgpu_ipi_shared_mem_va", g_secgpu_ipi_shared_mem_va);
+
+	send_msg.cmd_id = CMD_SECGPU_INIT_SHARED_MEM;
+	send_msg.reserved_ipi_shm_base = shared_mem_pa;
+	send_msg.reserved_ipi_shm_size = (uint32_t)shared_mem_size;
+	g_secgpu_ipi_shared_mem_va = shared_mem_va;
+	g_secgpu_ipi_shared_mem_pa = shared_mem_pa;
+	g_secgpu_ipi_shared_mem_size = shared_mem_size;
+	g_secgpu_fw_reservd_mem_va = NULL;
+	g_secgpu_fw_reservd_mem_pa = NULL;
+
+	ret = secgpu_ipi_to_gpueb(send_msg); // if (g_gpueb_support)
+	if (unlikely(ret)) {
+		MTK_LOGE("[SECGPU] fail to init secgpu shared memory (%d)", ret);
+	}
+
+	return ret;
+}
+
+static void setPowerParams()
+{
+	int i;
+	PVRSRV_DEVICE_NODE *psDevNode = MTKGetRGXDevNode();
+	PVRSRV_RGXDEV_INFO *psDevInfo = (PVRSRV_RGXDEV_INFO *)psDevNode->pvDevice;
+	MTK_RGX_LAYER_PARAMS *pPowerParam = (MTK_RGX_LAYER_PARAMS *) (g_secgpu_ipi_shared_mem_va + SECGPU_SHM_POWERPAR_OFFSET);
+	//pPowerParam->sPCAddr = psTDPowerParams->sPCAddr; //RGXAcquireKernelMMUPC
+	pPowerParam->sDevFeatureCfg.ui64ErnsBrns = psDevInfo->sDevFeatureCfg.ui64ErnsBrns;
+	pPowerParam->sDevFeatureCfg.ui64Features = psDevInfo->sDevFeatureCfg.ui64Features;
+	for(i=0;i<RGX_FEATURE_WITH_VALUES_MAX_IDX;i++){
+		pPowerParam->sDevFeatureCfg.ui32FeaturesValues[i] = psDevInfo->sDevFeatureCfg.ui32FeaturesValues[i];
+	}
+	pPowerParam->sDevFeatureCfg.ui32MAXDustCount = psDevInfo->sDevFeatureCfg.ui32MAXDMCount;
+
+	for (i = 0; i < ARRAY_SIZE(psDevInfo->aui64MMUPageSizeRangeValue); ++i)
+	{
+		pPowerParam->aui64MMUPageSizeRangeValue[i] = psDevInfo->aui64MMUPageSizeRangeValue[i];
+	}
+}
+
+PVRSRV_ERROR MTKTDSendFWImage(IMG_HANDLE hSysData, PVRSRV_TD_FW_PARAMS *psTDFWParams)
+{
+	int ret ;
+
+	MTK_PVRSRV_DEVICE_FEATURE_CONFIG mtkDevCfg;
+	struct secgpu_ipi_data send_msg;
+	MTK_TD_FW_MEM fw_mem;
+	MTK_RGX_FW_BOOT_PARAMS bootParam;
+	PVRSRV_DEVICE_NODE *psDevNode = MTKGetRGXDevNode();
+	PVRSRV_RGXDEV_INFO *psDevInfo = (PVRSRV_RGXDEV_INFO *)psDevNode->pvDevice;
+	IMG_DEV_PHYADDR sPhyAddr;
+	PMR *psFWCodePMR, *psFWDataPMR, *psFWCoreCodePMR, *psFWCoreDataPMR;
+	IMG_BOOL bValid;
+	PVR_UNREFERENCED_PARAMETER(hSysData);
+
+	if (g_secgpu_ipi_shared_mem_va == NULL) {
+		MTK_LOGE("[SECGPU] g_secgpu_ipi_shared_mem_va is null ");
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+
+	bootParam.sMeta.sFWCodeDevVAddr.uiAddr = psTDFWParams->uFWP.sMeta.sFWCodeDevVAddr.uiAddr;
+	bootParam.sMeta.sFWDataDevVAddr.uiAddr = psTDFWParams->uFWP.sMeta.sFWDataDevVAddr.uiAddr;
+	bootParam.sMeta.sFWCorememCodeDevVAddr.uiAddr = psTDFWParams->uFWP.sMeta.sFWCorememCodeDevVAddr.uiAddr;
+	bootParam.sMeta.sFWCorememCodeFWAddr.ui32Addr = psTDFWParams->uFWP.sMeta.sFWCorememCodeFWAddr.ui32Addr;
+	bootParam.sMeta.uiFWCorememCodeSize = psTDFWParams->uFWP.sMeta.uiFWCorememCodeSize;
+	bootParam.sMeta.sFWCorememDataDevVAddr.uiAddr = psTDFWParams->uFWP.sMeta.sFWCorememDataDevVAddr.uiAddr;
+	bootParam.sMeta.sFWCorememDataFWAddr.ui32Addr = psTDFWParams->uFWP.sMeta.sFWCorememDataFWAddr.ui32Addr;
+	bootParam.sMeta.ui32NumThreads = psTDFWParams->uFWP.sMeta.ui32NumThreads;
+	memcpy(g_secgpu_ipi_shared_mem_va + SECGPU_SHM_BOOTPAR_OFFSET, &bootParam, sizeof(MTK_RGX_FW_BOOT_PARAMS));
+
+	psFWCodePMR = (PMR *)(psDevInfo->psRGXFWCodeMemDesc->psImport->hPMR);
+	psFWDataPMR = (PMR *)(psDevInfo->psRGXFWDataMemDesc->psImport->hPMR);
+	RGXGetPhyAddr(psFWCodePMR, &sPhyAddr, 0, OSGetPageShift(), 1, &bValid);
+	fw_mem.code_addr_lo = (unsigned int)sPhyAddr.uiAddr;
+	fw_mem.code_addr_hi = (unsigned int)(sPhyAddr.uiAddr >> 32);
+	RGXGetPhyAddr(psFWDataPMR, &sPhyAddr, 0, OSGetPageShift(), 1, &bValid);
+	fw_mem.data_addr_lo = (unsigned int)sPhyAddr.uiAddr;
+	fw_mem.data_addr_hi = (unsigned int)(sPhyAddr.uiAddr >> 32);
+	psFWCoreCodePMR = (PMR *)(psDevInfo->psRGXFWCorememCodeMemDesc->psImport->hPMR);
+	psFWCoreDataPMR = (PMR *)(psDevInfo->psRGXFWIfCorememDataStoreMemDesc->psImport->hPMR);
+	RGXGetPhyAddr(psFWCoreCodePMR, &sPhyAddr, 0, OSGetPageShift(), 1, &bValid);
+	fw_mem.core_code_addr_lo = (unsigned int)sPhyAddr.uiAddr;
+	fw_mem.core_code_addr_hi = (unsigned int)(sPhyAddr.uiAddr >> 32);
+	RGXGetPhyAddr(psFWCoreDataPMR, &sPhyAddr, 0, OSGetPageShift(), 1, &bValid);
+	fw_mem.core_data_addr_lo = (unsigned int)sPhyAddr.uiAddr;
+	fw_mem.core_data_addr_hi = (unsigned int)(sPhyAddr.uiAddr >> 32);
+	memcpy(g_secgpu_ipi_shared_mem_va + SECGPU_SHM_FW_MEM_OFFSET , &fw_mem, sizeof(MTK_TD_FW_MEM));
+
+	IMG_UINT32 *pui32FirmwareSize = (IMG_UINT32 *) (g_secgpu_ipi_shared_mem_va + SECGPU_SHM_FW_BIN_OFFSET);
+	*pui32FirmwareSize = psTDFWParams->ui32FirmwareSize;
+	memcpy(g_secgpu_ipi_shared_mem_va + SECGPU_SHM_FW_BIN_OFFSET + sizeof(IMG_UINT32), (psTDFWParams->pvFirmware), psTDFWParams->ui32FirmwareSize);
+
+	setPowerParams();
+
+	send_msg.cmd_id = CMD_SECGPU_SET_FWIMG;
+
+	ret = secgpu_ipi_to_gpueb(send_msg);
+	if (unlikely(ret)) {
+		MTK_LOGE("[SECGPU] secgpu_ipi_to_gpueb fail (cmd id: %d)", send_msg.cmd_id);
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+	return PVRSRV_OK;
+}
+
+PVRSRV_ERROR MTKTDSetPowerParams(IMG_HANDLE hSysData, PVRSRV_TD_POWER_PARAMS *psTDPowerParams)
+{
+	if (g_secgpu_ipi_shared_mem_va == NULL) {
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+
+	struct secgpu_ipi_data send_msg;
+	MTK_RGX_LAYER_PARAMS *pPowerParam = (MTK_RGX_LAYER_PARAMS *) (g_secgpu_ipi_shared_mem_va + SECGPU_SHM_POWERPAR_OFFSET);
+	PVRSRV_DEVICE_NODE *psDevNode = MTKGetRGXDevNode();
+	PVRSRV_RGXDEV_INFO *psDevInfo = (PVRSRV_RGXDEV_INFO *)psDevNode->pvDevice;
+	int i;
+	PVR_UNREFERENCED_PARAMETER(hSysData);
+
+	pPowerParam->sPCAddr = psTDPowerParams->sPCAddr;
+	pPowerParam->sBootRemapAddr = psTDPowerParams->sBootRemapAddr;
+	pPowerParam->sCodeRemapAddr = psTDPowerParams->sCodeRemapAddr;
+	pPowerParam->sDataRemapAddr = psTDPowerParams->sDataRemapAddr;
+	pPowerParam->sDevFeatureCfg.ui64ErnsBrns = psDevInfo->sDevFeatureCfg.ui64ErnsBrns;
+	pPowerParam->sDevFeatureCfg.ui64Features = psDevInfo->sDevFeatureCfg.ui64Features;
+	for(i=0;i<RGX_FEATURE_WITH_VALUES_MAX_IDX;i++){
+		pPowerParam->sDevFeatureCfg.ui32FeaturesValues[i] = psDevInfo->sDevFeatureCfg.ui32FeaturesValues[i];
+	}
+	pPowerParam->sDevFeatureCfg.ui32MAXDustCount = psDevInfo->sDevFeatureCfg.ui32MAXDMCount;
+
+	send_msg.cmd_id = CMD_SECGPU_SET_POWER;
+	int ret = secgpu_ipi_to_gpueb(send_msg);
+	if (unlikely(ret)) {
+		MTK_LOGE("[SECGPU] secgpu_ipi_to_gpueb fail (cmd id: %d)", send_msg.cmd_id);
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+	return PVRSRV_OK;
+}
+
+PVRSRV_ERROR MTKTDRGXStart(IMG_HANDLE hSysData)
+{
+	if (g_secgpu_ipi_shared_mem_va == NULL) {
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+
+	struct secgpu_ipi_data send_msg;
+	PVR_UNREFERENCED_PARAMETER(hSysData);
+
+	send_msg.cmd_id = CMD_SECGPU_SET_START;
+	int ret = secgpu_ipi_to_gpueb(send_msg);
+	if (unlikely(ret)) {
+		MTK_LOGE("[SECGPU] secgpu_ipi_to_gpueb fail (cmd id: %d)", send_msg.cmd_id);
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+	return PVRSRV_OK;
+}
+
+PVRSRV_ERROR MTKTDRGXStop(IMG_HANDLE hSysData)
+{
+	if (g_secgpu_ipi_shared_mem_va == NULL) {
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+
+	struct secgpu_ipi_data send_msg;
+	PVR_UNREFERENCED_PARAMETER(hSysData);
+
+	send_msg.cmd_id = CMD_SECGPU_SET_STOP;
+	int ret = secgpu_ipi_to_gpueb(send_msg);
+	if (unlikely(ret)) {
+		MTK_LOGE("[SECGPU] secgpu_ipi_to_gpueb fail (cmd id: %d)", send_msg.cmd_id);
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+	return PVRSRV_OK;
+}
+
+#endif /* defined(SUPPORT_TRUSTED_DEVICE) */
