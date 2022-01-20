@@ -6,6 +6,8 @@
 #ifndef __SYSINFO_H__
 #define __SYSINFO_H__
 
+#include "rgx_bvnc_defs_km.h"
+
 /**************************************************
  * MTK PVR Log Setting
  **************************************************/

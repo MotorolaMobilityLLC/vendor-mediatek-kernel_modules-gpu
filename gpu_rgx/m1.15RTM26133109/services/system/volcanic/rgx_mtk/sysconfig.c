@@ -20,13 +20,31 @@
 /* MTK */
 #include "mtk_mfgsys.h"
 
-static RGX_TIMING_INFORMATION   gsRGXTimingInfo;
-static RGX_DATA                 gsRGXData;
-static PVRSRV_DEVICE_CONFIG     gsDevices[1];
-static PHYS_HEAP_FUNCTIONS      gsPhysHeapFuncs;
-static PHYS_HEAP_CONFIG         gsPhysHeapConfig;
+static RGX_TIMING_INFORMATION gsRGXTimingInfo;
+static RGX_DATA gsRGXData;
+static PVRSRV_DEVICE_CONFIG gsDevices[1];
+static PHYS_HEAP_FUNCTIONS gsPhysHeapFuncs;
 
-static struct platform_device   *gpsPVRCfgDev;
+#if defined(SUPPORT_TRUSTED_DEVICE)
+static PHYS_HEAP_CONFIG         gsPhysHeapConfig[2];
+
+extern int g_secgpu_fw_reservd_mem_pa;
+extern int g_secgpu_fw_reservd_mem_size;
+
+#include <soc/mediatek/emi.h>
+struct emimpu_region_t gpufw_rg_info;
+void mfg_set_emi_mpu(phys_addr_t base, phys_addr_t size)
+{
+	gpufw_rg_info.rg_num = 28;
+    gpufw_rg_info.start = base;
+    gpufw_rg_info.end = base + size - 1;
+}
+
+#else
+static PHYS_HEAP_CONFIG         gsPhysHeapConfig[1];
+#endif
+
+static struct platform_device *gpsPVRCfgDev;
 
 /* CPU to Device physcial address translation */
 static void UMAPhysHeapCpuPAddrToDevPAddr(
@@ -74,15 +92,41 @@ PVRSRV_ERROR SysDevInit(void *pvOSDevice, PVRSRV_DEVICE_CONFIG **ppsDevConfig)
 	gsPhysHeapFuncs.pfnCpuPAddrToDevPAddr = UMAPhysHeapCpuPAddrToDevPAddr;
 	gsPhysHeapFuncs.pfnDevPAddrToCpuPAddr = UMAPhysHeapDevPAddrToCpuPAddr;
 
-	gsPhysHeapConfig.pszPDumpMemspaceName = "SYSMEM";
-	gsPhysHeapConfig.eType = PHYS_HEAP_TYPE_UMA;
-	gsPhysHeapConfig.psMemFuncs = &gsPhysHeapFuncs;
-	gsPhysHeapConfig.hPrivData = (IMG_HANDLE)&gsDevices[0];
-	gsPhysHeapConfig.ui32UsageFlags = PHYS_HEAP_USAGE_GPU_LOCAL;
+	gsPhysHeapConfig[0].pszPDumpMemspaceName = "SYSMEM";
+	gsPhysHeapConfig[0].eType = PHYS_HEAP_TYPE_UMA;
+	gsPhysHeapConfig[0].psMemFuncs = &gsPhysHeapFuncs;
+	gsPhysHeapConfig[0].hPrivData = (IMG_HANDLE)&gsDevices[0];
+	gsPhysHeapConfig[0].ui32UsageFlags = PHYS_HEAP_USAGE_GPU_LOCAL;
+
+	
+#if defined(SUPPORT_TRUSTED_DEVICE)
+	int ret = secgpu_gpueb_init();
+	if (unlikely(ret)) {
+		MTK_LOGE("[SECGPU] secgpu_gpueb_init fail (%d)", ret);
+		return PVRSRV_ERROR_INIT_FAILURE;
+	}
+
+	gsPhysHeapConfig[1].hPrivData = NULL;
+	gsPhysHeapConfig[1].pszPDumpMemspaceName = "TD";
+	gsPhysHeapConfig[1].eType = PHYS_HEAP_TYPE_LMA;
+	gsPhysHeapConfig[1].psMemFuncs = &gsPhysHeapFuncs;
+	gsPhysHeapConfig[1].ui32UsageFlags = PHYS_HEAP_USAGE_GPU_SECURE | 
+					PHYS_HEAP_USAGE_FW_PRIV_DATA | PHYS_HEAP_USAGE_FW_CODE;
+
+	gsPhysHeapConfig[1].sStartAddr.uiAddr = g_secgpu_fw_reservd_mem_pa + RESERVE_FOR_REE;
+	gsPhysHeapConfig[1].sCardBase.uiAddr = g_secgpu_fw_reservd_mem_pa + RESERVE_FOR_REE;
+	gsPhysHeapConfig[1].uiSize = g_secgpu_fw_reservd_mem_size - RESERVE_FOR_REE;
+	gsPhysHeapConfig[1].hPrivData = NULL;
+
+	MTK_LOGI("[SECGPU]: %s, Region[0] name: %s, base: 0x%llx, size: 0x%x\n", __func__,
+			"g_secgpu_fw_reservd_mem", gsPhysHeapConfig[1].sStartAddr.uiAddr , gsPhysHeapConfig[1].uiSize);
+#endif // SUPPORT_TRUSTED_DEVICE
 
 	gsDevices[0].pvOSDevice = pvOSDevice;
-	gsDevices[0].pasPhysHeaps = &gsPhysHeapConfig;
-	gsDevices[0].ui32PhysHeapCount = sizeof(gsPhysHeapConfig) / sizeof(PHYS_HEAP_CONFIG);
+	gsDevices[0].pasPhysHeaps = gsPhysHeapConfig;
+
+	gsDevices[0].ui32PhysHeapCount =
+			sizeof(gsPhysHeapConfig) / sizeof(PHYS_HEAP_CONFIG);
 
 	/* set GPU init frequency */
 	gsRGXTimingInfo.ui32CoreClockSpeed = RGX_HW_CORE_CLOCK_SPEED;
@@ -143,6 +187,19 @@ PVRSRV_ERROR SysDevInit(void *pvOSDevice, PVRSRV_DEVICE_CONFIG **ppsDevConfig)
 
 	gsDevices[0].hDevData = &gsRGXData;
 	gsDevices[0].eCacheSnoopingMode = PVRSRV_DEVICE_SNOOP_NONE;
+
+#if defined(SUPPORT_TRUSTED_DEVICE)
+	/*  send FW image and FW boot time parameters to the trusted device. */
+	gsDevices[0].pfnTDSendFWImage = MTKTDSendFWImage;
+
+	/* send parameters needed in a power transition to the trusted device. */
+	gsDevices[0].pfnTDSetPowerParams = MTKTDSetPowerParams;
+
+	/*! Callbacks to ping the trusted device to securely run RGXStart/Stop() */
+	gsDevices[0].pfnTDRGXStart = MTKTDRGXStart;
+	gsDevices[0].pfnTDRGXStop = MTKTDRGXStop;
+
+#endif /* defined(SUPPORT_TRUSTED_DEVICE) */
 
 	/* Setup other system specific stuff */
 #if defined(SUPPORT_ION)
