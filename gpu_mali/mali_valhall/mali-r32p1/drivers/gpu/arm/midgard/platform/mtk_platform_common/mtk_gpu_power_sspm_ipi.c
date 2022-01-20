@@ -90,8 +90,11 @@ void MTKGPUPower_model_sspm_enable(void) {
 }
 
 void MTKGPUPower_model_start(unsigned int interval_ns) {
-	int pm_tool = MTK_get_mtk_pm();
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_LOW_POWER)
+	return;
+#else
+	int pm_tool = MTK_get_mtk_pm();
 	mutex_lock(&gpu_pmu_info_lock);
 	if (pm_tool == pm_swpm) {
 		//gpu stall counter on
@@ -110,6 +113,8 @@ void MTKGPUPower_model_start(unsigned int interval_ns) {
 		init_flag = gpm_kernel_side;
 
 	mutex_unlock(&gpu_pmu_info_lock);
+#endif
+
 }
 EXPORT_SYMBOL(MTKGPUPower_model_start);
 
@@ -143,6 +148,10 @@ void MTKGPUPower_model_start_swpm(unsigned int interval_ns){
 EXPORT_SYMBOL(MTKGPUPower_model_start_swpm);
 
 void MTKGPUPower_model_stop(void){
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_LOW_POWER)
+	return;
+#else
 	mutex_lock(&gpu_pmu_info_lock);
 	if (init_flag != gpm_off) {
 		if (init_flag == gpm_sspm_side) {
@@ -157,6 +166,8 @@ void MTKGPUPower_model_stop(void){
 		init_flag = gpm_off;
 	}
 	mutex_unlock(&gpu_pmu_info_lock);
+#endif
+
 }
 EXPORT_SYMBOL(MTKGPUPower_model_stop);
 
