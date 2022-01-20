@@ -2542,7 +2542,7 @@ static ssize_t set_core_mask(struct device *dev, struct device_attribute *attr, 
 
 #if MALI_USE_CSF
 	if ((new_core_mask & shader_present) != new_core_mask) {
-		dev_vdbg(dev,
+		dev_vdbg(kbdev->dev,
 			"Invalid core mask 0x%llX: Includes non-existent cores (present = 0x%llX)",
 			new_core_mask, shader_present);
 		err = -EINVAL;
@@ -2550,7 +2550,7 @@ static ssize_t set_core_mask(struct device *dev, struct device_attribute *attr, 
 
 	} else if (!(new_core_mask & shader_present &
 		     kbdev->pm.backend.ca_cores_enabled)) {
-		dev_vdbg(dev,
+		dev_vdbg(kbdev->dev,
 			"Invalid core mask 0x%llX: No intersection with currently available cores (present = 0x%llX, CA enabled = 0x%llX\n",
 			new_core_mask,
 			kbdev->gpu_props.props.raw_props.shader_present,
