@@ -94,14 +94,13 @@ static void MTKDVFSCommit(unsigned long ui32OPPIdx,
 	PVRSRV_DEVICE_NODE *psDevNode = NULL;
 	PVRSRV_ERROR eResult = PVRSRV_OK;
 
+	*pbCommited = IMG_FALSE;
+
 	psDevNode = MTKGetRGXDevNode();
 	if (!psDevNode) {
 		MTK_LOGE("fail to get RGX device node");
-		if (pbCommited)
-			*pbCommited = IMG_FALSE;
 		return;
 	}
-
 	/* pause GPU when DVFS transition */
 	eResult = PVRSRVDevicePreClockSpeedChange(psDevNode, IMG_FALSE, (void *)NULL);
 	if (eResult != PVRSRV_OK) {
@@ -115,11 +114,8 @@ static void MTKDVFSCommit(unsigned long ui32OPPIdx,
 		eResult = gpufreq_commit(TARGET_DEFAULT, (int)ui32OPPIdx);
 		if (eResult) {
 			MTK_LOGE("fail to commit OPP: %d (%d)", (int)ui32OPPIdx, eResult);
-			if (pbCommited)
-				*pbCommited = IMG_FALSE;
-		} else {
-			/* update freq change to driver */
-			MTKWriteBackFreqToRGX(psDevNode, gpufreq_get_cur_freq(TARGET_DEFAULT));
+		}
+		else {
 			/* update GED log buffer */
 			ged_log_buf_print2(ghMTKGEDLog, GED_LOG_ATTR_TIME,
 				"OPP: %d, VGPU: %d, VSRAM: %d, FREQ: %d",
@@ -127,13 +123,21 @@ static void MTKDVFSCommit(unsigned long ui32OPPIdx,
 				gpufreq_get_cur_volt(TARGET_DEFAULT),
 				gpufreq_get_cur_vsram(TARGET_DEFAULT),
 				gpufreq_get_cur_freq(TARGET_DEFAULT));
-			if (pbCommited)
-				*pbCommited = IMG_TRUE;
+			*pbCommited = IMG_TRUE;
 		}
 	}
 
 	/* resume GPU after DVFS complete */
 	PVRSRVDevicePostClockSpeedChange(psDevNode, IMG_FALSE, (void *)NULL);
+}
+
+static void MTKGPUFreqChangeNotify(unsigned int clk_idx, unsigned int freq)
+{
+	PVRSRV_DEVICE_NODE *psDevNode = NULL;
+
+	psDevNode = MTKGetRGXDevNode();
+	if (clk_idx == 0 || clk_idx == 1)
+		MTKWriteBackFreqToRGX(psDevNode, freq);
 }
 
 PVRSRV_ERROR MTKSysPrePowerState(IMG_HANDLE hSysData,
@@ -159,6 +163,10 @@ PVRSRV_ERROR MTKSysPrePowerState(IMG_HANDLE hSysData,
 			/* update GED log buffer */
 			ged_log_buf_print2(ghMTKGEDLog, GED_LOG_ATTR_TIME, "POWER_OFF");
 		}
+#if defined(ENABLE_COMMON_DVFS)
+		ged_dvfs_gpu_clock_switch_notify(0);
+		mtk_notify_gpu_power_change(0);
+#endif /* ENABLE_COMMON_DVFS */
 	}
 
 	return eResult;
@@ -177,6 +185,10 @@ PVRSRV_ERROR MTKSysPostPowerState(IMG_HANDLE hSysData,
 	/* power on */
 	if (eNewPowerState == PVRSRV_SYS_POWER_STATE_ON &&
 		eCurrentPowerState == PVRSRV_SYS_POWER_STATE_OFF) {
+#if defined(ENABLE_COMMON_DVFS)
+		ged_dvfs_gpu_clock_switch_notify(1);
+		mtk_notify_gpu_power_change(1);
+#endif /* ENABLE_COMMON_DVFS */
 		eResult = gpufreq_power_control(POWER_ON);
 		if (eResult < 0) {
 			MTK_LOGE("fail to power on GPU (%d)", eResult);
@@ -214,6 +226,7 @@ PVRSRV_ERROR MTKRGXDeviceInit(PVRSRV_DEVICE_CONFIG *psDevConfig)
 	/* register GED callback */
 	ged_dvfs_cal_gpu_utilization_ex_fp = MTKCalGPULoading;
 	ged_dvfs_gpu_freq_commit_fp = MTKDVFSCommit;
+	mtk_notify_gpu_freq_change_fp = MTKGPUFreqChangeNotify;
 
 	/* user must be registered before monitor GPU utilization */
 	if (ghRGXUtilUser == NULL)
