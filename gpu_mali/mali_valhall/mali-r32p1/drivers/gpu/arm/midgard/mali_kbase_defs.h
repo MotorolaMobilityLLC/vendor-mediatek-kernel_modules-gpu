@@ -71,6 +71,10 @@
 #include <linux/regulator/consumer.h>
 #include <linux/memory_group_manager.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <ged_log.h>
+#endif
+
 #if defined(CONFIG_PM_RUNTIME) || defined(CONFIG_PM)
 #define KBASE_PM_RUNTIME 1
 #endif
@@ -1226,6 +1230,10 @@ struct kbase_device {
 #if defined(CONFIG_MALI_MTK_GPU_BM_JM)
 	struct job_status_qos job_status_addr;
 	struct v1_data* v1;
+#endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	GED_LOG_BUF_HANDLE ged_log_buf_hnd_kbase;
 #endif
 };
 
