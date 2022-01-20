@@ -90,7 +90,7 @@ static irqreturn_t kbase_job_irq_handler(int irq, void *data)
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 #if MALI_USE_CSF
 	diff_us = ktime_to_us(ktime_sub(ktime_get(), start));
-	if(diff_us >= 1000) {
+	if(diff_us >= 5000) {
 		dev_info(kbdev->dev,
 			"kbase_job_irq_handler long hit, irq: %d, val: 0x%x, %lld us\n",
 			irq,
