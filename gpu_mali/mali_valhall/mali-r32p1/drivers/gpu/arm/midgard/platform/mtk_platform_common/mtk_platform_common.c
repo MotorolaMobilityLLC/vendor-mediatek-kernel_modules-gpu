@@ -247,6 +247,9 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_MEM_TRACK)
 	mtk_get_gpu_memory_usage_fp = mtk_common_gpu_memory_usage;
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_gpu_fence_debug_dump_fp = mtk_common_gpu_fence_debug_dump;
+#endif
 #if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ)
 	mtk_common_devfreq_init();
 #endif
