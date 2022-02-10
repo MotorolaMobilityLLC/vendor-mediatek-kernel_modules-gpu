@@ -2332,7 +2332,7 @@ static ssize_t set_policy(struct device *dev, struct device_attribute *attr, con
 	}
 
 	if (!new_policy) {
-		dev_err(dev, "power_policy: policy not found\n");
+		dev_err(kbdev->dev, "power_policy: policy not found\n");
 		return -EINVAL;
 	}
 
@@ -2573,13 +2573,13 @@ static ssize_t set_core_mask(struct device *dev, struct device_attribute *attr, 
 
 	for (i = 0; i < 3; ++i) {
 		if ((new_core_mask[i] & shader_present) != new_core_mask[i]) {
-			dev_err(dev, "Invalid core mask 0x%llX for JS %d: Includes non-existent cores (present = 0x%llX)",
+			dev_err(kbdev->dev, "Invalid core mask 0x%llX for JS %d: Includes non-existent cores (present = 0x%llX)",
 					new_core_mask[i], i, shader_present);
 			err = -EINVAL;
 			goto unlock;
 
 		} else if (!(new_core_mask[i] & shader_present & kbdev->pm.backend.ca_cores_enabled)) {
-			dev_err(dev, "Invalid core mask 0x%llX for JS %d: No intersection with currently available cores (present = 0x%llX, CA enabled = 0x%llX\n",
+			dev_err(kbdev->dev, "Invalid core mask 0x%llX for JS %d: No intersection with currently available cores (present = 0x%llX, CA enabled = 0x%llX\n",
 					new_core_mask[i], i,
 					kbdev->gpu_props.props.raw_props.shader_present,
 					kbdev->pm.backend.ca_cores_enabled);
@@ -2587,12 +2587,12 @@ static ssize_t set_core_mask(struct device *dev, struct device_attribute *attr, 
 			goto unlock;
 
 		} else if (!(new_core_mask[i] & group0_core_mask)) {
-			dev_err(dev, "Invalid core mask 0x%llX for JS %d: No intersection with group 0 core mask 0x%llX\n",
+			dev_err(kbdev->dev, "Invalid core mask 0x%llX for JS %d: No intersection with group 0 core mask 0x%llX\n",
 					new_core_mask[i], i, group0_core_mask);
 			err = -EINVAL;
 			goto unlock;
 		} else if (!(new_core_mask[i] & kbdev->gpu_props.curr_config.shader_present)) {
-			dev_err(dev, "Invalid core mask 0x%llX for JS %d: No intersection with current core mask 0x%llX\n",
+			dev_err(kbdev->dev, "Invalid core mask 0x%llX for JS %d: No intersection with current core mask 0x%llX\n",
 					new_core_mask[i], i, kbdev->gpu_props.curr_config.shader_present);
 			err = -EINVAL;
 			goto unlock;
@@ -3168,7 +3168,7 @@ static ssize_t issue_debug(struct device *dev, struct device_attribute *attr, co
 	}
 
 	/* Debug Command not found */
-	dev_err(dev, "debug_command: command not known\n");
+	dev_err(kbdev->dev, "debug_command: command not known\n");
 	return -EINVAL;
 }
 
@@ -5412,6 +5412,14 @@ static int kbase_device_suspend(struct device *dev)
 	if (!kbdev)
 		return -ENODEV;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MFGSYS_PM)
+	pr_info("@%s: Suspending GPU, active_count=%d gpu_powered=%d mfgsys_powered=%d",
+		__func__,
+		kbdev->pm.active_count,
+		kbdev->pm.backend.gpu_powered,
+		kbdev->pm.backend.mfgsys_powered);
+#endif
+
 	kbase_pm_suspend(kbdev);
 
 #ifdef CONFIG_MALI_MIDGARD_DVFS
@@ -5419,7 +5427,7 @@ static int kbase_device_suspend(struct device *dev)
 #endif
 
 #ifdef CONFIG_MALI_DEVFREQ
-	dev_vdbg(dev, "Callback %s\n", __func__);
+	dev_vdbg(kbdev->dev, "Callback %s\n", __func__);
 	if (kbdev->devfreq) {
 		kbase_devfreq_enqueue_work(kbdev, DEVFREQ_WORK_SUSPEND);
 		flush_workqueue(kbdev->devfreq_queue.workq);
@@ -5444,6 +5452,14 @@ static int kbase_device_resume(struct device *dev)
 	if (!kbdev)
 		return -ENODEV;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MFGSYS_PM)
+	pr_info("@%s: Resuming GPU, active_count=%d gpu_powered=%d mfgsys_powered=%d",
+		__func__,
+		kbdev->pm.active_count,
+		kbdev->pm.backend.gpu_powered,
+		kbdev->pm.backend.mfgsys_powered);
+#endif
+
 	kbase_pm_resume(kbdev);
 
 #ifdef CONFIG_MALI_MIDGARD_DVFS
@@ -5451,7 +5467,7 @@ static int kbase_device_resume(struct device *dev)
 #endif
 
 #ifdef CONFIG_MALI_DEVFREQ
-	dev_vdbg(dev, "Callback %s\n", __func__);
+	dev_vdbg(kbdev->dev, "Callback %s\n", __func__);
 	if (kbdev->devfreq) {
 		mutex_lock(&kbdev->pm.lock);
 		if (kbdev->pm.active_count > 0)
@@ -5482,7 +5498,7 @@ static int kbase_device_runtime_suspend(struct device *dev)
 	if (!kbdev)
 		return -ENODEV;
 
-	dev_vdbg(dev, "Callback %s\n", __func__);
+	dev_vdbg(kbdev->dev, "Callback %s\n", __func__);
 
 #ifdef CONFIG_MALI_MIDGARD_DVFS
 	kbase_pm_metrics_stop(kbdev);
@@ -5495,7 +5511,7 @@ static int kbase_device_runtime_suspend(struct device *dev)
 
 	if (kbdev->pm.backend.callback_power_runtime_off) {
 		kbdev->pm.backend.callback_power_runtime_off(kbdev);
-		dev_vdbg(dev, "runtime suspend\n");
+		dev_vdbg(kbdev->dev, "runtime suspend\n");
 	}
 	return 0;
 }
@@ -5520,10 +5536,10 @@ static int kbase_device_runtime_resume(struct device *dev)
 	if (!kbdev)
 		return -ENODEV;
 
-	dev_vdbg(dev, "Callback %s\n", __func__);
+	dev_vdbg(kbdev->dev, "Callback %s\n", __func__);
 	if (kbdev->pm.backend.callback_power_runtime_on) {
 		ret = kbdev->pm.backend.callback_power_runtime_on(kbdev);
-		dev_vdbg(dev, "runtime resume\n");
+		dev_vdbg(kbdev->dev, "runtime resume\n");
 	}
 
 #ifdef CONFIG_MALI_MIDGARD_DVFS
@@ -5558,7 +5574,7 @@ static int kbase_device_runtime_idle(struct device *dev)
 	if (!kbdev)
 		return -ENODEV;
 
-	dev_vdbg(dev, "Callback %s\n", __func__);
+	dev_vdbg(kbdev->dev, "Callback %s\n", __func__);
 	/* Use platform specific implementation if it exists. */
 	if (kbdev->pm.backend.callback_power_runtime_idle)
 		return kbdev->pm.backend.callback_power_runtime_idle(kbdev);
