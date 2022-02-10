@@ -3099,6 +3099,7 @@ static inline void process_protm_exit(struct kbase_device *kbdev, u32 glb_ack)
 		kbdev->protected_mode = false;
 		kbase_ipa_control_protm_exited(kbdev);
 		kbase_hwcnt_backend_csf_protm_exited(&kbdev->hwcnt_gpu_iface);
+		dev_info(kbdev->dev, "Protected mode exit interrupt received");
 	}
 }
 
