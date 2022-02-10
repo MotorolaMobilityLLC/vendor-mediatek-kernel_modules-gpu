@@ -46,6 +46,7 @@
 #endif
 #include <mmu/mali_kbase_mmu.h>
 #include <asm/arch_timer.h>
+#include <linux/delay.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <mtk_gpufreq.h>
@@ -2148,7 +2149,43 @@ void kbase_csf_enter_protected_mode(struct kbase_device *kbdev)
 
 void kbase_csf_wait_protected_mode_enter(struct kbase_device *kbdev)
 {
-	int err = wait_for_global_request(kbdev, GLB_REQ_PROTM_ENTER_MASK);
+	int err;
+
+	lockdep_assert_held(&kbdev->mmu_hw_mutex);
+
+	err = wait_for_global_request(kbdev, GLB_REQ_PROTM_ENTER_MASK);
+
+	if (!err) {
+#define WAIT_TIMEOUT 5000 /* 50ms timeout */
+#define DELAY_TIME_IN_US 10
+		const int max_iterations = WAIT_TIMEOUT;
+		int loop;
+
+		/* Wait for the GPU to actually enter protected mode */
+		for (loop = 0; loop < max_iterations; loop++) {
+			unsigned long flags;
+			bool pmode_exited;
+
+			if (kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_STATUS)) &
+			    GPU_STATUS_PROTECTED_MODE_ACTIVE)
+				break;
+
+			/* Check if GPU already exited the protected mode */
+			kbase_csf_scheduler_spin_lock(kbdev, &flags);
+			pmode_exited =
+				!kbase_csf_scheduler_protected_mode_in_use(kbdev);
+			kbase_csf_scheduler_spin_unlock(kbdev, flags);
+			if (pmode_exited)
+				break;
+
+			udelay(DELAY_TIME_IN_US);
+		}
+
+		if (loop == max_iterations) {
+			dev_err(kbdev->dev, "Timeout for actual pmode entry after PROTM_ENTER ack");
+			err = -ETIMEDOUT;
+		}
+	}
 
 	if (err) {
 		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))

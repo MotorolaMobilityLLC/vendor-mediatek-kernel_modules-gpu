@@ -457,8 +457,8 @@ void kbase_csf_enter_protected_mode(struct kbase_device *kbdev);
  *
  * @kbdev: Instance of a GPU platform device that implements a CSF interface.
  *
- * This function needs to be called after kbase_csf_wait_protected_mode_enter()
- * to wait for the protected mode entry to complete. GPU reset is triggered if
+ * This function needs to be called after kbase_csf_enter_protected_mode() to
+ * wait for the GPU to actually enter protected mode. GPU reset is triggered if
  * the wait is unsuccessful.
  */
 void kbase_csf_wait_protected_mode_enter(struct kbase_device *kbdev);
