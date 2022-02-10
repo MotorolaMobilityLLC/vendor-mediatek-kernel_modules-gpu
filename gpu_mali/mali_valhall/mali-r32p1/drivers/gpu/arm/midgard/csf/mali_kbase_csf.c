@@ -2839,10 +2839,12 @@ static void process_csg_interrupts(struct kbase_device *const kbdev,
 	ack = kbase_csf_firmware_csg_output(ginfo, CSG_ACK);
 	irqreq = kbase_csf_firmware_csg_output(ginfo, CSG_IRQ_REQ);
 	irqack = kbase_csf_firmware_csg_input_read(ginfo, CSG_IRQ_ACK);
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
 	kbdev->csf.csg_req[csg_nr] = req;
 	kbdev->csf.csg_ack[csg_nr] = ack;
 	kbdev->csf.csg_irqreq[csg_nr] = irqreq;
 	kbdev->csf.csg_irqack[csg_nr] = irqack;
+#endif
 
 	/* There may not be any pending CSG/CS interrupts to process */
 	if ((req == ack) && (irqreq == irqack))
@@ -3105,15 +3107,34 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 	unsigned long flags;
 	u32 remaining = val;
 	u32 csg_interrupts = val & ~JOB_IRQ_GLOBAL_IF;
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
 	ktime_t spin_start;
 
+	kbdev->csf.csg_interrupts = csg_interrupts;
 	kbdev->csf.csf_interrupt_start_tm = ktime_get();
+#endif
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
 	KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT, NULL, val);
 	kbase_reg_write(kbdev, JOB_CONTROL_REG(JOB_IRQ_CLEAR), val);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
+	if (csg_interrupts != 0) {
+		spin_start = ktime_get();
+		kbase_csf_scheduler_spin_lock(kbdev, &flags);
+		kbdev->csf.spin_delta_us_1 = ktime_to_us(ktime_sub(ktime_get(), spin_start));
+		while (csg_interrupts != 0) {
+			int const csg_nr = ffs(csg_interrupts) - 1;
+
+			kbdev->csf.csg_start_tm[csg_nr] = ktime_get();
+			process_csg_interrupts(kbdev, csg_nr);
+			kbdev->csf.csg_end_tm[csg_nr] = ktime_get();
+			csg_interrupts &= ~(1 << csg_nr);
+		}
+		kbase_csf_scheduler_spin_unlock(kbdev, flags);
+	}
+#else
 	if (csg_interrupts != 0) {
 		kbase_csf_scheduler_spin_lock(kbdev, &flags);
 		while (csg_interrupts != 0) {
@@ -3124,8 +3145,11 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 		}
 		kbase_csf_scheduler_spin_unlock(kbdev, flags);
 	}
+#endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
 	kbdev->csf.glb_start_tm = ktime_get();
+#endif
 
 	if (val & JOB_IRQ_GLOBAL_IF) {
 		const struct kbase_csf_global_iface *const global_iface =
@@ -3139,16 +3163,22 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 		else if (global_iface->output) {
 			u32 glb_req, glb_ack;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
 			spin_start = ktime_get();
 			kbase_csf_scheduler_spin_lock(kbdev, &flags);
-			kbdev->csf.spin_delta_us_1 = ktime_to_us(ktime_sub(ktime_get(), spin_start));
+			kbdev->csf.spin_delta_us_2 = ktime_to_us(ktime_sub(ktime_get(), spin_start));
+#else
+			kbase_csf_scheduler_spin_lock(kbdev, &flags);
+#endif
 
 			glb_req = kbase_csf_firmware_global_input_read(
 					global_iface, GLB_REQ);
 			glb_ack = kbase_csf_firmware_global_output(
 					global_iface, GLB_ACK);
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
 			kbdev->csf.glb_req = glb_req;
 			kbdev->csf.glb_ack = glb_ack;
+#endif
 			KBASE_KTRACE_ADD(kbdev, GLB_REQ_ACQ, NULL, glb_req ^ glb_ack);
 
 			check_protm_enter_req_complete(kbdev, glb_req, glb_ack);
@@ -3176,15 +3206,16 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 			kbase_pm_update_state(kbdev);
 		}
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
 	kbdev->csf.glb_end_tm = ktime_get();
-
-	spin_start = ktime_get();
-	kbdev->csf.spin_delta_us_2 = ktime_to_us(ktime_sub(ktime_get(), spin_start)),
-	kbdev->csf.csg_remaining = remaining;
+#endif
 
 	wake_up_all(&kbdev->csf.event_wait);
 	KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT_END, NULL, val);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
 	kbdev->csf.csf_interrupt_end_tm = ktime_get();
+#endif
 }
 
 void kbase_csf_doorbell_mapping_term(struct kbase_device *kbdev)
