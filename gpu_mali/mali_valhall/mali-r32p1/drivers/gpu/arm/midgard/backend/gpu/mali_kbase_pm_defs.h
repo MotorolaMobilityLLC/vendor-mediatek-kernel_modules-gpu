@@ -389,6 +389,9 @@ struct kbase_pm_backend_data {
 
 	bool gpu_powered;
 	bool gpu_ready;
+#if IS_ENABLED(CONFIG_MALI_MTK_MFGSYS_PM)
+	bool mfgsys_powered;
+#endif
 
 	u64 pm_shaders_core_mask;
 

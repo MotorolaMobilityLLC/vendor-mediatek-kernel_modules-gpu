@@ -207,7 +207,7 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 static void pm_callback_power_suspend(struct kbase_device *kbdev)
 {
 	mutex_lock(&g_mfg_lock);
-	dev_info(kbdev->dev, "GPU PM Callback - Suspend");
+	dev_vdbg(kbdev->dev, "GPU PM Callback - Suspend");
 	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_E);
 	mutex_unlock(&g_mfg_lock);
 }
@@ -215,7 +215,7 @@ static void pm_callback_power_suspend(struct kbase_device *kbdev)
 static void pm_callback_power_resume(struct kbase_device *kbdev)
 {
 	mutex_lock(&g_mfg_lock);
-	dev_info(kbdev->dev, "GPU PM Callback - Resume");
+	dev_vdbg(kbdev->dev, "GPU PM Callback - Resume");
 	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_F);
 	mutex_unlock(&g_mfg_lock);
 }

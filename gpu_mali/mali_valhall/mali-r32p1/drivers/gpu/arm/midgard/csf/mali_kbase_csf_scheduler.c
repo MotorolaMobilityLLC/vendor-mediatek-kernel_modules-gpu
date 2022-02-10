@@ -5402,11 +5402,7 @@ void kbase_csf_scheduler_pm_suspend(struct kbase_device *kbdev)
 
 	if (scheduler->state != SCHED_SUSPENDED) {
 		suspend_active_groups_on_powerdown(kbdev, true);
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		dev_info(kbdev->dev, "Scheduler PM suspend, scheduler state: %d", scheduler->state);
-#else
-		dev_info(kbdev->dev, "Scheduler PM suspend");
-#endif
+		dev_vdbg(kbdev->dev, "Scheduler PM suspend");
 		scheduler_suspend(kbdev);
 		cancel_tick_timer(kbdev);
 	}
@@ -5423,12 +5419,8 @@ void kbase_csf_scheduler_pm_resume(struct kbase_device *kbdev)
 	mutex_lock(&scheduler->lock);
 
 	if (scheduler->total_runnable_grps > 0) {
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		dev_info(kbdev->dev, "Scheduler PM resume, scheduler state: %d", scheduler->state);
-#else
 		WARN_ON(scheduler->state != SCHED_SUSPENDED);
-		dev_info(kbdev->dev, "Scheduler PM resume");
-#endif
+		dev_vdbg(kbdev->dev, "Scheduler PM resume");
 		scheduler_wakeup(kbdev, true);
 	}
 	mutex_unlock(&scheduler->lock);
