@@ -203,9 +203,11 @@ fail_contextsuspendalloc:
 }
 
 static
-PVRSRV_ERROR _DestroyComputeContext(RGX_SERVER_CC_CMP_DATA *psComputeData,
-									PVRSRV_DEVICE_NODE *psDeviceNode)
+PVRSRV_ERROR _DestroyComputeContext(RGX_SERVER_COMPUTE_CONTEXT *psComputeContext)
 {
+	RGX_SERVER_CC_CMP_DATA *psComputeData = &psComputeContext->sComputeData;
+	PVRSRV_DEVICE_NODE *psDeviceNode = psComputeContext->psDeviceNode;
+	PVRSRV_RGXDEV_INFO *psDevInfo = psDeviceNode->pvDevice;
 	PVRSRV_ERROR eError;
 
 	/* Check if the FW has finished with this resource ... */
@@ -226,6 +228,12 @@ PVRSRV_ERROR _DestroyComputeContext(RGX_SERVER_CC_CMP_DATA *psComputeData,
 	}
 
 	/* ... it has so we can free its resources */
+
+	/* Remove from node list before freeing. */
+	OSWRLockAcquireWrite(psDevInfo->hComputeCtxListLock);
+	dllist_remove_node(&(psComputeContext->sListNode));
+	OSWRLockReleaseWrite(psDevInfo->hComputeCtxListLock);
+
 	FWCommonContextFree(psComputeData->psServerCommonContext);
 	DevmemFwUnmapAndFree(psDeviceNode->pvDevice, psComputeData->psContextStateMemDesc);
 	psComputeData->psServerCommonContext = NULL;
@@ -440,8 +448,7 @@ PVRSRV_ERROR PVRSRVRGXDestroyComputeContextKM(RGX_SERVER_COMPUTE_CONTEXT *psComp
 	}
 #endif
 
-	eError = _DestroyComputeContext(&psComputeContext->sComputeData,
-									psComputeContext->psDeviceNode);
+	eError = _DestroyComputeContext(psComputeContext);
 	if (eError != PVRSRV_OK)
 	{
 		return eError;
@@ -456,10 +463,6 @@ PVRSRV_ERROR PVRSRVRGXDestroyComputeContextKM(RGX_SERVER_COMPUTE_CONTEXT *psComp
 		psComputeContext->psBufferSyncContext = NULL;
 	}
 #endif
-
-	OSWRLockAcquireWrite(psDevInfo->hComputeCtxListLock);
-	dllist_remove_node(&(psComputeContext->sListNode));
-	OSWRLockReleaseWrite(psDevInfo->hComputeCtxListLock);
 
 #if defined(SUPPORT_WORKLOAD_ESTIMATION)
 	WorkEstDeInitCompute(psDevInfo, &psComputeContext->sWorkEstData);
