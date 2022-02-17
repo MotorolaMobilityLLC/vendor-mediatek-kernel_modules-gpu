@@ -18,10 +18,13 @@
 #
 #
 
-ccflags-y += -I$(src)/include
-subdir-ccflags-y += -I$(src)/include
+ccflags-y += -I$(src)/include \
+             -I$(src)
+
+subdir-ccflags-y += -I$(src)/include \
+                    -I$(src)
 
 obj-$(CONFIG_MALI_KUTF) += kutf/
-obj-$(CONFIG_MALI_IRQ_LATENCY) += mali_kutf_irq_test/
-obj-$(CONFIG_MALI_CLK_RATE_TRACE_PORTAL) += mali_kutf_clk_rate_trace/kernel/
+obj-$(CONFIG_MALI_KUTF_IRQ_TEST) += mali_kutf_irq_test/
+obj-$(CONFIG_MALI_KUTF_CLK_RATE_TRACE) += mali_kutf_clk_rate_trace/kernel/
 

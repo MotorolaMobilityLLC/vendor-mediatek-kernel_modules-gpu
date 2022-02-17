@@ -26,9 +26,6 @@
 #include <mali_kbase.h>
 #include <mali_kbase_pm.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
-#ifdef CONFIG_MALI_NO_MALI
-#include <backend/gpu/mali_kbase_model_dummy.h>
-#endif
 #include <mali_kbase_dummy_job_wa.h>
 
 int kbase_pm_ca_init(struct kbase_device *kbdev)
@@ -123,9 +120,7 @@ u64 kbase_pm_ca_get_instr_core_mask(struct kbase_device *kbdev)
 {
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
-#ifdef CONFIG_MALI_NO_MALI
-	return (((1ull) << KBASE_DUMMY_MODEL_MAX_SHADER_CORES) - 1);
-#elif MALI_USE_CSF
+#if   MALI_USE_CSF
 	return kbase_pm_get_ready_cores(kbdev, KBASE_PM_CORE_SHADER);
 #else
 	return kbdev->pm.backend.pm_shaders_core_mask;

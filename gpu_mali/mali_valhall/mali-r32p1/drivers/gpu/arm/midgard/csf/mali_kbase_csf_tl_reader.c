@@ -171,7 +171,7 @@ static int kbase_ts_converter_init(
  *
  * Return: The CPU timestamp.
  */
-void kbase_ts_converter_convert(
+static void kbase_ts_converter_convert(
 	const struct kbase_ts_converter *self,
 	u64 *gpu_ts)
 {
@@ -477,14 +477,7 @@ int kbase_csf_tl_reader_start(struct kbase_csf_tl_reader *self,
 		return 0;
 
 	if (tl_reader_init_late(self, kbdev)) {
-#if defined(CONFIG_MALI_NO_MALI)
-		dev_warn(
-			kbdev->dev,
-			"CSFFW timeline is not available for MALI_NO_MALI builds!");
-		return 0;
-#else
 		return -EINVAL;
-#endif
 	}
 
 	tl_reader_reset(self);

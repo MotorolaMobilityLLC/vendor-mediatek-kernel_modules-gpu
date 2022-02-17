@@ -29,9 +29,6 @@
 #include <csf/mali_kbase_csf.h>
 #include <csf/ipa_control/mali_kbase_csf_ipa_control.h>
 
-#ifdef CONFIG_MALI_NO_MALI
-#include <backend/gpu/mali_kbase_model_linux.h>
-#endif
 
 #include <mali_kbase.h>
 #include <backend/gpu/mali_kbase_irq_internal.h>
@@ -172,6 +169,33 @@ static void kbase_backend_late_term(struct kbase_device *kbdev)
 }
 
 /**
+ * kbase_csf_early_init - Early initialization for firmware & scheduler.
+ * @kbdev:	Device pointer
+ *
+ * Return: 0 on success, error code otherwise.
+ */
+static int kbase_csf_early_init(struct kbase_device *kbdev)
+{
+	int err = kbase_csf_firmware_early_init(kbdev);
+
+	if (err)
+		return err;
+
+	err = kbase_csf_scheduler_early_init(kbdev);
+
+	return err;
+}
+
+/**
+ * kbase_csf_early_init - Early termination for firmware & scheduler.
+ * @kbdev:	Device pointer
+ */
+static void kbase_csf_early_term(struct kbase_device *kbdev)
+{
+	kbase_csf_scheduler_early_term(kbdev);
+}
+
+/**
  * kbase_device_hwcnt_backend_csf_if_init - Create hardware counter backend
  *                                          firmware interface.
  * @kbdev:	Device pointer
@@ -264,6 +288,8 @@ static const struct kbase_device_init dev_init[] = {
 	  "GPU hwcnt context initialization failed" },
 	{ kbase_backend_late_init, kbase_backend_late_term,
 	  "Late backend initialization failed" },
+	{ kbase_csf_early_init, kbase_csf_early_term,
+	  "Early CSF initialization failed" },
 	{ NULL, kbase_device_firmware_hwcnt_term, NULL },
 #ifdef MALI_KBASE_BUILD
 	{ kbase_device_debugfs_init, kbase_device_debugfs_term,

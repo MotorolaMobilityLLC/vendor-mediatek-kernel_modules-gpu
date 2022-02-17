@@ -24,6 +24,8 @@
 #include <mali_kbase_defs.h>
 #include <mali_kbase_config.h>
 
+#include <backend/gpu/mali_kbase_pm_internal.h>
+
 #ifndef CONFIG_OF
 static struct kbase_io_resources io_resources = {
 	.job_irq_number = 68,
@@ -62,3 +64,14 @@ struct kbase_platform_config *kbase_get_platform_config(void)
 {
 	return &versatile_platform_config;
 }
+
+#ifdef CONFIG_MALI_MIDGARD_DVFS
+#if MALI_USE_CSF
+int kbase_platform_dvfs_event(struct kbase_device *kbdev, u32 utilisation)
+#else
+int kbase_platform_dvfs_event(struct kbase_device *kbdev, u32 utilisation, u32 util_gl_share, u32 util_cl_share[2])
+#endif
+{
+	return 1;
+}
+#endif /* CONFIG_MALI_MIDGARD_DVFS */
