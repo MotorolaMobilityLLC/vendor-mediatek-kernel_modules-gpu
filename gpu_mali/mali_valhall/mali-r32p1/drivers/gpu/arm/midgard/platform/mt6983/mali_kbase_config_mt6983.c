@@ -81,19 +81,6 @@ static int pm_callback_power_on_nolock(struct kbase_device *kbdev)
 #endif
 		return 1;
 	}
-#else /* CONFIG_MTK_GPUFREQ_V2 */
-	if (mtk_common_gpufreq_bringup()) {
-		mtk_common_pm_mfg_active();
-		return 1;
-	}
-
-	if (!mt_gpufreq_power_ctl_en()) {
-		mtk_common_pm_mfg_active();
-#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MTK_GPU_COMMON_DVFS)
-		ged_dvfs_gpu_clock_switch_notify(1);
-#endif
-		return 1;
-	}
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
 
 	if (mtk_common_pm_is_mfg_active())
@@ -114,16 +101,12 @@ static int pm_callback_power_on_nolock(struct kbase_device *kbdev)
 		mali_pr_info("@%s: fail to power on\n", __func__);
 		return 0;
 	}
-#else
-	mt_gpufreq_power_control(POWER_ON, CG_ON, MTCMOS_ON, BUCK_ON);
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
 
 	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_2);
 
 #if defined(CONFIG_MTK_GPUFREQ_V2)
 	gpufreq_set_timestamp();
-#else
-	mt_gpufreq_set_timestamp();
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
 
 	/* set a flag to enable GPU DVFS */
@@ -153,12 +136,6 @@ static void pm_callback_power_off_nolock(struct kbase_device *kbdev)
 
 	if (!gpufreq_power_ctrl_enable())
 		return;
-#else
-	if (mtk_common_gpufreq_bringup())
-		return;
-
-	if (!mt_gpufreq_power_ctl_en())
-		return;
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
 
 	if (!mtk_common_pm_is_mfg_active())
@@ -187,8 +164,6 @@ static void pm_callback_power_off_nolock(struct kbase_device *kbdev)
 	/* check MFG bus if idle */
 #if defined(CONFIG_MTK_GPUFREQ_V2)
 	gpufreq_check_bus_idle();
-#else
-	mt_gpufreq_check_bus_idle();
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
 
 	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_A);
@@ -199,8 +174,6 @@ static void pm_callback_power_off_nolock(struct kbase_device *kbdev)
 		mali_pr_info("@%s: fail to power off\n", __func__);
 		return;
 	}
-#else
-	mt_gpufreq_power_control(POWER_OFF, CG_OFF, MTCMOS_OFF, BUCK_OFF);
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
 
 	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_B);
