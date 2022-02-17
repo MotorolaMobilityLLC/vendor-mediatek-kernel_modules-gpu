@@ -2093,6 +2093,7 @@ static void update_user_reg_page_mapping(struct kbase_device *kbdev)
 {
 	lockdep_assert_held(&kbdev->pm.lock);
 
+	mutex_lock(&kbdev->csf.reg_lock);
 	if (kbdev->csf.mali_file_inode) {
 		/* This would zap the pte corresponding to the mapping of User
 		 * register page for all the Kbase contexts.
@@ -2101,6 +2102,7 @@ static void update_user_reg_page_mapping(struct kbase_device *kbdev)
 				    BASEP_MEM_CSF_USER_REG_PAGE_HANDLE,
 				    PAGE_SIZE, 1);
 	}
+	mutex_unlock(&kbdev->csf.reg_lock);
 }
 #endif
 

@@ -3541,6 +3541,7 @@ static vm_fault_t kbase_csf_user_reg_vm_fault(struct vm_fault *vmf)
 	unsigned long pfn = PFN_DOWN(kbdev->reg_start + USER_BASE);
 	size_t nr_pages = PFN_DOWN(vma->vm_end - vma->vm_start);
 	vm_fault_t ret = VM_FAULT_SIGBUS;
+	unsigned long flags;
 
 	/* Few sanity checks up front */
 	if (WARN_ON(nr_pages != 1) ||
@@ -3549,20 +3550,20 @@ static vm_fault_t kbase_csf_user_reg_vm_fault(struct vm_fault *vmf)
 			PFN_DOWN(BASEP_MEM_CSF_USER_REG_PAGE_HANDLE)))
 		return VM_FAULT_SIGBUS;
 
-	mutex_lock(&kbdev->pm.lock);
-
+	mutex_lock(&kbdev->csf.reg_lock);
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	/* Don't map in the actual register page if GPU is powered down.
 	 * Always map in the dummy page in no mali builds.
 	 */
 	if (!kbdev->pm.backend.gpu_powered)
 		pfn = PFN_DOWN(as_phys_addr_t(kbdev->csf.dummy_user_reg_page));
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	ret = mgm_dev->ops.mgm_vmf_insert_pfn_prot(mgm_dev,
 						   KBASE_MEM_GROUP_CSF_FW, vma,
 						   vma->vm_start, pfn,
 						   vma->vm_page_prot);
-
-	mutex_unlock(&kbdev->pm.lock);
+	mutex_unlock(&kbdev->csf.reg_lock);
 
 	return ret;
 }
