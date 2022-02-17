@@ -13,6 +13,7 @@
 #include <mtk_gpufreq.h>
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
 #include <mtk_gpu_power_sspm_ipi.h>
+#include <platform/mtk_mfg_counter.h>
 #endif
 #include <ged_dvfs.h>
 #if IS_ENABLED(CONFIG_PROC_FS)
@@ -213,6 +214,7 @@ void mtk_common_procfs_exit(void)
 }
 #endif
 
+
 int mtk_common_device_init(struct kbase_device *kbdev)
 {
 	if (!kbdev) {
@@ -250,6 +252,7 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 #endif
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
 	MTKGPUPower_model_init();
+	mtk_mfg_counter_init();
 #endif
 
 	return 0;
