@@ -229,7 +229,10 @@ static const struct kbase_device_init dev_init[] = {
 	{ kbase_gpuprops_populate_user_buffer, kbase_gpuprops_free_user_buffer,
 	  "GPU property population failed" },
 #endif
-	{ NULL, kbase_dummy_job_wa_cleanup, NULL },
+	/* MTK: load WA firmware when probe*/
+	//{ NULL, kbase_dummy_job_wa_cleanup, NULL },
+	{ kbase_dummy_job_wa_load, kbase_dummy_job_wa_cleanup,
+			"Dummy job workaround load failed"},
 	{ kbase_device_late_init, kbase_device_late_term,
 	  "Late device initialization failed" },
 };
@@ -279,7 +282,11 @@ int kbase_device_init(struct kbase_device *kbdev)
 int kbase_device_firmware_init_once(struct kbase_device *kbdev)
 {
 	int ret = 0;
-
+	/* MTK: load WA firmware here will meet selinux never allow
+	 * coredomain process(Surfaceflinger) can't read vendor file.
+	 * We will load WA firmware when probe.
+	 */
+#if 0
 	mutex_lock(&kbdev->fw_load_lock);
 
 	if (!kbdev->dummy_job_wa_loaded) {
@@ -289,6 +296,6 @@ int kbase_device_firmware_init_once(struct kbase_device *kbdev)
 	}
 
 	mutex_unlock(&kbdev->fw_load_lock);
-
+#endif
 	return ret;
 }
