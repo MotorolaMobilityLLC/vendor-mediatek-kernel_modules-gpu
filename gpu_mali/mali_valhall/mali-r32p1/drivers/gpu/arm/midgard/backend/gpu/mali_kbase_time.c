@@ -23,6 +23,10 @@
 #include <mali_kbase_hwaccess_time.h>
 #include <device/mali_kbase_device.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <mtk_gpufreq.h>
+#include "platform/mtk_platform_common.h"
+#endif
 
 void kbase_backend_get_gpu_time_norequest(struct kbase_device *kbdev,
 					  u64 *cycle_counter,
@@ -101,6 +105,18 @@ void kbase_backend_get_gpu_time(struct kbase_device *kbdev, u64 *cycle_counter,
 u64 kbase_backend_get_cycle_cnt(struct kbase_device *kbdev)
 {
 	u32 hi1, hi2, lo;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	if (!kbdev->pm.backend.gpu_powered) {
+		/* Already turned off */
+		dev_info(kbdev->dev, "@%s: GPU is turned off", __func__);
+		if (!mtk_common_gpufreq_bringup()) {
+			gpufreq_dump_infra_status();
+			mtk_common_debug_dump();
+		}
+		return 0;
+	}
+#endif
 
 	/* Read hi, lo, hi to ensure a coherent u64 */
 	do {
