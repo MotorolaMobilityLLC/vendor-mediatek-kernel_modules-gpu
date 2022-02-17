@@ -112,9 +112,9 @@ MODULE_PARM_DESC(fw_debug,
 
 #define CSF_MAX_FW_STOP_LOOPS            (100000)
 
-#define CSF_GLB_REQ_CFG_MASK                                                   \
-	(GLB_REQ_CFG_ALLOC_EN_MASK | GLB_REQ_CFG_PROGRESS_TIMER_MASK |         \
-	 GLB_REQ_CFG_PWROFF_TIMER_MASK)
+#define CSF_GLB_REQ_CFG_MASK                                                                       \
+	(GLB_REQ_CFG_ALLOC_EN_MASK | GLB_REQ_CFG_PROGRESS_TIMER_MASK |                             \
+	 GLB_REQ_CFG_PWROFF_TIMER_MASK | GLB_REQ_IDLE_ENABLE_MASK)
 
 static inline u32 input_page_read(const u32 *const input, const u32 offset)
 {
@@ -1399,16 +1399,28 @@ static void set_timeout_global(
 	set_global_request(global_iface, GLB_REQ_CFG_PROGRESS_TIMER_MASK);
 }
 
+static void enable_gpu_idle_timer(struct kbase_device *const kbdev)
+{
+	struct kbase_csf_global_iface *global_iface = &kbdev->csf.global_iface;
+
+	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
+
+	kbase_csf_firmware_global_input(global_iface, GLB_IDLE_TIMER,
+					kbdev->csf.gpu_idle_dur_count);
+	kbase_csf_firmware_global_input_mask(global_iface, GLB_REQ, GLB_REQ_REQ_IDLE_ENABLE,
+					     GLB_REQ_IDLE_ENABLE_MASK);
+	dev_dbg(kbdev->dev, "Enabling GPU idle timer with count-value: 0x%.8x",
+		kbdev->csf.gpu_idle_dur_count);
+}
+
 static void global_init(struct kbase_device *const kbdev, u64 core_mask)
 {
-	u32 const ack_irq_mask = GLB_ACK_IRQ_MASK_CFG_ALLOC_EN_MASK |
-				 GLB_ACK_IRQ_MASK_PING_MASK |
-				 GLB_ACK_IRQ_MASK_CFG_PROGRESS_TIMER_MASK |
-				 GLB_ACK_IRQ_MASK_PROTM_ENTER_MASK |
-				 GLB_ACK_IRQ_MASK_PROTM_EXIT_MASK |
-				 GLB_ACK_IRQ_MASK_FIRMWARE_CONFIG_UPDATE_MASK |
-				 GLB_ACK_IRQ_MASK_CFG_PWROFF_TIMER_MASK |
-				 GLB_ACK_IRQ_MASK_IDLE_EVENT_MASK;
+	u32 const ack_irq_mask =
+		GLB_ACK_IRQ_MASK_CFG_ALLOC_EN_MASK | GLB_ACK_IRQ_MASK_PING_MASK |
+		GLB_ACK_IRQ_MASK_CFG_PROGRESS_TIMER_MASK | GLB_ACK_IRQ_MASK_PROTM_ENTER_MASK |
+		GLB_ACK_IRQ_MASK_PROTM_EXIT_MASK | GLB_ACK_IRQ_MASK_FIRMWARE_CONFIG_UPDATE_MASK |
+		GLB_ACK_IRQ_MASK_CFG_PWROFF_TIMER_MASK | GLB_ACK_IRQ_MASK_IDLE_EVENT_MASK |
+		GLB_ACK_IRQ_MASK_IDLE_ENABLE_MASK;
 
 	const struct kbase_csf_global_iface *const global_iface =
 		&kbdev->csf.global_iface;
@@ -1426,6 +1438,12 @@ static void global_init(struct kbase_device *const kbdev, u64 core_mask)
 	enable_shader_poweroff_timer(kbdev, global_iface);
 
 	set_timeout_global(global_iface, kbase_csf_timeout_get(kbdev));
+
+	/* The GPU idle timer is always enabled for simplicity. Checks will be
+	 * done before scheduling the GPU idle worker to see if it is
+	 * appropriate for the current power policy.
+	 */
+	enable_gpu_idle_timer(kbdev);
 
 	/* Unmask the interrupts */
 	kbase_csf_firmware_global_input(global_iface,
@@ -1631,10 +1649,31 @@ u32 kbase_csf_firmware_set_gpu_idle_hysteresis_time(struct kbase_device *kbdev, 
 	unsigned long flags;
 	const u32 hysteresis_val = convert_dur_to_idle_count(kbdev, dur);
 
+	kbase_csf_scheduler_pm_active(kbdev);
+	if (kbase_pm_wait_for_desired_state(kbdev)) {
+		dev_dbg(kbdev->dev,
+			"Unable to activate the MCU, the idle hysteresis value shall remain unchanged");
+		kbase_csf_scheduler_pm_idle(kbdev);
+		return kbdev->csf.gpu_idle_dur_count;
+	}
+
+	/* The firmware only reads the new idle timer value when the timer is
+	 * disabled.
+	 */
+	kbase_csf_scheduler_spin_lock(kbdev, &flags);
+	kbase_csf_firmware_disable_gpu_idle_timer(kbdev);
+	kbase_csf_scheduler_spin_unlock(kbdev, flags);
+	/* Ensure that the request has taken effect */
+	wait_for_global_request(kbdev, GLB_REQ_IDLE_DISABLE_MASK);
+
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 	kbdev->csf.gpu_idle_hysteresis_ms = dur;
 	kbdev->csf.gpu_idle_dur_count = hysteresis_val;
+	kbase_csf_firmware_enable_gpu_idle_timer(kbdev);
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
+	wait_for_global_request(kbdev, GLB_REQ_IDLE_ENABLE_MASK);
+
+	kbase_csf_scheduler_pm_idle(kbdev);
 
 	dev_dbg(kbdev->dev, "CSF set firmware idle hysteresis count-value: 0x%.8x",
 		hysteresis_val);
@@ -1989,29 +2028,18 @@ void kbase_csf_firmware_term(struct kbase_device *kbdev)
 void kbase_csf_firmware_enable_gpu_idle_timer(struct kbase_device *kbdev)
 {
 	struct kbase_csf_global_iface *global_iface = &kbdev->csf.global_iface;
-	const u32 glb_req =
-		kbase_csf_firmware_global_input_read(global_iface, GLB_REQ);
-
+	const u32 glb_req = kbase_csf_firmware_global_input_read(global_iface, GLB_REQ);
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
-
 	/* The scheduler is assumed to only call the enable when its internal
 	 * state indicates that the idle timer has previously been disabled. So
 	 * on entry the expected field values are:
 	 *   1. GLOBAL_INPUT_BLOCK.GLB_REQ.IDLE_ENABLE: 0
 	 *   2. GLOBAL_OUTPUT_BLOCK.GLB_ACK.IDLE_ENABLE: 0, or, on 1 -> 0
 	 */
-
 	if (glb_req & GLB_REQ_IDLE_ENABLE_MASK)
 		dev_err(kbdev->dev, "Incoherent scheduler state on REQ_IDLE_ENABLE!");
 
-	kbase_csf_firmware_global_input(global_iface, GLB_IDLE_TIMER,
-					kbdev->csf.gpu_idle_dur_count);
-
-	kbase_csf_firmware_global_input_mask(global_iface, GLB_REQ,
-				GLB_REQ_REQ_IDLE_ENABLE, GLB_REQ_IDLE_ENABLE_MASK);
-
-	dev_dbg(kbdev->dev, "Enabling GPU idle timer with count-value: 0x%.8x",
-		kbdev->csf.gpu_idle_dur_count);
+	enable_gpu_idle_timer(kbdev);
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
 }
 

@@ -586,6 +586,8 @@ static int csf_queue_register_internal(struct kbase_context *kctx,
 	INIT_WORK(&queue->fatal_event_work, fatal_event_worker);
 	list_add(&queue->link, &kctx->csf.queue_list);
 
+	queue->extract_ofs = 0;
+
 	region->flags |= KBASE_REG_NO_USER_FREE;
 	region->user_data = queue;
 
@@ -2800,6 +2802,10 @@ static void process_csg_interrupts(struct kbase_device *const kbdev,
 			CSG_REQ, ack, CSG_REQ_SYNC_UPDATE_MASK);
 
 		KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_SYNC_UPDATE_INTERRUPT, group, req ^ ack);
+
+		/* SYNC_UPDATE events shall invalidate GPU idle event */
+		atomic_set(&kbdev->csf.scheduler.gpu_no_longer_idle, true);
+
 		kbase_csf_event_signal_cpu_only(group->kctx);
 	}
 
@@ -2816,11 +2822,7 @@ static void process_csg_interrupts(struct kbase_device *const kbdev,
 		dev_dbg(kbdev->dev, "Idle notification received for Group %u on slot %d\n",
 			 group->handle, csg_nr);
 
-		/* Check if the scheduling tick can be advanced */
-		if (kbase_csf_scheduler_all_csgs_idle(kbdev)) {
-			if (!scheduler->gpu_idle_fw_timer_enabled)
-				kbase_csf_scheduler_advance_tick_nolock(kbdev);
-		} else if (atomic_read(&scheduler->non_idle_offslot_grps)) {
+		if (atomic_read(&scheduler->non_idle_offslot_grps)) {
 			/* If there are non-idle CSGs waiting for a slot, fire
 			 * a tock for a replacement.
 			 */
@@ -3014,6 +3016,7 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 {
 	unsigned long flags;
 	u32 remaining = val;
+	u32 csg_interrupts = val & ~JOB_IRQ_GLOBAL_IF;
 	ktime_t spin_start;
 
 	kbdev->csf.csf_interrupt_start_tm = ktime_get();
@@ -3023,12 +3026,22 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 	KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT, NULL, val);
 	kbase_reg_write(kbdev, JOB_CONTROL_REG(JOB_IRQ_CLEAR), val);
 
+	if (csg_interrupts != 0) {
+		kbase_csf_scheduler_spin_lock(kbdev, &flags);
+		while (csg_interrupts != 0) {
+			int const csg_nr = ffs(csg_interrupts) - 1;
+
+			process_csg_interrupts(kbdev, csg_nr);
+			csg_interrupts &= ~(1 << csg_nr);
+		}
+		kbase_csf_scheduler_spin_unlock(kbdev, flags);
+	}
+
 	kbdev->csf.glb_start_tm = ktime_get();
 
 	if (val & JOB_IRQ_GLOBAL_IF) {
 		const struct kbase_csf_global_iface *const global_iface =
 			&kbdev->csf.global_iface;
-		struct kbase_csf_scheduler *scheduler =	&kbdev->csf.scheduler;
 
 		kbdev->csf.interrupt_received = true;
 		remaining &= ~JOB_IRQ_GLOBAL_IF;
@@ -3057,30 +3070,12 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 
 			/* Handle IDLE Hysteresis notification event */
 			if ((glb_req ^ glb_ack) & GLB_REQ_IDLE_EVENT_MASK) {
-				int non_idle_offslot_grps;
-				bool can_suspend_on_idle;
 				dev_dbg(kbdev->dev, "Idle-hysteresis event flagged");
 				kbase_csf_firmware_global_input_mask(
 						global_iface, GLB_REQ, glb_ack,
 						GLB_REQ_IDLE_EVENT_MASK);
 
-				non_idle_offslot_grps = atomic_read(&scheduler->non_idle_offslot_grps);
-				can_suspend_on_idle = kbase_pm_idle_groups_sched_suspendable(kbdev);
-				KBASE_KTRACE_ADD(kbdev, SCHEDULER_CAN_IDLE, NULL,
-					((u64)(u32)non_idle_offslot_grps) | (((u64)can_suspend_on_idle) << 32));
-
-				if (!non_idle_offslot_grps) {
-					if (can_suspend_on_idle)
-						queue_work(system_highpri_wq,
-							   &scheduler->gpu_idle_work);
-				} else {
-					/* Advance the scheduling tick to get
-					 * the non-idle suspended groups loaded
-					 * soon.
-					 */
-					kbase_csf_scheduler_advance_tick_nolock(
-						kbdev);
-				}
+				kbase_csf_scheduler_process_gpu_idle_event(kbdev);
 			}
 
 			process_prfcnt_interrupts(kbdev, glb_req, glb_ack);
@@ -3092,31 +3087,12 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 			 */
 			kbase_pm_update_state(kbdev);
 		}
-
-		if (!remaining) {
-			kbdev->csf.glb_end_tm = ktime_get();
-			kbdev->csf.csg_remaining = 0;
-			wake_up_all(&kbdev->csf.event_wait);
-			KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT_END, NULL, val);
-			kbdev->csf.csf_interrupt_end_tm = ktime_get();
-			return;
-		}
 	}
 	kbdev->csf.glb_end_tm = ktime_get();
 
 	spin_start = ktime_get();
-	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 	kbdev->csf.spin_delta_us_2 = ktime_to_us(ktime_sub(ktime_get(), spin_start)),
 	kbdev->csf.csg_remaining = remaining;
-	while (remaining != 0) {
-		int const csg_nr = ffs(remaining) - 1;
-
-		kbdev->csf.csg_start_tm[csg_nr] = ktime_get();
-		process_csg_interrupts(kbdev, csg_nr);
-		kbdev->csf.csg_end_tm[csg_nr] = ktime_get();
-		remaining &= ~(1 << csg_nr);
-	}
-	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 
 	wake_up_all(&kbdev->csf.event_wait);
 	KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT_END, NULL, val);
