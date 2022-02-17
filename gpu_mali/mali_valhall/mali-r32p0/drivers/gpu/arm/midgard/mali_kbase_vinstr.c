@@ -39,6 +39,15 @@
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 
+#include <platform/mtk_mfg_counter.h>
+#ifdef CONFIG_MTK_PERF_TRACKER
+#include <perf_tracker.h>
+#endif
+#if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+#define CREATE_TRACE_POINTS
+#include <platform/mtk_platform_common/mtk_gpu_trace.h>
+#endif
+
 /* Hwcnt reader API version */
 #define HWCNT_READER_API 1
 
@@ -134,6 +143,16 @@ static const struct file_operations vinstr_client_fops = {
 	.release        = kbasep_vinstr_hwcnt_reader_release,
 };
 
+unsigned int *kernel_dump;
+//check the mtk tool using now
+int mtk_pm_tool = pm_non;
+int ds5_used = 1;
+
+static struct kbase_vinstr_client *mtk_cli = NULL;
+struct mtk_gpu_perf{
+	uint32_t counter[VINSTR_PERF_COUNTER_LAST];
+};
+
 /**
  * kbasep_vinstr_timestamp_ns() - Get the current time in nanoseconds.
  *
@@ -195,19 +214,32 @@ static int kbasep_vinstr_client_dump(
 	write_idx = atomic_read(&vcli->write_idx);
 	read_idx = atomic_read(&vcli->read_idx);
 
-	/* Check if there is a place to copy HWC block into. */
-	if (write_idx - read_idx == vcli->dump_bufs.buf_cnt)
-		return -EBUSY;
-	write_idx %= vcli->dump_bufs.buf_cnt;
+	if (ds5_used) {
+		/* Check if there is a place to copy HWC block into. */
+		if (write_idx - read_idx == vcli->dump_bufs.buf_cnt)
+			return -EBUSY;
+		write_idx %= vcli->dump_bufs.buf_cnt;
 
-	dump_buf = &vcli->dump_bufs.bufs[write_idx];
-	meta = &vcli->dump_bufs_meta[write_idx];
-	tmp_buf = &vcli->tmp_buf;
-
+		dump_buf = &vcli->dump_bufs.bufs[write_idx];
+		meta = &vcli->dump_bufs_meta[write_idx];
+		tmp_buf = &vcli->tmp_buf;
+	} else {
+		dump_buf = &vcli->dump_bufs.bufs[0];
+		meta = &vcli->dump_bufs_meta[0];
+		tmp_buf = &vcli->tmp_buf;
+	}
+	
+	
 	errcode = kbase_hwcnt_virtualizer_client_dump(
 		vcli->hvcli, &ts_start_ns, &ts_end_ns, tmp_buf);
 	if (errcode)
 		return errcode;
+
+
+	if (mtk_pm_tool == pm_ltr && ds5_used == 0) {
+		kernel_dump = tmp_buf->dump_buf;
+		MTK_update_gpu_LTR();
+	}
 
 	/* Patch the dump buf headers, to hide the counters that other hwcnt
 	 * clients are using.
@@ -957,6 +989,10 @@ static long kbasep_vinstr_hwcnt_reader_ioctl(
 	case _IOC_NR(KBASE_HWCNT_READER_GET_API_VERSION):
 		rcode = kbasep_vinstr_hwcnt_reader_ioctl_get_api_version(
 				cli, arg, _IOC_SIZE(cmd));
+		if (mtk_pm_tool != pm_non) {
+			MTK_kbasep_vinstr_hwcnt_set_interval(0);
+			ds5_used = 1;
+		}
 		break;
 	case _IOC_NR(KBASE_HWCNT_READER_GET_HWVER):
 		rcode = kbasep_vinstr_hwcnt_reader_ioctl_get_hwver(
@@ -984,6 +1020,13 @@ static long kbasep_vinstr_hwcnt_reader_ioctl(
 	case _IOC_NR(KBASE_HWCNT_READER_SET_INTERVAL):
 		rcode = kbasep_vinstr_hwcnt_reader_ioctl_set_interval(
 			cli, (u32)arg);
+		if ((u32)arg == 0 && mtk_pm_tool != pm_non) {
+			ds5_used = 0;
+			if (mtk_pm_tool == pm_ltr)
+				MTK_kbasep_vinstr_hwcnt_set_interval(8000000);
+			else if (mtk_pm_tool == pm_swpm)
+				MTK_kbasep_vinstr_hwcnt_set_interval(1000000);
+		}
 		break;
 	case _IOC_NR(KBASE_HWCNT_READER_ENABLE_EVENT):
 		rcode = kbasep_vinstr_hwcnt_reader_ioctl_enable_event(
@@ -1087,7 +1130,7 @@ static int kbasep_vinstr_hwcnt_reader_release(struct inode *inode,
 	struct file *filp)
 {
 	struct kbase_vinstr_client *vcli = filp->private_data;
-
+	if (ds5_used) {
 	mutex_lock(&vcli->vctx->lock);
 
 	vcli->vctx->client_count--;
@@ -1096,6 +1139,108 @@ static int kbasep_vinstr_hwcnt_reader_release(struct inode *inode,
 	mutex_unlock(&vcli->vctx->lock);
 
 	kbasep_vinstr_client_destroy(vcli);
-
+	}
 	return 0;
 }
+void MTK_update_mtk_pm(int flag)
+{
+	mtk_pm_tool = flag;
+}
+
+int MTK_get_mtk_pm(void)
+{
+	return mtk_pm_tool;
+}
+
+int MTK_kbase_vinstr_hwcnt_reader_setup(
+	struct kbase_vinstr_context *vctx,
+	struct kbase_ioctl_hwcnt_reader_setup *setup)
+{
+	int errcode;
+	int fd;
+	struct kbase_vinstr_client *vcli = NULL;
+
+	if (!vctx || !setup ||
+	    (setup->buffer_count == 0) ||
+	    (setup->buffer_count > MAX_BUFFER_COUNT))
+		return -EINVAL;
+
+	errcode = kbasep_vinstr_client_create(vctx, setup, &vcli);
+
+	if (errcode)
+		goto error;
+
+	fd = errcode;
+
+	/* Add the new client. No need to reschedule worker, as not periodic */
+	mutex_lock(&vctx->lock);
+
+	vctx->client_count++;
+	list_add(&vcli->node, &vctx->clients);
+	mtk_cli = vcli;
+	ds5_used = 0;
+	mutex_unlock(&vctx->lock);
+	return fd;
+error:
+	kbasep_vinstr_client_destroy(vcli);
+	return errcode;
+}
+
+
+void MTK_kbasep_vinstr_hwcnt_set_interval(unsigned int interval)
+{
+	if (mtk_cli != NULL) {
+		kbasep_vinstr_hwcnt_reader_ioctl_set_interval(mtk_cli, interval);
+	}
+}
+
+void MTK_kbasep_vinstr_hwcnt_release(void)
+{
+	mtk_pm_tool = pm_non;
+	ds5_used = 1;
+	if (mtk_cli != NULL) {
+		mutex_lock(&mtk_cli->vctx->lock);
+		mtk_cli->vctx->suspend_count = 0;
+		mtk_cli->vctx->client_count--;
+		list_del(&mtk_cli->node);
+		mutex_unlock(&mtk_cli->vctx->lock);
+
+		kbasep_vinstr_client_destroy(mtk_cli);
+	}
+}
+
+void MTK_update_gpu_LTR(void)
+{
+	unsigned int pm_gpu_loading = 0;
+	struct mtk_gpu_perf gpu_perf_counter;
+	unsigned int stall_counter[4] = {0};
+	int i = 0;
+	mtk_get_gpu_loading(&pm_gpu_loading);
+	gpu_perf_counter.counter[VINSTR_GPU_FREQ] = gpufreq_get_cur_freq(TARGET_DEFAULT);
+	gpu_perf_counter.counter[VINSTR_GPU_VOLT] = gpufreq_get_cur_volt(TARGET_DEFAULT);
+	gpu_perf_counter.counter[VINSTR_GPU_LOADING] = pm_gpu_loading;
+	for (i = VINSTR_GPU_ACTIVE; i <= VINSTR_JS1_ACTIVE; i++) {
+		int pmu_index = gpu_pmu_index[i] & 0x1FF;
+		int index_cnt = gpu_pmu_index[i] >> 9;
+		int j = 0;
+		for (j = 0; j < index_cnt; j++) {
+			gpu_perf_counter.counter[i] += kernel_dump[pmu_index];
+			pmu_index += 64;
+		}
+	}
+	mtk_GPU_STALL_RAW(stall_counter, 4);
+	gpu_perf_counter.counter[VINSTR_STALL0] = stall_counter[0];
+	gpu_perf_counter.counter[VINSTR_STALL1] = stall_counter[1];
+	gpu_perf_counter.counter[VINSTR_STALL2] = stall_counter[2];
+	gpu_perf_counter.counter[VINSTR_STALL3] = stall_counter[3];
+	gpu_perf_counter.counter[VINSTR_TRIANGLES] = kernel_dump[70];
+	gpu_perf_counter.counter[VINSTR_POINTS] = kernel_dump[72];
+	gpu_perf_counter.counter[VINSTR_LINES] = kernel_dump[71];
+	gpu_perf_counter.counter[VINSTR_LS_MEM_ATOMIC] = kernel_dump[432];
+#if IS_ENABLED(CONFIG_MTK_PERF_TRACKER) && IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+	trace_perf_index_gpu(gpu_perf_counter.counter, VINSTR_PERF_COUNTER_LAST);
+#endif
+
+
+}
+

@@ -11,6 +11,9 @@
 #include "mtk_gpu_dvfs.h"
 #endif
 #include <mtk_gpufreq.h>
+#if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+#include <mtk_gpu_power_sspm_ipi.h>
+#endif
 #include <ged_dvfs.h>
 #if IS_ENABLED(CONFIG_PROC_FS)
 #include <linux/proc_fs.h>
@@ -216,6 +219,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ)
 	mtk_common_devfreq_init();
 #endif
+#if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+	MTKGPUPower_model_init();
+#endif
+
 
 	return 0;
 }
@@ -245,4 +252,8 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ)
 	mtk_common_devfreq_term();
 #endif
+#if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+	MTKGPUPower_model_destroy();
+#endif
+
 }
