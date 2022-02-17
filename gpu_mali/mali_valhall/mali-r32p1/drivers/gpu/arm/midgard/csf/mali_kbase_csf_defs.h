@@ -892,7 +892,7 @@ struct kbase_csf_scheduler {
 /**
  * Default GLB_PWROFF_TIMER_TIMEOUT value in unit of micro-seconds.
  */
-#define DEFAULT_GLB_PWROFF_TIMEOUT_US (800)
+#define DEFAULT_GLB_PWROFF_TIMEOUT_US (300)
 
 /**
  * In typical operations, the management of the shader core power transitions

@@ -41,7 +41,7 @@
 
 #define FIRMWARE_PING_INTERVAL_MS (8000) /* 8 seconds */
 
-#define FIRMWARE_IDLE_HYSTERESIS_TIME_MS (50) /* Default 10 milliseconds */
+#define FIRMWARE_IDLE_HYSTERESIS_TIME_MS (5) /* Default 10 milliseconds */
 
 /**
  * enum kbase_csf_event_callback_action - return type for CSF event callbacks.
