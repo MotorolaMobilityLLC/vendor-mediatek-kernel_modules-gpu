@@ -554,7 +554,7 @@ struct kbase_mmu_mode const *kbase_mmu_mode_get_aarch64(void);
 
 #define DEVNAME_SIZE	16
 
-#if defined(CONFIG_MALI_MTK_GPU_BM_2)
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
 struct job_status_qos {
         phys_addr_t phyaddr;
         size_t size;
@@ -1189,7 +1189,7 @@ struct kbase_device {
 	struct ion_client *client;
 #endif
 
-#if defined(CONFIG_MALI_MTK_GPU_BM_2)
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
 	struct job_status_qos job_status_addr;
 	struct v1_data* v1;
 #endif
