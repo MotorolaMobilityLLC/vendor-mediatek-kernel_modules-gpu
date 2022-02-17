@@ -26,6 +26,11 @@
 #include <tl/mali_kbase_tracepoints.h>
 #include <device/mali_kbase_device.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <mtk_gpufreq.h>
+#include "platform/mtk_platform_common.h"
+#endif
+
 /**
  * lock_region() - Generate lockaddr to lock memory region in MMU
  * @pfn:       Starting page frame number of the region to lock
@@ -95,10 +100,24 @@ static int wait_ready(struct kbase_device *kbdev,
 	while (--max_loops && (val & AS_STATUS_AS_ACTIVE))
 		val = kbase_reg_read(kbdev, MMU_AS_REG(as_nr, AS_STATUS));
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	if (max_loops == 0) {
+		dev_info(kbdev->dev, "AS_ACTIVE bit stuck when issue an operation to the MMU\n");
+		if (!mtk_common_gpufreq_bringup()) {
+			mtk_common_debug_dump();
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+			gpufreq_dump_infra_status();
+#else
+			mt_gpufreq_dump_infra_status();
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+		}
+	}
+#else
 	if (max_loops == 0) {
 		dev_err(kbdev->dev, "AS_ACTIVE bit stuck, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n");
 		return -1;
 	}
+#endif
 
 	/* If waiting in loop was performed, log last read value. */
 	if (KBASE_AS_INACTIVE_MAX_LOOPS - 1 > max_loops)
