@@ -27,6 +27,11 @@ ccflags-y += -I$(src)/debug
 ccflags-y += -I$(srctree)/drivers/staging/android/ion
 ccflags-y += -I$(srctree)/drivers/iommu
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat
+ifeq ($(CONFIG_MTK_TINYSYS_SSPM_SUPPORT), y)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/v2
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/qos/
+endif
 
 ccflags-$(CONFIG_DEBUG_FS) += -DCONFIG_DEBUG_FS
 ccflags-$(CONFIG_PROC_FS) += -DCONFIG_PROC_FS
@@ -40,6 +45,7 @@ ccflags-$(CONFIG_MALI_MTK_DEBUG_DFD) += -DCONFIG_MALI_MTK_DEBUG_DFD
 ccflags-$(CONFIG_MALI_MTK_MEM_TRACK) += -DCONFIG_MALI_MTK_MEM_TRACK
 ccflags-$(CONFIG_MALI_MTK_DEVFREQ) += -DCONFIG_MALI_MTK_DEVFREQ
 ccflags-$(CONFIG_MALI_MTK_DEVFREQ_THERMAL) += -DCONFIG_MALI_MTK_DEVFREQ_THERMAL
+ccflags-$(CONFIG_MALI_MTK_GPU_BM_2) += -DCONFIG_MALI_MTK_GPU_BM_2
 
 # kernel config
 $(info *GPU [mtk-Kbuild] CONFIG_DEBUG_FS = $(CONFIG_DEBUG_FS))
@@ -47,6 +53,7 @@ $(info *GPU [mtk-Kbuild] CONFIG_PROC_FS = $(CONFIG_PROC_FS))
 $(info *GPU [mtk-Kbuild] CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT = $(CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT))
 $(info *GPU [mtk-Kbuild] CONFIG_MTK_GPU_SUPPORT = $(CONFIG_MTK_GPU_SUPPORT))
 $(info *GPU [mtk-Kbuild] CONFIG_MTK_GPU_VERSION = $(CONFIG_MTK_GPU_VERSION))
+
 # platform config
 $(info *GPU [mtk-Kbuild] MTK_GPU_VERSION = $(MTK_GPU_VERSION))
 $(info *GPU [mtk-Kbuild] MTK_PLATFORM = $(MTK_PLATFORM))
@@ -63,3 +70,4 @@ $(info *GPU [mtk-Kbuild] CONFIG_MALI_MTK_DEBUG_DFD = $(CONFIG_MALI_MTK_DEBUG_DFD
 $(info *GPU [mtk-Kbuild] CONFIG_MALI_MTK_MEM_TRACK = $(CONFIG_MALI_MTK_MEM_TRACK))
 $(info *GPU [mtk-Kbuild] CONFIG_MALI_MTK_DEVFREQ = $(CONFIG_MALI_MTK_DEVFREQ))
 $(info *GPU [mtk-Kbuild] CONFIG_MALI_MTK_DEVFREQ_THERMAL = $(CONFIG_MALI_MTK_DEVFREQ_THERMAL))
+$(info *GPU [mtk-Kbuild] CONFIG_MALI_MTK_GPU_BM_2 = $(CONFIG_MALI_MTK_GPU_BM_2))
