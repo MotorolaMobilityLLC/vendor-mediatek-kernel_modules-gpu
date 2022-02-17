@@ -163,9 +163,7 @@ obj-$(CONFIG_MALI_MIDGARD) += mali_kbase_$(MTK_PLATFORM).o
 mali_kbase_$(MTK_PLATFORM)-y := mali_kbase.o
 endif
 
-ifeq ($(CONFIG_MALI_ARBITRATION),y)
 obj-$(CONFIG_MALI_ARBITRATION) += arbitration/
-endif
 obj-$(CONFIG_MALI_KUTF)    += tests/
 
 mali_kbase-y += \
