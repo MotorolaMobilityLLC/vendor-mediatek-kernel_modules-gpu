@@ -69,7 +69,7 @@ static inline void gpu_dvfs_status_reset_footprint(void)
 static int pm_callback_power_on_nolock(struct kbase_device *kbdev)
 {
 #if defined(CONFIG_MTK_GPUFREQ_V2)
-	if (gpufreq_bringup()) {
+	if (mtk_common_gpufreq_bringup()) {
 		mtk_common_pm_mfg_active();
 		return 1;
 	}
@@ -82,7 +82,7 @@ static int pm_callback_power_on_nolock(struct kbase_device *kbdev)
 		return 1;
 	}
 #else /* CONFIG_MTK_GPUFREQ_V2 */
-	if (mt_gpufreq_bringup()) {
+	if (mtk_common_gpufreq_bringup()) {
 		mtk_common_pm_mfg_active();
 		return 1;
 	}
@@ -148,13 +148,13 @@ static int pm_callback_power_on_nolock(struct kbase_device *kbdev)
 static void pm_callback_power_off_nolock(struct kbase_device *kbdev)
 {
 #if defined(CONFIG_MTK_GPUFREQ_V2)
-	if (gpufreq_bringup())
+	if (mtk_common_gpufreq_bringup())
 		return;
 
 	if (!gpufreq_power_ctrl_enable())
 		return;
 #else
-	if (mt_gpufreq_bringup())
+	if (mtk_common_gpufreq_bringup())
 		return;
 
 	if (!mt_gpufreq_power_ctl_en())
