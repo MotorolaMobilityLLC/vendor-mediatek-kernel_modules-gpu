@@ -1332,7 +1332,8 @@ static int wait_for_global_request(struct kbase_device *const kbdev,
 				       wait_timeout);
 
 	if (!remaining) {
-		dev_warn(kbdev->dev, "Timed out waiting for global request %x to complete",
+		dev_warn(kbdev->dev, "Timed out (%d ms) waiting for global request %x to complete",
+			 kbdev->csf.fw_timeout_ms,
 			 req_mask);
 		err = -ETIMEDOUT;
 	}
@@ -1689,13 +1690,11 @@ u32 kbase_csf_firmware_get_mcu_core_pwroff_time(struct kbase_device *kbdev)
 
 u32 kbase_csf_firmware_set_mcu_core_pwroff_time(struct kbase_device *kbdev, u32 dur)
 {
-	unsigned long flags;
 	const u32 pwroff = convert_dur_to_core_pwroff_count(kbdev, dur);
 
-	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	lockdep_assert_held(&kbdev->hwaccess_lock);
 	kbdev->csf.mcu_core_pwroff_dur_us = dur;
 	kbdev->csf.mcu_core_pwroff_dur_count = pwroff;
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	dev_dbg(kbdev->dev, "MCU Core Poweroff input update: 0x%.8x", pwroff);
 
@@ -2075,30 +2074,20 @@ int kbase_csf_firmware_set_timeout(struct kbase_device *const kbdev,
 void kbase_csf_enter_protected_mode(struct kbase_device *kbdev)
 {
 	struct kbase_csf_global_iface *global_iface = &kbdev->csf.global_iface;
-	unsigned long flags;
-	int err;
 
-	kbase_csf_scheduler_spin_lock(kbdev, &flags);
+	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 	set_global_request(global_iface, GLB_REQ_PROTM_ENTER_MASK);
 	dev_dbg(kbdev->dev, "Sending request to enter protected mode");
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
-	kbase_csf_scheduler_spin_unlock(kbdev, flags);
+}
 
-	err = wait_for_global_request(kbdev, GLB_REQ_PROTM_ENTER_MASK);
+void kbase_csf_wait_protected_mode_enter(struct kbase_device *kbdev)
+{
+	int err = wait_for_global_request(kbdev, GLB_REQ_PROTM_ENTER_MASK);
 
-	if (!err) {
-		unsigned long irq_flags;
-
-		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-		kbdev->protected_mode = true;
-		kbase_ipa_protection_mode_switch_event(kbdev);
-		kbase_ipa_control_protm_entered(kbdev);
-
-		kbase_csf_scheduler_spin_lock(kbdev, &irq_flags);
-		kbase_hwcnt_backend_csf_protm_entered(&kbdev->hwcnt_gpu_iface);
-		kbase_csf_scheduler_spin_unlock(kbdev, irq_flags);
-
-		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+	if (err) {
+		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
+			kbase_reset_gpu(kbdev);
 	}
 }
 
