@@ -46,3 +46,8 @@ GPU_OPTS := MTK_GPU_VERSION=$(LOCAL_MTK_GPU_VERSION)
 GPU_OPTS += CONFIG_MALI_MEMORY_GROUP_MANAGER=y
 include $(LOCAL_PATH_B)/gpu_$(word 1,$(subst _, ,$(LOCAL_MTK_GPU_VERSION)))/mali_$(word 2,$(subst _, ,$(LOCAL_MTK_GPU_VERSION)))/mali-$(word 3,$(subst _, ,$(LOCAL_MTK_GPU_VERSION)))/drivers/base/arm/memory_group_manager/Android.mk
 
+LOCAL_MTK_GPU_VERSION := mali_valhall_r32p1
+GPU_OPTS := MTK_GPU_VERSION=$(LOCAL_MTK_GPU_VERSION)
+GPU_OPTS += CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR=y
+include $(LOCAL_PATH_B)/gpu_$(word 1,$(subst _, ,$(LOCAL_MTK_GPU_VERSION)))/mali_$(word 2,$(subst _, ,$(LOCAL_MTK_GPU_VERSION)))/mali-$(word 3,$(subst _, ,$(LOCAL_MTK_GPU_VERSION)))/drivers/base/arm/protected_memory_allocator/Android.mk
+
