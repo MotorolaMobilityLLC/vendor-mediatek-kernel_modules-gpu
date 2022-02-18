@@ -189,8 +189,18 @@ EXPORT_SYMBOL(MTKGPUPower_model_resume);
 
 /* only work if CSF exit */
 void MTKGPUSet_idle_time(unsigned int val){
-
-	return;
+#if MALI_USE_CSF && IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_TEST)
+		struct kbase_device *kbdev;
+	
+		kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+		if (IS_ERR_OR_NULL(kbdev)) {
+			return;
+		}
+	
+		kbase_csf_firmware_set_gpu_idle_hysteresis_time(kbdev, val);
+#else
+		return;
+#endif
 
 }
 
