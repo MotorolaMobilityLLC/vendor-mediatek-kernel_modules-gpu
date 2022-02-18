@@ -501,6 +501,7 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type)
 	{
 		struct kbase_context *kctx;
 
+		mutex_lock(&kbdev->kctx_list_lock);
 		list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
 			if (kctx->tgid == pid) {
 				u32 gr;
@@ -520,12 +521,14 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type)
 				kbase_csf_scheduler_unlock(kbdev);
 			}
 		}
+		mutex_unlock(&kbdev->kctx_list_lock);
 	}
 	// cat /sys/kernel/debug/mali0/ctx/{PID}_*/kcpu_queues
 	// Print per-context KCPU queues debug information
 	{
 		struct kbase_context *kctx;
 
+		mutex_lock(&kbdev->kctx_list_lock);
 		list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
 			if (kctx->tgid == pid) {
 				unsigned long idx;
@@ -639,6 +642,7 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type)
 				mutex_unlock(&kctx->csf.kcpu_queues.lock);
 			}
 		}
+		mutex_unlock(&kbdev->kctx_list_lock);
 	}
 #endif
 }
