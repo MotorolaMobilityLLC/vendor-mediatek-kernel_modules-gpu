@@ -23,10 +23,6 @@
 #include <mali_kbase_hwaccess_time.h>
 #include <device/mali_kbase_device.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-#include <mtk_gpufreq.h>
-#include "platform/mtk_platform_common.h"
-#endif
 
 void kbase_backend_get_gpu_time_norequest(struct kbase_device *kbdev,
 					  u64 *cycle_counter,
