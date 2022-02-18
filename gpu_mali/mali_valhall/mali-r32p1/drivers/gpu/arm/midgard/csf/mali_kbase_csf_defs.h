@@ -1261,11 +1261,12 @@ struct kbase_csf_device {
 	u32 gpu_idle_dur_count;
 	unsigned int fw_timeout_ms;
 	struct kbase_csf_hwcnt hwcnt;
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
 	ktime_t glb_start_tm;
 	ktime_t glb_end_tm;
 	ktime_t csf_interrupt_start_tm;
 	ktime_t csf_interrupt_end_tm;
-	u32 csg_remaining;
+	u32 csg_interrupts;
 	ktime_t csg_start_tm[MAX_SUPPORTED_CSGS];
 	ktime_t csg_end_tm[MAX_SUPPORTED_CSGS];
 	u32 glb_req;
@@ -1277,6 +1278,7 @@ struct kbase_csf_device {
 	s64 spin_delta_us_0;
 	s64 spin_delta_us_1;
 	s64 spin_delta_us_2;
+#endif
 };
 
 /**
