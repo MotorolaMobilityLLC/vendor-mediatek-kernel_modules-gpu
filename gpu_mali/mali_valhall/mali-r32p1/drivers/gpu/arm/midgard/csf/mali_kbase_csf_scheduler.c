@@ -3256,11 +3256,18 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 				 */
 				if (scheduler->apply_pmode_exit_wa) {
 					scheduler->apply_pmode_exit_wa = false;
+					spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 				} else {
 					spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 					kbase_pm_apply_pmode_entry_wa(kbdev);
-					spin_lock_irqsave(&scheduler->interrupt_lock, flags);
 				}
+				/* This lock is taken to prevent the issuing of MMU command during the
+				 * transition to protected mode. This helps avoid the scenario where the
+				 * entry to protected mode happens with a memory region being locked and
+				 * the same region is then accessed by the GPU in protected mode.
+				 */
+				mutex_lock(&kbdev->mmu_hw_mutex);
+				spin_lock_irqsave(&scheduler->interrupt_lock, flags);
 				/* Switch to protected mode */
 				scheduler->active_protm_grp = input_grp;
 				KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_ENTER_PROTM,
@@ -3274,6 +3281,7 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 				spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 
 				kbase_csf_wait_protected_mode_enter(kbdev);
+				mutex_unlock(&kbdev->mmu_hw_mutex);
 				return;
 			}
 		}
@@ -4519,12 +4527,15 @@ static bool scheduler_handle_reset_in_protected_mode(struct kbase_device *kbdev)
 		 * way before reset.
 		 */
 		suspend_on_slot_groups = true;
+		dev_err(kbdev->dev, "GPU reset when GPU couldn't enter Pmode");
 	}
 
 	spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 
 	if (likely(!pmode_active))
 		goto unlock;
+
+	dev_err(kbdev->dev, "GPU reset when GPU has entered Pmode");
 
 	/* GPU hasn't exited protected mode, so all the on-slot groups barring
 	 * the protected mode group can be marked as suspended right away.
