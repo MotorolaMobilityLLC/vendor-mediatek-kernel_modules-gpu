@@ -17,6 +17,10 @@
 #endif
 #include "mtk_platform_debug.h"
 
+#if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+static DEFINE_MUTEX(fence_debug_lock);
+#endif
+
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
 static const char *mtk_common_mcu_state_to_string(enum kbase_mcu_state state)
 {
@@ -173,6 +177,20 @@ static void mtk_common_csf_scheduler_dump_active_queue_cs_status_wait(
 	         tgid,
 	         id,
 	         blocked_reason_to_string(CS_STATUS_BLOCKED_REASON_REASON_GET(blocked_reason)));
+
+	// BLOCKED_REASON:
+	//     - WAIT: Blocked on scoreboards in some way.
+	//     - RESOURCE: Blocked on waiting for resource allocation. e.g., compute, tiler, and fragment resources.
+	//     - SYNC_WAIT: Blocked on a SYNC_WAIT{32|64} instruction.
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	if (blocked_reason == CS_STATUS_BLOCKED_REASON_REASON_WAIT)
+		ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
+			 "    [%d_%d] BLOCKED_REASON: %s\n",
+	         tgid,
+	         id,
+	         blocked_reason_to_string(CS_STATUS_BLOCKED_REASON_REASON_GET(blocked_reason)));
+#endif
 }
 
 static void mtk_common_csf_scheduler_dump_active_queue(pid_t tgid, u32 id, struct kbase_queue *queue)
@@ -194,6 +212,18 @@ static void mtk_common_csf_scheduler_dump_active_queue(pid_t tgid, u32 id, struc
 
 	if (queue->csi_index == KBASEP_IF_NR_INVALID || !queue->group)
 		return;
+
+	if (!queue->user_io_addr) {
+		dev_info(queue->kctx->kbdev->dev,
+			 "[%d_%d] user_io_addr is NULL! csi_index=%8d base_addr=%16llx priority=%4u doorbell_nr=%8d",
+			 tgid,
+			 id,
+			 queue->csi_index,
+			 queue->base_addr,
+			 queue->priority,
+			 queue->doorbell_nr);
+		return;
+	}
 
 	/* Ring the doorbell to have firmware update CS_EXTRACT */
 	kbase_csf_ring_cs_user_doorbell(queue->kctx->kbdev, queue);
@@ -468,13 +498,23 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type)
 	if (IS_ERR_OR_NULL(kbdev))
 		return;
 
-	dev_info(kbdev->dev, "@%s: %s TIMEOUT! fence_fd=%d pid=%d",
+	dev_info(kbdev->dev, "@%s: %s: mali fence timeouts! fence_fd=%d pid=%d",
 	         __func__,
 	         fence_timeout_type_to_string(type),
 	         fd,
 	         pid);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
+		 "%s: mali fence timeouts! fence_fd=%d pid=%d\n",
+		 fence_timeout_type_to_string(type),
+		 fd,
+		 pid);
+#endif
+
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	mutex_lock(&fence_debug_lock);
+
 	// cat /sys/kernel/debug/mali0/active_groups
 	// Print debug info for active GPU command queue groups
 	{
@@ -644,5 +684,7 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type)
 		}
 		mutex_unlock(&kbdev->kctx_list_lock);
 	}
+
+	mutex_unlock(&fence_debug_lock);
 #endif
 }
