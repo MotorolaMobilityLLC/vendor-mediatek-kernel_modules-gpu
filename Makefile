@@ -36,6 +36,9 @@ all: RULE := $(BUILD_RULE)
 all: MEMORY_GROUP_MANAGER := $(CONFIG_MALI_MEMORY_GROUP_MANAGER)
 all: PROTECTED_MEMORY_ALLOCATOR := $(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR)
 all:
+ifneq (,$(wildcard mt6789))
+	$(call build_kernel_modules_mali,mt6789,mali_valhall,mali-r32p1,mali_valhall_r32p1_mt6789)
+endif
 ifneq (,$(wildcard mt6833))
 	$(call build_kernel_modules_mali,mt6833,mali_valhall,mali-r32p1,mali_valhall_r32p1_mt6833)
 endif
@@ -59,6 +62,9 @@ modules_install: RULE := $(BUILD_RULE)
 modules_install: MEMORY_GROUP_MANAGER := $(CONFIG_MALI_MEMORY_GROUP_MANAGER)
 modules_install: PROTECTED_MEMORY_ALLOCATOR := $(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR)
 modules_install:
+ifneq (,$(wildcard mt6789))
+	$(call install_kernel_modules_mali,mt6789,mali_valhall,mali-r32p1,mali_valhall_r32p1_mt6789)
+endif
 ifneq (,$(wildcard mt6833))
 	$(call install_kernel_modules_mali,mt6833,mali_valhall,mali-r32p1,mali_valhall_r32p1_mt6833)
 endif
@@ -82,6 +88,9 @@ clean: RULE := $(BUILD_RULE)
 clean: MEMORY_GROUP_MANAGER := $(CONFIG_MALI_MEMORY_GROUP_MANAGER)
 clean: PROTECTED_MEMORY_ALLOCATOR := $(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR)
 clean:
+ifneq (,$(wildcard mt6789))
+	$(call clean_kernel_modules_mali,mt6789,mali_valhall,mali-r32p1,mali_valhall_r32p1_mt6789)
+endif
 ifneq (,$(wildcard mt6833))
 	$(call clean_kernel_modules_mali,mt6833,mali_valhall,mali-r32p1,mali_valhall_r32p1_mt6833)
 endif
