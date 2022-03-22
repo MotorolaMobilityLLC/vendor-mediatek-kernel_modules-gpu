@@ -1347,6 +1347,24 @@ struct kbase_csf_device {
 	unsigned int fw_timeout_ms;
 	struct kbase_csf_hwcnt hwcnt;
 	struct kbase_csf_mcu_fw fw;
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
+	ktime_t glb_start_tm;
+	ktime_t glb_end_tm;
+	ktime_t csf_interrupt_start_tm;
+	ktime_t csf_interrupt_end_tm;
+	u32 csg_interrupts;
+	ktime_t csg_start_tm[MAX_SUPPORTED_CSGS];
+	ktime_t csg_end_tm[MAX_SUPPORTED_CSGS];
+	u32 glb_req;
+	u32 glb_ack;
+	u32 csg_req[MAX_SUPPORTED_CSGS];
+	u32 csg_ack[MAX_SUPPORTED_CSGS];
+	u32 csg_irqreq[MAX_SUPPORTED_CSGS];
+	u32 csg_irqack[MAX_SUPPORTED_CSGS];
+	s64 spin_delta_us_0;
+	s64 spin_delta_us_1;
+	s64 spin_delta_us_2;
+#endif
 };
 
 /**
