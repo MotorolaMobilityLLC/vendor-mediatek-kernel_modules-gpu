@@ -269,7 +269,11 @@ static struct page *example_mgm_alloc_page(
 	struct mgm_groups *const data = mgm_dev->data;
 	struct page *p;
 
+#ifdef CONFIG_MTK_MODIFY
+	dev_vdbg(data->dev, "%s(mgm_dev=%p, group_id=%d gfp_mask=0x%x order=%u\n",
+#else
 	dev_dbg(data->dev, "%s(mgm_dev=%p, group_id=%d gfp_mask=0x%x order=%u\n",
+#endif /* CONFIG_MTK_MODIFY */
 		__func__, (void *)mgm_dev, group_id, gfp_mask, order);
 
 	if (WARN_ON(group_id < 0) ||
@@ -295,7 +299,11 @@ static void example_mgm_free_page(
 {
 	struct mgm_groups *const data = mgm_dev->data;
 
+#ifdef CONFIG_MTK_MODIFY
+	dev_vdbg(data->dev, "%s(mgm_dev=%p, group_id=%d page=%p order=%u\n",
+#else
 	dev_dbg(data->dev, "%s(mgm_dev=%p, group_id=%d page=%p order=%u\n",
+#endif /* CONFIG_MTK_MODIFY */
 		__func__, (void *)mgm_dev, group_id, (void *)page, order);
 
 	if (WARN_ON(group_id < 0) ||
@@ -313,7 +321,11 @@ static int example_mgm_get_import_memory_id(
 {
 	struct mgm_groups *const data = mgm_dev->data;
 
+#ifdef CONFIG_MTK_MODIFY
+	dev_vdbg(data->dev, "%s(mgm_dev=%p, import_data=%p (type=%d)\n",
+#else
 	dev_dbg(data->dev, "%s(mgm_dev=%p, import_data=%p (type=%d)\n",
+#endif /* CONFIG_MTK_MODIFY */
 		__func__, (void *)mgm_dev, (void *)import_data,
 		(int)import_data->type);
 
@@ -335,7 +347,11 @@ static u64 example_mgm_update_gpu_pte(
 	const u32 pbha_bit_pos = 59; /* bits 62:59 */
 	const u32 pbha_bit_mask = 0xf; /* 4-bit */
 
+#ifdef CONFIG_MTK_MODIFY
+	dev_vdbg(data->dev,
+#else
 	dev_dbg(data->dev,
+#endif /* CONFIG_MTK_MODIFY */
 		"%s(mgm_dev=%p, group_id=%d, mmu_level=%d, pte=0x%llx)\n",
 		__func__, (void *)mgm_dev, group_id, mmu_level, pte);
 
@@ -358,7 +374,11 @@ static vm_fault_t example_mgm_vmf_insert_pfn_prot(
 	struct mgm_groups *const data = mgm_dev->data;
 	vm_fault_t fault;
 
+#ifdef CONFIG_MTK_MODIFY
+	dev_vdbg(data->dev,
+#else
 	dev_dbg(data->dev,
+#endif /* CONFIG_MTK_MODIFY */
 		"%s(mgm_dev=%p, group_id=%d, vma=%p, addr=0x%lx, pfn=0x%lx, prot=0x%llx)\n",
 		__func__, (void *)mgm_dev, group_id, (void *)vma, addr, pfn,
 		(unsigned long long) pgprot_val(prot));
