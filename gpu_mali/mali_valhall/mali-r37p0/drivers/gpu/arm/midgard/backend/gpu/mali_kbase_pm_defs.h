@@ -112,13 +112,30 @@ enum kbase_shader_core_state {
  *           with 2 (2x256ns).
  */
 struct kbasep_pm_metrics {
+#if !MALI_USE_CSF || \
+    !IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) || !IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	u32 time_busy;
 	u32 time_idle;
+#endif
 #if MALI_USE_CSF
 	u32 time_in_protm;
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	//[0]: Active, [1]: TILER, [2]: COMP, [3]: FRAG
+	u32 time_busy[4];
+	u32 time_idle[4];
+
+	u32 busy_cl[2];
+	u32 busy_gl;
+	u32 busy_gl_plus[3];
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MIDGARD_DVFS */
 #else
 	u32 busy_cl[2];
 	u32 busy_gl;
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	u32 busy_gl_plus[3];
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MIDGARD_DVFS */
 #endif
 };
 

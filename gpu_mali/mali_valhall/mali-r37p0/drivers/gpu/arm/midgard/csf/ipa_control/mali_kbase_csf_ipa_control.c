@@ -23,6 +23,11 @@
 #include "backend/gpu/mali_kbase_clk_rate_trace_mgr.h"
 #include "mali_kbase_csf_ipa_control.h"
 
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+		IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+#include "mali_kbase_csf_ipa_control_ex.h"
+#endif
+
 /*
  * Status flags from the STATUS register of the IPA Control interface.
  */
@@ -51,12 +56,22 @@
  * interface should sample counters with a resolution in the order of
  * milliseconds, while keeping GPU overhead as limited as possible.
  */
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+		IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+#define TIMER_DEFAULT_VALUE_MS ((u32)1) /* 1 milliseconds */
+#else
 #define TIMER_DEFAULT_VALUE_MS ((u32)10) /* 10 milliseconds */
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 /*
  * Number of timer events per second.
  */
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+		IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+#define TIMER_EVENTS_PER_SECOND ((u32)6000 / TIMER_DEFAULT_VALUE_MS)
+#else
 #define TIMER_EVENTS_PER_SECOND ((u32)1000 / TIMER_DEFAULT_VALUE_MS)
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 /*
  * Maximum number of loops polling the GPU before we assume the GPU has hung.
@@ -299,6 +314,12 @@ kbase_ipa_control_rate_change_notify(struct kbase_clk_rate_listener *listener,
 			dev_err(kbdev->dev,
 				"%s: GPU frequency cannot change while GPU is off",
 				__func__);
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+			/* Backup clk rate value and update timer at next power on */
+			spin_lock(&ipa_ctrl->lock);
+			ipa_ctrl->cur_gpu_rate = clk_rate_hz;
+			spin_unlock(&ipa_ctrl->lock);
+#endif
 			spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 			return;
 		}
@@ -338,6 +359,25 @@ kbase_ipa_control_rate_change_notify(struct kbase_clk_rate_listener *listener,
 	}
 }
 
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+		IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+static
+int kbase_ipa_control_rate_change_notify_ex(struct kbase_device *kbdev,
+					       u32 clk_index, u32 clk_rate_hz)
+{
+
+	struct kbase_ipa_control *ipa_ctrl = &kbdev->csf.ipa_control;
+	struct kbase_ipa_control_listener_data *listener_data =
+		ipa_ctrl->rtm_listener_data;
+
+	kbase_ipa_control_rate_change_notify(&listener_data->listener,
+					     clk_index, clk_rate_hz * 1000);
+
+	return 0;
+}
+#endif
+
+
 void kbase_ipa_control_init(struct kbase_device *kbdev)
 {
 	struct kbase_ipa_control *ipa_ctrl = &kbdev->csf.ipa_control;
@@ -376,6 +416,11 @@ void kbase_ipa_control_init(struct kbase_device *kbdev)
 		kbase_clk_rate_trace_manager_subscribe_no_lock(
 			clk_rtm, &listener_data->listener);
 	spin_unlock(&clk_rtm->lock);
+
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	mtk_common_rate_change_notify_fp = kbase_ipa_control_rate_change_notify_ex;
+#endif
 }
 KBASE_EXPORT_TEST_API(kbase_ipa_control_init);
 
