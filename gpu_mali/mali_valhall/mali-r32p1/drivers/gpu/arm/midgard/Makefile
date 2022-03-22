@@ -227,7 +227,7 @@ obj-$(CONFIG_MALI_MIDGARD) += mali_kbase.o
 # LD2.0
 else ifneq ($(wildcard $(KO_CODE_PATH)/platform/$(MTK_PLATFORM)),)
 obj-$(CONFIG_MALI_MIDGARD) += mali_kbase_$(MTK_PLATFORM).o
-mali_kbase_$(MTK_PLATFORM)-y := mali_kbase.o
+mali_kbase_$(MTK_PLATFORM)-y += $(mali_kbase-y) $(mali_kbase-m)
 endif
 
 ifeq ($(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM), y)
