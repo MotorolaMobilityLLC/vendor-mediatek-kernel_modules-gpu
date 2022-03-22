@@ -30,10 +30,11 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_DEBUG := y
         CONFIG_MALI_MTK_MEM_TRACK := y
         CONFIG_MALI_MTK_DEVFREQ := y
+        CONFIG_MALI_MTK_DEVFREQ_THERMAL := y
         CONFIG_MALI_PMU_LP4 := y
         CONFIG_MALI_SCMI_ENABLE := y
         CONFIG_MALI_MTK_FENCE_DEBUG := y
-    endif
+    endif ## mt6983 ##
 endif
 
 # make $(src) as absolute path if it is not already, by prefixing $(srctree)
