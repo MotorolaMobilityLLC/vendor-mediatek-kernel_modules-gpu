@@ -425,6 +425,10 @@ struct kbase_pm_device_data {
 
 #if MALI_USE_CSF
 	u64 debug_core_mask;
+#if defined(CONFIG_MALI_MTK_DUMMY_CM)
+	u32 debug_core_mask_en;
+	u64 dummy_core_mask;
+#endif /* CONFIG_MALI_MTK_DUMMY_CM */
 #else
 	/* One mask per job slot. */
 	u64 debug_core_mask[BASE_JM_MAX_NR_SLOTS];

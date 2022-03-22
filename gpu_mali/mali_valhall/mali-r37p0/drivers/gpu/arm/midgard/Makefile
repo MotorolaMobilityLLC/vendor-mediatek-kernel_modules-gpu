@@ -33,6 +33,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_DEVFREQ_THERMAL := y
         CONFIG_MALI_PMU_LP4 := y
         CONFIG_MALI_SCMI_ENABLE := y
+        CONFIG_MALI_MTK_DUMMY_CM := y
         CONFIG_MALI_MTK_FENCE_DEBUG := y
     endif ## mt6983 ##
 endif
