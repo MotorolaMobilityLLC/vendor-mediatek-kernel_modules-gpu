@@ -58,7 +58,9 @@
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <mtk_gpufreq.h>
-#include "platform/mtk_platform_common.h"
+#include <mali_kbase_hwaccess_time.h>
+#include <platform/mtk_platform_common.h>
+#include <platform/mtk_platform_common/mtk_platform_debug.h>
 #include <ged_dcs.h>
 #include <ged_log.h>
 #if IS_ENABLED(CONFIG_MTK_IRQ_DBG)
@@ -654,6 +656,10 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			if (kbase_pm_is_mcu_desired(kbdev) &&
 			    !backend->policy_change_clamp_state_to_off &&
 			    backend->l2_state == KBASE_L2_ON) {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+				mtk_common_debug_logbuf_print(&kbdev->logbuf_kbase,
+					"re-enabling MCU here");
+#endif
 				kbase_csf_firmware_trigger_reload(kbdev);
 				backend->mcu_state = KBASE_MCU_PEND_ON_RELOAD;
 			}
@@ -1979,6 +1985,16 @@ static void kbase_pm_timed_out(struct kbase_device *kbdev)
 			kbase_reg_read(kbdev, GPU_CONTROL_REG(
 					L2_PWRTRANS_LO)));
 
+#if MALI_USE_CSF
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_common_debug_logbuf_print(&kbdev->logbuf_kbase,
+		"[%llu] Power transition timed out (%d ms) unexpectedly, MCU sw state = %d (%s)",
+		kbase_backend_get_cycle_cnt(kbdev),
+		PM_TIMEOUT_MS,
+		kbase_mcu_state_to_string(kbdev->pm.backend.mcu_state));
+#endif
+#endif
+
 	dev_err(kbdev->dev, "Sending reset to GPU - all running jobs will be lost\n");
 	if (kbase_prepare_to_reset_gpu(kbdev,
 				       RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
@@ -2701,6 +2717,10 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		/* GPU has been reset */
 		hrtimer_cancel(&rtdata.timer);
 		destroy_hrtimer_on_stack(&rtdata.timer);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug_logbuf_print(&kbdev->logbuf_kbase,
+			"GPU soft reset completed");
+#endif
 		return 0;
 	}
 
@@ -2714,6 +2734,8 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		 */
 		dev_err(kbdev->dev, "Reset interrupt didn't reach CPU. Check interrupt assignments.\n");
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
+			"Reset interrupt didn't reach CPU. Check interrupt assignments");
 		dev_info(kbdev->dev, "GPU_IRQ_RAWSTAT=0x%08x GPU_IRQ_MASK=0x%08x GPU_IRQ_STATUS=0x%08x\n",
 						kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_RAWSTAT)),
 						kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_MASK)),
@@ -2769,6 +2791,10 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 			/* GPU has been reset */
 			hrtimer_cancel(&rtdata.timer);
 			destroy_hrtimer_on_stack(&rtdata.timer);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+			mtk_common_debug_logbuf_print(&kbdev->logbuf_kbase,
+				"GPU hard reset completed");
+#endif
 			return 0;
 		}
 
@@ -2776,6 +2802,11 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 
 		dev_err(kbdev->dev, "Failed to hard-reset the GPU (timed out after %d ms)\n",
 					RESET_TIMEOUT);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
+			"Failed to hard-reset the GPU (timed out after %d ms)",
+			RESET_TIMEOUT);
+#endif
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 	}
 #endif /* CONFIG_MALI_ARBITER_SUPPORT */

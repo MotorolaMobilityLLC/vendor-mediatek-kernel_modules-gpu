@@ -34,7 +34,8 @@
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <mtk_gpufreq.h>
-#include "platform/mtk_platform_common.h"
+#include <platform/mtk_platform_common.h>
+#include <platform/mtk_platform_common/mtk_platform_debug.h>
 #endif
 
 /* Value to indicate that a queue group is not groups_to_schedule list */
@@ -536,6 +537,10 @@ static void scheduler_wakeup(struct kbase_device *kbdev, bool kick)
 
 	if (scheduler->state == SCHED_SUSPENDED) {
 		dev_vdbg(kbdev->dev, "Re-activating the Scheduler");
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug_logbuf_print(&kbdev->logbuf_kbase,
+			"Re-activating the Scheduler");
+#endif
 		kbase_csf_scheduler_pm_active(kbdev);
 		scheduler->state = SCHED_INACTIVE;
 
@@ -1336,6 +1341,10 @@ static void halt_csg_slot(struct kbase_queue_group *group, bool suspend)
 				 "[%llu] slot %d timeout (%d ms) on up-running\n",
 				 kbase_backend_get_cycle_cnt(kbdev),
 				 slot, kbdev->csf.fw_timeout_ms);
+			mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
+				"[%llu] slot %d timeout (%d ms) on up-running",
+				kbase_backend_get_cycle_cnt(kbdev),
+				slot, kbdev->csf.fw_timeout_ms);
 #endif
 		}
 	}
@@ -1579,6 +1588,12 @@ void insert_group_to_runnable(struct kbase_csf_scheduler *const scheduler,
 	/* Since a new group has become runnable, check if GPU needs to be
 	 * powered up.
 	 */
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	if (scheduler->state == SCHED_SUSPENDED)
+		mtk_common_debug_logbuf_print(&kbdev->logbuf_kbase,
+			"wakeup scheduler from context %d_%d for process '%s'",
+			kctx->tgid, kctx->id, current->comm);
+#endif
 	scheduler_wakeup(kbdev, false);
 }
 
@@ -2287,6 +2302,11 @@ static int term_group_sync(struct kbase_queue_group *group)
 			 kbase_backend_get_cycle_cnt(kbdev), kbdev->csf.fw_timeout_ms,
 			 group->handle, group->kctx->tgid,
 			 group->kctx->id, group->csg_nr);
+		mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
+			"[%llu] term request timeout (%d ms) for group %d of context %d_%d on slot %d",
+			kbase_backend_get_cycle_cnt(kbdev), kbdev->csf.fw_timeout_ms,
+			group->handle, group->kctx->tgid,
+			group->kctx->id, group->csg_nr);
 #endif
 		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
 			kbase_reset_gpu(kbdev);
@@ -2913,6 +2933,11 @@ static void wait_csg_slots_start(struct kbase_device *kbdev)
 				 kbase_backend_get_cycle_cnt(kbdev),
 				 kbdev->csf.fw_timeout_ms,
 				 num_groups, slot_mask);
+			mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
+				"[%llu] Timeout (%d ms) waiting for CSG slots to start, slots: 0x%*pb",
+				kbase_backend_get_cycle_cnt(kbdev),
+				kbdev->csf.fw_timeout_ms,
+				num_groups, slot_mask);
 #endif
 
 			if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
@@ -3610,6 +3635,11 @@ static void scheduler_update_idle_slots_status(struct kbase_device *kbdev,
 				kbase_backend_get_cycle_cnt(kbdev),
 				kbdev->csf.fw_timeout_ms,
 				csg_bitmap[0]);
+			mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
+				"[%llu] Timeout (%d ms) on CSG_REQ:STATUS_UPDATE, treat groups as not idle: slot mask=0x%lx",
+				kbase_backend_get_cycle_cnt(kbdev),
+				kbdev->csf.fw_timeout_ms,
+				csg_bitmap[0]);
 #endif
 
 			/* Store the bitmap of timed out slots */
@@ -3910,6 +3940,10 @@ static void gpu_idle_worker(struct work_struct *work)
 			dev_vdbg(kbdev->dev, "Scheduler becomes idle suspended now");
 			scheduler_suspend(kbdev);
 			cancel_tick_timer(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+			mtk_common_debug_logbuf_print(&kbdev->logbuf_kbase,
+				"Scheduler suspended");
+#endif
 		} else {
 			dev_vdbg(kbdev->dev, "Aborting suspend scheduler (grps: %d)",
 				atomic_read(&scheduler->non_idle_offslot_grps));
@@ -4101,6 +4135,8 @@ static void schedule_actions(struct kbase_device *kbdev, bool is_tick)
 		dev_err(kbdev->dev, "Wait for MCU power on failed");
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 		ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME, "Wait for MCU power on failed");
+		mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
+			"Wait for MCU power on failed");
 		if (!mtk_common_gpufreq_bringup()) {
 			gpufreq_dump_infra_status();
 			mtk_common_debug_dump();
@@ -4380,6 +4416,10 @@ static int wait_csg_slots_suspend(struct kbase_device *kbdev,
 				 "[%llu] Timeout waiting for CSG slots to suspend, slot_mask: 0x%*pb\n",
 				 kbase_backend_get_cycle_cnt(kbdev),
 				 num_groups, slot_mask_local);
+			mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
+				"[%llu] Timeout waiting for CSG slots to suspend, slot_mask: 0x%*pb",
+				kbase_backend_get_cycle_cnt(kbdev),
+				num_groups, slot_mask_local);
 #endif
 			err = -ETIMEDOUT;
 		}

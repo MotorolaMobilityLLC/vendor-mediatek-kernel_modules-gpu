@@ -194,8 +194,54 @@ static int mtk_common_gpu_memory_show(struct seq_file *m, void *v)
 }
 DEFINE_PROC_SHOW_ATTRIBUTE(mtk_common_gpu_memory);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+static int mtk_common_logbuf_kbase_show(struct seq_file *m, void *v)
+{
+	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return -1;
+
+	mtk_common_debug_logbuf_dump(&kbdev->logbuf_kbase, m);
+
+	return 0;
+}
+DEFINE_PROC_SHOW_ATTRIBUTE(mtk_common_logbuf_kbase);
+
+static int mtk_common_logbuf_exception_show(struct seq_file *m, void *v)
+{
+	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return -1;
+
+	mtk_common_debug_logbuf_dump(&kbdev->logbuf_exception, m);
+
+	return 0;
+}
+DEFINE_PROC_SHOW_ATTRIBUTE(mtk_common_logbuf_exception);
+
+static int mtk_common_logbuf_csffw_show(struct seq_file *m, void *v)
+{
+	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return -1;
+
+	mtk_common_debug_logbuf_dump(&kbdev->logbuf_csffw, m);
+
+	return 0;
+}
+DEFINE_PROC_SHOW_ATTRIBUTE(mtk_common_logbuf_csffw);
+#endif
+
 void mtk_common_procfs_init(void)
 {
+	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return;
+
   	mtk_mali_root = proc_mkdir("mtk_mali", NULL);
   	if (!mtk_mali_root) {
   		pr_info("cannot create /proc/%s\n", "mtk_mali");
@@ -203,13 +249,28 @@ void mtk_common_procfs_init(void)
   	}
 	proc_create("utilization", 0444, mtk_mali_root, &mtk_common_gpu_utilization_proc_ops);
 	proc_create("gpu_memory", 0444, mtk_mali_root, &mtk_common_gpu_memory_proc_ops);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	proc_create(kbdev->logbuf_kbase.name, 0444, mtk_mali_root, &mtk_common_logbuf_kbase_proc_ops);
+	proc_create(kbdev->logbuf_exception.name, 0444, mtk_mali_root, &mtk_common_logbuf_exception_proc_ops);
+	proc_create(kbdev->logbuf_csffw.name, 0444, mtk_mali_root, &mtk_common_logbuf_csffw_proc_ops);
+#endif
 }
 
 void mtk_common_procfs_exit(void)
 {
+	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return;
+
 	mtk_mali_root = NULL;
 	remove_proc_entry("utilization", mtk_mali_root);
 	remove_proc_entry("gpu_memory", mtk_mali_root);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	remove_proc_entry(kbdev->logbuf_kbase.name, mtk_mali_root);
+	remove_proc_entry(kbdev->logbuf_exception.name, mtk_mali_root);
+	remove_proc_entry(kbdev->logbuf_csffw.name, mtk_mali_root);
+#endif
 	remove_proc_entry("mtk_mali", NULL);
 }
 #endif
@@ -249,6 +310,7 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 #endif
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	mtk_gpu_fence_debug_dump_fp = mtk_common_gpu_fence_debug_dump;
+	mtk_common_debug_init();
 #endif
 #if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ)
 	mtk_common_devfreq_init();
@@ -286,11 +348,14 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_MEM_TRACK)
 	mtk_get_gpu_memory_usage_fp = NULL;
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_gpu_fence_debug_dump_fp = NULL;
+	mtk_common_debug_term();
+#endif
 #if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ)
 	mtk_common_devfreq_term();
 #endif
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
 	MTKGPUPower_model_destroy();
 #endif
-
 }
