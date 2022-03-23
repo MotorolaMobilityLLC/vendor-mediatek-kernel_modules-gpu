@@ -2064,6 +2064,52 @@ int kbase_pm_wait_for_desired_state(struct kbase_device *kbdev)
 }
 KBASE_EXPORT_TEST_API(kbase_pm_wait_for_desired_state);
 
+#if MALI_USE_CSF
+static bool core_mask_update_done(struct kbase_device *kbdev)
+{
+	bool update_done = false;
+	unsigned long flags;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	if (!kbase_pm_is_mcu_desired(kbdev) || !kbdev->pm.backend.gpu_ready ||
+	    (kbdev->pm.backend.mcu_state == KBASE_MCU_ON))
+		update_done = true;
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	return update_done;
+}
+
+int kbase_pm_wait_for_cores_down_scale(struct kbase_device *kbdev)
+{
+	unsigned long timeout = kbase_csf_timeout_in_jiffies(PM_TIMEOUT_MS);
+	long remaining;
+	int err = 0;
+
+	/* Wait for core mask update to complete  */
+#if KERNEL_VERSION(4, 13, 1) <= LINUX_VERSION_CODE
+	remaining = wait_event_killable_timeout(
+		kbdev->pm.backend.gpu_in_desired_state_wait,
+		core_mask_update_done(kbdev), timeout);
+#else
+	remaining = wait_event_timeout(
+		kbdev->pm.backend.gpu_in_desired_state_wait,
+		core_mask_update_done(kbdev), timeout);
+#endif
+
+	if (!remaining) {
+		kbase_pm_timed_out(kbdev);
+		err = -ETIMEDOUT;
+	} else if (remaining < 0) {
+		dev_info(
+			kbdev->dev,
+			"Wait for cores down scaling got interrupted");
+		err = (int)remaining;
+	}
+
+	return err;
+}
+#endif
+
 void kbase_pm_enable_interrupts(struct kbase_device *kbdev)
 {
 	unsigned long flags;

@@ -225,6 +225,7 @@ void kbase_pm_reset_done(struct kbase_device *kbdev);
  * Return: 0 on success, error code on error
  */
 int kbase_pm_wait_for_desired_state(struct kbase_device *kbdev);
+int kbase_pm_wait_for_cores_down_scale(struct kbase_device *kbdev);
 #else
 /**
  * kbase_pm_wait_for_desired_state - Wait for the desired power state to be
