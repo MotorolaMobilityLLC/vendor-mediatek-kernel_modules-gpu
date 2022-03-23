@@ -491,29 +491,35 @@ static const char *fence_timeout_type_to_string(int type)
 	return fence_timeout_type[type];
 }
 
-void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type)
+void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type, int timeouts)
 {
 	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
 
 	if (IS_ERR_OR_NULL(kbdev))
 		return;
 
-	dev_info(kbdev->dev, "@%s: %s: mali fence timeouts! fence_fd=%d pid=%d",
+	dev_info(kbdev->dev, "@%s: %s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d",
 	         __func__,
 	         fence_timeout_type_to_string(type),
+	         timeouts,
 	         fd,
 	         pid);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
-		 "%s: mali fence timeouts! fence_fd=%d pid=%d\n",
+		 "%s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d\n",
 		 fence_timeout_type_to_string(type),
+		 timeouts,
 		 fd,
 		 pid);
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	lockdep_off();
+
 	mutex_lock(&fence_debug_lock);
+	mutex_lock(&kbdev->kctx_list_lock);
+	kbase_csf_scheduler_lock(kbdev);
 
 	// cat /sys/kernel/debug/mali0/active_groups
 	// Print debug info for active GPU command queue groups
@@ -523,7 +529,6 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type)
 
 		dev_info(kbdev->dev, "[active_groups] MALI_CSF_CSG_DEBUGFS_VERSION: v%u\n", MALI_CSF_CSG_DEBUGFS_VERSION);
 
-		kbase_csf_scheduler_lock(kbdev);
 		for (csg_nr = 0; csg_nr < num_groups; csg_nr++) {
 			struct kbase_queue_group *const group = kbdev->csf.scheduler.csg_slots[csg_nr].resident_group;
 
@@ -534,19 +539,16 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type)
 
 			mtk_common_csf_scheduler_dump_active_group(group);
 		}
-		kbase_csf_scheduler_unlock(kbdev);
 	}
 	// cat /sys/kernel/debug/mali0/ctx/{PID}_*/groups
 	// Print per-context GPU command queue group debug information
 	{
 		struct kbase_context *kctx;
 
-		mutex_lock(&kbdev->kctx_list_lock);
 		list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
 			if (kctx->tgid == pid) {
 				u32 gr;
 
-				kbase_csf_scheduler_lock(kbdev);
 				for (gr = 0; gr < MAX_QUEUE_GROUP_NUM; gr++) {
 					struct kbase_queue_group *const group = kctx->csf.queue_groups[gr];
 
@@ -558,17 +560,14 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type)
 					if (group)
 						mtk_common_csf_scheduler_dump_active_group(group);
 				}
-				kbase_csf_scheduler_unlock(kbdev);
 			}
 		}
-		mutex_unlock(&kbdev->kctx_list_lock);
 	}
 	// cat /sys/kernel/debug/mali0/ctx/{PID}_*/kcpu_queues
 	// Print per-context KCPU queues debug information
 	{
 		struct kbase_context *kctx;
 
-		mutex_lock(&kbdev->kctx_list_lock);
 		list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
 			if (kctx->tgid == pid) {
 				unsigned long idx;
@@ -682,9 +681,12 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type)
 				mutex_unlock(&kctx->csf.kcpu_queues.lock);
 			}
 		}
-		mutex_unlock(&kbdev->kctx_list_lock);
 	}
 
+	kbase_csf_scheduler_unlock(kbdev);
+	mutex_unlock(&kbdev->kctx_list_lock);
 	mutex_unlock(&fence_debug_lock);
+
+	lockdep_on();
 #endif
 }
