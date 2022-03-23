@@ -28,7 +28,8 @@
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <mtk_gpufreq.h>
-#include "platform/mtk_platform_common.h"
+#include <platform/mtk_platform_common.h>
+#include <platform/mtk_platform_common/mtk_platform_debug.h>
 #endif
 
 /**
@@ -145,6 +146,9 @@ static int wait_ready(struct kbase_device *kbdev,
 		dev_info(kbdev->dev,
 			"AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty FPGA connector",
 			as_nr);
+		mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
+			"AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty FPGA connector",
+			as_nr);
 		if (!mtk_common_gpufreq_bringup()) {
 			mtk_common_debug_dump();
 #if defined(CONFIG_MTK_GPUFREQ_V2)
@@ -183,6 +187,11 @@ static int write_cmd(struct kbase_device *kbdev, int as_nr, u32 cmd)
 		dev_info(kbdev->dev,
 			"Wait for AS_ACTIVE bit failed for as %u, before sending MMU command %u",
 			as_nr, cmd);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
+			"Wait for AS_ACTIVE bit failed for as %u, before sending MMU command %u",
+			as_nr, cmd);
+#endif
 	}
 
 	return status;

@@ -53,6 +53,10 @@
 static DEFINE_MUTEX(ion_config_lock);
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <platform/mtk_platform_common/mtk_platform_debug.h>
+#endif
+
 #if defined(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && defined(CONFIG_MTK_GZ_KREE)
 #include <trusted_mem_api.h>
 #include <mtk/ion_sec_heap.h>
@@ -1146,10 +1150,16 @@ int kbase_mem_do_sync_imported(struct kbase_context *kctx,
 		break;
 	}
 
-	if (unlikely(ret))
+	if (unlikely(ret)) {
 		dev_warn(kctx->kbdev->dev,
 			 "Failed to sync mem region %pK at GPU VA %llx: %d\n",
 			 reg, reg->start_pfn, ret);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug_logbuf_print(&kctx->kbdev->logbuf_exception,
+			"Failed to sync mem region %pK at GPU VA %llx: %d",
+			reg, reg->start_pfn, ret);
+#endif
+	}
 
 	return ret;
 }

@@ -50,6 +50,10 @@
 
 #include <backend/gpu/mali_kbase_pm_internal.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <platform/mtk_platform_common/mtk_platform_debug.h>
+#endif
+
 static void mmu_hw_operation_begin(struct kbase_device *kbdev)
 {
 #if MALI_USE_CSF
@@ -926,6 +930,11 @@ page_fault_retry:
 			dev_info(kbdev->dev,
 				"Flush for GPU page table update did not complete on handling page fault @ 0x%llx",
 				fault->addr);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+			mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
+				"Flush for GPU page table update did not complete on handling page fault @ 0x%llx",
+				fault->addr);
+#endif
 		}
 
 		mutex_unlock(&kbdev->mmu_hw_mutex);
@@ -1627,7 +1636,10 @@ static void kbase_mmu_flush_invalidate_noretain(struct kbase_context *kctx,
 		 * GPU has hung and perform a reset to recover
 		 */
 		dev_err(kbdev->dev, "Flush for GPU page table update did not complete. Issuing GPU soft-reset to recover\n");
-
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
+			"Flush for GPU page table update did not complete. Issuing GPU soft-reset to recover");
+#endif
 		if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_NONE))
 			kbase_reset_gpu_locked(kbdev);
 	}
@@ -1685,7 +1697,10 @@ static void kbase_mmu_flush_invalidate_as(struct kbase_device *kbdev,
 		 * perform a reset to recover
 		 */
 		dev_err(kbdev->dev, "Flush for GPU page table update did not complete. Issuing GPU soft-reset to recover\n");
-
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
+			"Flush for GPU page table update did not complete. Issuing GPU soft-reset to recover");
+#endif
 		if (kbase_prepare_to_reset_gpu(
 			    kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
 			kbase_reset_gpu(kbdev);
