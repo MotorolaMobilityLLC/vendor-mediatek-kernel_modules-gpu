@@ -1761,9 +1761,21 @@ KERNEL_VERSION(4, 5, 0) > LINUX_VERSION_CODE
 #elif KERNEL_VERSION(4, 9, 0) > LINUX_VERSION_CODE
 	faulted_pages = get_user_pages(address, *va_pages,
 			write, 0, pages, NULL);
+#elif KERNEL_VERSION(5, 9, 0) > LINUX_VERSION_CODE
+    faulted_pages = get_user_pages(address, *va_pages,
+            write ? FOLL_WRITE : 0, pages, NULL);
 #else
-	faulted_pages = get_user_pages(address, *va_pages,
-			write ? FOLL_WRITE : 0, pages, NULL);
+    /* pin_user_pages function cannot be called with pages param NULL.
+     * get_user_pages function will be used instead because it is safe to be
+     * used with NULL pages param as long as it doesn't have FOLL_GET flag.
+     */
+    if (pages != NULL) {
+        faulted_pages =
+            pin_user_pages(address, *va_pages, write ? FOLL_WRITE : 0, pages, NULL);
+    } else {
+        faulted_pages =
+            get_user_pages(address, *va_pages, write ? FOLL_WRITE : 0, pages, NULL);
+    }
 #endif
 
 	up_read(kbase_mem_get_process_mmap_lock());
