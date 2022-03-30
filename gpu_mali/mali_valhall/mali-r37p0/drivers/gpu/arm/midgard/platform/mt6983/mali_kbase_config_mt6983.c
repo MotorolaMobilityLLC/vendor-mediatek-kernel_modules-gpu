@@ -102,16 +102,11 @@ static int pm_callback_power_on_nolock(struct kbase_device *kbdev)
 
 	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_3);
 
-	/* resume frequency */
-	mtk_common_gpufreq_commit(g_cur_opp_idx);
-
-	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_4);
-
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	ged_dvfs_gpu_clock_switch_notify(1);
 #endif
 
-	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_5);
+	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_4);
 
 	return 0;
 }
