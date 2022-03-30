@@ -32,26 +32,31 @@ BUILD_RULE := OOT
 CONFIG_MALI_MEMORY_GROUP_MANAGER := y
 CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR := y
 
-all: RULE := $(BUILD_RULE)
-all: MEMORY_GROUP_MANAGER := $(CONFIG_MALI_MEMORY_GROUP_MANAGER)
-all: PROTECTED_MEMORY_ALLOCATOR := $(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR)
-all:
+comma := ,
+PARAMS :=
+
 ifneq (,$(wildcard mt6983))
-	$(call build_kernel_modules_mali,mt6983,mali_valhall,mali-r37p0,mali_valhall_r37p0_mt6983)
+	PARAMS += mali,mt6983,mali_valhall,mali-r32p1,mali_valhall_r32p1_mt6983
 endif
 
-modules_install: RULE := $(BUILD_RULE)
-modules_install: MEMORY_GROUP_MANAGER := $(CONFIG_MALI_MEMORY_GROUP_MANAGER)
-modules_install: PROTECTED_MEMORY_ALLOCATOR := $(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR)
-modules_install:
-ifneq (,$(wildcard mt6983))
-	$(call install_kernel_modules_mali,mt6983,mali_valhall,mali-r37p0,mali_valhall_r37p0_mt6983)
-endif
+all modules_install clean: RULE := $(BUILD_RULE)
+all modules_install clean: MEMORY_GROUP_MANAGER := $(CONFIG_MALI_MEMORY_GROUP_MANAGER)
+all modules_install clean: PROTECTED_MEMORY_ALLOCATOR := $(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR)
 
-clean: RULE := $(BUILD_RULE)
-clean: MEMORY_GROUP_MANAGER := $(CONFIG_MALI_MEMORY_GROUP_MANAGER)
-clean: PROTECTED_MEMORY_ALLOCATOR := $(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR)
-clean:
-ifneq (,$(wildcard mt6983))
-	$(call clean_kernel_modules_mali,mt6983,mali_valhall,mali-r37p0,mali_valhall_r37p0_mt6983)
-endif
+targets_build := $(addprefix build_,$(PARAMS))
+all: $(targets_build)
+$(targets_build):
+	$(eval param=$(subst $(comma), ,$(subst build_,,$@)))
+	$(call build_kernel_modules_$(word 1,$(param)),$(word 2,$(param)),$(word 3,$(param)),$(word 4,$(param)),$(word 5,$(param)))
+
+targets_install := $(addprefix install_,$(PARAMS))
+modules_install: $(targets_install)
+$(targets_install):
+	$(eval param=$(subst $(comma), ,$(subst install_,,$@)))
+	$(call install_kernel_modules_$(word 1,$(param)),$(word 2,$(param)),$(word 3,$(param)),$(word 4,$(param)),$(word 5,$(param)))
+
+targets_clean := $(addprefix clean_,$(PARAMS))
+clean: $(targets_clean)
+$(targets_clean):
+	$(eval param=$(subst $(comma), ,$(subst clean_,,$@)))
+	$(call clean_kernel_modules_$(word 1,$(param)),$(word 2,$(param)),$(word 3,$(param)),$(word 4,$(param)),$(word 5,$(param)))
