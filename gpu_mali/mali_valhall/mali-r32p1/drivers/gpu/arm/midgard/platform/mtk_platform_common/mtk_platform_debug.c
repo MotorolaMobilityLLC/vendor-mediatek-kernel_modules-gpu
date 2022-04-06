@@ -37,6 +37,9 @@ void mtk_common_debug_logbuf_clear(struct mtk_debug_logbuf *logbuf)
 {
 	unsigned long flags;
 
+	if (!logbuf->entries)
+		return;
+
 	spin_lock_irqsave(&logbuf->access_lock, flags);
 	logbuf->head = logbuf->tail = 0;
 	spin_unlock_irqrestore(&logbuf->access_lock, flags);
@@ -50,14 +53,14 @@ void mtk_common_debug_logbuf_print(struct mtk_debug_logbuf *logbuf, const char *
 	uint64_t ts_nsec = local_clock();
 	uint32_t rem_nsec, offset;
 
+	if (!logbuf->entries)
+		return;
+
 	spin_lock_irqsave(&logbuf->access_lock, flags);
 
 	va_start(args, fmt);
 	vsnprintf(buffer, sizeof(buffer), fmt, args);
 	va_end(args);
-
-	if (!logbuf->entries)
-		goto fail_entries;
 
 	if (!logbuf->is_circular && mtk_common_debug_logbuf_is_full(logbuf))
 		goto fail_overflow;
@@ -75,7 +78,6 @@ void mtk_common_debug_logbuf_print(struct mtk_debug_logbuf *logbuf, const char *
 		logbuf->head = (logbuf->head + 1) % logbuf->entry_num;
 
 fail_overflow:
-fail_entries:
 	spin_unlock_irqrestore(&logbuf->access_lock, flags);
 }
 
@@ -88,10 +90,10 @@ void mtk_common_debug_logbuf_dump(struct mtk_debug_logbuf *logbuf, struct seq_fi
 	if (IS_ERR_OR_NULL(kbdev))
 		return;
 
-	spin_lock_irqsave(&logbuf->access_lock, flags);
-
 	if (!logbuf->entries)
-		goto fail_entries;
+		return;
+
+	spin_lock_irqsave(&logbuf->access_lock, flags);
 
 	start = logbuf->head;
 	end = logbuf->tail;
@@ -121,7 +123,6 @@ void mtk_common_debug_logbuf_dump(struct mtk_debug_logbuf *logbuf, struct seq_fi
 		}
 	}
 
-fail_entries:
 	spin_unlock_irqrestore(&logbuf->access_lock, flags);
 }
 
@@ -145,6 +146,9 @@ static void mtk_common_debug_logbuf_term(struct mtk_debug_logbuf *logbuf)
 {
 	unsigned long flags;
 	uint32_t i;
+
+	if (!logbuf->entries)
+		return;
 
 	spin_lock_irqsave(&logbuf->access_lock, flags);
 	if (logbuf->entries) {
