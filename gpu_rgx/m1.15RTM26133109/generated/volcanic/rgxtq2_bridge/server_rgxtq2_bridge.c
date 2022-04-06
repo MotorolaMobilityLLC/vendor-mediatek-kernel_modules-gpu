@@ -309,10 +309,10 @@ PVRSRVBridgeRGXTDMDestroyTransferContext(IMG_UINT32 ui32DispatchTableEntry,
 	LockHandle(psConnection->psHandleBase);
 
 	psRGXTDMDestroyTransferContextOUT->eError =
-	    PVRSRVReleaseHandleStagedUnlock(psConnection->psHandleBase,
-					    (IMG_HANDLE) psRGXTDMDestroyTransferContextIN->
-					    hTransferContext,
-					    PVRSRV_HANDLE_TYPE_RGX_SERVER_TQ_TDM_CONTEXT);
+	    PVRSRVDestroyHandleStagedUnlocked(psConnection->psHandleBase,
+					      (IMG_HANDLE) psRGXTDMDestroyTransferContextIN->
+					      hTransferContext,
+					      PVRSRV_HANDLE_TYPE_RGX_SERVER_TQ_TDM_CONTEXT);
 	if (unlikely
 	    ((psRGXTDMDestroyTransferContextOUT->eError != PVRSRV_OK)
 	     && (psRGXTDMDestroyTransferContextOUT->eError != PVRSRV_ERROR_KERNEL_CCB_FULL)
@@ -1038,9 +1038,9 @@ PVRSRVBridgeRGXTDMReleaseSharedMemory(IMG_UINT32 ui32DispatchTableEntry,
 	LockHandle(psConnection->psHandleBase);
 
 	psRGXTDMReleaseSharedMemoryOUT->eError =
-	    PVRSRVReleaseHandleStagedUnlock(psConnection->psHandleBase,
-					    (IMG_HANDLE) psRGXTDMReleaseSharedMemoryIN->hPMRMem,
-					    PVRSRV_HANDLE_TYPE_PMR_LOCAL_EXPORT_HANDLE);
+	    PVRSRVDestroyHandleStagedUnlocked(psConnection->psHandleBase,
+					      (IMG_HANDLE) psRGXTDMReleaseSharedMemoryIN->hPMRMem,
+					      PVRSRV_HANDLE_TYPE_PMR_LOCAL_EXPORT_HANDLE);
 	if (unlikely((psRGXTDMReleaseSharedMemoryOUT->eError != PVRSRV_OK) &&
 		     (psRGXTDMReleaseSharedMemoryOUT->eError != PVRSRV_ERROR_KERNEL_CCB_FULL) &&
 		     (psRGXTDMReleaseSharedMemoryOUT->eError != PVRSRV_ERROR_RETRY)))

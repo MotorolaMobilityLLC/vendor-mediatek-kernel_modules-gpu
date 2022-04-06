@@ -533,9 +533,9 @@ PVRSRVBridgeRIDeleteMEMDESCEntry(IMG_UINT32 ui32DispatchTableEntry,
 	LockHandle(psConnection->psHandleBase);
 
 	psRIDeleteMEMDESCEntryOUT->eError =
-	    PVRSRVReleaseHandleStagedUnlock(psConnection->psHandleBase,
-					    (IMG_HANDLE) psRIDeleteMEMDESCEntryIN->hRIHandle,
-					    PVRSRV_HANDLE_TYPE_RI_HANDLE);
+	    PVRSRVDestroyHandleStagedUnlocked(psConnection->psHandleBase,
+					      (IMG_HANDLE) psRIDeleteMEMDESCEntryIN->hRIHandle,
+					      PVRSRV_HANDLE_TYPE_RI_HANDLE);
 	if (unlikely((psRIDeleteMEMDESCEntryOUT->eError != PVRSRV_OK) &&
 		     (psRIDeleteMEMDESCEntryOUT->eError != PVRSRV_ERROR_KERNEL_CCB_FULL) &&
 		     (psRIDeleteMEMDESCEntryOUT->eError != PVRSRV_ERROR_RETRY)))
