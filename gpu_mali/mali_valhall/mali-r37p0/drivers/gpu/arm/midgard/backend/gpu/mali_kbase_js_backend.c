@@ -216,7 +216,8 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 							(unsigned long)ms);
 					kbase_job_slot_hardstop(atom->kctx, s,
 									atom);
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DFD) && defined(CONFIG_MTK_GPUFREQ_V2)
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DFD)
+#if defined(CONFIG_MTK_GPUFREQ_V2)
 					/* lohass: gpudfd */
 #else
 					if (!mtk_common_gpufreq_bringup() &&
@@ -226,7 +227,8 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 						mt_gpufreq_software_trigger_dfd();
 						BUG_ON(1);
 					}
-#endif /* CONFIG_MTK_GPUFREQ_V2 && CONFIG_MALI_MTK_DEBUG_DFD */
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+#endif /* CONFIG_MALI_MTK_DEBUG_DFD */
 #endif
 				} else if (ticks == gpu_reset_ticks) {
 					/* Job has been scheduled for at least
@@ -276,7 +278,8 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 							(unsigned long)ms);
 					kbase_job_slot_hardstop(atom->kctx, s,
 									atom);
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DFD) && defined(CONFIG_MTK_GPUFREQ_V2)
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DFD)
+#if defined(CONFIG_MTK_GPUFREQ_V2)
 					/* lohass: gpudfd */
 #else
 					if (!mtk_common_gpufreq_bringup() &&
@@ -286,7 +289,8 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 						mt_gpufreq_software_trigger_dfd();
 						BUG_ON(1);
 					}
-#endif /* CONFIG_MTK_GPUFREQ_V2 && CONFIG_MALI_MTK_DEBUG_DFD */
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+#endif /* CONFIG_MALI_MTK_DEBUG_DFD */
 #endif
 				} else if (ticks ==
 					js_devdata->gpu_reset_ticks_dumping) {
