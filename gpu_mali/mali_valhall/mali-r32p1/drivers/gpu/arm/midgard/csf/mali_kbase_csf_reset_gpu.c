@@ -593,6 +593,14 @@ bool kbase_reset_gpu_is_active(struct kbase_device *kbdev)
 	return kbase_csf_reset_state_is_active(reset_state);
 }
 
+bool kbase_reset_gpu_is_not_pending(struct kbase_device *kbdev)
+{
+	enum kbase_csf_reset_gpu_state reset_state =
+		atomic_read(&kbdev->csf.reset.state);
+
+	return (reset_state != KBASE_CSF_RESET_GPU_NOT_PENDING);
+}
+
 int kbase_reset_gpu_wait(struct kbase_device *kbdev)
 {
 	const long wait_timeout =
