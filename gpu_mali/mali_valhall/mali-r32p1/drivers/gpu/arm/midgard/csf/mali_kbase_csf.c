@@ -1692,13 +1692,17 @@ static void add_error(struct kbase_context *const kctx,
 
 	spin_lock_irqsave(&kctx->csf.event_lock, flags);
 
-	if (!WARN_ON(!list_empty(&error->link))) {
+	if (list_empty(&error->link)) {
 		error->data = *data;
 		list_add_tail(&error->link, &kctx->csf.error_list);
 		dev_vdbg(kctx->kbdev->dev,
 			"Added error %pK of type %d in context %pK\n",
 			(void *)error, data->type, (void *)kctx);
-	}
+	} else {
+		dev_vdbg(kctx->kbdev->dev,
+			"Error %pK of type %d already pending in context %pK",
+			(void *)error, error->data.type, (void *)kctx);
+ 	}
 
 	spin_unlock_irqrestore(&kctx->csf.event_lock, flags);
 }
