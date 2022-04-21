@@ -4189,6 +4189,18 @@ static void schedule_actions(struct kbase_device *kbdev, bool is_tick)
 
 redo_local_tock:
 	scheduler_prepare(kbdev);
+	/* Need to specifically enqueue the GPU idle work if there are no groups
+	 * to schedule despite the runnable groups. This scenario will happen
+	 * if System suspend is done when all groups are idle and and no work
+	 * is submitted for the groups after the System resume.
+	 */
+	if (unlikely(!scheduler->ngrp_to_schedule &&
+				scheduler->total_runnable_grps)) {
+		dev_vdbg(kbdev->dev, "No groups to schedule in the tick");
+		enqueue_gpu_idle_work(scheduler);
+		return;
+	}
+
 	spin_lock_irqsave(&scheduler->interrupt_lock, flags);
 	protm_grp = scheduler->active_protm_grp;
 
