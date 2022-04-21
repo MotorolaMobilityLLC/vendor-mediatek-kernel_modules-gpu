@@ -5271,6 +5271,7 @@ static ssize_t mcu_shader_pwroff_timeout_store(struct device *dev, struct device
 {
 	struct kbase_device *kbdev = dev_get_drvdata(dev);
 	u32 dur;
+	unsigned long flags;
 
 	if (!kbdev)
 		return -ENODEV;
@@ -5278,7 +5279,9 @@ static ssize_t mcu_shader_pwroff_timeout_store(struct device *dev, struct device
 	if (kstrtouint(buf, 0, &dur))
 		return -EINVAL;
 
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	kbase_csf_firmware_set_mcu_core_pwroff_time(kbdev, dur);
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	return count;
 }
