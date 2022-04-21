@@ -359,7 +359,11 @@ static void kbase_file_delete(struct kbase_file *const kfile)
 
 		kbase_destroy_context(kctx);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		dev_vdbg(kbdev->dev, "deleted base context\n");
+#else
 		dev_dbg(kbdev->dev, "deleted base context\n");
+#endif /* CONFIG_MALI_MTK_DEBUG */
 	}
 
 	kbase_release_device(kbdev);
@@ -680,7 +684,11 @@ static int kbase_file_create_kctx(struct kbase_file *const kfile,
 	}
 #endif /* CONFIG_DEBUG_FS */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_vdbg(kbdev->dev, "created base context\n");
+#else
 	dev_dbg(kbdev->dev, "created base context\n");
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	kfile->kctx = kctx;
 	atomic_set(&kfile->setup_state, KBASE_FILE_COMPLETE);
@@ -1629,13 +1637,14 @@ static int kbasep_ioctl_context_priority_check(struct kbase_context *kctx,
 	return 0;
 }
 
+// MTK: CONFIG_MALI_MTK_DEBUG, change dev_dbg to dev_vdbg
 #define KBASE_HANDLE_IOCTL(cmd, function, arg)                                 \
 	do {                                                                   \
 		int ret;                                                       \
 		BUILD_BUG_ON(_IOC_DIR(cmd) != _IOC_NONE);                      \
-		dev_dbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
+		dev_vdbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
 		ret = function(arg);                                           \
-		dev_dbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
+		dev_vdbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
 			#function);                                            \
 		return ret;                                                    \
 	} while (0)
@@ -1644,14 +1653,14 @@ static int kbasep_ioctl_context_priority_check(struct kbase_context *kctx,
 	do {                                                                   \
 		type param;                                                    \
 		int ret, err;                                                  \
-		dev_dbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
+		dev_vdbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
 		BUILD_BUG_ON(_IOC_DIR(cmd) != _IOC_WRITE);                     \
 		BUILD_BUG_ON(sizeof(param) != _IOC_SIZE(cmd));                 \
 		err = copy_from_user(&param, uarg, sizeof(param));             \
 		if (err)                                                       \
 			return -EFAULT;                                        \
 		ret = function(arg, &param);                                   \
-		dev_dbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
+		dev_vdbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
 			#function);                                            \
 		return ret;                                                    \
 	} while (0)
@@ -1660,7 +1669,7 @@ static int kbasep_ioctl_context_priority_check(struct kbase_context *kctx,
 	do {                                                                   \
 		type param;                                                    \
 		int ret, err;                                                  \
-		dev_dbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
+		dev_vdbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
 		BUILD_BUG_ON(_IOC_DIR(cmd) != _IOC_READ);                      \
 		BUILD_BUG_ON(sizeof(param) != _IOC_SIZE(cmd));                 \
 		memset(&param, 0, sizeof(param));                              \
@@ -1668,7 +1677,7 @@ static int kbasep_ioctl_context_priority_check(struct kbase_context *kctx,
 		err = copy_to_user(uarg, &param, sizeof(param));               \
 		if (err)                                                       \
 			return -EFAULT;                                        \
-		dev_dbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
+		dev_vdbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
 			#function);                                            \
 		return ret;                                                    \
 	} while (0)
@@ -1677,7 +1686,7 @@ static int kbasep_ioctl_context_priority_check(struct kbase_context *kctx,
 	do {                                                                   \
 		type param;                                                    \
 		int ret, err;                                                  \
-		dev_dbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
+		dev_vdbg(arg->kbdev->dev, "Enter ioctl %s\n", #function);       \
 		BUILD_BUG_ON(_IOC_DIR(cmd) != (_IOC_WRITE | _IOC_READ));       \
 		BUILD_BUG_ON(sizeof(param) != _IOC_SIZE(cmd));                 \
 		err = copy_from_user(&param, uarg, sizeof(param));             \
@@ -1687,7 +1696,7 @@ static int kbasep_ioctl_context_priority_check(struct kbase_context *kctx,
 		err = copy_to_user(uarg, &param, sizeof(param));               \
 		if (err)                                                       \
 			return -EFAULT;                                        \
-		dev_dbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
+		dev_vdbg(arg->kbdev->dev, "Return %d from ioctl %s\n", ret,     \
 			#function);                                            \
 		return ret;                                                    \
 	} while (0)
@@ -2139,7 +2148,11 @@ static ssize_t kbase_read(struct file *filp, char __user *buf, size_t count, lof
 		 * queue group was already terminated by the userspace.
 		 */
 		if (!dump)
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+			dev_vdbg(kctx->kbdev->dev,
+#else
 			dev_dbg(kctx->kbdev->dev,
+#endif /* CONFIG_MALI_MTK_DEBUG */
 				"Neither event nor error signaled");
 	}
 
@@ -2231,7 +2244,11 @@ static __poll_t kbase_poll(struct file *filp, poll_table *wait)
 void kbase_event_wakeup(struct kbase_context *kctx)
 {
 	KBASE_DEBUG_ASSERT(kctx);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_vdbg(kctx->kbdev->dev, "Waking event queue for context %pK\n",
+#else
 	dev_dbg(kctx->kbdev->dev, "Waking event queue for context %pK\n",
+#endif /* CONFIG_MALI_MTK_DEBUG */
 		(void *)kctx);
 	wake_up_interruptible(&kctx->event_queue);
 }
@@ -2396,7 +2413,7 @@ static ssize_t power_policy_store(struct device *dev, struct device_attribute *a
 	}
 
 	if (!new_policy) {
-		dev_err(dev, "power_policy: policy not found\n");
+		dev_err(kbdev->dev, "power_policy: policy not found\n");
 		return -EINVAL;
 	}
 
@@ -2413,6 +2430,58 @@ static ssize_t power_policy_store(struct device *dev, struct device_attribute *a
  * policy.
  */
 static DEVICE_ATTR_RW(power_policy);
+
+#if MALI_USE_CSF && defined(CONFIG_MALI_MTK_DUMMY_CM)
+static ssize_t show_dummy_debug(struct device *dev, struct device_attribute *attr, char * const buf)
+{
+	struct kbase_device *kbdev;
+	unsigned long flags;
+	ssize_t ret = 0;
+
+	kbdev = to_kbase_device(dev);
+
+	if (!kbdev)
+		return -ENODEV;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+			 "Support debug core mask : %d\n",
+			 kbdev->pm.debug_core_mask_en);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+			 "Current dummy core mask : 0x%llX\n",
+			 kbdev->pm.dummy_core_mask);
+
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	return ret;
+}
+
+static ssize_t set_dummy_debug(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct kbase_device *kbdev;
+	unsigned long flags;
+	bool enable;
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	if (kstrtobool(buf, &enable)) {
+		return -EINVAL;
+	}
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+
+	kbdev->pm.debug_core_mask_en = enable;
+
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	return count;
+}
+
+static DEVICE_ATTR(dummy_debug, S_IRUGO | S_IWUSR, show_dummy_debug, set_dummy_debug);
+#endif /* MALI_USE_CSF && CONFIG_MALI_MTK_DUMMY_CM */
 
 /*
  * core_mask_show - Show callback for the core_mask sysfs file.
@@ -2439,6 +2508,9 @@ static ssize_t core_mask_show(struct device *dev, struct device_attribute *attr,
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 #if MALI_USE_CSF
+#if defined(CONFIG_MALI_MTK_DUMMY_CM)
+	if (kbdev->pm.debug_core_mask_en) {
+#endif /* CONFIG_MALI_MTK_DUMMY_CM */
 	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
 			 "Current debug core mask : 0x%llX\n",
 			 kbdev->pm.debug_core_mask);
@@ -2448,6 +2520,19 @@ static ssize_t core_mask_show(struct device *dev, struct device_attribute *attr,
 	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
 			 "Current in use core mask : 0x%llX\n",
 			 kbdev->pm.backend.shaders_avail);
+#if defined(CONFIG_MALI_MTK_DUMMY_CM)
+	} else {
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+				 "Current debug core mask : 0x%llX\n",
+				 kbdev->pm.dummy_core_mask);
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+				 "Current desired core mask : 0x%llX\n",
+				 kbdev->pm.dummy_core_mask);
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+				 "Current in use core mask : 0x%llX\n",
+				 kbdev->pm.dummy_core_mask);
+	}
+#endif /* CONFIG_MALI_MTK_DUMMY_CM */
 #else
 	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
 			"Current core mask (JS0) : 0x%llX\n",
@@ -2536,7 +2621,11 @@ static ssize_t core_mask_store(struct device *dev, struct device_attribute *attr
 
 #if MALI_USE_CSF
 	if ((new_core_mask & shader_present) != new_core_mask) {
-		dev_err(dev,
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		dev_vdbg(kbdev->dev,
+#else
+		dev_err(kbdev->dev,
+#endif /* CONFIG_MALI_MTK_DEBUG */
 			"Invalid core mask 0x%llX: Includes non-existent cores (present = 0x%llX)",
 			new_core_mask, shader_present);
 		err = -EINVAL;
@@ -2544,7 +2633,11 @@ static ssize_t core_mask_store(struct device *dev, struct device_attribute *attr
 
 	} else if (!(new_core_mask & shader_present &
 		     kbdev->pm.backend.ca_cores_enabled)) {
-		dev_err(dev,
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		dev_vdbg(kbdev->dev,
+#else
+		dev_err(kbdev->dev,
+#endif /* CONFIG_MALI_MTK_DEBUG */
 			"Invalid core mask 0x%llX: No intersection with currently available cores (present = 0x%llX, CA enabled = 0x%llX\n",
 			new_core_mask,
 			kbdev->gpu_props.props.raw_props.shader_present,
@@ -2553,20 +2646,27 @@ static ssize_t core_mask_store(struct device *dev, struct device_attribute *attr
 		goto unlock;
 	}
 
+#if defined(CONFIG_MALI_MTK_DUMMY_CM)
+	if (!kbdev->pm.debug_core_mask_en)
+		kbdev->pm.dummy_core_mask = new_core_mask;
+	else if (kbdev->pm.debug_core_mask != new_core_mask)
+		kbase_pm_set_debug_core_mask(kbdev, new_core_mask);
+#else
 	if (kbdev->pm.debug_core_mask != new_core_mask)
 		kbase_pm_set_debug_core_mask(kbdev, new_core_mask);
+#endif /* CONFIG_MALI_MTK_DUMMY_CM */
 #else
 	group0_core_mask = kbdev->gpu_props.props.coherency_info.group[0].core_mask;
 
 	for (i = 0; i < 3; ++i) {
 		if ((new_core_mask[i] & shader_present) != new_core_mask[i]) {
-			dev_err(dev, "Invalid core mask 0x%llX for JS %d: Includes non-existent cores (present = 0x%llX)",
+			dev_err(kbdev->dev, "Invalid core mask 0x%llX for JS %d: Includes non-existent cores (present = 0x%llX)",
 					new_core_mask[i], i, shader_present);
 			err = -EINVAL;
 			goto unlock;
 
 		} else if (!(new_core_mask[i] & shader_present & kbdev->pm.backend.ca_cores_enabled)) {
-			dev_err(dev, "Invalid core mask 0x%llX for JS %d: No intersection with currently available cores (present = 0x%llX, CA enabled = 0x%llX\n",
+			dev_err(kbdev->dev, "Invalid core mask 0x%llX for JS %d: No intersection with currently available cores (present = 0x%llX, CA enabled = 0x%llX\n",
 					new_core_mask[i], i,
 					kbdev->gpu_props.props.raw_props.shader_present,
 					kbdev->pm.backend.ca_cores_enabled);
@@ -2574,12 +2674,12 @@ static ssize_t core_mask_store(struct device *dev, struct device_attribute *attr
 			goto unlock;
 
 		} else if (!(new_core_mask[i] & group0_core_mask)) {
-			dev_err(dev, "Invalid core mask 0x%llX for JS %d: No intersection with group 0 core mask 0x%llX\n",
+			dev_err(kbdev->dev, "Invalid core mask 0x%llX for JS %d: No intersection with group 0 core mask 0x%llX\n",
 					new_core_mask[i], i, group0_core_mask);
 			err = -EINVAL;
 			goto unlock;
 		} else if (!(new_core_mask[i] & kbdev->gpu_props.curr_config.shader_present)) {
-			dev_err(dev, "Invalid core mask 0x%llX for JS %d: No intersection with current core mask 0x%llX\n",
+			dev_err(kbdev->dev, "Invalid core mask 0x%llX for JS %d: No intersection with current core mask 0x%llX\n",
 					new_core_mask[i], i, kbdev->gpu_props.curr_config.shader_present);
 			err = -EINVAL;
 			goto unlock;
@@ -2747,10 +2847,11 @@ static ssize_t js_timeouts_store(struct device *dev, struct device_attribute *at
 
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
+// MTK: CONFIG_MALI_MTK_DEBUG, dev_dbg ==> dev_vdbg
 #define UPDATE_TIMEOUT(ticks_name, ms_name, default) do {\
 	js_data->ticks_name = timeout_ms_to_ticks(kbdev, ms_name, \
 			default, js_data->ticks_name); \
-	dev_dbg(kbdev->dev, "Overriding " #ticks_name \
+	dev_vdbg(kbdev->dev, "Overriding " #ticks_name \
 			" with %lu ticks (%lu ms)\n", \
 			(unsigned long)js_data->ticks_name, \
 			ms_name); \
@@ -2963,7 +3064,11 @@ static ssize_t js_scheduling_period_store(struct device *dev,
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	mutex_unlock(&js_data->runpool_mutex);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_vdbg(kbdev->dev, "JS scheduling period: %dms\n",
+#else
 	dev_dbg(kbdev->dev, "JS scheduling period: %dms\n",
+#endif /* CONFIG_MALI_MTK_DEBUG */
 			js_scheduling_period);
 
 	return count;
@@ -3023,7 +3128,11 @@ static ssize_t js_softstop_always_store(struct device *dev,
 	}
 
 	kbdev->js_data.softstop_always = (bool) softstop_always;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_vdbg(kbdev->dev, "Support for softstop on a single context: %s\n",
+#else
 	dev_dbg(kbdev->dev, "Support for softstop on a single context: %s\n",
+#endif /* CONFIG_MALI_MTK_DEBUG */
 			(kbdev->js_data.softstop_always) ?
 			"Enabled" : "Disabled");
 	return count;
@@ -3156,7 +3265,7 @@ static ssize_t debug_command_store(struct device *dev, struct device_attribute *
 	}
 
 	/* Debug Command not found */
-	dev_err(dev, "debug_command: command not known\n");
+	dev_err(kbdev->dev, "debug_command: command not known\n");
 	return -EINVAL;
 }
 
@@ -3317,7 +3426,11 @@ static ssize_t dvfs_period_store(struct device *dev,
 	}
 
 	kbdev->pm.dvfs_period = dvfs_period;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_vdbg(kbdev->dev, "DVFS period: %dms\n", dvfs_period);
+#else
 	dev_dbg(kbdev->dev, "DVFS period: %dms\n", dvfs_period);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	return count;
 }
@@ -3513,7 +3626,11 @@ static ssize_t reset_timeout_store(struct device *dev,
 	}
 
 	kbdev->reset_timeout_ms = reset_timeout;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_vdbg(kbdev->dev, "Reset timeout: %dms\n", reset_timeout);
+#else
 	dev_dbg(kbdev->dev, "Reset timeout: %dms\n", reset_timeout);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	return count;
 }
@@ -3984,7 +4101,11 @@ static ssize_t js_ctx_scheduling_mode_store(struct device *dev,
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	mutex_unlock(&kbdev->kctx_list_lock);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_vdbg(kbdev->dev, "JS ctx scheduling mode: %u\n", new_js_ctx_scheduling_mode);
+#else
 	dev_dbg(kbdev->dev, "JS ctx scheduling mode: %u\n", new_js_ctx_scheduling_mode);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	return count;
 }
@@ -4561,7 +4682,11 @@ int power_control_init(struct kbase_device *kbdev)
 	}
 
 	kbdev->nr_regulators = i;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_vdbg(&pdev->dev, "Regulators probed: %u\n", kbdev->nr_regulators);
+#else
 	dev_dbg(&pdev->dev, "Regulators probed: %u\n", kbdev->nr_regulators);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 #endif
 
 	/* Having more clocks than regulators is acceptable, while the
@@ -4600,7 +4725,11 @@ int power_control_init(struct kbase_device *kbdev)
 	}
 
 	kbdev->nr_clocks = i;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_vdbg(&pdev->dev, "Clocks probed: %u\n", kbdev->nr_clocks);
+#else
 	dev_dbg(&pdev->dev, "Clocks probed: %u\n", kbdev->nr_clocks);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	/* Any error in parsing the OPP table from the device file
 	 * shall be ignored. The fact that the table may be absent or wrong
@@ -5057,7 +5186,11 @@ static ssize_t csg_scheduling_period_store(struct device *dev,
 
 	kbase_csf_scheduler_lock(kbdev);
 	kbdev->csf.scheduler.csg_scheduling_period_ms = csg_scheduling_period;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_vdbg(kbdev->dev, "CSG scheduling period: %ums\n",
+#else
 	dev_dbg(kbdev->dev, "CSG scheduling period: %ums\n",
+#endif /* CONFIG_MALI_MTK_DEBUG */
 		csg_scheduling_period);
 	kbase_csf_scheduler_unlock(kbdev);
 
@@ -5130,7 +5263,11 @@ static ssize_t fw_timeout_store(struct device *dev,
 	kbase_csf_scheduler_lock(kbdev);
 	kbdev->csf.fw_timeout_ms = fw_timeout;
 	kbase_csf_scheduler_unlock(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_vdbg(kbdev->dev, "Firmware timeout: %ums\n", fw_timeout);
+#else
 	dev_dbg(kbdev->dev, "Firmware timeout: %ums\n", fw_timeout);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	return count;
 }
@@ -5323,6 +5460,9 @@ static struct attribute *kbase_attrs[] = {
 	&dev_attr_mcu_shader_pwroff_timeout.attr,
 #endif /* !MALI_USE_CSF */
 	&dev_attr_power_policy.attr,
+#if MALI_USE_CSF && defined(CONFIG_MALI_MTK_DUMMY_CM)
+	&dev_attr_dummy_debug.attr,
+#endif /* MALI_USE_CSF && CONFIG_MALI_MTK_DUMMY_CM */
 	&dev_attr_core_mask.attr,
 	&dev_attr_mem_pool_size.attr,
 	&dev_attr_mem_pool_max_size.attr,
@@ -5410,6 +5550,9 @@ static int kbase_platform_device_remove(struct platform_device *pdev)
 	if (!kbdev)
 		return -ENODEV;
 
+#if IS_ENABLED(CONFIG_PROC_FS)
+	mtk_common_procfs_exit();
+#endif
 	kbase_device_term(kbdev);
 	dev_set_drvdata(kbdev->dev, NULL);
 	kbase_device_free(kbdev);
@@ -5509,7 +5652,12 @@ static int kbase_device_suspend(struct device *dev)
 #endif
 
 #ifdef CONFIG_MALI_DEVFREQ
-	dev_dbg(dev, "Callback %s\n", __func__);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_vdbg(kbdev->dev, "Callback %s\n", __func__);
+#else
+	dev_dbg(kbdev->dev, "Callback %s\n", __func__);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 	if (kbdev->devfreq) {
 		kbase_devfreq_enqueue_work(kbdev, DEVFREQ_WORK_SUSPEND);
 		flush_workqueue(kbdev->devfreq_queue.workq);
@@ -5541,7 +5689,12 @@ static int kbase_device_resume(struct device *dev)
 #endif
 
 #ifdef CONFIG_MALI_DEVFREQ
-	dev_dbg(dev, "Callback %s\n", __func__);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_vdbg(kbdev->dev, "Callback %s\n", __func__);
+#else
+	dev_dbg(kbdev->dev, "Callback %s\n", __func__);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 	if (kbdev->devfreq)
 		kbase_devfreq_enqueue_work(kbdev, DEVFREQ_WORK_RESUME);
 #endif
@@ -5568,7 +5721,12 @@ static int kbase_device_runtime_suspend(struct device *dev)
 	if (!kbdev)
 		return -ENODEV;
 
-	dev_dbg(dev, "Callback %s\n", __func__);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_vdbg(kbdev->dev, "Callback %s\n", __func__);
+#else
+	dev_dbg(kbdev->dev, "Callback %s\n", __func__);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 	KBASE_KTRACE_ADD(kbdev, PM_RUNTIME_SUSPEND_CALLBACK, NULL, 0);
 
 #if MALI_USE_CSF
@@ -5588,7 +5746,11 @@ static int kbase_device_runtime_suspend(struct device *dev)
 
 	if (kbdev->pm.backend.callback_power_runtime_off) {
 		kbdev->pm.backend.callback_power_runtime_off(kbdev);
-		dev_dbg(dev, "runtime suspend\n");
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		dev_vdbg(kbdev->dev, "runtime suspend\n");
+#else
+		dev_dbg(kbdev->dev, "runtime suspend\n");
+#endif /* CONFIG_MALI_MTK_DEBUG */
 	}
 	return ret;
 }
@@ -5613,11 +5775,20 @@ static int kbase_device_runtime_resume(struct device *dev)
 	if (!kbdev)
 		return -ENODEV;
 
-	dev_dbg(dev, "Callback %s\n", __func__);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_vdbg(kbdev->dev, "Callback %s\n", __func__);
+#else
+	dev_dbg(kbdev->dev, "Callback %s\n", __func__);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 	KBASE_KTRACE_ADD(kbdev, PM_RUNTIME_RESUME_CALLBACK, NULL, 0);
 	if (kbdev->pm.backend.callback_power_runtime_on) {
 		ret = kbdev->pm.backend.callback_power_runtime_on(kbdev);
-		dev_dbg(dev, "runtime resume\n");
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		dev_vdbg(kbdev->dev, "runtime resume\n");
+#else
+		dev_dbg(kbdev->dev, "runtime resume\n");
+#endif /* CONFIG_MALI_MTK_DEBUG */
 	}
 
 #ifdef CONFIG_MALI_MIDGARD_DVFS
@@ -5652,7 +5823,12 @@ static int kbase_device_runtime_idle(struct device *dev)
 	if (!kbdev)
 		return -ENODEV;
 
-	dev_dbg(dev, "Callback %s\n", __func__);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_vdbg(kbdev->dev, "Callback %s\n", __func__);
+#else
+	dev_dbg(kbdev->dev, "Callback %s\n", __func__);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 	/* Use platform specific implementation if it exists. */
 	if (kbdev->pm.backend.callback_power_runtime_idle)
 		return kbdev->pm.backend.callback_power_runtime_idle(kbdev);
