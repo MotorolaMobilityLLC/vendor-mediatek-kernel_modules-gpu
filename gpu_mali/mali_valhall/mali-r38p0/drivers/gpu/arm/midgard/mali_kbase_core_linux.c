@@ -121,6 +121,9 @@
 
 #include <mali_kbase_caps.h>
 
+#include "platform/mtk_platform_common.h"
+#include <mtk_gpufreq.h>
+
 /* GPU IRQ Tags */
 #define	JOB_IRQ_TAG	0
 #define MMU_IRQ_TAG	1
@@ -5316,6 +5319,9 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		dev_set_drvdata(kbdev->dev, NULL);
 		kbase_device_free(kbdev);
 	} else {
+#if IS_ENABLED(CONFIG_PROC_FS)
+		mtk_common_procfs_init();
+#endif
 		dev_info(kbdev->dev,
 			"Probed as %s\n", dev_name(kbdev->mdev.this_device));
 		kbase_increment_device_id();
@@ -5532,9 +5538,7 @@ static const struct dev_pm_ops kbase_pm_ops = {
 
 #if IS_ENABLED(CONFIG_OF)
 static const struct of_device_id kbase_dt_ids[] = {
-	{ .compatible = "arm,malit6xx" },
-	{ .compatible = "arm,mali-midgard" },
-	{ .compatible = "arm,mali-bifrost" },
+	{ .compatible = "arm,mali-valhall" },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, kbase_dt_ids);
