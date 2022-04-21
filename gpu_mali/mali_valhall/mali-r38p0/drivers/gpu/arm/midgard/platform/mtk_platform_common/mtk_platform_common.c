@@ -9,12 +9,18 @@
 #include <platform/mtk_platform_common.h>
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 #include "mtk_gpu_dvfs.h"
-#endif
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
+
 #include <mtk_gpufreq.h>
 #include <ged_dvfs.h>
+
 #if IS_ENABLED(CONFIG_PROC_FS)
 #include <linux/proc_fs.h>
-#endif
+#endif /* CONFIG_PROC_FS */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include "mtk_platform_debug.h"
+#endif /* CONFIG_MALI_MTK_DEBUG*/
 
 static bool mfg_powered;
 static DEFINE_MUTEX(mfg_pm_lock);
@@ -49,6 +55,9 @@ void mtk_common_pm_mfg_idle(void)
 
 void mtk_common_debug_dump(void)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_common_debug_dump_status();
+#endif /* CONFIG_MALI_MTK_DEBUG */
 }
 
 int mtk_common_gpufreq_bringup(void)
@@ -162,6 +171,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	ged_dvfs_gpu_freq_commit_fp = mtk_common_ged_dvfs_commit;
 	ged_dvfs_set_gpu_core_mask_fp = mtk_set_core_mask;
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_gpu_fence_debug_dump_fp = mtk_common_gpu_fence_debug_dump;
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	return 0;
 }

@@ -27,6 +27,11 @@
 #include <mmu/mali_kbase_mmu_hw.h>
 #include <tl/mali_kbase_tracepoints.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <mtk_gpufreq.h>
+#include "platform/mtk_platform_common.h"
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 /**
  * lock_region() - Generate lockaddr to lock memory region in MMU
  *
@@ -138,12 +143,29 @@ static int wait_ready(struct kbase_device *kbdev,
 		;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	if (max_loops == 0) {
+		dev_info(kbdev->dev,
+			"AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty FPGA connector",
+			as_nr);
+		if (!mtk_common_gpufreq_bringup()) {
+			mtk_common_debug_dump();
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+			gpufreq_dump_infra_status();
+#else
+			mt_gpufreq_dump_infra_status();
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+		}
+		return -1;
+	}
+#else /* CONFIG_MALI_MTK_DEBUG */
 	if (WARN_ON_ONCE(max_loops == 0)) {
 		dev_err(kbdev->dev,
 			"AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty FPGA connector",
 			as_nr);
 		return -1;
 	}
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	return 0;
 }

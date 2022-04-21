@@ -75,6 +75,10 @@
 #include <linux/regulator/consumer.h>
 #include <linux/memory_group_manager.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <ged_log.h>
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 #include "debug/mali_kbase_debug_ktrace_defs.h"
 
 /** Number of milliseconds before we time out on a GPU soft/hard reset */
@@ -1228,6 +1232,9 @@ struct kbase_device {
 
 	struct notifier_block oom_notifier_block;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	GED_LOG_BUF_HANDLE ged_log_buf_hnd_kbase;
+#endif /* CONFIG_MALI_MTK_DEBUG */
 };
 
 /**
