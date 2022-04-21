@@ -2099,6 +2099,17 @@ static void program_csg_slot(struct kbase_queue_group *group, s8 slot,
 
 	ginfo = &global_iface->groups[slot];
 
+	spin_lock_irqsave(&kbdev->csf.scheduler.interrupt_lock, flags);
+	csg_req = kbase_csf_firmware_csg_output(ginfo, CSG_ACK);
+	spin_unlock_irqrestore(&kbdev->csf.scheduler.interrupt_lock, flags);
+	if (((csg_req & CSG_REQ_STATE_MASK) == CSG_REQ_STATE_RESUME) ||
+			((csg_req & CSG_REQ_STATE_MASK) == CSG_REQ_STATE_START)) {
+		dev_warn(kbdev->dev, "Unexpected CSG_ACK.STATE %d for slot %d",
+				csg_req & CSG_REQ_STATE_MASK, slot);
+		WARN_ON(!kbase_reset_gpu_is_not_pending(kbdev));
+		return;
+	}
+
 	/* Pick an available address space for this context */
 	mutex_lock(&kbdev->mmu_hw_mutex);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
@@ -2170,7 +2181,6 @@ static void program_csg_slot(struct kbase_queue_group *group, s8 slot,
 	kbase_csf_firmware_csg_input(ginfo, CSG_ACK_IRQ_MASK, ~((u32)0));
 
 	spin_lock_irqsave(&kbdev->csf.scheduler.interrupt_lock, flags);
-	csg_req = kbase_csf_firmware_csg_output(ginfo, CSG_ACK);
 	csg_req ^= CSG_REQ_EP_CFG_MASK;
 	kbase_csf_firmware_csg_input_mask(ginfo, CSG_REQ, csg_req,
 					  CSG_REQ_EP_CFG_MASK);
