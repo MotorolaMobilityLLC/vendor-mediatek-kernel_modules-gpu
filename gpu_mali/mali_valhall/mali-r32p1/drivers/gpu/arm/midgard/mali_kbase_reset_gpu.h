@@ -260,4 +260,15 @@ int kbase_reset_gpu_init(struct kbase_device *kbdev);
  */
 void kbase_reset_gpu_term(struct kbase_device *kbdev);
 
+/**
+ * kbase_reset_gpu_not_pending - Reports if the GPU reset isn't pending
+ *
+ * @kbdev: Device pointer
+ *
+ * Note that unless appropriate locks are held when using this function, the
+ * state could change immediately afterwards.
+ *
+ * Return: True if the GPU reset isn't pending.
+ */
+bool kbase_reset_gpu_is_not_pending(struct kbase_device *kbdev);
 #endif
