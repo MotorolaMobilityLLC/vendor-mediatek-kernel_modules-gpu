@@ -48,10 +48,12 @@
 #include <mali_kbase_trace_gpu_mem.h>
 #include <mali_kbase_reset_gpu.h>
 
-#if defined(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && defined(CONFIG_MTK_GZ_KREE)
+#if 0
+#if IS_ENABLED(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && IS_ENABLED(CONFIG_MTK_GZ_KREE)
 #include <trusted_mem_api.h>
-#include <mtk/ion_sec_heap.h>
+#include <mtk_heap.h>
 #endif /* CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM && CONFIG_MTK_GZ_KREE */
+#endif
 
 #if ((KERNEL_VERSION(5, 3, 0) <= LINUX_VERSION_CODE) || \
 	(KERNEL_VERSION(5, 0, 0) > LINUX_VERSION_CODE))
@@ -1227,8 +1229,10 @@ static int kbase_mem_umm_map_attachment(struct kbase_context *kctx,
 	for_each_sg(sgt->sgl, s, sgt->nents, i) {
 		size_t j, pages = PFN_UP(sg_dma_len(s));
 
-#if defined(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && defined(CONFIG_MTK_GZ_KREE)
-		if (reg->flags & KBASE_REG_PROTECTED) {
+		uint64_t phy_addr = 0;
+
+#if IS_ENABLED(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && IS_ENABLED(CONFIG_MTK_GZ_KREE)
+		/*if (reg->flags & KBASE_REG_PROTECTED) {
 			enum TRUSTED_MEM_REQ_TYPE sec_mem_type = TRUSTED_MEM_REQ_SVP;
 			struct dma_buf *dma_buf = reg->gpu_alloc->imported.umm.dma_buf;
 			u32 sec_handle = dmabuf_to_secure_handle(dmabuf);
@@ -1238,9 +1242,9 @@ static int kbase_mem_umm_map_attachment(struct kbase_context *kctx,
 				trusted_mem_api_query_pa(
 					sec_mem_type, 0, 0, NULL, &sec_handle, NULL, 0, 0, &phy_addr);
 			} else {
-				/* page_base heap have no sec_handle.
-				 * use sg_phys to get PA
-				 */
+				// page_base heap have no sec_handle.
+				// use sg_phys to get PA
+				
 				phy_addr = sg_phys(s);
 			}
 
@@ -1253,15 +1257,15 @@ static int kbase_mem_umm_map_attachment(struct kbase_context *kctx,
 				err = -EINVAL;
 				goto err_unmap_attachment;
 			}
-		} else
-			phy_addr = sg_phys(s);
+		} else */
 #endif /* CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM && CONFIG_MTK_GZ_KREE */
+		phy_addr = sg_phys(s);
+
 
 		WARN_ONCE(sg_dma_len(s) & (PAGE_SIZE-1),
 		"sg_dma_len(s)=%u is not a multiple of PAGE_SIZE\n",
 		sg_dma_len(s));
 
-#if defined(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && defined(CONFIG_MTK_GZ_KREE)
 		WARN_ONCE(phy_addr & (PAGE_SIZE-1),
 		"sg_phys(s)=%llx is not aligned to PAGE_SIZE\n",
 		(unsigned long long) phy_addr);
@@ -1269,15 +1273,6 @@ static int kbase_mem_umm_map_attachment(struct kbase_context *kctx,
 		for (j = 0; (j < pages) && (count < reg->nr_pages); j++, count++)
 			*pa++ = as_tagged(phy_addr +
 				(j << PAGE_SHIFT));
-#else
-		WARN_ONCE(sg_dma_address(s) & (PAGE_SIZE-1),
-		"sg_dma_address(s)=%llx is not aligned to PAGE_SIZE\n",
-		(unsigned long long) sg_dma_address(s));
-
-		for (j = 0; (j < pages) && (count < reg->nr_pages); j++, count++)
-			*pa++ = as_tagged(sg_dma_address(s) +
-				(j << PAGE_SHIFT));
-#endif /* CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM && CONFIG_MTK_GZ_KREE */
 		WARN_ONCE(j < pages,
 		"sg list from dma_buf_map_attachment > dma_buf->size=%zu\n",
 		alloc->imported.umm.dma_buf->size);
