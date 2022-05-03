@@ -1239,9 +1239,9 @@ static int kbase_mem_umm_map_attachment(struct kbase_context *kctx,
 					sec_mem_type, 0, 0, NULL, &sec_handle, NULL, 0, 0, &phy_addr);
 			} else {
 				/* page_base heap have no sec_handle.
-				 * use sg_dma_address to get PA
+				 * use sg_phys to get PA
 				 */
-				phy_addr = sg_dma_address(s);
+				phy_addr = sg_phys(s);
 			}
 
 			if (phy_addr == 0) {
@@ -1254,7 +1254,7 @@ static int kbase_mem_umm_map_attachment(struct kbase_context *kctx,
 				goto err_unmap_attachment;
 			}
 		} else
-			phy_addr = sg_dma_address(s);
+			phy_addr = sg_phys(s);
 #endif /* CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM && CONFIG_MTK_GZ_KREE */
 
 		WARN_ONCE(sg_dma_len(s) & (PAGE_SIZE-1),
