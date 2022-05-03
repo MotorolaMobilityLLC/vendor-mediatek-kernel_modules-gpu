@@ -43,6 +43,10 @@ ifneq (,$(wildcard mt6985))
 	PARAMS += mali,mt6985,mali_valhall,mali-r38p0,mali_valhall_r38p0_mt6985
 endif
 
+ifneq (,$(wildcard mt6886))
+	PARAMS += mali,mt6886,mali_valhall,mali-r37p0,mali_valhall_r37p0_mt6886
+endif
+
 all modules_install clean: RULE := $(BUILD_RULE)
 all modules_install clean: MEMORY_GROUP_MANAGER := $(CONFIG_MALI_MEMORY_GROUP_MANAGER)
 all modules_install clean: PROTECTED_MEMORY_ALLOCATOR := $(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR)
