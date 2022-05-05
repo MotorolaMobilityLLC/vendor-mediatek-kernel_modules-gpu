@@ -5459,6 +5459,18 @@ out:
 	mutex_unlock(&scheduler->lock);
 }
 
+void kbase_csf_scheduler_pm_suspend_no_lock(struct kbase_device *kbdev)
+{
+	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
+
+	if (scheduler->state != SCHED_SUSPENDED) {
+		suspend_active_groups_on_powerdown(kbdev, true);
+		dev_vdbg(kbdev->dev, "Scheduler PM suspend");
+		scheduler_suspend(kbdev);
+		cancel_tick_timer(kbdev);
+	}
+}
+
 void kbase_csf_scheduler_pm_suspend(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
@@ -5474,31 +5486,29 @@ void kbase_csf_scheduler_pm_suspend(struct kbase_device *kbdev)
 	}
 
 	mutex_lock(&scheduler->lock);
-
-	if (scheduler->state != SCHED_SUSPENDED) {
-		suspend_active_groups_on_powerdown(kbdev, true);
-		dev_vdbg(kbdev->dev, "Scheduler PM suspend");
-		scheduler_suspend(kbdev);
-		cancel_tick_timer(kbdev);
-	}
+	kbase_csf_scheduler_pm_suspend_no_lock(kbdev);
 	mutex_unlock(&scheduler->lock);
 
 	kbase_reset_gpu_allow(kbdev);
 }
 KBASE_EXPORT_TEST_API(kbase_csf_scheduler_pm_suspend);
 
-void kbase_csf_scheduler_pm_resume(struct kbase_device *kbdev)
+void kbase_csf_scheduler_pm_resume_no_lock(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
-
-	mutex_lock(&scheduler->lock);
-
 	if (scheduler->total_runnable_grps > 0) {
 		WARN_ON(scheduler->state != SCHED_SUSPENDED);
 		dev_vdbg(kbdev->dev, "Scheduler PM resume");
 		scheduler_wakeup(kbdev, true);
 	}
-	mutex_unlock(&scheduler->lock);
+}
+
+void kbase_csf_scheduler_pm_resume(struct kbase_device *kbdev)
+{
+	mutex_lock(&kbdev->csf.scheduler.lock);
+
+	kbase_csf_scheduler_pm_resume_no_lock(kbdev);
+	mutex_unlock(&kbdev->csf.scheduler.lock);
 }
 KBASE_EXPORT_TEST_API(kbase_csf_scheduler_pm_resume);
 
