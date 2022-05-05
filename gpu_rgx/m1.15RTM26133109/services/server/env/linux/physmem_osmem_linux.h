@@ -45,5 +45,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 void LinuxInitPhysmem(void);
 void LinuxDeinitPhysmem(void);
+void LinuxInitCheckInitOnAlloc(void);
 
 #endif /* PHYSMEM_OSMEM_LINUX_H */
