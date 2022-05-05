@@ -335,6 +335,8 @@ static DEFINE_MUTEX(g_sUMALeakMutex);
 static IMG_UINT32 g_ui32UMALeakCounter = 0;
 #endif
 
+static IMG_BOOL g_bInitOnAlloc = IMG_FALSE;
+
 static inline IMG_UINT32
 _PagesInPoolUnlocked(void)
 {
@@ -599,6 +601,16 @@ static struct shrinker g_sShrinker =
 	.seeks = DEFAULT_SEEKS
 };
 #endif
+
+void LinuxInitCheckInitOnAlloc(void)
+{
+	if(IS_ENABLED(CONFIG_INIT_ON_ALLOC_DEFAULT_ON))
+	{
+		g_bInitOnAlloc = IMG_TRUE;
+	}
+	else
+		g_bInitOnAlloc = IMG_FALSE;
+}
 
 /* Register the shrinker so Linux can reclaim cached pages */
 void LinuxInitPhysmem(void)
@@ -2045,7 +2057,9 @@ _AllocOSPages_Fast(PMR_OSPAGEARRAY_DATA *psPageArrayData)
 		}
 	}
 
-	if (BIT_ISSET(psPageArrayData->ui32AllocFlags, FLAG_ZERO) && ui32MinOrder == 0)
+	if (BIT_ISSET(psPageArrayData->ui32AllocFlags, FLAG_ZERO) &&
+	    g_bInitOnAlloc == IMG_FALSE &&
+	    ui32MinOrder == 0)
 	{
 		eError = _ZeroPageArray(uiPagesToAlloc - uiPagesFromPool,
 					   ppsPageAttributeArray,
@@ -2336,7 +2350,9 @@ _AllocOSPages_Sparse(PMR_OSPAGEARRAY_DATA *psPageArrayData,
 		}
 	}
 
-	if (BIT_ISSET(psPageArrayData->ui32AllocFlags, FLAG_ZERO) && uiOrder == 0)
+	if (BIT_ISSET(psPageArrayData->ui32AllocFlags, FLAG_ZERO) &&
+	    g_bInitOnAlloc == IMG_FALSE &&
+	    uiOrder == 0)
 	{
 		eError = _ZeroPageArray(uiTempPageArrayIndex,
 		                        ppsTempPageArray,

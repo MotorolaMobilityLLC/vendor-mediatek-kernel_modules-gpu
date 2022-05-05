@@ -516,6 +516,8 @@ IMG_UINT32 OSStringUINT32ToStr(IMG_CHAR *pszBuf, size_t uSize,
 PVRSRV_ERROR OSInitEnvData(void)
 {
 
+	LinuxInitCheckInitOnAlloc();
+
 	LinuxInitPhysmem();
 
 	_OSInitThreadList();
