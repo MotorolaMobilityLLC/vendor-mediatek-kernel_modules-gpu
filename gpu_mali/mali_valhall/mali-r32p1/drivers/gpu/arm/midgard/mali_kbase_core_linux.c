@@ -98,6 +98,9 @@
 #include <linux/clk-provider.h>
 #include <linux/delay.h>
 #include <linux/log2.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_SUSPEND_PREPARE)
+#include <linux/notifier.h>
+#endif
 
 #include <mali_kbase_config.h>
 
@@ -135,6 +138,13 @@ struct v1_data *gpu_info_ref;
 #define GPU_IRQ_TAG	2
 
 #define KERNEL_SIDE_DDK_VERSION_STRING "K:" MALI_RELEASE_NAME "(GPL)"
+
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_SUSPEND_PREPARE)
+static struct device *g_dev;
+
+static int kbase_device_suspend(struct device *dev);
+static int kbase_device_resume(struct device *dev);
+#endif
 
 /**
  * KBASE_API_VERSION - KBase API Version
@@ -5329,6 +5339,49 @@ int kbase_backend_devfreq_init(struct kbase_device *kbdev)
 #define RETURN_ERROR(X) do { return X; } while (0)
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_SUSPEND_PREPARE)
+static int kbase_suspend_pm_event(struct notifier_block *notifier,
+	unsigned long pm_event, void *unused)
+{
+	int ret;
+
+	switch (pm_event) {
+	case PM_HIBERNATION_PREPARE:
+		return NOTIFY_DONE;
+	case PM_RESTORE_PREPARE:
+		return NOTIFY_DONE;
+	case PM_POST_HIBERNATION:
+		return NOTIFY_DONE;
+	case PM_SUSPEND_PREPARE:
+		if (!g_dev)
+			return NOTIFY_BAD;
+
+		ret = kbase_device_suspend(g_dev);
+		if (ret) {
+			dev_err(g_dev, "Fail event - PM_SUSPEND_PREPARE");
+			return NOTIFY_BAD;
+		}
+		return NOTIFY_DONE;
+	case PM_POST_SUSPEND:
+		if (!g_dev)
+			return NOTIFY_BAD;
+
+		ret = kbase_device_resume(g_dev);
+		if (ret) {
+			dev_err(g_dev, "Fail event - PM_POST_SUSPEND");
+			return NOTIFY_BAD;
+		}
+		return NOTIFY_DONE;
+	}
+	return NOTIFY_OK;
+}
+
+static struct notifier_block kbase_suspend_pm_notifier_func = {
+	.notifier_call = kbase_suspend_pm_event,
+	.priority = 0,
+};
+#endif /*CONFIG_MALI_MTK_USE_SUSPEND_PREPARE*/
+
 static int kbase_platform_device_probe(struct platform_device *pdev)
 {
 	struct kbase_device *kbdev;
@@ -5361,6 +5414,13 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		dev_set_drvdata(kbdev->dev, NULL);
 		kbase_device_free(kbdev);
 	} else {
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_SUSPEND_PREPARE)
+		g_dev = kbdev->dev;
+		err = register_pm_notifier(&kbase_suspend_pm_notifier_func);
+		if (err)
+			dev_err(g_dev, "[GPU/MALI] Failed to register PM notifier.\n");
+#endif
+
 #ifdef MALI_KBASE_BUILD
 #if IS_ENABLED(CONFIG_PROC_FS)
 		mtk_common_procfs_init();
@@ -5592,8 +5652,10 @@ static int kbase_device_runtime_idle(struct device *dev)
 /* The power management operations for the platform driver.
  */
 static const struct dev_pm_ops kbase_pm_ops = {
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_SUSPEND_PREPARE)
 	.suspend = kbase_device_suspend,
 	.resume = kbase_device_resume,
+#endif
 #ifdef KBASE_PM_RUNTIME
 	.runtime_suspend = kbase_device_runtime_suspend,
 	.runtime_resume = kbase_device_runtime_resume,
