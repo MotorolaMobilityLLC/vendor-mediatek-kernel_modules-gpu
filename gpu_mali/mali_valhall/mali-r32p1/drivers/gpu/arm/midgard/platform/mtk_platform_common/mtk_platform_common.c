@@ -250,9 +250,12 @@ void mtk_common_procfs_init(void)
 	proc_create("utilization", 0444, mtk_mali_root, &mtk_common_gpu_utilization_proc_ops);
 	proc_create("gpu_memory", 0444, mtk_mali_root, &mtk_common_gpu_memory_proc_ops);
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	proc_create(kbdev->logbuf_kbase.name, 0444, mtk_mali_root, &mtk_common_logbuf_kbase_proc_ops);
-	proc_create(kbdev->logbuf_exception.name, 0444, mtk_mali_root, &mtk_common_logbuf_exception_proc_ops);
-	proc_create(kbdev->logbuf_csffw.name, 0444, mtk_mali_root, &mtk_common_logbuf_csffw_proc_ops);
+	if (kbdev->logbuf_kbase.entries)
+		proc_create(kbdev->logbuf_kbase.name, 0444, mtk_mali_root, &mtk_common_logbuf_kbase_proc_ops);
+	if (kbdev->logbuf_exception.entries)
+		proc_create(kbdev->logbuf_exception.name, 0444, mtk_mali_root, &mtk_common_logbuf_exception_proc_ops);
+	if (kbdev->logbuf_csffw.entries)
+		proc_create(kbdev->logbuf_csffw.name, 0444, mtk_mali_root, &mtk_common_logbuf_csffw_proc_ops);
 #endif
 }
 
@@ -267,9 +270,12 @@ void mtk_common_procfs_exit(void)
 	remove_proc_entry("utilization", mtk_mali_root);
 	remove_proc_entry("gpu_memory", mtk_mali_root);
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	remove_proc_entry(kbdev->logbuf_kbase.name, mtk_mali_root);
-	remove_proc_entry(kbdev->logbuf_exception.name, mtk_mali_root);
-	remove_proc_entry(kbdev->logbuf_csffw.name, mtk_mali_root);
+	if (kbdev->logbuf_kbase.entries)
+		remove_proc_entry(kbdev->logbuf_kbase.name, mtk_mali_root);
+	if (kbdev->logbuf_exception.entries)
+		remove_proc_entry(kbdev->logbuf_exception.name, mtk_mali_root);
+	if (kbdev->logbuf_csffw.entries)
+		remove_proc_entry(kbdev->logbuf_csffw.name, mtk_mali_root);
 #endif
 	remove_proc_entry("mtk_mali", NULL);
 }
