@@ -589,3 +589,72 @@ void kbase_csf_debugfs_init(struct kbase_device *kbdev)
 }
 
 #endif /* CONFIG_DEBUG_FS */
+
+/* Waiting timeout for STATUS_UPDATE acknowledgment, in milliseconds */
+#define CSF_STATUS_UPDATE_TO_MS (100)
+
+/**
+ * kbasep_csf_scheduler_update_slots_status() - Get the status update for the CSG slots.
+ *
+ * @group: Pointer to the command queue group that has blocked command queue(s)
+ *         bound to it.
+ */
+static void kbasep_csf_scheduler_update_slots_status(struct kbase_queue_group *const group)
+{
+	if (kbase_csf_scheduler_group_get_slot(group) >= 0) {
+		struct kbase_device *const kbdev = group->kctx->kbdev;
+		unsigned long flags;
+		struct kbase_csf_cmd_stream_group_info const *const ginfo = &kbdev->csf.global_iface.groups[group->csg_nr];
+		long remaining = kbase_csf_timeout_in_jiffies(CSF_STATUS_UPDATE_TO_MS);
+
+		kbase_csf_scheduler_spin_lock(kbdev, &flags);
+		kbase_csf_firmware_csg_input_mask(ginfo, CSG_REQ,
+				~kbase_csf_firmware_csg_output(ginfo, CSG_ACK),
+				CSG_REQ_STATUS_UPDATE_MASK);
+		kbase_csf_scheduler_spin_unlock(kbdev, flags);
+		kbase_csf_ring_csg_doorbell(kbdev, group->csg_nr);
+
+		dev_info(kbdev->dev,
+				 "[%d_%d] Ring a STATUS_UPDATE doorbell on group %d on slot %d",
+				 group->kctx->tgid,
+				 group->kctx->id,
+				 group->handle,
+				 group->csg_nr);
+
+		/* Wait the req/ack handshakes to complete on the specified groups.
+		 */
+		remaining = wait_event_timeout(kbdev->csf.event_wait,
+			!((kbase_csf_firmware_csg_input_read(ginfo, CSG_REQ) ^
+			   kbase_csf_firmware_csg_output(ginfo, CSG_ACK)) &
+			   CSG_REQ_STATUS_UPDATE_MASK), remaining);
+
+		if (!remaining) {
+			dev_info(kbdev->dev,
+			         "[%d_%d] Timed out for STATUS_UPDATE on group %d on slot %d",
+			         group->kctx->tgid,
+			         group->kctx->id,
+			         group->handle,
+			         group->csg_nr);
+		}
+	}
+}
+
+void kbase_csf_internal_fence_wait_dump(struct kbase_context *kctx, unsigned int pid,
+                                        unsigned int flags, unsigned long time_in_microseconds)
+{
+	u32 csg_nr;
+	struct kbase_device *kbdev = kctx->kbdev;
+	u32 num_groups = kbdev->csf.global_iface.group_num;
+
+	kbase_csf_scheduler_lock(kbdev);
+	for (csg_nr = 0; csg_nr < num_groups; csg_nr++) {
+		struct kbase_queue_group *const group =
+			kbdev->csf.scheduler.csg_slots[csg_nr].resident_group;
+
+		if (!group)
+			continue;
+
+		kbasep_csf_scheduler_update_slots_status(group);
+	}
+	kbase_csf_scheduler_unlock(kbdev);
+}

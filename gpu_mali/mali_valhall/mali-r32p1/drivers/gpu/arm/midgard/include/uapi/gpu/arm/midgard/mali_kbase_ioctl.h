@@ -686,6 +686,21 @@ struct kbase_ioctl_set_limited_core_count {
 #define KBASE_IOCTL_SET_LIMITED_CORE_COUNT \
 	_IOW(KBASE_IOCTL_TYPE, 55, struct kbase_ioctl_set_limited_core_count)
 
+/**
+ * struct kbase_ioctl_internal_fence_wait - wait for internal fence.
+ *
+ * @pid:                  The Process ID
+ * @flags:                The flags
+ * @time_in_microseconds: The timeout time in microseconds
+ */
+struct kbase_ioctl_internal_fence_wait {
+	__u32 pid;
+	__u32 flags;
+	__u64 time_in_microseconds;
+};
+
+#define KBASE_IOCTL_INTERNAL_FENCE_WAIT \
+	_IOW(KBASE_IOCTL_TYPE, 56, struct kbase_ioctl_internal_fence_wait)
 
 /***************
  * test ioctls *
