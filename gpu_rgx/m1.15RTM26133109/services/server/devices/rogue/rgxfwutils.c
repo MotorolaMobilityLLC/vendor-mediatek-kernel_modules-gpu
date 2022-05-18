@@ -819,7 +819,7 @@ static PVRSRV_ERROR _CheckPriority(PVRSRV_RGXDEV_INFO *psDevInfo,
 								   IMG_UINT32 ui32Priority,
 								   RGX_CCB_REQUESTOR_TYPE eRequestor)
 {
-	/* Only one context allowed with real time priority (highest priority) */
+	/* Only contexts from a single PID allowed with real time priority (highest priority) */
 	if (ui32Priority == RGX_CTX_PRIORITY_REALTIME)
 	{
 		DLLIST_NODE *psNode, *psNext;
@@ -830,7 +830,8 @@ static PVRSRV_ERROR _CheckPriority(PVRSRV_RGXDEV_INFO *psDevInfo,
 				IMG_CONTAINER_OF(psNode, RGX_SERVER_COMMON_CONTEXT, sListNode);
 
 			if (psThisContext->ui32Priority == RGX_CTX_PRIORITY_REALTIME &&
-				psThisContext->eRequestor == eRequestor)
+				psThisContext->eRequestor == eRequestor &&
+				RGXGetPIDFromServerMMUContext(psThisContext->psServerMMUContext) != OSGetCurrentClientProcessIDKM())
 			{
 				PVR_LOG(("Only one context with real time priority allowed"));
 				return PVRSRV_ERROR_INVALID_PARAMS;

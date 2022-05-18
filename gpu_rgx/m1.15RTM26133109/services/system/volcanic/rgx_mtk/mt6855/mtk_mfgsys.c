@@ -296,7 +296,7 @@ static int secgpu_ipi_to_gpueb(struct secgpu_ipi_data data)
 	int ret = SECGPU_SUCCESS;
 	int timeout = IPI_TIMEOUT_MS;
 
-	if(g_secgpu_recv_msg.cmd_id == CMD_SECGPU_INIT_SHARED_MEM){
+	if(data.cmd_id == CMD_SECGPU_INIT_SHARED_MEM){
 		timeout = IPI_TIMEOUT_MS*10;
 	}
 	ret = mtk_ipi_send_compl(get_gpueb_ipidev(), g_secgpu_ipi_channel, IPI_SEND_POLLING,
