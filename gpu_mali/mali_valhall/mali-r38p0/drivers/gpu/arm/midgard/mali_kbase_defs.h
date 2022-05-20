@@ -81,6 +81,10 @@
 
 #include "debug/mali_kbase_debug_ktrace_defs.h"
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include "platform/mtk_platform_common/mtk_platform_logbuffer.h"
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 /** Number of milliseconds before we time out on a GPU soft/hard reset */
 #define RESET_TIMEOUT           500
 
@@ -1239,6 +1243,11 @@ struct kbase_device {
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	GED_LOG_BUF_HANDLE ged_log_buf_hnd_kbase;
 #endif /* CONFIG_MALI_MTK_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	struct mtk_debug_logbuf logbuf_kbase;
+	struct mtk_debug_logbuf logbuf_exception;
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 };
 
 /**
