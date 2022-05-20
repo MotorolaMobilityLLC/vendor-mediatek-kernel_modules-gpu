@@ -1481,7 +1481,7 @@ int kbase_mem_init(struct kbase_device *kbdev)
 		err = kbase_mem_pool_group_init(&kbdev->mem_pools, kbdev,
 			&mem_pool_defaults, NULL);
 	}
-
+	spin_lock_init(&kbdev->trace_buffer_lock);
 	return err;
 }
 
