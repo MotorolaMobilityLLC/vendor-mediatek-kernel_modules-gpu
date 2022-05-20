@@ -132,12 +132,8 @@ int kbase_csf_firmware_trace_buffers_init(struct kbase_device *kbdev)
 	u32 mcu_rw_offset = 0, mcu_write_offset = 0;
 	const u32 cache_line_alignment = kbase_get_cache_line_alignment(kbdev);
 
-	unsigned long flags;
-	spin_lock_irqsave(&kbdev->trace_buffer_lock, flags);
-
 	if (list_empty(&kbdev->csf.firmware_trace_buffers.list)) {
 		dev_dbg(kbdev->dev, "No trace buffers to initialise\n");
-		spin_unlock_irqrestore(&kbdev->trace_buffer_lock, flags);
 		return 0;
 	}
 
@@ -225,19 +221,13 @@ int kbase_csf_firmware_trace_buffers_init(struct kbase_device *kbdev)
 	}
 
 out:
-	spin_unlock_irqrestore(&kbdev->trace_buffer_lock, flags);
 	return ret;
 }
 
 void kbase_csf_firmware_trace_buffers_term(struct kbase_device *kbdev)
 {
-	unsigned long flags;
-	spin_lock_irqsave(&kbdev->trace_buffer_lock, flags);
-
-	if (list_empty(&kbdev->csf.firmware_trace_buffers.list)) {
-		spin_unlock_irqrestore(&kbdev->trace_buffer_lock, flags);
+	if (list_empty(&kbdev->csf.firmware_trace_buffers.list))
 		return;
-	}
 
 	while (!list_empty(&kbdev->csf.firmware_trace_buffers.list)) {
 		struct firmware_trace_buffer *trace_buffer;
@@ -254,7 +244,6 @@ void kbase_csf_firmware_trace_buffers_term(struct kbase_device *kbdev)
 			kbdev, &kbdev->csf.firmware_trace_buffers.mcu_rw);
 	kbase_csf_firmware_mcu_shared_mapping_term(
 			kbdev, &kbdev->csf.firmware_trace_buffers.mcu_write);
-	spin_unlock_irqrestore(&kbdev->trace_buffer_lock, flags);
 }
 
 int kbase_csf_firmware_parse_trace_buffer_entry(struct kbase_device *kbdev,
@@ -266,8 +255,6 @@ int kbase_csf_firmware_parse_trace_buffer_entry(struct kbase_device *kbdev,
 	const unsigned int name_len = size - TRACE_BUFFER_ENTRY_NAME_OFFSET;
 	struct firmware_trace_buffer *trace_buffer;
 	unsigned int i;
-	unsigned long flags;
-	spin_lock_irqsave(&kbdev->trace_buffer_lock, flags);
 
 	/* Allocate enough space for struct firmware_trace_buffer and the
 	 * trace buffer name (with NULL termination).
@@ -275,10 +262,8 @@ int kbase_csf_firmware_parse_trace_buffer_entry(struct kbase_device *kbdev,
 	trace_buffer =
 		kmalloc(sizeof(*trace_buffer) + name_len + 1, GFP_KERNEL);
 
-	if (!trace_buffer) {
-		spin_unlock_irqrestore(&kbdev->trace_buffer_lock, flags);
+	if (!trace_buffer)
 		return -ENOMEM;
-	}
 
 	memcpy(&trace_buffer->name, name, name_len);
 	trace_buffer->name[name_len] = '\0';
@@ -313,7 +298,6 @@ int kbase_csf_firmware_parse_trace_buffer_entry(struct kbase_device *kbdev,
 		dev_dbg(kbdev->dev, "Unknown trace buffer '%s'", trace_buffer->name);
 		kfree(trace_buffer);
 	}
-	spin_unlock_irqrestore(&kbdev->trace_buffer_lock, flags);
 
 	return 0;
 }
@@ -323,8 +307,6 @@ void kbase_csf_firmware_reload_trace_buffers_data(struct kbase_device *kbdev)
 	struct firmware_trace_buffer *trace_buffer;
 	u32 mcu_rw_offset = 0, mcu_write_offset = 0;
 	const u32 cache_line_alignment = kbase_get_cache_line_alignment(kbdev);
-	unsigned long flags;
-	spin_lock_irqsave(&kbdev->trace_buffer_lock, flags);
 
 	list_for_each_entry(trace_buffer, &kbdev->csf.firmware_trace_buffers.list, node) {
 		u32 extract_gpu_va, insert_gpu_va, data_buffer_gpu_va,
@@ -387,7 +369,6 @@ void kbase_csf_firmware_reload_trace_buffers_data(struct kbase_device *kbdev)
 		mcu_write_offset += cache_line_alignment;
 		mcu_rw_offset += cache_line_alignment;
 	}
-	spin_unlock_irqrestore(&kbdev->trace_buffer_lock, flags);
 }
 
 struct firmware_trace_buffer *kbase_csf_firmware_get_trace_buffer(
@@ -492,7 +473,6 @@ EXPORT_SYMBOL(kbase_csf_firmware_trace_buffer_is_empty);
 unsigned int kbase_csf_firmware_trace_buffer_read_data(
 	struct firmware_trace_buffer *trace_buffer, u8 *data, unsigned int num_bytes)
 {
-
 	unsigned int bytes_copied;
 	u8 *data_cpu_va = trace_buffer->data_mapping.cpu_addr;
 	u32 extract_offset = *(trace_buffer->cpu_va.extract_cpu_va);
@@ -645,26 +625,24 @@ static ssize_t kbasep_csf_firmware_trace_debugfs_read(struct file *file,
 	/* Limit the kernel buffer to no more than two pages */
 	size_t mem = MIN(size, 2 * PAGE_SIZE);
 	unsigned long flags;
-	struct firmware_trace_buffer *tb;
 
-	spin_lock_irqsave(&kbdev->trace_buffer_lock, flags);
-
-	tb = kbase_csf_firmware_get_trace_buffer(kbdev, FW_TRACE_BUF_NAME);
+	struct firmware_trace_buffer *tb =
+		kbase_csf_firmware_get_trace_buffer(kbdev, FW_TRACE_BUF_NAME);
 
 	if (tb == NULL) {
 		dev_err(kbdev->dev, "Couldn't get the firmware trace buffer");
-		spin_unlock_irqrestore(&kbdev->trace_buffer_lock, flags);
 		return -EIO;
 	}
 
 	pbyte = kmalloc(mem, GFP_KERNEL);
 	if (pbyte == NULL) {
 		dev_err(kbdev->dev, "Couldn't allocate memory for trace buffer dump");
-		spin_unlock_irqrestore(&kbdev->trace_buffer_lock, flags);
 		return -ENOMEM;
 	}
 
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	n_read = kbase_csf_firmware_trace_buffer_read_data(tb, pbyte, mem);
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	/* Do the copy, if we have obtained some trace data */
 	not_copied = (n_read) ? copy_to_user(buf, pbyte, n_read) : 0;
@@ -674,7 +652,6 @@ static ssize_t kbasep_csf_firmware_trace_debugfs_read(struct file *file,
 		*ppos += n_read;
 		return n_read;
 	}
-	spin_unlock_irqrestore(&kbdev->trace_buffer_lock, flags);
 
 	dev_err(kbdev->dev, "Couldn't copy trace buffer data to user space buffer");
 	return -EFAULT;
