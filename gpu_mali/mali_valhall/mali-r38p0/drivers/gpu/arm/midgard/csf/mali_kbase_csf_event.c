@@ -21,6 +21,10 @@
 #include <mali_kbase.h>
 #include "mali_kbase_csf_event.h"
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+// MTK: replace all dev_dbg with dev_vdbg in this file
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 /**
  * struct kbase_csf_event_cb - CSF event callback.
  *
@@ -113,7 +117,7 @@ void kbase_csf_event_signal(struct kbase_context *kctx, bool notify_gpu)
 	struct kbase_csf_event_cb *event_cb, *next_event_cb;
 	unsigned long flags;
 
-	dev_dbg(kctx->kbdev->dev,
+	dev_vdbg(kctx->kbdev->dev,
 		"Signal event (%s GPU notify) for context %pK\n",
 		notify_gpu ? "with" : "without", (void *)kctx);
 
@@ -140,7 +144,7 @@ void kbase_csf_event_signal(struct kbase_context *kctx, bool notify_gpu)
 		event_cb, next_event_cb, &kctx->csf.event.callback_list, link) {
 		enum kbase_csf_event_callback_action action;
 
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Calling event handler %pK with param %pK\n",
 			(void *)event_cb, event_cb->param);
 		action = event_cb->callback(event_cb->param);
@@ -247,7 +251,7 @@ bool kbase_csf_event_error_pending(struct kbase_context *kctx)
 	spin_lock_irqsave(&kctx->csf.event.lock, flags);
 	error_pending = !list_empty(&kctx->csf.event.error_list);
 
-	dev_dbg(kctx->kbdev->dev, "%s error is pending in context %pK\n",
+	dev_vdbg(kctx->kbdev->dev, "%s error is pending in context %pK\n",
 		error_pending ? "An" : "No", (void *)kctx);
 
 	spin_unlock_irqrestore(&kctx->csf.event.lock, flags);
