@@ -700,6 +700,15 @@ struct base_gpu_props {
 		BASE_TIMEINFO_KERNEL_SOURCE_FLAG | \
 		BASE_TIMEINFO_USER_SOURCE_FLAG)
 
+/***************
+ * CONFIG_MALI_MTK_DEBUG
+ ***************
+ * For internal fence timeouts.
+ */
+#define BASE_INTERNAL_FENCE_WAIT_IDLE_FLAG (1UL << 0)
+#define BASE_INTERNAL_FENCE_WAIT_RESULT_FLAG (1UL << 1)
+#define BASE_INTERNAL_FENCE_WAIT_DUMP_FLAG (1UL << 31)
+
 /* Maximum number of source allocations allowed to create an alias allocation.
  * This needs to be 4096 * 6 to allow cube map arrays with up to 4096 array
  * layers, since each cube map in the array will have 6 faces.

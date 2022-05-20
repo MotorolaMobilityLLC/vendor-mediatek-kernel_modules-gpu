@@ -713,6 +713,24 @@ union kbase_ioctl_kinstr_prfcnt_setup {
 	_IOWR(KBASE_IOCTL_TYPE, 57, union kbase_ioctl_kinstr_prfcnt_setup)
 
 /***************
+ * CONFIG_MALI_MTK_DEBUG
+ ***************
+ * struct kbase_ioctl_internal_fence_wait - wait for internal fence.
+ *
+ * @pid:                  The Process ID
+ * @flags:                The flags
+ * @time_in_microseconds: The timeout time in microseconds
+ */
+struct kbase_ioctl_internal_fence_wait {
+	__u32 pid;
+	__u32 flags;
+	__u64 time_in_microseconds;
+};
+
+#define KBASE_IOCTL_INTERNAL_FENCE_WAIT \
+	_IOW(KBASE_IOCTL_TYPE, 58, struct kbase_ioctl_internal_fence_wait)
+
+/***************
  * test ioctls *
  ***************/
 #if MALI_UNIT_TEST

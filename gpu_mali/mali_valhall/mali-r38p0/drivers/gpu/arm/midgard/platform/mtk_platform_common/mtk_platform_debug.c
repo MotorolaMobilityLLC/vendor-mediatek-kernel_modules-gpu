@@ -67,65 +67,61 @@ static const char *mtk_debug_l2_core_state_to_string(enum kbase_l2_core_state st
 		return strings[state];
 }
 
-void mtk_common_debug_dump_status(void)
+void mtk_common_debug_dump_pm_status(struct kbase_device *kbdev)
 {
-	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
-
-	if (!IS_ERR_OR_NULL(kbdev)) {
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
-		dev_info(kbdev->dev, "[CSF] firmware_inited=%d firmware_reloaded=%d firmware_reload_needed=%d interrupt_received=%d",
-		         kbdev->csf.firmware_inited,
-		         kbdev->csf.firmware_reloaded,
-		         kbdev->csf.firmware_reload_needed,
-		         kbdev->csf.interrupt_received);
-		dev_info(kbdev->dev, "[CSF] firmware_hctl_core_pwr=%d glb_init_request_pending=%d",
-		         kbdev->csf.firmware_hctl_core_pwr,
-		         kbdev->csf.glb_init_request_pending);
-		dev_info(kbdev->dev, "[PM] in_reset=%d reset_done=%d gpu_powered=%d gpu_ready=%d mcu_state=%s l2_state=%s mcu_desired=%d l2_desired=%d l2_always_on=%d",
-		         kbdev->pm.backend.in_reset,
-		         kbdev->pm.backend.reset_done,
-		         kbdev->pm.backend.gpu_powered,
-		         kbdev->pm.backend.gpu_ready,
-		         mtk_debug_mcu_state_to_string(kbdev->pm.backend.mcu_state),
-		         mtk_debug_l2_core_state_to_string(kbdev->pm.backend.l2_state),
-		         kbdev->pm.backend.mcu_desired,
-		         kbdev->pm.backend.l2_desired,
-		         kbdev->pm.backend.l2_always_on);
+	dev_info(kbdev->dev, "[CSF] firmware_inited=%d firmware_reloaded=%d firmware_reload_needed=%d interrupt_received=%d",
+			 kbdev->csf.firmware_inited,
+			 kbdev->csf.firmware_reloaded,
+			 kbdev->csf.firmware_reload_needed,
+			 kbdev->csf.interrupt_received);
+	dev_info(kbdev->dev, "[CSF] firmware_hctl_core_pwr=%d glb_init_request_pending=%d",
+			 kbdev->csf.firmware_hctl_core_pwr,
+			 kbdev->csf.glb_init_request_pending);
+	dev_info(kbdev->dev, "[PM] in_reset=%d reset_done=%d gpu_powered=%d gpu_ready=%d mcu_state=%s l2_state=%s mcu_desired=%d l2_desired=%d l2_always_on=%d",
+			 kbdev->pm.backend.in_reset,
+			 kbdev->pm.backend.reset_done,
+			 kbdev->pm.backend.gpu_powered,
+			 kbdev->pm.backend.gpu_ready,
+			 mtk_debug_mcu_state_to_string(kbdev->pm.backend.mcu_state),
+			 mtk_debug_l2_core_state_to_string(kbdev->pm.backend.l2_state),
+			 kbdev->pm.backend.mcu_desired,
+			 kbdev->pm.backend.l2_desired,
+			 kbdev->pm.backend.l2_always_on);
 #if IS_ENABLED(CONFIG_MALI_MTK_DUMMY_CM)
-		dev_info(kbdev->dev, "[PM] hwcnt_desired=%d hwcnt_disabled=%d poweroff_wait_in_progress=%d invoke_poweroff_wait_wq_when_l2_off=%d poweron_required=%d debug_core_mask_en=%u",
-		         kbdev->pm.backend.hwcnt_desired,
-		         kbdev->pm.backend.hwcnt_disabled,
-		         kbdev->pm.backend.poweroff_wait_in_progress,
-		         kbdev->pm.backend.invoke_poweroff_wait_wq_when_l2_off,
-		         kbdev->pm.backend.poweron_required,
-		         kbdev->pm.debug_core_mask_en);
+	dev_info(kbdev->dev, "[PM] hwcnt_desired=%d hwcnt_disabled=%d poweroff_wait_in_progress=%d invoke_poweroff_wait_wq_when_l2_off=%d poweron_required=%d debug_core_mask_en=%u",
+			 kbdev->pm.backend.hwcnt_desired,
+			 kbdev->pm.backend.hwcnt_disabled,
+			 kbdev->pm.backend.poweroff_wait_in_progress,
+			 kbdev->pm.backend.invoke_poweroff_wait_wq_when_l2_off,
+			 kbdev->pm.backend.poweron_required,
+			 kbdev->pm.debug_core_mask_en);
 #else
-		dev_info(kbdev->dev, "[PM] hwcnt_desired=%d hwcnt_disabled=%d poweroff_wait_in_progress=%d invoke_poweroff_wait_wq_when_l2_off=%d poweron_required=%d",
-		         kbdev->pm.backend.hwcnt_desired,
-		         kbdev->pm.backend.hwcnt_disabled,
-		         kbdev->pm.backend.poweroff_wait_in_progress,
-		         kbdev->pm.backend.invoke_poweroff_wait_wq_when_l2_off,
-		         kbdev->pm.backend.poweron_required);
+	dev_info(kbdev->dev, "[PM] hwcnt_desired=%d hwcnt_disabled=%d poweroff_wait_in_progress=%d invoke_poweroff_wait_wq_when_l2_off=%d poweron_required=%d",
+			 kbdev->pm.backend.hwcnt_desired,
+			 kbdev->pm.backend.hwcnt_disabled,
+			 kbdev->pm.backend.poweroff_wait_in_progress,
+			 kbdev->pm.backend.invoke_poweroff_wait_wq_when_l2_off,
+			 kbdev->pm.backend.poweron_required);
 #endif
 #else
-		dev_info(kbdev->dev, "[PM] in_reset=%d reset_done=%d gpu_powered=%d gpu_ready=%d shaders_state=%s l2_state=%s shaders_desired=%d l2_desired=%d l2_always_on=%d",
-		         kbdev->pm.backend.in_reset,
-		         kbdev->pm.backend.reset_done,
-		         kbdev->pm.backend.gpu_powered,
-		         kbdev->pm.backend.gpu_ready,
-		         mtk_debug_core_state_to_string(kbdev->pm.backend.shaders_state),
-		         mtk_debug_l2_core_state_to_string(kbdev->pm.backend.l2_state),
-		         kbdev->pm.backend.shaders_desired,
-		         kbdev->pm.backend.l2_desired,
-		         kbdev->pm.backend.l2_always_on);
-		dev_info(kbdev->dev, "[PM] hwcnt_desired=%d hwcnt_disabled=%d poweroff_wait_in_progress=%d invoke_poweroff_wait_wq_when_l2_off=%d poweron_required=%d",
-		         kbdev->pm.backend.hwcnt_desired,
-		         kbdev->pm.backend.hwcnt_disabled,
-		         kbdev->pm.backend.poweroff_wait_in_progress,
-		         kbdev->pm.backend.invoke_poweroff_wait_wq_when_l2_off,
-		         kbdev->pm.backend.poweron_required);
+	dev_info(kbdev->dev, "[PM] in_reset=%d reset_done=%d gpu_powered=%d gpu_ready=%d shaders_state=%s l2_state=%s shaders_desired=%d l2_desired=%d l2_always_on=%d",
+			 kbdev->pm.backend.in_reset,
+			 kbdev->pm.backend.reset_done,
+			 kbdev->pm.backend.gpu_powered,
+			 kbdev->pm.backend.gpu_ready,
+			 mtk_debug_core_state_to_string(kbdev->pm.backend.shaders_state),
+			 mtk_debug_l2_core_state_to_string(kbdev->pm.backend.l2_state),
+			 kbdev->pm.backend.shaders_desired,
+			 kbdev->pm.backend.l2_desired,
+			 kbdev->pm.backend.l2_always_on);
+	dev_info(kbdev->dev, "[PM] hwcnt_desired=%d hwcnt_disabled=%d poweroff_wait_in_progress=%d invoke_poweroff_wait_wq_when_l2_off=%d poweron_required=%d",
+			 kbdev->pm.backend.hwcnt_desired,
+			 kbdev->pm.backend.hwcnt_disabled,
+			 kbdev->pm.backend.poweroff_wait_in_progress,
+			 kbdev->pm.backend.invoke_poweroff_wait_wq_when_l2_off,
+			 kbdev->pm.backend.poweron_required);
 #endif
-	}
 }
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
@@ -519,7 +515,7 @@ static void mtk_debug_csf_scheduler_dump_active_group(struct kbase_queue_group *
 	}
 }
 
-static void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
+void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 {
 	mutex_lock(&kbdev->kctx_list_lock);
 	{
@@ -607,6 +603,18 @@ static void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int
 						int i;
 						for (i = 0; i < queue->num_pending_cmds; i++) {
 						struct kbase_kcpu_command *cmd = &queue->commands[queue->start_offset + i];
+						if (cmd->type < 0 || cmd->type >= BASE_KCPU_COMMAND_TYPE_COUNT) {
+							dev_info(kbdev->dev,
+							         "[%d_%d] Queue Idx, Wait Type, Additional info",
+							         kctx->tgid,
+							         kctx->id);
+							dev_info(kbdev->dev,
+							         "[%d_%d] %9lu,         %d, (unknown blocking command)",
+							         kctx->tgid,
+							         kctx->id,
+							         idx,
+							         cmd->type);
+						}
 						switch (cmd->type) {
 #if IS_ENABLED(CONFIG_SYNC_FILE)
 						case BASE_KCPU_COMMAND_TYPE_FENCE_SIGNAL:
@@ -711,7 +719,7 @@ static void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int
 							         kctx->tgid,
 							         kctx->id);
 							dev_info(kbdev->dev,
-							         "[%d_%d] %9lu,         %d, other blocking command)",
+							         "[%d_%d] %9lu,         %d, (other blocking command)",
 							         kctx->tgid,
 							         kctx->id,
 							         idx,
@@ -811,8 +819,6 @@ void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int timeouts)
 	if (IS_ERR_OR_NULL(kbdev))
 		return;
 
-	lockdep_off();
-
 	mutex_lock(&fence_debug_lock);
 
 	dev_info(kbdev->dev, "@%s: %s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d",
@@ -831,19 +837,16 @@ void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int timeouts)
 		 pid);
 #endif
 
-#if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
-	mtk_debug_csf_dump_groups_and_queues(kbdev, pid);
-#endif
-
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
-	if (!mtk_common_gpufreq_bringup()) {
-		if (kbdev->pm.backend.gpu_powered)
-			gpufreq_dump_infra_status();
-		mtk_common_debug_dump_status();
+#ifdef CONFIG_MALI_FENCE_DEBUG
+	if (timeouts > 3000)
+#endif
+	{
+		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, pid);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, pid);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, pid);
 	}
 #endif
 
 	mutex_unlock(&fence_debug_lock);
-
-	lockdep_on();
 }

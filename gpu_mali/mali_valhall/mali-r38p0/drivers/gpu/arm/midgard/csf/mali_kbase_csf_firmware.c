@@ -52,7 +52,6 @@
 #include <linux/delay.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-#include <mtk_gpufreq.h>
 #include "platform/mtk_platform_common.h"
 
 // MTK: replace all dev_dbg with dev_vdbg in this file
@@ -276,10 +275,8 @@ static void wait_for_firmware_boot(struct kbase_device *kbdev)
 	if (!remaining) {
 		dev_err(kbdev->dev, "Timed out waiting for fw boot completion");
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		if (!mtk_common_gpufreq_bringup()) {
-			gpufreq_dump_infra_status();
-			mtk_common_debug_dump();
-		}
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1);
 #endif /* CONFIG_MALI_MTK_DEBUG */
 	}
 
@@ -310,10 +307,8 @@ static void wait_ready(struct kbase_device *kbdev)
 		ged_log_buf_print2(
 			 kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
 			 "AS_ACTIVE bit stuck when MCU load the MMU tables");
-		if (!mtk_common_gpufreq_bringup()) {
-			gpufreq_dump_infra_status();
-			mtk_common_debug_dump();
-		}
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1);
 	}
 #else
 	if (max_loops == 0)
