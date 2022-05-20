@@ -8,11 +8,11 @@
 #include <backend/gpu/mali_kbase_pm_internal.h>
 #include <backend/gpu/mali_kbase_pm_defs.h>
 #include "governor.h"
-#include "mtk_gpu_devfreq_governor.h"
+#include "mtk_platform_devfreq_governor.h"
 #include <mtk_gpufreq.h>
 
-static int mtk_common_gov_get_target_freq(struct devfreq *df,
-                                          unsigned long *freq)
+static int mtk_devfreq_governor_get_target_freq(struct devfreq *df,
+                                                unsigned long *freq)
 {
 	/*
 	 * target callback should be able to get floor value as
@@ -29,8 +29,8 @@ static int mtk_common_gov_get_target_freq(struct devfreq *df,
 	return 0;
 }
 
-static int mtk_common_gov_event_handler(struct devfreq *devfreq,
-                                        unsigned int event, void *data)
+static int mtk_devfreq_governor_event_handler(struct devfreq *devfreq,
+                                              unsigned int event, void *data)
 {
 	switch (event) {
 	case DEVFREQ_GOV_START:
@@ -60,14 +60,14 @@ static int mtk_common_gov_event_handler(struct devfreq *devfreq,
 	return 0;
 }
 
-struct devfreq_governor mtk_common_gov_dummy = {
-	.name = MTK_GPU_DEVFREQ_GOV_DUMMY,
-	.get_target_freq = mtk_common_gov_get_target_freq,
-	.event_handler = mtk_common_gov_event_handler,
+struct devfreq_governor mtk_devfreq_governor_dummy = {
+	.name            = MTK_GPU_DEVFREQ_GOVERNOR_DUMMY,
+	.get_target_freq = mtk_devfreq_governor_get_target_freq,
+	.event_handler   = mtk_devfreq_governor_event_handler,
 };
 
-static int mtk_common_devfreq_target(struct device *dev,
-                                     unsigned long *freq, u32 flags)
+static int mtk_devfreq_governor_target(struct device *dev,
+                                       unsigned long *freq, u32 flags)
 {
 	int opp_idx = 0;
 	unsigned int pow = 0;
@@ -130,30 +130,28 @@ static int mtk_common_devfreq_get_cur_freq(struct device *dev, unsigned long *fr
 	return 0;
 }
 
-static int
-mtk_common_devfreq_status(struct device *dev, struct devfreq_dev_status *stat)
+static int mtk_common_devfreq_status(struct device *dev, struct devfreq_dev_status *stat)
 {
 	return 0;
 }
 
-void mtk_common_devfreq_update_profile(struct devfreq_dev_profile *dp)
+void mtk_devfreq_governor_update_profile(struct devfreq_dev_profile *dp)
 {
 	dp->polling_ms = 0;
-	dp->target = mtk_common_devfreq_target;
+	dp->target = mtk_devfreq_governor_target;
 	dp->get_dev_status = mtk_common_devfreq_status;
 	dp->get_cur_freq = mtk_common_devfreq_get_cur_freq;
 	dp->exit = NULL;
 }
 
-int mtk_common_devfreq_init(void)
+int mtk_devfreq_governor_init(struct kbase_device *kbdev)
 {
 	int ret = 0;
-	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
 
-	ret = devfreq_add_governor(&mtk_common_gov_dummy);
+	ret = devfreq_add_governor(&mtk_devfreq_governor_dummy);
 	if (ret || IS_ERR_OR_NULL(kbdev)) {
 		pr_info("@%s: Failed to add governor '%s' (ret: %d)\n",
-		        __func__, mtk_common_gov_dummy.name, ret);
+		        __func__, mtk_devfreq_governor_dummy.name, ret);
 		return ret;
 	}
 
@@ -170,14 +168,14 @@ int mtk_common_devfreq_init(void)
 	return ret;
 }
 
-int mtk_common_devfreq_term(void)
+int mtk_devfreq_governor_term(struct kbase_device *kbdev)
 {
 	int ret = 0;
 
-	ret = devfreq_remove_governor(&mtk_common_gov_dummy);
+	ret = devfreq_remove_governor(&mtk_devfreq_governor_dummy);
 	if (ret) {
 		pr_info("@%s: Failed to remove governor '%s' (ret: %d)\n",
-		        __func__, mtk_common_gov_dummy.name, ret);
+		        __func__, mtk_devfreq_governor_dummy.name, ret);
 		return ret;
 	}
 

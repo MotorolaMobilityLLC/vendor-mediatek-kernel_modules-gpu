@@ -18,10 +18,10 @@
 #define KBASE_PLATFORM_LOGI(fmt, args...) \
 	pr_info(KBASE_PLATFORM_TAG"[INFO]@%s: "fmt"\n", __func__, ##args)
 
-void mtk_common_debug_dump_pm_status(struct kbase_device *kbdev);
-void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid);
-void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int timeouts);
+int mtk_debug_init(struct kbase_device *kbdev);
+int mtk_debug_term(struct kbase_device *kbdev);
 
-extern void (*mtk_gpu_fence_debug_dump_fp)(int fd, int pid, int type, int timeouts);
+void mtk_debug_dump_pm_status(struct kbase_device *kbdev);
+void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid);
 
 #endif /* __MTK_PLATFORM_DEBUG_H__ */

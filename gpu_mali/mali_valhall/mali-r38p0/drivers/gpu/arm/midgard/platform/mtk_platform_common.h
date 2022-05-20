@@ -32,10 +32,15 @@ int mtk_common_ged_dvfs_get_last_commit_idx(void);
 int mtk_common_device_init(struct kbase_device *kbdev);
 void mtk_common_device_term(struct kbase_device *kbdev);
 
-#if IS_ENABLED(CONFIG_PROC_FS)
-void mtk_common_procfs_init(void);
-void mtk_common_procfs_exit(void);
-#endif
+#if IS_ENABLED(CONFIG_MALI_MTK_SYSFS)
+void mtk_common_sysfs_init(struct kbase_device *kbdev);
+void mtk_common_sysfs_term(struct kbase_device *kbdev);
+#endif /* CONFIG_MALI_MTK_SYSFS */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS)
+void mtk_common_debugfs_init(struct kbase_device *kbdev);
+void mtk_common_csf_debugfs_init(struct kbase_device *kbdev);
+#endif /* CONFIG_MALI_MTK_DEBUG_FS */
 
 int mtk_platform_device_init(struct kbase_device *kbdev);
 void mtk_platform_device_term(struct kbase_device *kbdev);

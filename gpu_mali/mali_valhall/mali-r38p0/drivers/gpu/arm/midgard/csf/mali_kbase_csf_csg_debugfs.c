@@ -25,6 +25,9 @@
 #include <linux/delay.h>
 #include <csf/mali_kbase_csf_trace_buffer.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS)
+#include "platform/mtk_platform_common.h"
+#endif /* CONFIG_MALI_MTK_DEBUG_FS */
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 #include "mali_kbase_csf_tl_reader.h"
@@ -670,6 +673,10 @@ void kbase_csf_debugfs_init(struct kbase_device *kbdev)
 
 	kbase_csf_tl_reader_debugfs_init(kbdev);
 	kbase_csf_firmware_trace_buffer_debugfs_init(kbdev);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS)
+	mtk_common_csf_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_DEBUG_FS */
 }
 
 #else

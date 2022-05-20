@@ -46,4 +46,11 @@ void MTKGPUFreq_change_notify(u32 clk_idx, u32 gpufreq);
 extern void (*mtk_notify_gpu_freq_change_fp)(u32 clk_idx, u32 gpufreq);
 
 extern int (*ged_dvfs_set_gpu_core_mask_fp)(u64 core_mask);
+
+int mtk_dvfs_procfs_init(struct kbase_device *kbdev, struct proc_dir_entry *parent);
+int mtk_dvfs_procfs_term(struct kbase_device *kbdev, struct proc_dir_entry *parent);
+
+int mtk_dvfs_init(struct kbase_device *kbdev);
+int mtk_dvfs_term(struct kbase_device *kbdev);
+
 #endif /* __MTK_GPU_DVFS_H__ */

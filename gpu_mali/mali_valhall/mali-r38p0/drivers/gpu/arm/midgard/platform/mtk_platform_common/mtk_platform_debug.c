@@ -21,6 +21,8 @@
 #include <mtk_gpufreq.h>
 #endif
 
+extern void (*mtk_gpu_fence_debug_dump_fp)(int fd, int pid, int type, int timeouts);
+
 static DEFINE_MUTEX(fence_debug_lock);
 //#if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 //void kbase_csf_dump_firmware_trace_buffer(struct kbase_device *kbdev);
@@ -67,7 +69,7 @@ static const char *mtk_debug_l2_core_state_to_string(enum kbase_l2_core_state st
 		return strings[state];
 }
 
-void mtk_common_debug_dump_pm_status(struct kbase_device *kbdev)
+void mtk_debug_dump_pm_status(struct kbase_device *kbdev)
 {
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
 	dev_info(kbdev->dev, "[CSF] firmware_inited=%d firmware_reloaded=%d firmware_reload_needed=%d interrupt_received=%d",
@@ -812,7 +814,7 @@ static const char *fence_timeout_type_to_string(int type)
 	return fence_timeout_type[type];
 }
 
-void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int timeouts)
+static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int timeouts)
 {
 	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
 
@@ -849,4 +851,24 @@ void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int timeouts)
 #endif
 
 	mutex_unlock(&fence_debug_lock);
+}
+
+int mtk_debug_init(struct kbase_device *kbdev)
+{
+	if (IS_ERR_OR_NULL(kbdev))
+		return -1;
+
+	mtk_gpu_fence_debug_dump_fp = mtk_debug_dump_for_external_fence;
+
+	return 0;
+}
+
+int mtk_debug_term(struct kbase_device *kbdev)
+{
+	if (IS_ERR_OR_NULL(kbdev))
+		return -1;
+
+	mtk_gpu_fence_debug_dump_fp = NULL;
+
+	return 0;
 }
