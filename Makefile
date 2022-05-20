@@ -5,15 +5,15 @@ $(MAKE) -C $(KERNEL_SRC) M=$(M)/$(1)/$(2)/$(3)/drivers/base/arm/protected_memory
 endef
 
 define install_kernel_modules_mali
-$(MAKE) M=$(M)/$(1)/$(2)/$(3)/drivers/gpu/arm/midgard modules -C $(KERNEL_SRC) modules_install $(KBUILD_OPTIONS) MTK_PLATFORM_VERSION=$(1) LOCAL_MTK_GPU_VERSION=$(4) BUILD_RULE=$(RULE)
-$(MAKE) M=$(M)/$(1)/$(2)/$(3)/drivers/base/arm/memory_group_manager modules -C $(KERNEL_SRC) modules_install $(KBUILD_OPTIONS) CONFIG_MALI_MEMORY_GROUP_MANAGER=$(MEMORY_GROUP_MANAGER)
-$(MAKE) M=$(M)/$(1)/$(2)/$(3)/drivers/base/arm/protected_memory_allocator -C $(KERNEL_SRC) modules_install $(KBUILD_OPTIONS) CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR=$(PROTECTED_MEMORY_ALLOCATOR)
+$(MAKE) -C $(KERNEL_SRC) M=$(M)/$(1)/$(2)/$(3)/drivers/gpu/arm/midgard modules_install $(KBUILD_OPTIONS) MTK_PLATFORM_VERSION=$(1) LOCAL_MTK_GPU_VERSION=$(4) BUILD_RULE=$(RULE)
+$(MAKE) -C $(KERNEL_SRC) M=$(M)/$(1)/$(2)/$(3)/drivers/base/arm/memory_group_manager modules_install $(KBUILD_OPTIONS) MTK_PLATFORM_VERSION=$(1) CONFIG_MALI_MEMORY_GROUP_MANAGER=$(MEMORY_GROUP_MANAGER)
+$(MAKE) -C $(KERNEL_SRC) M=$(M)/$(1)/$(2)/$(3)/drivers/base/arm/protected_memory_allocator modules_install $(KBUILD_OPTIONS) MTK_PLATFORM_VERSION=$(1) CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR=$(PROTECTED_MEMORY_ALLOCATOR)
 endef
 
 define clean_kernel_modules_mali
-$(MAKE) -C $(KERNEL_SRC) M=$(M)/$(1)/$(2)/$(3)/drivers/gpu/arm/midgard modules -C $(KERNEL_SRC) clean $(KBUILD_OPTIONS) MTK_PLATFORM_VERSION=$(1) LOCAL_MTK_GPU_VERSION=$(4) BUILD_RULE=$(RULE)
-$(MAKE) -C $(KERNEL_SRC) M=$(M)/$(1)/$(2)/$(3)/drivers/base/arm/memory_group_manager modules clean $(KBUILD_OPTIONS) CONFIG_MALI_MEMORY_GROUP_MANAGER=$(MEMORY_GROUP_MANAGER)
-$(MAKE) -C $(KERNEL_SRC) M=$(M)/$(1)/$(2)/$(3)/drivers/base/arm/protected_memory_allocator clean $(KBUILD_OPTIONS) CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR=$(PROTECTED_MEMORY_ALLOCATOR)
+$(MAKE) -C $(KERNEL_SRC) M=$(M)/$(1)/$(2)/$(3)/drivers/gpu/arm/midgard clean $(KBUILD_OPTIONS) MTK_PLATFORM_VERSION=$(1) LOCAL_MTK_GPU_VERSION=$(4) BUILD_RULE=$(RULE)
+$(MAKE) -C $(KERNEL_SRC) M=$(M)/$(1)/$(2)/$(3)/drivers/base/arm/memory_group_manager clean $(KBUILD_OPTIONS) MTK_PLATFORM_VERSION=$(1) CONFIG_MALI_MEMORY_GROUP_MANAGER=$(MEMORY_GROUP_MANAGER)
+$(MAKE) -C $(KERNEL_SRC) M=$(M)/$(1)/$(2)/$(3)/drivers/base/arm/protected_memory_allocator clean $(KBUILD_OPTIONS) MTK_PLATFORM_VERSION=$(1) CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR=$(PROTECTED_MEMORY_ALLOCATOR)
 endef
 
 define build_kernel_modules_img
@@ -36,15 +36,11 @@ comma := ,
 PARAMS :=
 
 ifneq (,$(wildcard mt6983))
-	PARAMS += mali,mt6983,mali_valhall,mali-r38p0,mali_valhall_r38p0_mt6983
+	PARAMS += mali,mt6983,mali_valhall,mali-r37p0,mali_valhall_r37p0_mt6983
 endif
 
 ifneq (,$(wildcard mt6985))
-	PARAMS += mali,mt6985,mali_valhall,mali-r37p0,mali_valhall_r37p0_mt6985
-endif
-
-ifneq (,$(wildcard mt6886))
-	PARAMS += mali,mt6886,mali_valhall,mali-r37p0,mali_valhall_r37p0_mt6886
+	PARAMS += mali,mt6985,mali_valhall,mali-r38p0,mali_valhall_r38p0_mt6985
 endif
 
 all modules_install clean: RULE := $(BUILD_RULE)
