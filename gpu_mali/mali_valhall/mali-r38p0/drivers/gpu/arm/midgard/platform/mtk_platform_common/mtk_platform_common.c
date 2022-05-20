@@ -248,7 +248,7 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_MEM_TRACK */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	mtk_gpu_fence_debug_dump_fp = mtk_common_gpu_fence_debug_dump;
+	mtk_gpu_fence_debug_dump_fp = mtk_debug_dump_for_external_fence;
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ)
