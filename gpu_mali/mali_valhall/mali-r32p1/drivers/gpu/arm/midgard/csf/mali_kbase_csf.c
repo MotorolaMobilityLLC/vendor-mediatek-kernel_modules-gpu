@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2018-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2022 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1361,6 +1361,7 @@ static int create_queue_group(struct kbase_context *const kctx,
 				kbase_csf_priority_check(kctx->kbdev, create->in.priority));
 			group->doorbell_nr = KBASEP_USER_DB_NR_INVALID;
 			group->faulted = false;
+                        group->cs_unrecoverable = false;
 
 			group->group_uid = generate_group_uid();
 			create->out.group_uid = group->group_uid;
@@ -2646,6 +2647,13 @@ handle_fatal_event(struct kbase_queue *const queue,
 			CS_FATAL_EXCEPTION_TYPE_FIRMWARE_INTERNAL_ERROR) {
 		queue_work(system_wq, &kbdev->csf.fw_error_work);
 	} else {
+                if (cs_fatal_exception_type ==
+		    CS_FATAL_EXCEPTION_TYPE_CS_UNRECOVERABLE) {
+			queue->group->cs_unrecoverable = true;
+			if (kbase_prepare_to_reset_gpu(queue->kctx->kbdev,
+						       RESET_FLAGS_NONE))
+				kbase_reset_gpu(queue->kctx->kbdev);
+		}
 		get_queue(queue);
 		queue->cs_fatal = cs_fatal;
 		queue->cs_fatal_info = cs_fatal_info;
