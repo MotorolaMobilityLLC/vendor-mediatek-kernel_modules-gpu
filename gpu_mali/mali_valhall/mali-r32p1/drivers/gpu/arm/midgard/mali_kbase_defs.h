@@ -597,6 +597,20 @@ struct v1_data {
 };
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#define MTK_DEBUG_LOGBUF_NAME_LEN 64
+#define MTK_DEBUG_LOGBUF_ENTRY_SIZE 256
+struct mtk_debug_logbuf {
+	spinlock_t access_lock;
+	uint32_t tail;
+	uint32_t head;
+	char name[MTK_DEBUG_LOGBUF_NAME_LEN];
+	uint8_t *entries;
+	uint32_t entry_num;
+	bool is_circular;
+};
+#endif
+
 /**
  * enum kbase_devfreq_work_type - The type of work to perform in the devfreq
  *                                suspend/resume worker.
@@ -1234,6 +1248,9 @@ struct kbase_device {
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	GED_LOG_BUF_HANDLE ged_log_buf_hnd_kbase;
+	struct mtk_debug_logbuf logbuf_kbase;
+	struct mtk_debug_logbuf logbuf_exception;
+	struct mtk_debug_logbuf logbuf_csffw;
 #endif
 };
 

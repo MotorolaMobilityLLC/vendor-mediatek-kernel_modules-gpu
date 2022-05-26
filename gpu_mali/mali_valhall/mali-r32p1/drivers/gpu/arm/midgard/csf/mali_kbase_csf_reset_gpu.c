@@ -32,7 +32,8 @@
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <mtk_gpufreq.h>
-#include "platform/mtk_platform_common.h"
+#include <platform/mtk_platform_common.h>
+#include <platform/mtk_platform_common/mtk_platform_debug.h>
 #endif
 
 /* Waiting timeout for GPU reset to complete */
@@ -284,6 +285,10 @@ static void kbase_csf_dump_firmware_trace_buffer(struct kbase_device *kbdev)
 	line_str = &buf[PAGE_SIZE];
 
 	dev_err(kbdev->dev, "Firmware trace buffer dump:");
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_common_debug_logbuf_print(&kbdev->logbuf_csffw,
+		"Firmware trace buffer dump:");
+#endif
 	while ((read_size = kbase_csf_firmware_trace_buffer_read_data(tb, buf,
 								PAGE_SIZE))) {
 		u64 *ptr = (u64 *)buf;
@@ -294,6 +299,11 @@ static void kbase_csf_dump_firmware_trace_buffer(struct kbase_device *kbdev)
 		     num_dwords -= DUMP_DWORDS_PER_LINE) {
 			dev_err(kbdev->dev, "%016llx %016llx %016llx %016llx",
 				ptr[0], ptr[1], ptr[2], ptr[3]);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+			mtk_common_debug_logbuf_print(&kbdev->logbuf_csffw,
+				"%016llx %016llx %016llx %016llx",
+				ptr[0], ptr[1], ptr[2], ptr[3]);
+#endif
 			ptr += DUMP_DWORDS_PER_LINE;
 		}
 
@@ -308,6 +318,11 @@ static void kbase_csf_dump_firmware_trace_buffer(struct kbase_device *kbdev)
 			}
 
 			dev_err(kbdev->dev, "%s", line_str);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+			mtk_common_debug_logbuf_print(&kbdev->logbuf_csffw,
+				"%s",
+				line_str);
+#endif
 		}
 	}
 
@@ -474,6 +489,8 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev,
 		dev_err(kbdev->dev, "Reset complete");
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 		ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME, "Reset complete");
+		mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
+			"Reset complete");
 #endif
 	}
 

@@ -8,6 +8,7 @@
 #include <mali_kbase_sync.h>
 #include <mali_kbase_mem_linux.h>
 #include <linux/delay.h>
+#include <linux/seq_file.h>
 #include <platform/mtk_platform_common.h>
 #include <backend/gpu/mali_kbase_pm_defs.h>
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
@@ -19,6 +20,188 @@
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 static DEFINE_MUTEX(fence_debug_lock);
+#endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+bool mtk_common_debug_logbuf_is_empty(struct mtk_debug_logbuf *logbuf)
+{
+	return logbuf->head == logbuf->tail;
+}
+
+bool mtk_common_debug_logbuf_is_full(struct mtk_debug_logbuf *logbuf)
+{
+	return logbuf->head == (logbuf->tail + 1) % logbuf->entry_num;
+}
+
+void mtk_common_debug_logbuf_clear(struct mtk_debug_logbuf *logbuf)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&logbuf->access_lock, flags);
+	logbuf->head = logbuf->tail = 0;
+	spin_unlock_irqrestore(&logbuf->access_lock, flags);
+}
+
+void mtk_common_debug_logbuf_print(struct mtk_debug_logbuf *logbuf, const char *fmt, ...)
+{
+	va_list args;
+	unsigned long flags;
+	uint8_t buffer[MTK_DEBUG_LOGBUF_ENTRY_SIZE];
+	uint64_t ts_nsec = local_clock();
+	uint32_t rem_nsec, offset;
+
+	spin_lock_irqsave(&logbuf->access_lock, flags);
+
+	va_start(args, fmt);
+	vsnprintf(buffer, sizeof(buffer), fmt, args);
+	va_end(args);
+
+	if (!logbuf->entries)
+		goto fail_entries;
+
+	if (!logbuf->is_circular && mtk_common_debug_logbuf_is_full(logbuf))
+		goto fail_overflow;
+
+	offset = logbuf->tail * MTK_DEBUG_LOGBUF_ENTRY_SIZE;
+
+	rem_nsec = do_div(ts_nsec, 1000000000);
+	scnprintf(logbuf->entries + offset,
+	          MTK_DEBUG_LOGBUF_ENTRY_SIZE, "[%5lu.%06lu] %s",
+	          (uint32_t)ts_nsec, rem_nsec / 1000, buffer);
+
+	/* Update the circular buffer indices */
+	logbuf->tail = (logbuf->tail + 1) % logbuf->entry_num;
+	if (logbuf->tail == logbuf->head)
+		logbuf->head = (logbuf->head + 1) % logbuf->entry_num;
+
+fail_overflow:
+fail_entries:
+	spin_unlock_irqrestore(&logbuf->access_lock, flags);
+}
+
+void mtk_common_debug_logbuf_dump(struct mtk_debug_logbuf *logbuf, struct seq_file *seq)
+{
+	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+	uint32_t start, end, used_entry_num, offset;
+	unsigned long flags;
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return;
+
+	spin_lock_irqsave(&logbuf->access_lock, flags);
+
+	if (!logbuf->entries)
+		goto fail_entries;
+
+	start = logbuf->head;
+	end = logbuf->tail;
+
+	if (start > end)
+		used_entry_num = logbuf->entry_num;
+	else if (start == end)
+		used_entry_num = 0;
+	else
+		used_entry_num = (end - start + 1);
+
+	if (seq) {
+		seq_printf(seq, "---------- %s (%d/%d) ----------\n",
+		           logbuf->name, used_entry_num, logbuf->entry_num);
+		while (start != end) {
+			offset = start * MTK_DEBUG_LOGBUF_ENTRY_SIZE;
+			seq_printf(seq, "%s\n", logbuf->entries + offset);
+			start = (start + 1) % logbuf->entry_num;
+		}
+	} else {
+		dev_info(kbdev->dev, "---------- %s (%d/%d) ----------",
+				 logbuf->name, used_entry_num, logbuf->entry_num);
+		while (start != end) {
+			offset = start * MTK_DEBUG_LOGBUF_ENTRY_SIZE;
+			dev_info(kbdev->dev, "%s", logbuf->entries + offset);
+			start = (start + 1) % logbuf->entry_num;
+		}
+	}
+
+fail_entries:
+	spin_unlock_irqrestore(&logbuf->access_lock, flags);
+}
+
+static void mtk_common_debug_logbuf_init(struct mtk_debug_logbuf *logbuf, uint32_t entry_num,
+                                         bool is_circular, const char *name)
+{
+	if (name && entry_num) {
+		spin_lock_init(&logbuf->access_lock);
+		logbuf->tail = 0;
+		logbuf->head = 0;
+		logbuf->name[0] = '\0';
+		logbuf->entry_num = entry_num;
+		logbuf->is_circular = is_circular;
+		logbuf->entries = kcalloc(entry_num, MTK_DEBUG_LOGBUF_ENTRY_SIZE, GFP_KERNEL);
+		if (logbuf->entries)
+			snprintf(logbuf->name, MTK_DEBUG_LOGBUF_NAME_LEN, "%s", name);
+	}
+}
+
+static void mtk_common_debug_logbuf_term(struct mtk_debug_logbuf *logbuf)
+{
+	unsigned long flags;
+	uint32_t i;
+
+	spin_lock_irqsave(&logbuf->access_lock, flags);
+	if (logbuf->entries) {
+		kfree(logbuf->entries);
+		logbuf->entries = NULL;
+	}
+	spin_unlock_irqrestore(&logbuf->access_lock, flags);
+}
+
+int mtk_common_debug_init(void)
+{
+	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return -1;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_LOGBUF_KBASE)
+	mtk_common_debug_logbuf_init(&kbdev->logbuf_kbase,
+	                             8192  /* entry_num */,
+	                             true  /* is_circular */,
+	                             "logbuf_kbase");
+#endif
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_LOGBUF_EXCEPTION)
+	mtk_common_debug_logbuf_init(&kbdev->logbuf_exception,
+	                             4096  /* entry_num */,
+	                             false /* is_circular */,
+	                             "logbuf_exception");
+#endif
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_LOGBUF_CSFFW)
+	mtk_common_debug_logbuf_init(&kbdev->logbuf_csffw,
+	                             65536 /* entry_num */,
+	                             false /* is_circular */,
+	                             "logbuf_csffw");
+#endif
+
+	return 0;
+}
+
+int mtk_common_debug_term(void)
+{
+	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return -1;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_LOGBUF_KBASE)
+	mtk_common_debug_logbuf_term(&kbdev->logbuf_kbase);
+#endif
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_LOGBUF_EXCEPTION)
+	mtk_common_debug_logbuf_term(&kbdev->logbuf_exception);
+#endif
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_LOGBUF_CSFFW)
+	mtk_common_debug_logbuf_term(&kbdev->logbuf_csffw);
+#endif
+
+	return 0;
+}
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
@@ -184,12 +367,16 @@ static void mtk_common_csf_scheduler_dump_active_queue_cs_status_wait(
 	//     - SYNC_WAIT: Blocked on a SYNC_WAIT{32|64} instruction.
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	if (blocked_reason == CS_STATUS_BLOCKED_REASON_REASON_WAIT)
+	if (blocked_reason == CS_STATUS_BLOCKED_REASON_REASON_WAIT) {
 		ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
 			 "    [%d_%d] BLOCKED_REASON: %s\n",
 	         tgid,
 	         id,
 	         blocked_reason_to_string(CS_STATUS_BLOCKED_REASON_REASON_GET(blocked_reason)));
+		mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
+			"    [%d_%d] BLOCKED_REASON: %s",
+			tgid, id, blocked_reason_to_string(CS_STATUS_BLOCKED_REASON_REASON_GET(blocked_reason)));
+	}
 #endif
 }
 
@@ -512,6 +699,9 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type, int timeouts)
 		 timeouts,
 		 fd,
 		 pid);
+	mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
+		"%s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d",
+		fence_timeout_type_to_string(type), timeouts, fd, pid);
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
