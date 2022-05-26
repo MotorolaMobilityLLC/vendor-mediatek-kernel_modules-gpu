@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
  *
- * (C) COPYRIGHT 2018-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2021 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -680,7 +680,6 @@
 	 (((value) << CS_FATAL_EXCEPTION_TYPE_SHIFT) & CS_FATAL_EXCEPTION_TYPE_MASK))
 /* CS_FATAL_EXCEPTION_TYPE values */
 #define CS_FATAL_EXCEPTION_TYPE_CS_CONFIG_FAULT 0x40
-#define CS_FATAL_EXCEPTION_TYPE_CS_UNRECOVERABLE 0x41
 #define CS_FATAL_EXCEPTION_TYPE_CS_ENDPOINT_FAULT 0x44
 #define CS_FATAL_EXCEPTION_TYPE_CS_BUS_FAULT 0x48
 #define CS_FATAL_EXCEPTION_TYPE_CS_INVALID_INSTRUCTION 0x49

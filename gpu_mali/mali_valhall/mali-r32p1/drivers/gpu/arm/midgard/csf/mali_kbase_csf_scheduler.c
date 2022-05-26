@@ -2299,8 +2299,7 @@ static int term_group_sync(struct kbase_queue_group *group)
 	term_csg_slot(group);
 
 	remaining = wait_event_timeout(kbdev->csf.event_wait,
-                group->cs_unrecoverable || csg_slot_stopped_locked(kbdev, group->csg_nr),
-		remaining);
+		csg_slot_stopped_locked(kbdev, group->csg_nr), remaining);
 
 	if (!remaining) {
 		dev_warn(kbdev->dev, "[%llu] term request timeout (%d ms) for group %d of context %d_%d on slot %d",
