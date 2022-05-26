@@ -1991,6 +1991,7 @@ static void kbase_pm_timed_out(struct kbase_device *kbdev)
 		"[%llu] Power transition timed out (%d ms) unexpectedly, MCU sw state = %d (%s)",
 		kbase_backend_get_cycle_cnt(kbdev),
 		PM_TIMEOUT_MS,
+		kbdev->pm.backend.mcu_state,
 		kbase_mcu_state_to_string(kbdev->pm.backend.mcu_state));
 #endif
 #endif
