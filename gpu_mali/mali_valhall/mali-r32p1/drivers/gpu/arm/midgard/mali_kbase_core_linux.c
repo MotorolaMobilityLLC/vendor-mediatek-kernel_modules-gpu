@@ -1673,22 +1673,6 @@ static int kbasep_ioctl_set_limited_core_count(struct kbase_context *kctx,
 	return 0;
 }
 
-static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
-			struct kbase_ioctl_internal_fence_wait *fence_wait)
-{
-	dev_info(kctx->kbdev->dev, "@%s: fence wait timeouts! pid=%u flags=0x%x time=%u(ms)",
-	         __func__, fence_wait->pid, fence_wait->flags,
-	         (unsigned int)fence_wait->time_in_microseconds);
-#if MALI_USE_CSF
-	if (fence_wait->flags & BASE_INTERNAL_FENCE_WAIT_DUMP_FLAG)
-		kbase_csf_internal_fence_wait_dump(kctx,
-		                                   (unsigned int)fence_wait->pid,
-		                                   (unsigned int)fence_wait->flags,
-		                                   (unsigned long)fence_wait->time_in_microseconds);
-#endif
-	return 0;
-}
-
 static long kbase_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	struct kbase_file *const kfile = filp->private_data;
@@ -2065,12 +2049,6 @@ static long kbase_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		KBASE_HANDLE_IOCTL_IN(KBASE_IOCTL_SET_LIMITED_CORE_COUNT,
 				kbasep_ioctl_set_limited_core_count,
 				struct kbase_ioctl_set_limited_core_count,
-				kctx);
-		break;
-	case KBASE_IOCTL_INTERNAL_FENCE_WAIT :
-		KBASE_HANDLE_IOCTL_IN(KBASE_IOCTL_INTERNAL_FENCE_WAIT ,
-				kbasep_ioctl_internal_fence_wait,
-				struct kbase_ioctl_internal_fence_wait,
 				kctx);
 		break;
 	}
