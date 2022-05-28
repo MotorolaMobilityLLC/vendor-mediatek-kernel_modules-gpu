@@ -201,8 +201,8 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 						js_devdata->scheduling_period_ns
 								/ 1000000u;
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-					mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1);
-					mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1);
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_NA);
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
 #if defined(CONFIG_MTK_GPUFREQ_V2)
 					if (!mtk_common_gpufreq_bringup()) {
 						gpufreq_hardstop_dump_slog();
@@ -261,8 +261,8 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 						js_devdata->scheduling_period_ns
 								/ 1000000u;
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-					mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1);
-					mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1);
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_NA);
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
 #if defined(CONFIG_MTK_GPUFREQ_V2)
 					if (!mtk_common_gpufreq_bringup()) {
 						gpufreq_hardstop_dump_slog();

@@ -273,8 +273,8 @@ static void wait_for_firmware_boot(struct kbase_device *kbdev)
 	if (!remaining) {
 		dev_err(kbdev->dev, "Timed out waiting for fw boot completion");
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_FWBOOT_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_FWBOOT_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_DEBUG */
 	}
 
@@ -305,8 +305,8 @@ static void wait_ready(struct kbase_device *kbdev)
 		ged_log_buf_print2(
 			 kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
 			 "AS_ACTIVE bit stuck when MCU load the MMU tables");
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_LOADMMUTABLE_FAIL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_LOADMMUTABLE_FAIL);
 	}
 #else
 	if (max_loops == 0)
