@@ -121,9 +121,18 @@ void mtk_logbuffer_print(struct mtk_logbuffer_info *logbuf, const char *fmt, ...
 	rem_nsec = do_div(ts_nsec, 1000000000);
 
 	/* Calculate the new entry length */
-	entry_len = scnprintf(logbuf->tmp_entry,
-	                      MTK_LOG_BUFFER_ENTRY_SIZE, "[%5lu.%06lu] %s",
-	                      (unsigned long)ts_nsec, rem_nsec / 1000, buffer);
+	if (mtk_logbuffer_is_empty(logbuf)) {
+		/*
+		 * Since each logbuffer must be null-terminated,
+		 * so add a newline at the beginning of this logbuffer
+		 */
+		entry_len = scnprintf(logbuf->tmp_entry,
+		                      MTK_LOG_BUFFER_ENTRY_SIZE, "\n[%5lu.%06lu] %s",
+		                      (unsigned long)ts_nsec, rem_nsec / 1000, buffer);
+	} else
+		entry_len = scnprintf(logbuf->tmp_entry,
+		                      MTK_LOG_BUFFER_ENTRY_SIZE, "[%5lu.%06lu] %s",
+		                      (unsigned long)ts_nsec, rem_nsec / 1000, buffer);
 
 	if (entry_len == 0 || entry_len >= logbuf->size)
 		goto fail_invalid_entry;
@@ -210,11 +219,13 @@ void mtk_logbuffer_dump(struct mtk_logbuffer_info *logbuf, struct seq_file *seq)
 		used_entry_num = (end - start + 1);
 
 	if (seq) {
-		seq_printf(seq, "---------- %s (%d/%d) ----------\n",
-		           logbuf->name, used_entry_num, logbuf->size);
-		if (logbuf->tail >= logbuf->head)
+		if (logbuf->tail >= logbuf->head) {
+			seq_printf(seq, "---------- %s (%d/%d) ----------",
+			           logbuf->name, used_entry_num, logbuf->size);
 			seq_printf(seq, "%s", logbuf->entries);
-		else {
+		} else {
+			seq_printf(seq, "---------- %s (%d/%d) ----------\n",
+			           logbuf->name, used_entry_num, logbuf->size);
 			seq_printf(seq, "%s", logbuf->entries + logbuf->head);
 			seq_printf(seq, "%s", logbuf->entries);
 		}
@@ -280,7 +291,7 @@ int mtk_logbuffer_init(struct kbase_device *kbdev)
 	if (IS_ERR_OR_NULL(kbdev))
 		return -1;
 
-	rmem_node = of_find_compatible_node(NULL, NULL, "mediatek,GPU-reserved");
+	rmem_node = of_find_compatible_node(NULL, NULL, "mediatek,me_gpu_reserved");
 	if (rmem_node) {
 		rmem = of_reserved_mem_lookup(rmem_node);
 		if (rmem) {
