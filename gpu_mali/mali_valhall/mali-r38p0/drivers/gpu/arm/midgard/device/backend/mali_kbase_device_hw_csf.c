@@ -28,10 +28,6 @@
 #include <mmu/mali_kbase_mmu.h>
 #include <mali_kbase_ctx_sched.h>
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-// MTK: replace all dev_dbg with dev_vdbg in this file
-#endif /* CONFIG_MALI_MTK_DEBUG */
-
 /**
  * kbase_report_gpu_fault - Report a GPU fault of the device.
  *

@@ -180,7 +180,7 @@ unsigned int kbase_get_timeout_ms(struct kbase_device *kbdev,
 
 	timeout = div_u64(nr_cycles, freq_khz);
 	if (timeout > timeout_cap) {
-		dev_dbg(kbdev->dev, "Capped %s %llu to %llu", selector_str,
+		dev_vdbg(kbdev->dev, "Capped %s %llu to %llu", selector_str,
 			(unsigned long long)timeout, (unsigned long long)timeout_cap);
 		timeout = timeout_cap;
 	}

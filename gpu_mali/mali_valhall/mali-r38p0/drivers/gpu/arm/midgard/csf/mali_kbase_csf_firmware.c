@@ -52,13 +52,8 @@
 #include <linux/delay.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-#include <platform/mtk_platform_common.h>
-// MTK: replace all dev_dbg with dev_vdbg in this file
+#include "platform/mtk_platform_common.h"
 #endif /* CONFIG_MALI_MTK_DEBUG */
-
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #define MALI_MAX_FIRMWARE_NAME_LEN ((size_t)20)
 
@@ -310,21 +305,12 @@ static void wait_ready(struct kbase_device *kbdev)
 		ged_log_buf_print2(
 			 kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
 			 "AS_ACTIVE bit stuck when MCU load the MMU tables");
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kbdev->logbuf_exception,
-			"AS_ACTIVE bit stuck, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n");
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1);
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1);
 	}
 #else
-	if (max_loops == 0) {
+	if (max_loops == 0)
 		dev_err(kbdev->dev, "AS_ACTIVE bit stuck, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n");
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kbdev->logbuf_exception,
-			"AS_ACTIVE bit stuck, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n");
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-	}
 #endif /* CONFIG_MALI_MTK_DEBUG */
 }
 
@@ -1454,12 +1440,6 @@ static int wait_for_global_request(struct kbase_device *const kbdev,
 			 "Timed out (%d ms) waiting for global request %x to complete",
 			 kbdev->csf.fw_timeout_ms, req_mask);
 #endif /* CONFIG_MALI_MTK_DEBUG */
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kbdev->logbuf_exception,
-			"[%llu] Timeout (%d ms) waiting for global request %x to complete\n",
-			kbase_backend_get_cycle_cnt(kbdev),
-			kbdev->csf.fw_timeout_ms, req_mask);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		err = -ETIMEDOUT;
 
 	}
@@ -1670,11 +1650,6 @@ static void kbase_csf_firmware_reload_worker(struct work_struct *work)
 
 	dev_info(kbdev->dev, "reloading firmware");
 
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_print(&kbdev->logbuf_regular,
-		"reloading firmware\n");
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-
 	KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_RELOADING(kbdev, kbase_backend_get_cycle_cnt(kbdev));
 
 	/* Reload just the data sections from firmware binary image */
@@ -1685,10 +1660,6 @@ static void kbase_csf_firmware_reload_worker(struct work_struct *work)
 			 kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
 			 "!! Reload of FW had failed, MCU won't be re-enabled !!");
 #endif /* CONFIG_MALI_MTK_DEBUG */
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kbdev->logbuf_exception,
-			"!! Reload of FW had failed, MCU won't be re-enabled !!\n");
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return;
 	}
 
@@ -1726,19 +1697,8 @@ void kbase_csf_firmware_reload_completed(struct kbase_device *kbdev)
 	 */
 	version = get_firmware_version(kbdev);
 
-	if (version != kbdev->csf.global_iface.version) {
+	if (version != kbdev->csf.global_iface.version)
 		dev_err(kbdev->dev, "Version check failed in firmware reboot.");
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kbdev->logbuf_exception,
-			"Version check failed in firmware reboot\n");
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-	} else {
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kbdev->logbuf_regular,
-			"[%llu] Firmware reboot completed\n",
-			kbase_backend_get_cycle_cnt(kbdev));
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-	}
 
 	KBASE_KTRACE_ADD(kbdev, FIRMWARE_REBOOT, NULL, 0u);
 
@@ -2109,11 +2069,6 @@ int kbase_csf_firmware_init(struct kbase_device *kbdev)
 	memcpy(&version_hash, &mcu_fw->data[8], sizeof(version_hash));
 
 	dev_notice(kbdev->dev, "Loading Mali firmware 0x%x", version_hash);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_print(&kbdev->logbuf_regular,
-		"Loading Mali firmware 0x%x (v%d.%d)\n",
-		version_hash, version_major, version_minor);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	memcpy(&entry_end_offset, &mcu_fw->data[0x10], sizeof(entry_end_offset));
 
@@ -2399,10 +2354,6 @@ void kbase_csf_enter_protected_mode(struct kbase_device *kbdev)
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 	set_global_request(global_iface, GLB_REQ_PROTM_ENTER_MASK);
 	dev_vdbg(kbdev->dev, "Sending request to enter protected mode");
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_print(&kbdev->logbuf_regular,
-		"Sending request to enter protected mode\n");
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
 }
 
@@ -2468,10 +2419,6 @@ void kbase_csf_firmware_trigger_mcu_halt(struct kbase_device *kbdev)
 	WARN_ON(kbase_csf_scheduler_get_nr_active_csgs_locked(kbdev));
 	set_global_request(global_iface, GLB_REQ_HALT_MASK);
 	dev_vdbg(kbdev->dev, "Sending request to HALT MCU");
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_print(&kbdev->logbuf_regular,
-		"Sending request to HALT MCU\n");
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 }

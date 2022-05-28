@@ -275,7 +275,7 @@ static void kbase_csf_dump_firmware_trace_buffer(struct kbase_device *kbdev)
 	tb = kbase_csf_firmware_get_trace_buffer(kbdev, FW_TRACE_BUF_NAME);
 
 	if (tb == NULL) {
-		dev_dbg(kbdev->dev, "Can't get the trace buffer, firmware trace dump skipped");
+		dev_vdbg(kbdev->dev, "Can't get the trace buffer, firmware trace dump skipped");
 		mutex_unlock(&kbdev->trace_buffer_mutex);
 		return;
 	}
@@ -368,7 +368,7 @@ static enum kbasep_soft_reset_status kbase_csf_reset_gpu_once(struct kbase_devic
 	spin_lock(&kbdev->mmu_mask_change);
 	kbase_pm_reset_start_locked(kbdev);
 
-	dev_dbg(kbdev->dev,
+	dev_vdbg(kbdev->dev,
 		"We're about to flush out the IRQs and their bottom halves\n");
 	kbdev->irq_reset_flush = true;
 
@@ -380,14 +380,14 @@ static enum kbasep_soft_reset_status kbase_csf_reset_gpu_once(struct kbase_devic
 	spin_unlock(&kbdev->mmu_mask_change);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
-	dev_dbg(kbdev->dev, "Ensure that any IRQ handlers have finished\n");
+	dev_vdbg(kbdev->dev, "Ensure that any IRQ handlers have finished\n");
 	/* Must be done without any locks IRQ handlers will take. */
 	kbase_synchronize_irqs(kbdev);
 
-	dev_dbg(kbdev->dev, "Flush out any in-flight work items\n");
+	dev_vdbg(kbdev->dev, "Flush out any in-flight work items\n");
 	kbase_flush_mmu_wqs(kbdev);
 
-	dev_dbg(kbdev->dev,
+	dev_vdbg(kbdev->dev,
 		"The flush has completed so reset the active indicator\n");
 	kbdev->irq_reset_flush = false;
 
@@ -489,7 +489,7 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 		kbase_csf_scheduler_reset(kbdev);
 	cancel_work_sync(&kbdev->csf.firmware_reload_work);
 
-	dev_dbg(kbdev->dev, "Disable GPU hardware counters.\n");
+	dev_vdbg(kbdev->dev, "Disable GPU hardware counters.\n");
 	/* This call will block until counters are disabled. */
 	kbase_hwcnt_context_disable(kbdev->hwcnt_gpu_ctx);
 

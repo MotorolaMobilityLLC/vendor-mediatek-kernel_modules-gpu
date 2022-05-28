@@ -78,11 +78,7 @@ static irqreturn_t kbase_job_irq_handler(int irq, void *data)
 		return IRQ_NONE;
 	}
 
-#if defined(CONFIG_MALI_MTK_DEBUG)
 	dev_vdbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
-#else
-	dev_dbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
-#endif /* CONFIG_MALI_MTK_DEBUG */
 
 #if MALI_USE_CSF
 	/* call the csf interrupt handler */
@@ -164,11 +160,7 @@ static irqreturn_t kbase_mmu_irq_handler(int irq, void *data)
 		return IRQ_NONE;
 	}
 
-#if defined(CONFIG_MALI_MTK_DEBUG)
 	dev_vdbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
-#else
-	dev_dbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
-#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	kbase_mmu_interrupt(kbdev, val);
 
@@ -195,11 +187,7 @@ static irqreturn_t kbase_gpu_irq_handler(int irq, void *data)
 
 #ifdef CONFIG_MALI_DEBUG
 	if (!kbdev->pm.backend.driver_ready_for_irqs)
-#if defined(CONFIG_MALI_MTK_DEBUG)
 		dev_vdbg(kbdev->dev, "%s: irq %d irqstatus 0x%x before driver is ready\n",
-#else
-		dev_dbg(kbdev->dev, "%s: irq %d irqstatus 0x%x before driver is ready\n",
-#endif /* CONFIG_MALI_MTK_DEBUG */
 				__func__, irq, val);
 #endif /* CONFIG_MALI_DEBUG */
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
@@ -207,11 +195,7 @@ static irqreturn_t kbase_gpu_irq_handler(int irq, void *data)
 	if (!val)
 		return IRQ_NONE;
 
-#if defined(CONFIG_MALI_MTK_DEBUG)
 	dev_vdbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
-#else
-	dev_dbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
-#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	kbase_gpu_interrupt(kbdev, val);
 
@@ -249,11 +233,7 @@ irqreturn_t kbase_gpu_irq_test_handler(int irq, void *data, u32 val)
 	if (!val)
 		return IRQ_NONE;
 
-#if defined(CONFIG_MALI_MTK_DEBUG)
 	dev_vdbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
-#else
-	dev_dbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
-#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	kbase_gpu_interrupt(kbdev, val);
 
@@ -342,11 +322,7 @@ static irqreturn_t kbase_job_irq_test_handler(int irq, void *data)
 	if (!val)
 		return IRQ_NONE;
 
-#if defined(CONFIG_MALI_MTK_DEBUG)
 	dev_vdbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
-#else
-	dev_dbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
-#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	kbasep_irq_test_data.triggered = 1;
 	wake_up(&kbasep_irq_test_data.wait);
@@ -377,11 +353,7 @@ static irqreturn_t kbase_mmu_irq_test_handler(int irq, void *data)
 	if (!val)
 		return IRQ_NONE;
 
-#if defined(CONFIG_MALI_MTK_DEBUG)
 	dev_vdbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
-#else
-	dev_dbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
-#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	kbasep_irq_test_data.triggered = 1;
 	wake_up(&kbasep_irq_test_data.wait);
@@ -461,11 +433,7 @@ static int kbasep_common_test_interrupt(
 						kbdev->irqs[tag].irq, tag);
 				err = -EINVAL;
 			} else {
-#if defined(CONFIG_MALI_MTK_DEBUG)
 				dev_vdbg(kbdev->dev, "Interrupt %d (index %d) reached CPU.\n",
-#else
-				dev_dbg(kbdev->dev, "Interrupt %d (index %d) reached CPU.\n",
-#endif /* CONFIG_MALI_MTK_DEBUG */
 						kbdev->irqs[tag].irq, tag);
 			}
 
@@ -517,11 +485,7 @@ int kbasep_common_test_interrupt_handlers(
 		goto out;
 	}
 
-#if defined(CONFIG_MALI_MTK_DEBUG)
 	dev_vdbg(kbdev->dev, "Interrupts are correctly assigned.\n");
-#else
-	dev_dbg(kbdev->dev, "Interrupts are correctly assigned.\n");
-#endif /* CONFIG_MALI_MTK_DEBUG */
 
  out:
 	kbase_pm_context_idle(kbdev);

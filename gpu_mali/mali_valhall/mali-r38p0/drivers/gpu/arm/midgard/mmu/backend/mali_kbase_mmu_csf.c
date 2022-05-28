@@ -98,7 +98,7 @@ static void submit_work_pagefault(struct kbase_device *kbdev, u32 as_nr,
 		if (!queue_work(as->pf_wq, &as->work_pagefault))
 			kbase_ctx_sched_release_ctx(kctx);
 		else {
-			dev_dbg(kbdev->dev,
+			dev_vdbg(kbdev->dev,
 				"Page fault is already pending for as %u\n",
 				as_nr);
 			atomic_inc(&kbdev->faults_pending);
