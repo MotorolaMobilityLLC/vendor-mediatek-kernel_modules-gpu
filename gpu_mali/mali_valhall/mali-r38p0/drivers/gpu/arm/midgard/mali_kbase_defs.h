@@ -1248,6 +1248,10 @@ struct kbase_device {
 	struct mtk_debug_logbuf logbuf_kbase;
 	struct mtk_debug_logbuf logbuf_exception;
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if MALI_USE_CSF
+	struct mutex trace_buffer_mutex;
+#endif
 };
 
 /**
