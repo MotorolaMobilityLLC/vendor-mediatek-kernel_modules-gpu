@@ -130,8 +130,8 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 	source_id = (fault->status >> 16);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1);
-	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_NA);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
 	/* terminal fault, print info about the fault */

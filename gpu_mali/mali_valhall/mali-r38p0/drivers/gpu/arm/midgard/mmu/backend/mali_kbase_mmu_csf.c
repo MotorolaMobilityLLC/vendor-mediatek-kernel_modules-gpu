@@ -288,8 +288,8 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 	source_id = AS_FAULTSTATUS_SOURCE_ID_GET(status);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1);
-	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
 	/* terminal fault, print info about the fault */

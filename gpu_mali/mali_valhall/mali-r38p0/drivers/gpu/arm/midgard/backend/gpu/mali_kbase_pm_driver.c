@@ -3034,8 +3034,8 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 				mt_irq_dump_status(irq);
 		}
 #endif /* CONFIG_MTK_IRQ_DBG */
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_PM_RESET_FAIL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_PM_RESET_FAIL);
 #endif /* CONFIG_MALI_MTK_DEBUG */
 		/* If interrupts aren't working we can't continue. */
 		destroy_hrtimer_on_stack(&rtdata.timer);

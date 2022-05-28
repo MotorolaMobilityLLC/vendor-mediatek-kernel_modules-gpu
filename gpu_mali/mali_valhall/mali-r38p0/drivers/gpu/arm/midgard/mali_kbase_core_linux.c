@@ -1734,9 +1734,9 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 	if (fence_wait->flags & BASE_INTERNAL_FENCE_WAIT_DUMP_FLAG) {
-		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, (int)fence_wait->pid);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, (int)fence_wait->pid);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, (int)fence_wait->pid);
+		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, (int)fence_wait->pid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, (int)fence_wait->pid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, (int)fence_wait->pid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
 //		mtk_common_debug(MTK_COMMON_DBG_TRIGGER_KERNEL_EXCEPTION, (int)fence_wait->pid);
 	}
 #endif
