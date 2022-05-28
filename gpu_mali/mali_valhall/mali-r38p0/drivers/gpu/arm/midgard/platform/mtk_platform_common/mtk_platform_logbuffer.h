@@ -9,7 +9,7 @@
 #define MTK_LOG_BUFFER_NAME_LEN 64
 #define MTK_LOG_BUFFER_ENTRY_SIZE 256
 
-struct mtk_debug_logbuf {
+struct mtk_logbuffer_info {
 	spinlock_t access_lock;
 	uint32_t tail;
 	uint32_t head;
@@ -21,14 +21,14 @@ struct mtk_debug_logbuf {
 	bool fallback;
 };
 
-int mtk_log_buffer_init(struct kbase_device *kbdev);
-int mtk_log_buffer_term(struct kbase_device *kbdev);
-int mtk_log_buffer_procfs_init(struct kbase_device *kbdev, struct proc_dir_entry *parent);
-int mtk_log_buffer_procfs_term(struct kbase_device *kbdev, struct proc_dir_entry *parent);
-bool mtk_log_buffer_is_empty(struct mtk_debug_logbuf *logbuf);
-bool mtk_log_buffer_is_full(struct mtk_debug_logbuf *logbuf);
-void mtk_log_buffer_clear(struct mtk_debug_logbuf *logbuf);
-void mtk_log_buffer_print(struct mtk_debug_logbuf *logbuf, const char *fmt, ...);
-void mtk_log_buffer_dump(struct mtk_debug_logbuf *logbuf, struct seq_file *seq);
+int mtk_logbuffer_init(struct kbase_device *kbdev);
+int mtk_logbuffer_term(struct kbase_device *kbdev);
+int mtk_logbuffer_procfs_init(struct kbase_device *kbdev, struct proc_dir_entry *parent);
+int mtk_logbuffer_procfs_term(struct kbase_device *kbdev, struct proc_dir_entry *parent);
+bool mtk_logbuffer_is_empty(struct mtk_logbuffer_info *logbuf);
+bool mtk_logbuffer_is_full(struct mtk_logbuffer_info *logbuf);
+void mtk_logbuffer_clear(struct mtk_logbuffer_info *logbuf);
+void mtk_logbuffer_print(struct mtk_logbuffer_info *logbuf, const char *fmt, ...);
+void mtk_logbuffer_dump(struct mtk_logbuffer_info *logbuf, struct seq_file *seq);
 
 #endif /* __MTK_PLATFORM_LOGBUF_H__ */

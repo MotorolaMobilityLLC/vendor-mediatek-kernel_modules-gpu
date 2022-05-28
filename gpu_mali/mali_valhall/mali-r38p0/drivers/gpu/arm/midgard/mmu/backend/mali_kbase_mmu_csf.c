@@ -33,6 +33,10 @@
 #include "platform/mtk_platform_common.h"
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 void kbase_mmu_get_as_setup(struct kbase_mmu_table *mmut,
 		struct kbase_mmu_setup * const setup)
 {
@@ -138,6 +142,19 @@ void kbase_mmu_report_mcu_as_fault_and_reset(struct kbase_device *kbdev,
 		access_type, kbase_gpu_access_type_name(fault->status),
 		source_id);
 #endif /* CONFIG_MALI_MTK_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_print(&kbdev->logbuf_exception,
+		"Unexpected Page fault in firmware address space at VA 0x%016llX\n"
+		"raw fault status: 0x%X\n"
+		"exception type 0x%X: %s\n"
+		"access type 0x%X: %s\n"
+		"source id 0x%X\n",
+		fault->addr,
+		fault->status,
+		exception_type, kbase_gpu_exception_name(exception_type),
+		access_type, kbase_gpu_access_type_name(fault->status),
+		source_id);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	/* Report MMU fault for all address spaces (except MCU_AS_NR) */
 	for (as_no = 1; as_no < kbdev->nr_hw_address_spaces; as_no++)
@@ -201,6 +218,23 @@ void kbase_gpu_report_bus_fault_and_kill(struct kbase_context *kctx,
 		source_id,
 		kctx->pid);
 #endif /* CONFIG_MALI_MTK_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_print(&kbdev->logbuf_exception,
+		"GPU bus fault in AS%d at VA 0x%016llX\n"
+		"VA_VALID: %s\n"
+		"raw fault status: 0x%X\n"
+		"exception type 0x%X: %s\n"
+		"access type 0x%X: %s\n"
+		"source id 0x%X\n"
+		"pid: %d\n",
+		as_no, fault->addr,
+		addr_valid,
+		status,
+		exception_type, kbase_gpu_exception_name(exception_type),
+		access_type, kbase_gpu_access_type_name(access_type),
+		source_id,
+		kctx->pid);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	/* AS transaction begin */
 	mutex_lock(&kbdev->mmu_hw_mutex);
@@ -292,6 +326,23 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 		source_id,
 		kctx->pid);
 #endif /* CONFIG_MALI_MTK_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_print(&kbdev->logbuf_exception,
+		"Unhandled Page fault in AS%d at VA 0x%016llX\n"
+		"Reason: %s\n"
+		"raw fault status: 0x%X\n"
+		"exception type 0x%X: %s\n"
+		"access type 0x%X: %s\n"
+		"source id 0x%X\n"
+		"pid: %d\n",
+		as_no, fault->addr,
+		reason_str,
+		status,
+		exception_type, kbase_gpu_exception_name(exception_type),
+		access_type, kbase_gpu_access_type_name(status),
+		source_id,
+		kctx->pid);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	/* AS transaction begin */
 	mutex_lock(&kbdev->mmu_hw_mutex);

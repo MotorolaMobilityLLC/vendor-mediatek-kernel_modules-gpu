@@ -21,6 +21,10 @@
 #include <mtk_gpufreq.h>
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 extern void (*mtk_gpu_fence_debug_dump_fp)(int fd, int pid, int type, int timeouts);
 
 static DEFINE_MUTEX(fence_debug_lock);
@@ -1283,6 +1287,16 @@ static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int tim
 		 fd,
 		 pid);
 #endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_print(&kbdev->logbuf_exception,
+		"@%s: %s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d\n",
+		__func__,
+		fence_timeout_type_to_string(type),
+		timeouts,
+		fd,
+		pid);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 #ifdef CONFIG_MALI_FENCE_DEBUG
