@@ -65,7 +65,6 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_DUMMY_CM := y
         CONFIG_MALI_MTK_FENCE_DEBUG := n
         CONFIG_MALI_MTK_MFGSYS_PM := y
-        CONFIG_MALI_MTK_BRINGUP := y
         CONFIG_MALI_SLEEP_MODE := n
     endif ## mt6985 ##
 
