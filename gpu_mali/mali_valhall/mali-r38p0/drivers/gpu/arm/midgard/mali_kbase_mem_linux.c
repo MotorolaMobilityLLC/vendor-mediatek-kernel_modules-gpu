@@ -48,6 +48,10 @@
 #include <mali_kbase_trace_gpu_mem.h>
 #include <mali_kbase_reset_gpu.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if 0
 #if IS_ENABLED(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && IS_ENABLED(CONFIG_MTK_GZ_KREE)
 #include <trusted_mem_api.h>
@@ -1161,10 +1165,16 @@ int kbase_mem_do_sync_imported(struct kbase_context *kctx,
 		break;
 	}
 
-	if (unlikely(ret))
+	if (unlikely(ret)) {
 		dev_warn(kctx->kbdev->dev,
 			 "Failed to sync mem region %pK at GPU VA %llx: %d\n",
 			 reg, reg->start_pfn, ret);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
+			"Failed to sync mem region %pK at GPU VA %llx: %d\n",
+			reg, reg->start_pfn, ret);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	}
 
 	return ret;
 }

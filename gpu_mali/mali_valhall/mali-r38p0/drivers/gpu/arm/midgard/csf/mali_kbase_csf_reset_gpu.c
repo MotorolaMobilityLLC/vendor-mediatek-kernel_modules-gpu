@@ -32,8 +32,12 @@
 #include <linux/string.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-#include "platform/mtk_platform_common.h"
+#include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 enum kbasep_soft_reset_status {
 	RESET_SUCCESS = 0,
@@ -383,9 +387,15 @@ static enum kbasep_soft_reset_status kbase_csf_reset_gpu_once(struct kbase_devic
 	kbdev->irq_reset_flush = false;
 
 	mutex_lock(&kbdev->pm.lock);
-	if (!silent)
+	if (!silent) {
 		dev_err(kbdev->dev, "Resetting GPU (allowing up to %d ms)",
 								RESET_TIMEOUT);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_exception,
+			"Resetting GPU (allowing up to %d ms)\n",
+			RESET_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	}
 
 	/* Output the state of some interesting registers to help in the
 	 * debugging of GPU resets, and dump the firmware trace buffer
@@ -509,6 +519,10 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 		ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME, "Reset complete");
 #endif /* CONFIG_MALI_MTK_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_exception,
+			"Reset complete\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 
 	return 0;
@@ -607,6 +621,11 @@ void kbase_reset_gpu(struct kbase_device *kbdev)
 
 	atomic_set(&kbdev->csf.reset.state, KBASE_CSF_RESET_GPU_COMMITTED);
 	dev_err(kbdev->dev, "Preparing to soft-reset GPU\n");
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_print(&kbdev->logbuf_exception,
+		"Preparing to soft-reset GPU\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	kbase_disjoint_state_up(kbdev);
 

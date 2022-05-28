@@ -42,8 +42,8 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev);
 void mtk_common_csf_debugfs_init(struct kbase_device *kbdev);
 #endif /* CONFIG_MALI_MTK_DEBUG_FS */
 
-int mtk_platform_device_init(struct kbase_device *kbdev);
-void mtk_platform_device_term(struct kbase_device *kbdev);
+int mtk_platform_pm_init(struct kbase_device *kbdev);
+void mtk_platform_pm_term(struct kbase_device *kbdev);
 
 #endif /* __MTK_PLATFORM_COMMON_H__ */
 

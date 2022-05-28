@@ -28,8 +28,12 @@
 #include <tl/mali_kbase_tracepoints.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-#include "platform/mtk_platform_common.h"
+#include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 /**
  * lock_region() - Generate lockaddr to lock memory region in MMU
@@ -147,6 +151,11 @@ static int wait_ready(struct kbase_device *kbdev,
 		dev_info(kbdev->dev,
 			"AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty FPGA connector",
 			as_nr);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_exception,
+			"AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n",
+			as_nr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1);
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1);
 		return -1;
@@ -156,6 +165,11 @@ static int wait_ready(struct kbase_device *kbdev,
 		dev_err(kbdev->dev,
 			"AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty FPGA connector",
 			as_nr);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_exception,
+			"AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n",
+			as_nr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return -1;
 	}
 #endif /* CONFIG_MALI_MTK_DEBUG */
@@ -175,6 +189,11 @@ static int write_cmd(struct kbase_device *kbdev, int as_nr, u32 cmd)
 		dev_err(kbdev->dev,
 			"Wait for AS_ACTIVE bit failed for as %u, before sending MMU command %u",
 			as_nr, cmd);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_exception,
+			"Wait for AS_ACTIVE bit failed for as %u, before sending MMU command %u\n",
+			as_nr, cmd);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 
 	return status;

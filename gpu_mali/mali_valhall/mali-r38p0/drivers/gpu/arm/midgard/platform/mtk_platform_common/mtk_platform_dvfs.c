@@ -13,7 +13,7 @@
 #include <csf/ipa_control/mali_kbase_csf_ipa_control_ex.h>
 #include <mtk_gpufreq.h>
 #include <mtk_gpu_utility.h>
-#include "mtk_platform_dvfs.h"
+#include <platform/mtk_platform_common/mtk_platform_dvfs.h>
 
 #if IS_ENABLED(CONFIG_PROC_FS)
 /* name of the proc entry */

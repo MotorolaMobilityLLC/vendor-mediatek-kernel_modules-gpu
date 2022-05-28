@@ -8,7 +8,7 @@
 #include <backend/gpu/mali_kbase_pm_internal.h>
 #include <backend/gpu/mali_kbase_pm_defs.h>
 #include "governor.h"
-#include "mtk_platform_devfreq_governor.h"
+#include <platform/mtk_platform_common/mtk_platform_devfreq_governor.h>
 #include <mtk_gpufreq.h>
 
 static int mtk_devfreq_governor_get_target_freq(struct devfreq *df,
