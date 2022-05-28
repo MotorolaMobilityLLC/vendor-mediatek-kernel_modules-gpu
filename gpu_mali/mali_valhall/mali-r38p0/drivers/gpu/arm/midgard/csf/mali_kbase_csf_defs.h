@@ -474,6 +474,8 @@ struct kbase_protected_suspend_buffer {
  * @faulted:          Indicates that a GPU fault occurred for the queue group.
  *                    This flag persists until the fault has been queued to be
  *                    reported to userspace.
+ * @cs_unrecoverable: Flag to unblock the thread waiting for CSG termination in
+ *                    case of CS_FATAL_EXCEPTION_TYPE_CS_UNRECOVERABLE
  * @bound_queues:   Array of registered queues bound to this queue group.
  * @doorbell_nr:    Index of the hardware doorbell page assigned to the
  *                  group.
@@ -515,6 +517,7 @@ struct kbase_queue_group {
 	u32 prepared_seq_num;
 	u32 scan_seq_num;
 	bool faulted;
+	bool cs_unrecoverable;
 
 	struct kbase_queue *bound_queues[MAX_SUPPORTED_STREAMS_PER_GROUP];
 
