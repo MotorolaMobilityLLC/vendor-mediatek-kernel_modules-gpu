@@ -26,7 +26,7 @@
 #include <csf/mali_kbase_csf_trace_buffer.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS)
-#include "platform/mtk_platform_common.h"
+#include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG_FS */
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)

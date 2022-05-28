@@ -44,7 +44,7 @@
 #include <mali_kbase_kinstr_prfcnt.h>
 #include <mali_kbase_vinstr.h>
 
-#include "../../platform/mtk_platform_common.h"
+#include <platform/mtk_platform_common.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
@@ -277,8 +277,6 @@ static const struct kbase_device_init dev_init[] = {
 	// *** MTK ***
 	{mtk_common_device_init, mtk_common_device_term,
 			"MTK common initialization failed"},
-	{mtk_platform_device_init, mtk_platform_device_term,
-			"MTK platform initialization failed"},
 #if IS_ENABLED(CONFIG_MALI_NO_MALI)
 	{ kbase_gpu_device_create, kbase_gpu_device_destroy,
 	  "Dummy model initialization failed" },
@@ -522,7 +520,7 @@ int kbase_device_firmware_init_once(struct kbase_device *kbdev)
 		kbase_csf_debugfs_init(kbdev);
 
 #ifdef CONFIG_MALI_MTK_DEBUG
-		dev_info(kbdev->dev, "CSF firmware was initialized successfully\n");
+		dev_info(kbdev->dev, "CSF firmware was successfully initialized by process '%s'", current->comm);
 #endif
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_regular,

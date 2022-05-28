@@ -5,7 +5,7 @@
 
 #include <mali_kbase.h>
 #include <platform/mtk_platform_common.h>
-#include "mtk_platform_devfreq_thermal.h"
+#include <platform/mtk_platform_common/mtk_platform_devfreq_thermal.h>
 #include <mtk_gpufreq.h>
 #include <linux/version.h>
 

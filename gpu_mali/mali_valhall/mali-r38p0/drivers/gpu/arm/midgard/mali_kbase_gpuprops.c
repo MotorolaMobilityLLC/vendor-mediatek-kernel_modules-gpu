@@ -35,7 +35,7 @@
 #include <linux/moduleparam.h>
 
 #include <mtk_gpufreq.h>
-#include "platform/mtk_platform_common.h"
+#include <platform/mtk_platform_common.h>
 
 static void kbase_gpuprops_construct_coherent_groups(
 	struct base_gpu_props * const props)

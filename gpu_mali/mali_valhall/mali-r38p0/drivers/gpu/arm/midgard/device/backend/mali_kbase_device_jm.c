@@ -47,7 +47,7 @@
 #include <mali_kbase_dummy_job_wa.h>
 #include <backend/gpu/mali_kbase_clk_rate_trace_mgr.h>
 
-#include "../../platform/mtk_platform_common.h"
+#include <platform/mtk_platform_common.h>
 
 /**
  * kbase_backend_late_init - Perform any backend-specific initialization.
@@ -218,8 +218,6 @@ static const struct kbase_device_init dev_init[] = {
 	// *** MTK ***
 	{mtk_common_device_init, mtk_common_device_term,
 			"MTK common initialization failed"},
-	{mtk_platform_device_init, mtk_platform_device_term,
-			"MTK platform initialization failed"},
 #if IS_ENABLED(CONFIG_MALI_NO_MALI)
 	{ kbase_gpu_device_create, kbase_gpu_device_destroy, "Dummy model initialization failed" },
 #else

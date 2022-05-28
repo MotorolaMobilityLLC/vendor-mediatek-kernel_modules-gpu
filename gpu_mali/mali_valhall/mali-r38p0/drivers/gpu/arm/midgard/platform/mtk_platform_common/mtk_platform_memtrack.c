@@ -10,7 +10,7 @@
 #include <mali_kbase.h>
 #include <mali_kbase_defs.h>
 #include <platform/mtk_platform_common.h>
-#include "mtk_platform_memtrack.h"
+#include <platform/mtk_platform_common/mtk_platform_memtrack.h>
 
 extern unsigned int (*mtk_get_gpu_memory_usage_fp)(void);
 

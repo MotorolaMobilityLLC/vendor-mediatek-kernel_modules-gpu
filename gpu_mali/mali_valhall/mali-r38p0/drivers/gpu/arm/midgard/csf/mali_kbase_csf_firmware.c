@@ -52,8 +52,7 @@
 #include <linux/delay.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-#include "platform/mtk_platform_common.h"
-
+#include <platform/mtk_platform_common.h>
 // MTK: replace all dev_dbg with dev_vdbg in this file
 #endif /* CONFIG_MALI_MTK_DEBUG */
 

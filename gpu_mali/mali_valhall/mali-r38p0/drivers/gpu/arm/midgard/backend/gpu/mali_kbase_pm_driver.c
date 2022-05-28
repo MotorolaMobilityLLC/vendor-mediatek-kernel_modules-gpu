@@ -63,7 +63,7 @@
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <mtk_gpufreq.h>
-#include "platform/mtk_platform_common.h"
+#include <platform/mtk_platform_common.h>
 #include <ged_dcs.h>
 #include <ged_log.h>
 #if IS_ENABLED(CONFIG_MTK_IRQ_DBG)
