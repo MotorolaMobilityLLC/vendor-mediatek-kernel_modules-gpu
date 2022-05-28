@@ -983,7 +983,7 @@ static void unbind_queue(struct kbase_context *kctx, struct kbase_queue *queue)
 	}
 }
 
-void kbase_csf_queue_unbind(struct kbase_queue *queue)
+void kbase_csf_queue_unbind(struct kbase_queue *queue, bool process_exit)
 {
 	struct kbase_context *kctx = queue->kctx;
 
@@ -997,7 +997,7 @@ void kbase_csf_queue_unbind(struct kbase_queue *queue)
 	 * whereas CSG TERM request would result in an immediate abort or
 	 * cancellation of the pending work.
 	 */
-	if (current->flags & PF_EXITING) {
+	if (process_exit) {
 		struct kbase_queue_group *group = get_bound_queue_group(queue);
 
 		if (group)
