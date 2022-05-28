@@ -750,9 +750,6 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 		u64 cmd_ptr;
 		u32 req_res;
 
-		if (!stream)
-			return;
-
 		cmd_ptr = kbase_csf_firmware_cs_output(stream, CS_STATUS_CMD_PTR_LO);
 		cmd_ptr |= (u64)kbase_csf_firmware_cs_output(stream, CS_STATUS_CMD_PTR_HI) << 32;
 		req_res = kbase_csf_firmware_cs_output(stream, CS_STATUS_REQ_RESOURCE);
