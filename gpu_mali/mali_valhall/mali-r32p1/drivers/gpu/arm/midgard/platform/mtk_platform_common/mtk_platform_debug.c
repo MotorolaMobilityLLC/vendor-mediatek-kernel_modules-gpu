@@ -780,10 +780,8 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type, int timeouts)
 				while (idx < KBASEP_MAX_KCPU_QUEUES) {
 					struct kbase_kcpu_command_queue *queue = kctx->csf.kcpu_queues.array[idx];
 
-					if (!queue) {
-						idx = find_next_bit(kctx->csf.kcpu_queues.in_use, KBASEP_MAX_KCPU_QUEUES, idx + 1);
-						continue;
-					}
+					if (!queue)
+						return;
 
 					dev_info(kbdev->dev,
 					         "[%d_%d] %9lu( %s ), %16u, %11u, %7u, %13llu  %8u",
@@ -799,21 +797,6 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type, int timeouts)
 
 					if (queue->command_started) {
 						struct kbase_kcpu_command *cmd = &queue->commands[queue->start_offset];
-
-						if (cmd->type < 0 || cmd->type >= BASE_KCPU_COMMAND_TYPE_COUNT) {
-							dev_info(kbdev->dev,
-							         "[%d_%d] Queue Idx, Wait Type, Additional info",
-							         kctx->tgid,
-							         kctx->id);
-							dev_info(kbdev->dev,
-							         "[%d_%d] %9lu,         %d, (unknown blocking command)",
-							         kctx->tgid,
-							         kctx->id,
-							         idx,
-							         cmd->type);
-							continue;
-						}
-
 						switch (cmd->type) {
 #if IS_ENABLED(CONFIG_SYNC_FILE)
 						case BASE_KCPU_COMMAND_TYPE_FENCE_WAIT:
@@ -849,7 +832,7 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type, int timeouts)
 								u32 *const cpu_ptr = (u32 *)kbase_phy_alloc_mapping_get(kctx, waits->objs[i].addr, &mapping);
 
 								if (!cpu_ptr)
-									break;
+									return;
 
 								val = *cpu_ptr;
 								kbase_phy_alloc_mapping_put(kctx, mapping);
