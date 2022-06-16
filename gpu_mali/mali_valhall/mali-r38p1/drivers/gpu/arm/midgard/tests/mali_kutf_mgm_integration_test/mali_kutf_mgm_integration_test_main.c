@@ -91,7 +91,7 @@ static void mali_kutf_mgm_pte_translation_test(struct kutf_context *context)
 				original_pte =
 					(pa & PAGE_MASK) | ENTRY_ACCESS_BIT | ENTRY_IS_ATE_L02;
 
-			dev_dbg(kbdev->dev, "Testing group_id=%u, mmu_level=%u, pte=0x%llx\n",
+			dev_vdbg(kbdev->dev, "Testing group_id=%u, mmu_level=%u, pte=0x%llx\n",
 				data->group_id, mmu_level, original_pte);
 
 			translated_pte = mgm_dev->ops.mgm_update_gpu_pte(mgm_dev, data->group_id,
@@ -107,7 +107,7 @@ static void mali_kutf_mgm_pte_translation_test(struct kutf_context *context)
 
 			returned_pte = mgm_dev->ops.mgm_pte_to_original_pte(
 				mgm_dev, data->group_id, mmu_level, translated_pte);
-			dev_dbg(kbdev->dev, "\treturned_pte=%llx\n", returned_pte);
+			dev_vdbg(kbdev->dev, "\treturned_pte=%llx\n", returned_pte);
 
 			if (returned_pte != original_pte) {
 				snprintf(

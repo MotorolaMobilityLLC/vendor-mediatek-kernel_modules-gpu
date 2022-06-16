@@ -107,7 +107,7 @@ static int link_chunk(struct kbase_csf_tiler_heap *const heap,
 		*prev_hdr = encode_chunk_ptr(heap->chunk_size, chunk->gpu_va);
 		kbase_vunmap(kctx, &map);
 
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Linked tiler heap chunks, 0x%llX -> 0x%llX\n",
 			prev->gpu_va, chunk->gpu_va);
 	}
@@ -227,7 +227,7 @@ static int create_chunk(struct kbase_csf_tiler_heap *const heap,
 		list_add_tail(&chunk->link, &heap->chunks_list);
 		heap->chunk_count++;
 
-		dev_dbg(kctx->kbdev->dev, "Created tiler heap chunk 0x%llX\n",
+		dev_vdbg(kctx->kbdev->dev, "Created tiler heap chunk 0x%llX\n",
 			chunk->gpu_va);
 	}
 
@@ -321,7 +321,7 @@ static void delete_heap(struct kbase_csf_tiler_heap *heap)
 {
 	struct kbase_context *const kctx = heap->kctx;
 
-	dev_dbg(kctx->kbdev->dev, "Deleting tiler heap 0x%llX\n", heap->gpu_va);
+	dev_vdbg(kctx->kbdev->dev, "Deleting tiler heap 0x%llX\n", heap->gpu_va);
 
 	lockdep_assert_held(&kctx->csf.tiler_heaps.lock);
 
@@ -369,7 +369,7 @@ static struct kbase_csf_tiler_heap *find_tiler_heap(
 			return heap;
 	}
 
-	dev_dbg(kctx->kbdev->dev, "Tiler heap 0x%llX was not found\n",
+	dev_vdbg(kctx->kbdev->dev, "Tiler heap 0x%llX was not found\n",
 		heap_gpu_va);
 
 	return NULL;
@@ -386,7 +386,7 @@ int kbase_csf_tiler_heap_context_init(struct kbase_context *const kctx)
 	INIT_LIST_HEAD(&kctx->csf.tiler_heaps.list);
 	mutex_init(&kctx->csf.tiler_heaps.lock);
 
-	dev_dbg(kctx->kbdev->dev, "Initialized a context for tiler heaps\n");
+	dev_vdbg(kctx->kbdev->dev, "Initialized a context for tiler heaps\n");
 
 	return 0;
 }
@@ -395,7 +395,7 @@ void kbase_csf_tiler_heap_context_term(struct kbase_context *const kctx)
 {
 	struct list_head *entry = NULL, *tmp = NULL;
 
-	dev_dbg(kctx->kbdev->dev, "Terminating a context for tiler heaps\n");
+	dev_vdbg(kctx->kbdev->dev, "Terminating a context for tiler heaps\n");
 
 	mutex_lock(&kctx->csf.tiler_heaps.lock);
 
@@ -421,7 +421,7 @@ int kbase_csf_tiler_heap_init(struct kbase_context *const kctx,
 	struct kbase_csf_heap_context_allocator *const ctx_alloc =
 		&kctx->csf.tiler_heaps.ctx_alloc;
 
-	dev_dbg(kctx->kbdev->dev,
+	dev_vdbg(kctx->kbdev->dev,
 		"Creating a tiler heap with %u chunks (limit: %u) of size %u\n",
 		initial_chunks, max_chunks, chunk_size);
 
@@ -459,7 +459,7 @@ int kbase_csf_tiler_heap_init(struct kbase_context *const kctx,
 	heap->gpu_va = kbase_csf_heap_context_allocator_alloc(ctx_alloc);
 
 	if (unlikely(!heap->gpu_va)) {
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Failed to allocate a tiler heap context");
 		err = -ENOMEM;
 	} else {
@@ -495,7 +495,7 @@ int kbase_csf_tiler_heap_init(struct kbase_context *const kctx,
 		}
 #endif
 
-		dev_dbg(kctx->kbdev->dev, "Created tiler heap 0x%llX\n", heap->gpu_va);
+		dev_vdbg(kctx->kbdev->dev, "Created tiler heap 0x%llX\n", heap->gpu_va);
 		mutex_unlock(&kctx->csf.tiler_heaps.lock);
 		kctx->running_total_tiler_heap_nr_chunks += heap->chunk_count;
 		kctx->running_total_tiler_heap_memory +=

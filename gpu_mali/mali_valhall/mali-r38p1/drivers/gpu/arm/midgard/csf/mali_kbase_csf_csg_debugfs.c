@@ -633,7 +633,7 @@ static ssize_t kbase_csf_debugfs_scheduler_state_set(struct file *file,
 	else if (sysfs_streq(buf, "INACTIVE"))
 		kbase_csf_scheduler_force_wakeup(kbdev);
 	else {
-		dev_dbg(kbdev->dev, "Bad scheduler state %s", buf);
+		dev_vdbg(kbdev->dev, "Bad scheduler state %s", buf);
 		ret = -EINVAL;
 	}
 

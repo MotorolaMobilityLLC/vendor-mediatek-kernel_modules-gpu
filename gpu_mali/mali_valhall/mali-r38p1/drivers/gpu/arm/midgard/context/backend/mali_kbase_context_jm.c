@@ -254,7 +254,7 @@ void kbase_destroy_context(struct kbase_context *kctx)
 #endif /* CONFIG_MALI_ARBITER_SUPPORT */
 	while (kbase_pm_context_active_handle_suspend(
 		kbdev, KBASE_PM_SUSPEND_HANDLER_DONT_INCREASE)) {
-		dev_dbg(kbdev->dev,
+		dev_vdbg(kbdev->dev,
 			 "Suspend in progress when destroying context");
 		wait_event(kbdev->pm.resume_wait,
 			   !kbase_pm_is_suspending(kbdev));
