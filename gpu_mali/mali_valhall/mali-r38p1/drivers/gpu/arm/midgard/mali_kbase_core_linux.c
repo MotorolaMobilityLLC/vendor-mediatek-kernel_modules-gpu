@@ -130,6 +130,10 @@
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if defined(CONFIG_MALI_MTK_GPU_BM_CSF)
+#include <ged_gpu_bm.h>
+#endif /* CONFIG_MALI_MTK_GPU_BM_CSF */
+
 /* GPU IRQ Tags */
 #define	JOB_IRQ_TAG	0
 #define MMU_IRQ_TAG	1
@@ -5605,6 +5609,12 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		dev_set_drvdata(kbdev->dev, NULL);
 		kbase_device_free(kbdev);
 	} else {
+#if defined(CONFIG_MALI_MTK_GPU_BM_CSF)
+		err = mtk_bandwidth_resource_init();
+		if (err)
+			pr_info("@%s: GPU BM init failed (CSF)\n", __func__);
+#endif /* CONFIG_MALI_MTK_GPU_BM_CSF */
+
 		dev_info(kbdev->dev,
 			"Probed as %s\n", dev_name(kbdev->mdev.this_device));
 		kbase_increment_device_id();
