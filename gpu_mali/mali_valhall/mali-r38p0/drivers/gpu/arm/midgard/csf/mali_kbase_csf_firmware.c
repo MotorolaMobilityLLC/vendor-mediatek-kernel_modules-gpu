@@ -1340,6 +1340,9 @@ static u32 csf_doorbell_offset(int doorbell_nr)
 void kbase_csf_ring_doorbell(struct kbase_device *kbdev, int doorbell_nr)
 {
 	kbase_reg_write(kbdev, csf_doorbell_offset(doorbell_nr), (u32)1);
+#if IS_ENABLED(CONFIG_MALI_MTK_CSFFWLOG)
+	mtk_kbase_csf_firmware_check_drain_fwlog(kbdev);
+#endif /* CONFIG_MALI_MTK_CSFFWLOG */
 }
 EXPORT_SYMBOL(kbase_csf_ring_doorbell);
 
