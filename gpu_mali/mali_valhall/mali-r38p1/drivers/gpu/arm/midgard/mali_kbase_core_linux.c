@@ -1708,6 +1708,8 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 	}
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, (int)fence_wait->pid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
+
 	return 0;
 }
 #endif /* CONFIG_MALI_MTK_DEBUG */
@@ -2425,6 +2427,58 @@ static ssize_t power_policy_store(struct device *dev, struct device_attribute *a
  */
 static DEVICE_ATTR_RW(power_policy);
 
+#if MALI_USE_CSF && defined(CONFIG_MALI_MTK_DUMMY_CM)
+static ssize_t show_dummy_debug(struct device *dev, struct device_attribute *attr, char * const buf)
+{
+	struct kbase_device *kbdev;
+	unsigned long flags;
+	ssize_t ret = 0;
+
+	kbdev = to_kbase_device(dev);
+
+	if (!kbdev)
+		return -ENODEV;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+			 "Support debug core mask : %d\n",
+			 kbdev->pm.debug_core_mask_en);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+			 "Current dummy core mask : 0x%llX\n",
+			 kbdev->pm.dummy_core_mask);
+
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	return ret;
+}
+
+static ssize_t set_dummy_debug(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct kbase_device *kbdev;
+	unsigned long flags;
+	bool enable;
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	if (kstrtobool(buf, &enable)) {
+		return -EINVAL;
+	}
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+
+	kbdev->pm.debug_core_mask_en = enable;
+
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	return count;
+}
+
+static DEVICE_ATTR(dummy_debug, S_IRUGO | S_IWUSR, show_dummy_debug, set_dummy_debug);
+#endif /* MALI_USE_CSF && CONFIG_MALI_MTK_DUMMY_CM */
+
 /*
  * core_mask_show - Show callback for the core_mask sysfs file.
  *
@@ -2450,6 +2504,9 @@ static ssize_t core_mask_show(struct device *dev, struct device_attribute *attr,
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 #if MALI_USE_CSF
+#if defined(CONFIG_MALI_MTK_DUMMY_CM)
+	if (kbdev->pm.debug_core_mask_en) {
+#endif /* CONFIG_MALI_MTK_DUMMY_CM */
 	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
 			 "Current debug core mask : 0x%llX\n",
 			 kbdev->pm.debug_core_mask);
@@ -2459,6 +2516,19 @@ static ssize_t core_mask_show(struct device *dev, struct device_attribute *attr,
 	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
 			 "Current in use core mask : 0x%llX\n",
 			 kbdev->pm.backend.shaders_avail);
+#if defined(CONFIG_MALI_MTK_DUMMY_CM)
+	} else {
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+				 "Current debug core mask : 0x%llX\n",
+				 kbdev->pm.dummy_core_mask);
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+				 "Current desired core mask : 0x%llX\n",
+				 kbdev->pm.dummy_core_mask);
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret,
+				 "Current in use core mask : 0x%llX\n",
+				 kbdev->pm.dummy_core_mask);
+	}
+#endif /* CONFIG_MALI_MTK_DUMMY_CM */
 #else
 	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
 			"Current core mask (JS0) : 0x%llX\n",
@@ -2572,8 +2642,15 @@ static ssize_t core_mask_store(struct device *dev, struct device_attribute *attr
 		goto unlock;
 	}
 
+#if defined(CONFIG_MALI_MTK_DUMMY_CM)
+	if (!kbdev->pm.debug_core_mask_en)
+		kbdev->pm.dummy_core_mask = new_core_mask;
+	else if (kbdev->pm.debug_core_mask != new_core_mask)
+		kbase_pm_set_debug_core_mask(kbdev, new_core_mask);
+#else
 	if (kbdev->pm.debug_core_mask != new_core_mask)
 		kbase_pm_set_debug_core_mask(kbdev, new_core_mask);
+#endif /* CONFIG_MALI_MTK_DUMMY_CM */
 #else
 	group0_core_mask = kbdev->gpu_props.props.coherency_info.group[0].core_mask;
 
@@ -4973,6 +5050,12 @@ void kbase_device_debugfs_term(struct kbase_device *kbdev)
 }
 #endif /* CONFIG_DEBUG_FS */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+static u32 config_system_coherency = 0;
+module_param(config_system_coherency, uint, 0444);
+MODULE_PARM_DESC(config_system_coherency, "System Coherency");
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 int kbase_device_coherency_init(struct kbase_device *kbdev)
 {
 #if IS_ENABLED(CONFIG_OF)
@@ -5022,6 +5105,12 @@ int kbase_device_coherency_init(struct kbase_device *kbdev)
 			override_coherency = COHERENCY_ACE_LITE;
 		}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		if (override_coherency == COHERENCY_ACE_LITE &&
+			config_system_coherency != COHERENCY_ACE_LITE)
+			override_coherency = COHERENCY_NONE;
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 #if MALI_USE_CSF && !IS_ENABLED(CONFIG_MALI_NO_MALI)
 		/* ACE coherency mode is not supported by Driver on CSF GPUs.
 		 * Return an error to signal the invalid device tree configuration.
@@ -5052,6 +5141,10 @@ int kbase_device_coherency_init(struct kbase_device *kbdev)
 
 	kbdev->gpu_props.props.raw_props.coherency_mode =
 		kbdev->system_coherency;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	config_system_coherency = kbdev->system_coherency;
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	return 0;
 }
@@ -5360,6 +5453,9 @@ static struct attribute *kbase_attrs[] = {
 	&dev_attr_mcu_shader_pwroff_timeout.attr,
 #endif /* !MALI_USE_CSF */
 	&dev_attr_power_policy.attr,
+#if MALI_USE_CSF && defined(CONFIG_MALI_MTK_DUMMY_CM)
+	&dev_attr_dummy_debug.attr,
+#endif /* MALI_USE_CSF && CONFIG_MALI_MTK_DUMMY_CM */
 	&dev_attr_core_mask.attr,
 	&dev_attr_mem_pool_size.attr,
 	&dev_attr_mem_pool_max_size.attr,
