@@ -282,6 +282,7 @@ struct kbase_kcpu_command_queue {
 	struct workqueue_struct *wq;
 	struct work_struct work;
 #ifdef CONFIG_MALI_FENCE_DEBUG
+	struct workqueue_struct *timeout_wq;
 	struct work_struct timeout_work;
 #endif
 	u8 start_offset;
