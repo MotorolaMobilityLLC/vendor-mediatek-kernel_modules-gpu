@@ -30,6 +30,10 @@
 #include <mali_kbase_as_fault_debugfs.h>
 #include <mmu/mali_kbase_mmu_internal.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 void kbase_mmu_get_as_setup(struct kbase_mmu_table *mmut,
 		struct kbase_mmu_setup * const setup)
 {
@@ -124,6 +128,11 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 	exception_type = fault->status & 0xFF;
 	access_type = (fault->status >> 8) & 0x3;
 	source_id = (fault->status >> 16);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_NA);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	/* terminal fault, print info about the fault */
 	dev_err(kbdev->dev,

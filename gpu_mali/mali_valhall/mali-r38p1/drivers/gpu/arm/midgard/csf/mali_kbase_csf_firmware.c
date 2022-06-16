@@ -52,6 +52,14 @@
 #include <asm/arch_timer.h>
 #include <linux/delay.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include "platform/mtk_platform_common.h"
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #define MALI_MAX_FIRMWARE_NAME_LEN ((size_t)20)
 
 static char fw_name[MALI_MAX_FIRMWARE_NAME_LEN] = "mali_csffw.bin";
@@ -273,8 +281,13 @@ static void wait_for_firmware_boot(struct kbase_device *kbdev)
 	remaining = wait_event_timeout(kbdev->csf.event_wait,
 			kbdev->csf.interrupt_received == true, wait_timeout);
 
-	if (!remaining)
+	if (!remaining) {
 		dev_err(kbdev->dev, "Timed out waiting for fw boot completion");
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_FWBOOT_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_FWBOOT_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+	}
 
 	kbdev->csf.interrupt_received = false;
 }
@@ -297,8 +310,20 @@ static void wait_ready(struct kbase_device *kbdev)
 	while (--max_loops && (val & AS_STATUS_AS_ACTIVE))
 		val = kbase_reg_read(kbdev, MMU_AS_REG(MCU_AS_NR, AS_STATUS));
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	if (max_loops == 0) {
+		dev_info(kbdev->dev, "AS_ACTIVE bit stuck when MCU load the MMU tables\n");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_exception,
+			"AS_ACTIVE bit stuck when MCU load the MMU tables\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_LOADMMUTABLE_FAIL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_LOADMMUTABLE_FAIL);
+	}
+#else
 	if (max_loops == 0)
 		dev_err(kbdev->dev, "AS_ACTIVE bit stuck, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n");
+#endif /* CONFIG_MALI_MTK_DEBUG */
 }
 
 static void unload_mmu_tables(struct kbase_device *kbdev)
@@ -1479,6 +1504,13 @@ static int wait_for_global_request(struct kbase_device *const kbdev,
 			 kbase_backend_get_cycle_cnt(kbdev),
 			 kbdev->csf.fw_timeout_ms,
 			 req_mask);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_exception,
+			"[%llu] Timeout (%d ms) waiting for global request %x to complete\n",
+			kbase_backend_get_cycle_cnt(kbdev),
+			kbdev->csf.fw_timeout_ms,
+			req_mask);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		err = -ETIMEDOUT;
 
 	}
@@ -1693,8 +1725,13 @@ static void kbase_csf_firmware_reload_worker(struct work_struct *work)
 
 	/* Reload just the data sections from firmware binary image */
 	err = reload_fw_image(kbdev);
-	if (err)
+	if (err) {
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_exception,
+			"!! Reload of FW had failed, MCU won't be re-enabled !!\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return;
+	}
 
 	kbase_csf_tl_reader_reset(&kbdev->timeline->csf_tl_reader);
 
