@@ -94,7 +94,7 @@ static int pm_callback_power_on_nolock(struct kbase_device *kbdev)
 	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_2);
 
 #if defined(CONFIG_MTK_GPUFREQ_V2)
-	gpufreq_set_timestamp();
+	gpufreq_set_ocl_timestamp();
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
 
 	/* set a flag to enable GPU DVFS */
@@ -149,13 +149,6 @@ static void pm_callback_power_off_nolock(struct kbase_device *kbdev)
 
 	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_9);
 
-	/* check MFG bus if idle */
-#if defined(CONFIG_MTK_GPUFREQ_V2)
-	gpufreq_check_bus_idle();
-#endif /* CONFIG_MTK_GPUFREQ_V2 */
-
-	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_A);
-
 	/* on,off/ SWCG(BG3D)/ MTCMOS/ BUCK */
 #if defined(CONFIG_MTK_GPUFREQ_V2)
 	if (gpufreq_power_control(POWER_OFF) < 0) {
@@ -164,7 +157,7 @@ static void pm_callback_power_off_nolock(struct kbase_device *kbdev)
 	}
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
 
-	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_B);
+	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_A);
 }
 
 static int pm_callback_power_on(struct kbase_device *kbdev)
