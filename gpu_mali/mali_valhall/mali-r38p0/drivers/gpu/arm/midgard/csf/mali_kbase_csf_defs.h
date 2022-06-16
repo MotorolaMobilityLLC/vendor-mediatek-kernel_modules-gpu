@@ -556,9 +556,6 @@ struct kbase_csf_kcpu_queue_context {
 	struct mutex lock;
 	struct kbase_kcpu_command_queue *array[KBASEP_MAX_KCPU_QUEUES];
 	DECLARE_BITMAP(in_use, KBASEP_MAX_KCPU_QUEUES);
-#ifdef CONFIG_MALI_FENCE_DEBUG
-	struct workqueue_struct *timeout_wq;
-#endif
 	atomic64_t num_cmds;
 
 	spinlock_t jit_lock;
