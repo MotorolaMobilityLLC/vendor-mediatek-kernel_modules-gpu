@@ -1745,6 +1745,10 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 	}
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, (int)fence_wait->pid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 	return 0;
 }
 #endif
