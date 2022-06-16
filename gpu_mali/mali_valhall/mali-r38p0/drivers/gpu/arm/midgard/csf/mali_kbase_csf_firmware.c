@@ -55,6 +55,10 @@
 #include "platform/mtk_platform_common.h"
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #define MALI_MAX_FIRMWARE_NAME_LEN ((size_t)20)
 
 static char fw_name[MALI_MAX_FIRMWARE_NAME_LEN] = "mali_csffw.bin";
@@ -302,9 +306,10 @@ static void wait_ready(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	if (max_loops == 0) {
 		dev_info(kbdev->dev, "AS_ACTIVE bit stuck when MCU load the MMU tables\n");
-		ged_log_buf_print2(
-			 kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
-			 "AS_ACTIVE bit stuck when MCU load the MMU tables");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_exception,
+			"AS_ACTIVE bit stuck when MCU load the MMU tables\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_LOADMMUTABLE_FAIL);
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_LOADMMUTABLE_FAIL);
 	}
@@ -1439,12 +1444,13 @@ static int wait_for_global_request(struct kbase_device *const kbdev,
 			 kbase_backend_get_cycle_cnt(kbdev),
 			 kbdev->csf.fw_timeout_ms,
 			 req_mask);
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		ged_log_buf_print2(
-			 kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
-			 "Timed out (%d ms) waiting for global request %x to complete",
-			 kbdev->csf.fw_timeout_ms, req_mask);
-#endif /* CONFIG_MALI_MTK_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_exception,
+			"[%llu] Timeout (%d ms) waiting for global request %x to complete\n",
+			kbase_backend_get_cycle_cnt(kbdev),
+			kbdev->csf.fw_timeout_ms,
+			req_mask);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		err = -ETIMEDOUT;
 
 	}
@@ -1660,11 +1666,10 @@ static void kbase_csf_firmware_reload_worker(struct work_struct *work)
 	/* Reload just the data sections from firmware binary image */
 	err = reload_fw_image(kbdev);
 	if (err) {
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		ged_log_buf_print2(
-			 kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
-			 "!! Reload of FW had failed, MCU won't be re-enabled !!");
-#endif /* CONFIG_MALI_MTK_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_exception,
+			"!! Reload of FW had failed, MCU won't be re-enabled !!\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return;
 	}
 
