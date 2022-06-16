@@ -5067,6 +5067,12 @@ void kbase_device_debugfs_term(struct kbase_device *kbdev)
 }
 #endif /* CONFIG_DEBUG_FS */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+static u32 config_system_coherency = 0;
+module_param(config_system_coherency, uint, 0444);
+MODULE_PARM_DESC(config_system_coherency, "System Coherency");
+#endif
+
 int kbase_device_coherency_init(struct kbase_device *kbdev)
 {
 #if IS_ENABLED(CONFIG_OF)
@@ -5116,6 +5122,12 @@ int kbase_device_coherency_init(struct kbase_device *kbdev)
 			override_coherency = COHERENCY_ACE_LITE;
 		}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		if (override_coherency == COHERENCY_ACE_LITE &&
+			config_system_coherency != COHERENCY_ACE_LITE)
+			override_coherency = COHERENCY_NONE;
+#endif
+
 #if MALI_USE_CSF && !IS_ENABLED(CONFIG_MALI_NO_MALI)
 		/* ACE coherency mode is not supported by Driver on CSF GPUs.
 		 * Return an error to signal the invalid device tree configuration.
@@ -5146,7 +5158,9 @@ int kbase_device_coherency_init(struct kbase_device *kbdev)
 
 	kbdev->gpu_props.props.raw_props.coherency_mode =
 		kbdev->system_coherency;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	config_system_coherency = kbdev->system_coherency;
+#endif
 	return 0;
 }
 
