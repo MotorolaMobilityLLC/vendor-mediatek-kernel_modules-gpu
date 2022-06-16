@@ -1654,6 +1654,12 @@ void kbase_csf_queue_group_terminate(struct kbase_context *kctx,
 	 * that no more callbacks can be enqueued by terminating the group.
 	 */
 	cancel_queue_group_events(group);
+
+	/* remove notification events. */
+	mutex_lock(&kctx->csf.lock);
+	remove_pending_group_fatal_error(group);
+	mutex_unlock(&kctx->csf.lock);
+
 	kfree(group);
 }
 
