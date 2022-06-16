@@ -469,6 +469,10 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 	unsigned long flags;
 	enum kbasep_soft_reset_status ret;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_RESET);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 	WARN_ON(kbdev->irq_reset_flush);
 	/* The reset must now be happening otherwise other threads will not
 	 * have been synchronized with to stop their access to the HW
