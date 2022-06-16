@@ -129,6 +129,10 @@
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if defined(CONFIG_MALI_MTK_GPU_BM_CSF)
+#include <ged_gpu_bm.h>
+#endif
+
 /* GPU IRQ Tags */
 #define	JOB_IRQ_TAG	0
 #define MMU_IRQ_TAG	1
@@ -1734,9 +1738,9 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 	if (fence_wait->flags & BASE_INTERNAL_FENCE_WAIT_DUMP_FLAG) {
-		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, (int)fence_wait->pid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, (int)fence_wait->pid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, (int)fence_wait->pid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, (int)fence_wait->pid);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, (int)fence_wait->pid);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, (int)fence_wait->pid);
 //		mtk_common_debug(MTK_COMMON_DBG_TRIGGER_KERNEL_EXCEPTION, (int)fence_wait->pid);
 	}
 #endif
@@ -5605,6 +5609,11 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		dev_set_drvdata(kbdev->dev, NULL);
 		kbase_device_free(kbdev);
 	} else {
+#if defined(CONFIG_MALI_MTK_GPU_BM_CSF)
+		err = mtk_bandwidth_resource_init();
+		if (err)
+			pr_info("@%s: GPU BM init failed (CSF)\n", __func__);
+#endif
 		dev_info(kbdev->dev,
 			"Probed as %s\n", dev_name(kbdev->mdev.this_device));
 		kbase_increment_device_id();
