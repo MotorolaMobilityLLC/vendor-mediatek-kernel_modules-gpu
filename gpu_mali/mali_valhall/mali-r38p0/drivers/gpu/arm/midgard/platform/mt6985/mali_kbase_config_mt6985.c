@@ -106,11 +106,19 @@ static int pm_callback_power_on_nolock(struct kbase_device *kbdev)
 
 	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_3);
 
+	/* get required frequency from ged */
+	g_cur_opp_idx = mtk_common_ged_dvfs_get_last_commit_idx();
+
+	/* resume frequency */
+	mtk_common_gpufreq_commit(g_cur_opp_idx);
+
+	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_4);
+
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	ged_dvfs_gpu_clock_switch_notify(1);
 #endif
 
-	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_4);
+	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_5);
 
 	return 0;
 }
@@ -141,18 +149,13 @@ static void pm_callback_power_off_nolock(struct kbase_device *kbdev)
 
 	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_8);
 
-	/* suspend frequency */
-	g_cur_opp_idx = mtk_common_ged_dvfs_get_last_commit_idx();
-
-	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_9);
-
 	/* on,off/ SWCG(BG3D)/ MTCMOS/ BUCK */
 	if (gpufreq_power_control(POWER_OFF) < 0) {
 		KBASE_PLATFORM_LOGE("Power Off Failed");
 		return;
 	}
 
-	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_A);
+	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_9);
 }
 
 
