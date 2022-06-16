@@ -229,6 +229,8 @@ endif
 ccflags-y += \
     -I$(srctree)/include/linux \
     -I$(srctree)/drivers/staging/android \
+    -I$(srctree)/drivers/misc/mediatek/trusted_mem/public \
+    -I$(srctree)/drivers/dma-buf/heaps \
     -I$(KO_CODE_PATH) \
     -I$(KO_CODE_PATH)/platform/$(MALI_PLATFORM_DIR) \
     -I$(KO_CODE_PATH)/../../../base \
