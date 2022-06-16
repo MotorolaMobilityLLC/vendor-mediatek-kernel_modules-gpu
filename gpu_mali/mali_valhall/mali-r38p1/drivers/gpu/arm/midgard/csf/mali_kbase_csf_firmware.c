@@ -319,6 +319,7 @@ static void wait_ready(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_LOADMMUTABLE_FAIL);
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_LOADMMUTABLE_FAIL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_LOADMMUTABLE_FAIL);
 	}
 #else
 	if (max_loops == 0)
@@ -1224,6 +1225,11 @@ static inline void access_firmware_memory(struct kbase_device *kbdev,
 					kbase_dma_addr(target_page) + offset_in_page,
 					sizeof(u32), DMA_BIDIRECTIONAL);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CSFFWLOG)
+				/* find cfg:Log verbosity, update default to 3, at initializtion */
+				if (*value == 0x1234ABCD)
+					cpu_addr[offset_in_page >> 2] = 3;
+#endif /* CONFIG_MALI_MTK_CSFFWLOG */
 				*value = cpu_addr[offset_in_page >> 2];
 			} else {
 				cpu_addr[offset_in_page >> 2] = *value;
@@ -1400,6 +1406,9 @@ static u32 csf_doorbell_offset(int doorbell_nr)
 void kbase_csf_ring_doorbell(struct kbase_device *kbdev, int doorbell_nr)
 {
 	kbase_reg_write(kbdev, csf_doorbell_offset(doorbell_nr), (u32)1);
+#if IS_ENABLED(CONFIG_MALI_MTK_CSFFWLOG)
+	mtk_kbase_csf_firmware_check_drain_fwlog(kbdev);
+#endif /* CONFIG_MALI_MTK_CSFFWLOG */
 }
 EXPORT_SYMBOL(kbase_csf_ring_doorbell);
 
@@ -1511,6 +1520,11 @@ static int wait_for_global_request(struct kbase_device *const kbdev,
 			kbdev->csf.fw_timeout_ms,
 			req_mask);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_GLOBALREQUEST_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 		err = -ETIMEDOUT;
 
 	}
@@ -1730,6 +1744,11 @@ static void kbase_csf_firmware_reload_worker(struct work_struct *work)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"!! Reload of FW had failed, MCU won't be re-enabled !!\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_FWRELOAD_FAIL);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 		return;
 	}
 
@@ -2227,6 +2246,17 @@ int kbase_csf_firmware_init(struct kbase_device *kbdev)
 	KBASE_KTRACE_ADD(kbdev, CSF_FIRMWARE_BOOT, NULL,
 			(((u64)version_hash) << 32) |
 			(((u64)version_major) << 8) | version_minor);
+#if IS_ENABLED(CONFIG_MALI_MTK_CSFFWLOG)
+	/* If we can update the config without firmware reset then
+	 * we need to just trigger FIRMWARE_CONFIG_UPDATE.
+	 */
+	dev_info(kbdev->dev, "trig: FIRMWARE_CONFIG_UPDATE.\n");
+	ret = kbase_csf_trigger_firmware_config_update(kbdev);
+	if (ret) {
+		dev_vdbg(kbdev->dev, "FIRMWARE_CONFIG_UPDATE:failed\n");
+		goto err_out;
+	}
+#endif /* CONFIG_MALI_MTK_CSFFWLOG */
 	return 0;
 
 err_out:

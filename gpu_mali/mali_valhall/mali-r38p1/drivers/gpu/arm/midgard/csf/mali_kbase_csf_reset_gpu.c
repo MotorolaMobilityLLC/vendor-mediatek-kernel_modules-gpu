@@ -269,17 +269,21 @@ static void kbase_csf_dump_firmware_trace_buffer(struct kbase_device *kbdev)
 {
 	u8 *buf, *p, *pnewline, *pend, *pendbuf;
 	unsigned int read_size, remaining_size;
-	struct firmware_trace_buffer *tb =
-		kbase_csf_firmware_get_trace_buffer(kbdev, FW_TRACE_BUF_NAME);
+	struct firmware_trace_buffer *tb;
+
+	mutex_lock(&kbdev->trace_buffer_mutex);
+	tb = kbase_csf_firmware_get_trace_buffer(kbdev, FW_TRACE_BUF_NAME);
 
 	if (tb == NULL) {
 		dev_vdbg(kbdev->dev, "Can't get the trace buffer, firmware trace dump skipped");
+		mutex_unlock(&kbdev->trace_buffer_mutex);
 		return;
 	}
 
 	buf = kmalloc(PAGE_SIZE + 1, GFP_KERNEL);
 	if (buf == NULL) {
 		dev_err(kbdev->dev, "Short of memory, firmware trace dump skipped");
+		mutex_unlock(&kbdev->trace_buffer_mutex);
 		return;
 	}
 
@@ -323,6 +327,7 @@ static void kbase_csf_dump_firmware_trace_buffer(struct kbase_device *kbdev)
 		*p = 0;
 		dev_err(kbdev->dev, "FW> %s", buf);
 	}
+	mutex_unlock(&kbdev->trace_buffer_mutex);
 
 	kfree(buf);
 }
@@ -463,6 +468,10 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 {
 	unsigned long flags;
 	enum kbasep_soft_reset_status ret;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_RESET);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	WARN_ON(kbdev->irq_reset_flush);
 	/* The reset must now be happening otherwise other threads will not
