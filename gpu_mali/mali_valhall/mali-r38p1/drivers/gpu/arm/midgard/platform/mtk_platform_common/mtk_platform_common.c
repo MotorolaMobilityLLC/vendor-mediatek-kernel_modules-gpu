@@ -10,9 +10,18 @@
 #include <platform/mtk_platform_common.h>
 #include <mtk_gpufreq.h>
 #include <ged_dvfs.h>
+
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+#include <platform/mtk_platform_common/mtk_platform_dvfs.h>
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
+
 #if IS_ENABLED(CONFIG_PROC_FS)
 #include <linux/proc_fs.h>
 #endif /* CONFIG_PROC_FS */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_GOVERNOR)
+#include <platform/mtk_platform_common/mtk_platform_devfreq_governor.h>
+#endif /* CONFIG_MALI_MTK_DEVFREQ_GOVERNOR */
 
 #if IS_ENABLED(CONFIG_PROC_FS)
 /* name of the proc root dir */
@@ -100,7 +109,11 @@ int mtk_common_gpufreq_commit(int opp_idx)
 
 int mtk_common_ged_dvfs_get_last_commit_idx(void)
 {
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	return (int)ged_dvfs_get_last_commit_idx();
+#else
 	return -1;
+#endif
 }
 
 #if IS_ENABLED(CONFIG_PROC_FS)
@@ -114,12 +127,20 @@ static void mtk_common_procfs_init(struct kbase_device *kbdev)
 		dev_info(kbdev->dev, "@%s: Cann't create /proc/%s", __func__, PROC_ROOT);
   		return;
   	}
+
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	mtk_dvfs_procfs_init(kbdev, proc_root);
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 }
 
 static void mtk_common_procfs_term(struct kbase_device *kbdev)
 {
 	if (IS_ERR_OR_NULL(kbdev))
 		return;
+
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	mtk_dvfs_procfs_term(kbdev, proc_root);
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 	proc_root = NULL;
 	remove_proc_entry(PROC_ROOT, NULL);
@@ -141,6 +162,14 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 		return -1;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_GOVERNOR)
+	mtk_devfreq_governor_init(kbdev);
+#endif /* CONFIG_MALI_MTK_DEVFREQ_GOVERNOR */
+
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	mtk_dvfs_init(kbdev);
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_PROC_FS)
 	mtk_common_procfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_PROC_FS */
@@ -154,6 +183,14 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 		dev_info(kbdev->dev, "@%s: invalid kbdev", __func__);
 		return;
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_GOVERNOR)
+	mtk_devfreq_governor_term(kbdev);
+#endif /* CONFIG_MALI_MTK_DEVFREQ_GOVERNOR */
+
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	mtk_dvfs_term(kbdev);
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_PROC_FS)
 	mtk_common_procfs_term(kbdev);

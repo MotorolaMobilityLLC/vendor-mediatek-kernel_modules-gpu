@@ -34,6 +34,14 @@
 #include <linux/pm_opp.h>
 #include "mali_kbase_devfreq.h"
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_GOVERNOR)
+#include <platform/mtk_platform_common/mtk_platform_devfreq_governor.h>
+#endif /* CONFIG_MALI_MTK_DEVFREQ_GOVERNOR */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_THERMAL)
+#include <platform/mtk_platform_common/mtk_platform_devfreq_thermal.h>
+#endif /* CONFIG_MALI_MTK_DEVFREQ_THERMAL*/
+
 /**
  * get_voltage() - Get the voltage value corresponding to the nominal frequency
  *                 used by devfreq.
@@ -259,8 +267,15 @@ kbase_devfreq_status(struct device *dev, struct devfreq_dev_status *stat)
 
 	kbase_pm_get_dvfs_metrics(kbdev, &kbdev->last_devfreq_metrics, &diff);
 
+#if MALI_USE_CSF && \
+	IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	stat->busy_time = diff.time_busy[0];
+	stat->total_time = diff.time_busy[0] + diff.time_idle[0];
+#else
 	stat->busy_time = diff.time_busy;
 	stat->total_time = diff.time_busy + diff.time_idle;
+#endif /* MALI_USE_CSF && CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 	stat->current_frequency = kbdev->current_nominal_freq;
 	stat->private_data = NULL;
 
@@ -636,8 +651,10 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 {
 	struct devfreq_dev_profile *dp;
 	int err;
-	unsigned int i;
 	bool free_devfreq_freq_table = true;
+
+#if !IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_GOVERNOR)
+	unsigned int i;
 
 	if (kbdev->nr_clocks == 0) {
 		dev_err(kbdev->dev, "Clock not available for devfreq\n");
@@ -652,6 +669,7 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 			kbdev->current_freqs[i] = 0;
 	}
 	kbdev->current_nominal_freq = kbdev->current_freqs[0];
+#endif /* CONFIG_MALI_MTK_DEVFREQ_GOVERNOR */
 
 	dp = &kbdev->devfreq_profile;
 
@@ -672,19 +690,29 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 	}
 
 #if IS_ENABLED(CONFIG_DEVFREQ_THERMAL)
+#if !IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_THERMAL)
 	err = kbase_ipa_init(kbdev);
 	if (err) {
 		dev_err(kbdev->dev, "IPA initialization failed");
 		goto ipa_init_failed;
 	}
+#endif /* CONFIG_MALI_MTK_DEVFREQ_THERMAL */
 #endif
 
 	err = kbase_devfreq_init_core_mask_table(kbdev);
 	if (err)
 		goto init_core_mask_table_failed;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_GOVERNOR)
+	mtk_devfreq_governor_update_profile(dp);
+#endif /* CONFIG_MALI_MTK_DEVFREQ_GOVERNOR */
+
 	kbdev->devfreq = devfreq_add_device(kbdev->dev, dp,
+#if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_GOVERNOR)
+				MTK_GPU_DEVFREQ_GOVERNOR_DUMMY, NULL);
+#else
 				"simple_ondemand", NULL);
+#endif /* CONFIG_MALI_MTK_DEVFREQ_GOVERNOR */
 	if (IS_ERR(kbdev->devfreq)) {
 		err = PTR_ERR(kbdev->devfreq);
 		kbdev->devfreq = NULL;
@@ -718,7 +746,12 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 	kbdev->devfreq_cooling = of_devfreq_cooling_register_power(
 			kbdev->dev->of_node,
 			kbdev->devfreq,
+#if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_THERMAL)
+			&mtk_devfreq_cooling_power_ops);
+#else
 			&kbase_ipa_power_model_ops);
+#endif  /* CONFIG_MALI_MTK_DEVFREQ_THERMAL */
+
 	if (IS_ERR_OR_NULL(kbdev->devfreq_cooling)) {
 		err = PTR_ERR_OR_ZERO(kbdev->devfreq_cooling);
 		dev_err(kbdev->dev,
@@ -749,8 +782,10 @@ devfreq_add_dev_failed:
 
 init_core_mask_table_failed:
 #if IS_ENABLED(CONFIG_DEVFREQ_THERMAL)
+#if !IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_THERMAL)
 	kbase_ipa_term(kbdev);
 ipa_init_failed:
+#endif /* CONFIG_MALI_MTK_DEVFREQ_THERMAL */
 #endif
 	if (free_devfreq_freq_table)
 		kbase_devfreq_term_freq_table(kbdev);
@@ -782,6 +817,8 @@ void kbase_devfreq_term(struct kbase_device *kbdev)
 	kbase_devfreq_term_core_mask_table(kbdev);
 
 #if IS_ENABLED(CONFIG_DEVFREQ_THERMAL)
+#if !IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_THERMAL)
 	kbase_ipa_term(kbdev);
+#endif /* CONFIG_MALI_MTK_DEVFREQ_THERMAL */
 #endif
 }
