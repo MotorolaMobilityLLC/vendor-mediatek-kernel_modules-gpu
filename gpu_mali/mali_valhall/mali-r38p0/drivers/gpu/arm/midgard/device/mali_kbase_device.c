@@ -298,14 +298,6 @@ int kbase_device_misc_init(struct kbase_device * const kbdev)
 	if (err)
 		goto term_ktrace;
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	kbdev->ged_log_buf_hnd_kbase = 0;
-	kbdev->ged_log_buf_hnd_kbase = ged_log_buf_alloc(
-		4096, 128 * 4096,
-		GED_LOG_BUF_TYPE_QUEUEBUFFER,
-		"mali_kbase", "mali_kbase");
-#endif /* CONFIG_MALI_MTK_DEBUG */
-
 	init_waitqueue_head(&kbdev->cache_clean_wait);
 
 	kbase_debug_assert_register_hook(&kbase_ktrace_hook_wrapper, kbdev);
@@ -335,13 +327,6 @@ int kbase_device_misc_init(struct kbase_device * const kbdev)
 		kbdev->oom_notifier_block.notifier_call = NULL;
 	}
 	return 0;
-
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	if(kbdev->ged_log_buf_hnd_kbase != 0) {
-		ged_log_buf_free(kbdev->ged_log_buf_hnd_kbase);
-		kbdev->ged_log_buf_hnd_kbase = 0;
-	}
-#endif /* CONFIG_MALI_MTK_DEBUG */
 
 term_ktrace:
 	kbase_ktrace_term(kbdev);

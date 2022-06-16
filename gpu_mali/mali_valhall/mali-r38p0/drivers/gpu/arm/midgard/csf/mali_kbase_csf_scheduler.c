@@ -1732,12 +1732,6 @@ static void halt_csg_slot(struct kbase_queue_group *group, bool suspend)
 				 "[%llu] slot %d timeout (%d ms) on up-running\n",
 				 kbase_backend_get_cycle_cnt(kbdev),
 				 slot, kbdev->csf.fw_timeout_ms);
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-			ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
-				 "[%llu] slot %d timeout (%d ms) on up-running\n",
-				 kbase_backend_get_cycle_cnt(kbdev),
-				 slot, kbdev->csf.fw_timeout_ms);
-#endif /* CONFIG_MALI_MTK_DEBUG */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 			mtk_logbuffer_print(&kbdev->logbuf_exception,
 				"[%llu] slot %d timeout (%d ms) on up-running\n",
@@ -2721,13 +2715,6 @@ static int term_group_sync(struct kbase_queue_group *group)
 			 kbase_backend_get_cycle_cnt(kbdev), kbdev->csf.fw_timeout_ms,
 			 group->handle, group->kctx->tgid,
 			 group->kctx->id, group->csg_nr);
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
-			 "[%llu] term request timeout (%d ms) for group %d of context %d_%d on slot %d",
-			 kbase_backend_get_cycle_cnt(kbdev), kbdev->csf.fw_timeout_ms,
-			 group->handle, group->kctx->tgid,
-			 group->kctx->id, group->csg_nr);
-#endif /* CONFIG_MALI_MTK_DEBUG */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 			mtk_logbuffer_print(&kbdev->logbuf_exception,
 				"[%llu] term request timeout (%d ms) for group %d of context %d_%d on slot %d\n",
@@ -3380,13 +3367,6 @@ static void wait_csg_slots_start(struct kbase_device *kbdev)
 				 kbase_backend_get_cycle_cnt(kbdev),
 				 kbdev->csf.fw_timeout_ms,
 				 num_groups, slot_mask);
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-			ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
-				 "[%llu] Timeout (%d ms) waiting for CSG slots to start, slots: 0x%*pb\n",
-				 kbase_backend_get_cycle_cnt(kbdev),
-				 kbdev->csf.fw_timeout_ms,
-				 num_groups, slot_mask);
-#endif /* CONFIG_MALI_MTK_DEBUG */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 			mtk_logbuffer_print(&kbdev->logbuf_exception,
 				"[%llu] Timeout (%d ms) waiting for CSG slots to start, slots: 0x%*pb\n",
@@ -4152,13 +4132,6 @@ static void scheduler_update_idle_slots_status(struct kbase_device *kbdev,
 				kbase_backend_get_cycle_cnt(kbdev),
 				kbdev->csf.fw_timeout_ms,
 				csg_bitmap[0]);
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-			ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
-				"[%llu] Timeout (%d ms) on CSG_REQ:STATUS_UPDATE, treat groups as not idle: slot mask=0x%lx",
-				kbase_backend_get_cycle_cnt(kbdev),
-				kbdev->csf.fw_timeout_ms,
-				csg_bitmap[0]);
-#endif /* CONFIG_MALI_MTK_DEBUG */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 			mtk_logbuffer_print(&kbdev->logbuf_exception,
 				"[%llu] Timeout (%d ms) on CSG_REQ:STATUS_UPDATE, treat groups as not idle: slot mask=0x%lx\n",
@@ -4432,12 +4405,12 @@ static bool scheduler_idle_suspendable(struct kbase_device *kbdev)
 	 */
 	if (suspend && (unlikely(atomic_read(&scheduler->gpu_no_longer_idle)) ||
 			unlikely(!all_on_slot_groups_remained_idle(kbdev)))) {
-#ifdef CONFIG_MALI_MTK_DEBUG
 		dev_vdbg(kbdev->dev,
-#else
-		dev_info(kbdev->dev,
-#endif /* CONFIG_MALI_MTK_DEBUG */
 			 "GPU suspension skipped due to active CSGs");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_regular,
+			"GPU suspension skipped due to active CSGs\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		suspend = false;
 	}
 
@@ -4726,11 +4699,6 @@ static void schedule_actions(struct kbase_device *kbdev, bool is_tick)
 	if (ret) {
 		dev_err(kbdev->dev,
 			"Wait for MCU power on failed on scheduling tick/tock");
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME, "Wait for MCU power on failed");
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_MCUPOWERON_FAIL);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_MCUPOWERON_FAIL);
-#endif /* CONFIG_MALI_MTK_DEBUG */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"Wait for MCU power on failed on scheduling tick/tock\n");
@@ -5070,12 +5038,6 @@ static int wait_csg_slots_suspend(struct kbase_device *kbdev,
 			dev_warn(kbdev->dev, "[%llu] Timeout waiting for CSG slots to suspend, slot_mask: 0x%*pb\n",
 				 kbase_backend_get_cycle_cnt(kbdev),
 				 num_groups, slot_mask_local);
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-			ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
-				 "[%llu] Timeout waiting for CSG slots to suspend, slot_mask: 0x%*pb\n",
-				 kbase_backend_get_cycle_cnt(kbdev),
-				 num_groups, slot_mask_local);
-#endif /* CONFIG_MALI_MTK_DEBUG */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 			mtk_logbuffer_print(&kbdev->logbuf_exception,
 				"[%llu] Timeout waiting for CSG slots to suspend, slot_mask: 0x%*pb\n",

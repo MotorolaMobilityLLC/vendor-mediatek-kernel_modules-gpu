@@ -521,9 +521,6 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 	if (!silent) {
 		dev_err(kbdev->dev, "Reset complete");
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME, "Reset complete");
-#endif /* CONFIG_MALI_MTK_DEBUG */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"Reset complete\n");
