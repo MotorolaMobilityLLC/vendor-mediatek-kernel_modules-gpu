@@ -36,6 +36,10 @@
 #include "mali_kbase_csf_event.h"
 #include <linux/protected_memory_allocator.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
@@ -672,6 +676,10 @@ void kbase_csf_queue_terminate(struct kbase_context *kctx,
 			"Unsuccessful GPU reset detected when terminating queue (buffer_addr=0x%.16llx), attempting to terminate regardless\n",
 			term->buffer_gpu_addr);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_RESET_FAIL);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 	} else
 		reset_prevented = true;
 
@@ -1626,6 +1634,10 @@ void kbase_csf_queue_group_terminate(struct kbase_context *kctx,
 			"Unsuccessful GPU reset detected when terminating group %d, attempting to terminate regardless\n",
 			group_handle);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_RESET_FAIL);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 	} else
 		reset_prevented = true;
 
@@ -1652,6 +1664,12 @@ void kbase_csf_queue_group_terminate(struct kbase_context *kctx,
 	 * that no more callbacks can be enqueued by terminating the group.
 	 */
 	cancel_queue_group_events(group);
+
+	/* remove notification events. */
+	mutex_lock(&kctx->csf.lock);
+	remove_pending_group_fatal_error(group);
+	mutex_unlock(&kctx->csf.lock);
+
 	kfree(group);
 }
 
@@ -2337,6 +2355,9 @@ handle_fault_event(struct kbase_queue *const queue,
 		 kbase_gpu_exception_name(cs_fault_exception_type),
 		 cs_fault_exception_data, cs_fault_info_exception_data);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_CSFAULT);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 }
 
 static void report_queue_fatal_error(struct kbase_queue *const queue,
@@ -2393,6 +2414,10 @@ static void fatal_event_worker(struct work_struct *const data)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"Unsuccessful GPU reset detected when terminating group to handle fatal event, attempting to terminate regardless\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_RESET_FAIL);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 	} else
 		reset_prevented = true;
 
@@ -2405,6 +2430,11 @@ static void fatal_event_worker(struct work_struct *const data)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"queue not bound when handling fatal event\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_CSFATAL_QUEUENOTBOUND);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 		goto unlock;
 	}
 
@@ -2476,8 +2506,16 @@ handle_fatal_event(struct kbase_queue *const queue,
 
 	if (cs_fatal_exception_type ==
 			CS_FATAL_EXCEPTION_TYPE_FIRMWARE_INTERNAL_ERROR) {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_CSFATAL_FWINTERNAL);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 		queue_work(system_wq, &kbdev->csf.fw_error_work);
 	} else {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_CSFATAL);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 		if (cs_fatal_exception_type == CS_FATAL_EXCEPTION_TYPE_CS_UNRECOVERABLE) {
 			queue->group->cs_unrecoverable = true;
 			if (kbase_prepare_to_reset_gpu(queue->kctx->kbdev, RESET_FLAGS_NONE))
