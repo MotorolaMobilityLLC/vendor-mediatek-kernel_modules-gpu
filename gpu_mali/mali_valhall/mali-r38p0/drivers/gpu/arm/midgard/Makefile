@@ -42,6 +42,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_FENCE_DEBUG := n
         CONFIG_MALI_MTK_MFGSYS_PM := y
         CONFIG_MALI_MTK_DIAGNOSIS_MODE := y
+        CONFIG_MALI_MTK_CSFFWLOG := y
     endif ## mt6983 ##
 
     ifeq ($(MTK_PLATFORM_VERSION),mt6985)
@@ -68,6 +69,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_MFGSYS_PM := y
         CONFIG_MALI_SLEEP_MODE := n
         CONFIG_MALI_MTK_DIAGNOSIS_MODE := y
+        CONFIG_MALI_MTK_CSFFWLOG := y
     endif ## mt6985 ##
 
     ifeq ($(MTK_PLATFORM_VERSION),mt6886)
@@ -94,6 +96,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_MFGSYS_PM := y
         CONFIG_MALI_MTK_BRINGUP := y
         CONFIG_MALI_MTK_DIAGNOSIS_MODE := n
+        CONFIG_MALI_MTK_CSFFWLOG := n
     endif ## mt6886 ##
 endif
 
