@@ -24,5 +24,9 @@ ifeq ($(CONFIG_MALI_MTK_DEVFREQ_GOVERNOR),y)
     endif ## CONFIG_MALI_MTK_DEVFREQ_THERMAL ##
 endif ## CONFIG_MALI_MTK_DEVFREQ_GOVERNOR ##
 
+ifeq ($(CONFIG_MALI_MTK_DIAGNOSIS_MODE),y)
+    mali_kbase-y += $(curr)/mtk_platform_diagnosis_mode.o
+endif ## CONFIG_MALI_MTK_DIAGNOSIS_MODE ##
+
 ccflags-y += -I$(srctree)/drivers/devfreq/
 ccflags-y += -Wno-unused-variable

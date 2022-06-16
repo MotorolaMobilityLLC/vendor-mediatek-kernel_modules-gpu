@@ -5525,11 +5525,18 @@ int kbase_sysfs_init(struct kbase_device *kbdev)
 			&kbase_attr_group);
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SYSFS)
+	mtk_common_sysfs_init(kbdev);
+#endif
+
 	return err;
 }
 
 void kbase_sysfs_term(struct kbase_device *kbdev)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_SYSFS)
+	mtk_common_sysfs_term(kbdev);
+#endif
 	sysfs_remove_group(&kbdev->dev->kobj, &kbase_mempool_attr_group);
 	sysfs_remove_group(&kbdev->dev->kobj, &kbase_scheduling_attr_group);
 	sysfs_remove_group(&kbdev->dev->kobj, &kbase_attr_group);
