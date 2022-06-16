@@ -3,6 +3,7 @@
 * Copyright (c) 2022 MediaTek Inc.
 */
 
+#include <linux/of.h>
 #include <linux/seq_file.h>
 #include <linux/sysfs.h>
 #include <mali_kbase.h>
@@ -13,6 +14,7 @@
 
 static u64 g_diagnosis_mode = 0;
 static u64 g_diagnosis_dump_mask = 0x00000000;
+static int g_enable_diagnosis_node = 0;
 
 u64 mtk_diagnosis_mode_get_mode() {
 	return g_diagnosis_mode;
@@ -88,20 +90,39 @@ static ssize_t diagnosis_dump_mask_store(struct device * const dev,
 static DEVICE_ATTR_RW(diagnosis_dump_mask);
 
 int mtk_diagnosis_mode_sysfs_init(struct kbase_device *kbdev) {
+	struct device_node *node;
+	const char *diagnosis_enable;
 	int err;
 	if (IS_ERR_OR_NULL(kbdev))
 		return -1;
 
-	err = sysfs_create_file(&kbdev->dev->kobj,&dev_attr_diagnosis_mode.attr);
-	if (err) {
-		dev_info(kbdev->dev, "SysFS file diagnosis_mode creation failed\n");
-		return -1;
+#if IS_ENABLED(CONFIG_MTK_GPU_DIAGNOSIS_DEBUG)
+	g_enable_diagnosis_node = 1;
+#else
+	node = of_find_node_by_path("/soc/mali@13000000");
+	if (node) {
+		if(of_property_read_string(node, "gpu_diagnosis", &diagnosis_enable) == 0) {
+			if (strnstr(diagnosis_enable, "on",2)) {
+				g_enable_diagnosis_node = 1;
+			}
+		}
+		of_node_put(node);
 	}
+#endif /*CONFIG_MTK_GPU_DIAGNOSIS_DEBUG*/
 
-	err = sysfs_create_file(&kbdev->dev->kobj,&dev_attr_diagnosis_dump_mask.attr);
-	if (err) {
-		dev_info(kbdev->dev, "SysFS file diagnosis_dump_mask creation failed\n");
-		return -1;
+	if (g_enable_diagnosis_node == 1){
+		err = sysfs_create_file(&kbdev->dev->kobj,&dev_attr_diagnosis_mode.attr);
+		if (err) {
+			dev_info(kbdev->dev, "SysFS file diagnosis_mode creation failed\n");
+			return -1;
+		}
+
+		err = sysfs_create_file(&kbdev->dev->kobj,&dev_attr_diagnosis_dump_mask.attr);
+		if (err) {
+			dev_info(kbdev->dev, "SysFS file diagnosis_dump_mask creation failed\n");
+			return -1;
+	        }
+
 	}
 
 	return 0;
@@ -110,8 +131,10 @@ int mtk_diagnosis_mode_sysfs_term(struct kbase_device *kbdev) {
 	if (IS_ERR_OR_NULL(kbdev))
 		return -1;
 
-	sysfs_remove_file(&kbdev->dev->kobj, &dev_attr_diagnosis_dump_mask.attr);
-	sysfs_remove_file(&kbdev->dev->kobj, &dev_attr_diagnosis_mode.attr);
+	if (g_enable_diagnosis_node == 1){
+		sysfs_remove_file(&kbdev->dev->kobj, &dev_attr_diagnosis_dump_mask.attr);
+		sysfs_remove_file(&kbdev->dev->kobj, &dev_attr_diagnosis_mode.attr);
+	}
 
 	return 0;
 }
