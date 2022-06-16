@@ -39,6 +39,8 @@
 /* for fwlog get latest 16kb data */
 #include <linux/kfifo.h>
 static DECLARE_KFIFO(fwlog_fifo, unsigned char, PAGE_SIZE * 4);
+static u8 drain_fwlog_buf[PAGE_SIZE * 4];
+static u8 drain_fwlog_out_buf[PAGE_SIZE * 4];
 #endif /* CONFIG_MALI_MTK_CSFFWLOG */
 
 /**
@@ -819,7 +821,6 @@ EXPORT_SYMBOL(mtk_kbase_csf_firmware_trace_buffer_is_need_drain);
 
 void mtk_kbase_csf_firmware_check_drain_fwlog(struct kbase_device *kbdev)
 {
-	u8 *buf, *old_buf;
 	unsigned int old_read_size, read_size, total_size = 0;
 	struct firmware_trace_buffer *tb =
 		kbase_csf_firmware_get_trace_buffer(kbdev, FW_TRACE_BUF_NAME);
@@ -832,35 +833,20 @@ void mtk_kbase_csf_firmware_check_drain_fwlog(struct kbase_device *kbdev)
 	if (!mtk_kbase_csf_firmware_trace_buffer_is_need_drain(tb))
 		return;
 
-	buf = kmalloc(PAGE_SIZE * 4, GFP_KERNEL);
-	if (buf == NULL) {
-		dev_vdbg(kbdev->dev, "Short of memory, firmware trace dump skipped");
-		return;
-	}
-
-	old_buf = kmalloc(PAGE_SIZE * 4, GFP_KERNEL);
-	if (old_buf == NULL) {
-		dev_vdbg(kbdev->dev, "Short of memory, firmware trace dump skipped");
-		kfree(buf);
-		return;
-	}
-
 	/* dev_info(kbdev->dev, "[CSFFWLOG] Firmware log buffer drain:"); */
-	while ((read_size = kbase_csf_firmware_trace_buffer_read_data(tb, buf, PAGE_SIZE))) {
+	while ((read_size = kbase_csf_firmware_trace_buffer_read_data(tb, drain_fwlog_buf, PAGE_SIZE))) {
 		total_size +=read_size;
 		/* dev_info(kbdev->dev, "[CSFFWLOG:] read_size=%d, fifo_avail_len=%d", read_size, kfifo_avail(&fwlog_fifo)); */
 
 		if (read_size > kfifo_avail(&fwlog_fifo)) { /* fifo is not enough full, need to prepare enough space */
-			old_read_size = kfifo_out(&fwlog_fifo, old_buf, (read_size - kfifo_avail(&fwlog_fifo)));
+			old_read_size = kfifo_out(&fwlog_fifo, drain_fwlog_out_buf, (read_size - kfifo_avail(&fwlog_fifo)));
 			/* dev_info(kbdev->dev, "[CSFFWLOG..] clear_size=%d, fifo_len=%d", old_read_size, kfifo_len(&fwlog_fifo)); */
 		}
 
-		read_size = kfifo_in(&fwlog_fifo, buf, read_size);
+		read_size = kfifo_in(&fwlog_fifo, drain_fwlog_buf, read_size);
 		/* dev_info(kbdev->dev, "[CSFFWLOG==] new_read_size=%d, fifo_len=%d", read_size, kfifo_len(&fwlog_fifo)); */
 	}
 	/* dev_info(kbdev->dev, "[CSFFWLOG] Firmware log buffer drain size:%d", total_size); */
-	kfree(buf);
-	kfree(old_buf);
 }
 EXPORT_SYMBOL(mtk_kbase_csf_firmware_check_drain_fwlog);
 #endif /* CONFIG_MALI_MTK_CSFFWLOG */
