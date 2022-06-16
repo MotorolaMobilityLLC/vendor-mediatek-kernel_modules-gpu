@@ -335,20 +335,22 @@ static int mtk_debug_mem_dump_open(struct inode *in, struct file *file)
 	if (!kbdev)
 		return -ENODEV;
 
-	mem_dump_data = kmalloc(sizeof(*mem_dump_data), GFP_KERNEL);
-	if (!mem_dump_data)
-		return -ENOMEM;
-
 	ret = seq_open(file, &full_mem_ops);
-	if (ret) {
-		kfree(mem_dump_data);
+	if (ret)
 		return ret;
-	}
 
-	mem_dump_data->kbdev = kbdev;
-	mem_dump_data->kctx_prev = NULL;
-	mem_dump_data->kctx = NULL;
-	((struct seq_file *)file->private_data)->private = mem_dump_data;
+	if ((mem_dump_mode & MTK_DEBUG_MEM_DUMP_FULL_DUMP) == MTK_DEBUG_MEM_DUMP_FULL_DUMP) {
+		mem_dump_data = kmalloc(sizeof(*mem_dump_data), GFP_KERNEL);
+		if (!mem_dump_data) {
+			seq_release(in, file);
+			return -ENOMEM;
+		}
+		mem_dump_data->kbdev = kbdev;
+		mem_dump_data->kctx_prev = NULL;
+		mem_dump_data->kctx = NULL;
+		((struct seq_file *)file->private_data)->private = mem_dump_data;
+	} else
+		((struct seq_file *)file->private_data)->private = NULL;
 
 	return 0;
 }
@@ -415,7 +417,7 @@ static ssize_t mtk_debug_mem_dump_mode_write(struct file *file, const char __use
 	if (ret)
 		return ret;
 
-	if (mem_dump_mode < MTK_DEBUG_MEM_DUMP_DISABLE || mem_dump_mode > MTK_DEBUG_MEM_DUMP_CB_ONLY)
+	if (mem_dump_mode < MTK_DEBUG_MEM_DUMP_DISABLE || mem_dump_mode > MTK_DEBUG_MEM_DUMP_MASK)
 		mem_dump_mode = MTK_DEBUG_MEM_DUMP_DISABLE;
 
 	return count;
@@ -1593,7 +1595,7 @@ static void mtk_debug_csf_scheduler_dump_active_group(struct kbase_queue_group *
 
 void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 {
-	bool dump_queue_data = (mem_dump_mode != MTK_DEBUG_MEM_DUMP_DISABLE);
+	bool dump_queue_data = ((mem_dump_mode & MTK_DEBUG_MEM_DUMP_CS_BUFFER) == MTK_DEBUG_MEM_DUMP_CS_BUFFER);
 	static struct mtk_debug_cs_queue_data cs_queue_data;
 
 	/* init mtk_debug_cs_queue_data for dump bound queues */

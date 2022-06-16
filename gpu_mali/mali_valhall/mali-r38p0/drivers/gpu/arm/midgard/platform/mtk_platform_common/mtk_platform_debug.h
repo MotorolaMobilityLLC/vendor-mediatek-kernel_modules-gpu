@@ -21,8 +21,10 @@
 /*
  * memory dump for command stream buffers and mem_view
  */
-#define MTK_DEBUG_MEM_DUMP_DISABLE	0
-#define MTK_DEBUG_MEM_DUMP_CB_ONLY	1			/* dump command stream buffers only */
+#define MTK_DEBUG_MEM_DUMP_DISABLE		0
+#define MTK_DEBUG_MEM_DUMP_CS_BUFFER	0b001			/* dump command stream buffers */
+#define MTK_DEBUG_MEM_DUMP_FULL_DUMP	0b010			/* dump full kctx memory */
+#define MTK_DEBUG_MEM_DUMP_MASK			0b011
 
 #define MTK_DEBUG_MEM_DUMP_HEADER	0x574549565f4d454d	/* magic number for packet header */
 #define MTK_DEBUG_MEM_DUMP_FAIL		0x4c4941465f50414d	/* magic number for map fail */
