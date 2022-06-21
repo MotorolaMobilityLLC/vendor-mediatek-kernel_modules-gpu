@@ -2299,7 +2299,8 @@ static int term_group_sync(struct kbase_queue_group *group)
 	term_csg_slot(group);
 
 	remaining = wait_event_timeout(kbdev->csf.event_wait,
-		csg_slot_stopped_locked(kbdev, group->csg_nr), remaining);
+                group->cs_unrecoverable || csg_slot_stopped_locked(kbdev, group->csg_nr),
+		remaining);
 
 	if (!remaining) {
 		dev_warn(kbdev->dev, "[%llu] term request timeout (%d ms) for group %d of context %d_%d on slot %d",
@@ -2419,6 +2420,8 @@ static int scheduler_group_schedule(struct kbase_queue_group *group)
 			if (protm_grp && protm_grp != group) {
 				clear_bit((unsigned int)group->csg_nr,
 					  scheduler->csg_slots_idle_mask);
+				/* Request the update to confirm the condition inferred. */
+				group->reevaluate_idle_status = true;
 				KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_SLOT_IDLE_CLEAR, group,
 					scheduler->csg_slots_idle_mask[0]);
 			}
@@ -3216,6 +3219,42 @@ static bool scheduler_slot_protm_ack(struct kbase_device *const kbdev,
 }
 
 /**
+ * protm_enter_set_next_pending_seq - Update the scheduler's field of
+ * tick_protm_pending_seq to that from the next available on-slot protm
+ * pending CSG.
+ *
+ * @kbdev:     Pointer to the GPU device.
+ *
+ * If applicable, the function updates the scheduler's tick_protm_pending_seq
+ * field from the next available on-slot protm pending CSG. If not, the field
+ * is set to KBASEP_TICK_PROTM_PEND_SCAN_SEQ_NR_INVALID.
+ */
+static void protm_enter_set_next_pending_seq(struct kbase_device *const kbdev)
+{
+	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
+	u32 num_groups = kbdev->csf.global_iface.group_num;
+	u32 num_csis = kbdev->csf.global_iface.groups[0].stream_num;
+	DECLARE_BITMAP(active_csgs, MAX_SUPPORTED_CSGS) = { 0 };
+	u32 i;
+
+	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
+
+	bitmap_xor(active_csgs, scheduler->csg_slots_idle_mask, scheduler->csg_inuse_bitmap,
+		   num_groups);
+	/* Reset the tick's pending protm seq number to invalid initially */
+	scheduler->tick_protm_pending_seq = KBASEP_TICK_PROTM_PEND_SCAN_SEQ_NR_INVALID;
+	for_each_set_bit(i, active_csgs, num_groups) {
+		struct kbase_queue_group *group = scheduler->csg_slots[i].resident_group;
+
+		/* Set to the next pending protm group's scan_seq_number */
+		if ((group != scheduler->active_protm_grp) &&
+		    (!bitmap_empty(group->protm_pending_bitmap, num_csis)) &&
+		    (group->scan_seq_num < scheduler->tick_protm_pending_seq))
+			scheduler->tick_protm_pending_seq = group->scan_seq_num;
+	}
+}
+
+/**
  * scheduler_group_check_protm_enter - Request the given group to be evaluated
  * for triggering the protected mode.
  *
@@ -3308,11 +3347,10 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 				KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_ENTER_PROTM,
 							 input_grp, 0u);
 
-				/* Reset the tick's pending protm seq number */
-				scheduler->tick_protm_pending_seq =
-					KBASEP_TICK_PROTM_PEND_SCAN_SEQ_NR_INVALID;
-
 				kbase_csf_enter_protected_mode(kbdev);
+				/* Set the pending protm seq number to the next one */
+				protm_enter_set_next_pending_seq(kbdev);
+
 				spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 
 				kbase_csf_wait_protected_mode_enter(kbdev);
@@ -3574,17 +3612,22 @@ static void scheduler_rotate_ctxs(struct kbase_device *kbdev)
  *                       slots for which the IDLE notification was received
  *                        previously.
  *
- * This function sends a CSG status update request for all the CSG slots
- * present in the bitmap scheduler->csg_slots_idle_mask and wait for the
- * request to complete.
- * The bits set in the scheduler->csg_slots_idle_mask bitmap are cleared by
- * this function.
- *
  * @kbdev:             Pointer to the GPU device.
  * @csg_bitmap:        Bitmap of the CSG slots for which
  *                     the status update request completed successfully.
- * @failed_csg_bitmap: Bitmap of the CSG slots for which
+ * @failed_csg_bitmap: Bitmap of the idle CSG slots for which
  *                     the status update request timedout.
+ *
+ * This function sends a CSG status update request for all the CSG slots
+ * present in the bitmap scheduler->csg_slots_idle_mask. Additionally, if
+ * the group's 'reevaluate_idle_status' field is set, the nominally non-idle
+ * slots are also included in the status update for a confirmation of their
+ * status. The function wait for the status update request to complete and
+ * returns the update completed slots bitmap and any timed out idle-flagged
+ * slots bitmap.
+ *
+ * The bits set in the scheduler->csg_slots_idle_mask bitmap are cleared by
+ * this function.
  */
 static void scheduler_update_idle_slots_status(struct kbase_device *kbdev,
 		unsigned long *csg_bitmap, unsigned long *failed_csg_bitmap)
@@ -3594,32 +3637,64 @@ static void scheduler_update_idle_slots_status(struct kbase_device *kbdev,
 	struct kbase_csf_global_iface *const global_iface =
 						&kbdev->csf.global_iface;
 	unsigned long flags, i;
+	u32 active_chk = 0;
 
 	lockdep_assert_held(&scheduler->lock);
-
 	spin_lock_irqsave(&scheduler->interrupt_lock, flags);
-	for_each_set_bit(i, scheduler->csg_slots_idle_mask, num_groups) {
+		for_each_set_bit(i, scheduler->csg_inuse_bitmap, num_groups) {
 		struct kbase_csf_csg_slot *csg_slot = &scheduler->csg_slots[i];
 		struct kbase_queue_group *group = csg_slot->resident_group;
 		struct kbase_csf_cmd_stream_group_info *const ginfo =
 						&global_iface->groups[i];
 		u32 csg_req;
+		bool idle_flag;
 
-		clear_bit(i, scheduler->csg_slots_idle_mask);
-		KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_SLOT_IDLE_CLEAR, group,
-					 scheduler->csg_slots_idle_mask[0]);
-		if (WARN_ON(!group))
+		if (WARN_ON(!group)) {
+			clear_bit(i, scheduler->csg_inuse_bitmap);
+			clear_bit(i, scheduler->csg_slots_idle_mask);
 			continue;
+		}
 
-		KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_SLOT_STATUS_UPDATE, group,
-					 i);
+		idle_flag = test_bit(i, scheduler->csg_slots_idle_mask);
+		if (idle_flag || group->reevaluate_idle_status) {
+			if (idle_flag) {
+#ifdef CONFIG_MALI_DEBUG
+				if (!bitmap_empty(group->protm_pending_bitmap,
+						  ginfo->stream_num)) {
+					dev_warn(kbdev->dev,
+						"Idle bit set for group %d of ctx %d_%d on slot %d with pending protm execution",
+						group->handle, group->kctx->tgid,
+						group->kctx->id, (int)i);
+				}
+#endif
+				clear_bit(i, scheduler->csg_slots_idle_mask);
+				KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_SLOT_IDLE_CLEAR, group,
+							 scheduler->csg_slots_idle_mask[0]);
+			} else {
+				/* Updates include slots for which reevaluation is needed.
+				 * Here one tracks the extra included slots in active_chk.
+				 * For protm pending slots, their status of activeness are
+				 * assured so no need to request an update.
+				 */
+				active_chk |= BIT(i);
+				group->reevaluate_idle_status = false;
+			}
 
-		csg_req = kbase_csf_firmware_csg_output(ginfo, CSG_ACK);
-		csg_req ^= CSG_REQ_STATUS_UPDATE_MASK;
-		kbase_csf_firmware_csg_input_mask(ginfo, CSG_REQ, csg_req,
-						  CSG_REQ_STATUS_UPDATE_MASK);
+			KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_UPDATE_IDLE_SLOT_REQ, group, i);
+			csg_req = kbase_csf_firmware_csg_output(ginfo, CSG_ACK);
+			csg_req ^= CSG_REQ_STATUS_UPDATE_MASK;
+			kbase_csf_firmware_csg_input_mask(ginfo, CSG_REQ, csg_req,
+							CSG_REQ_STATUS_UPDATE_MASK);
 
-		set_bit(i, csg_bitmap);
+			/* Track the slot update requests in csg_bitmap.
+			 * Note, if the scheduler requested extended update, the resulting
+			 * csg_bitmap would be the idle_flags + active_chk. Otherwise it's
+			 * identical to the idle_flags.
+			 */
+			set_bit(i, csg_bitmap);
+		} else {
+			group->run_state = KBASE_CSF_GROUP_RUNNABLE;
+		}
 	}
 	spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 
@@ -3655,6 +3730,17 @@ static void scheduler_update_idle_slots_status(struct kbase_device *kbdev,
 			/* Store the bitmap of timed out slots */
 			bitmap_copy(failed_csg_bitmap, csg_bitmap, num_groups);
 			csg_bitmap[0] = ~csg_bitmap[0] & db_slots;
+
+			/* Mask off any failed bit position contributed from active ones, as the
+			 * intention is to retain the failed bit pattern contains only those from
+			 * idle flags reporting back to the caller. This way, any failed to update
+			 * original idle flag would be kept as 'idle' (an informed guess, as the
+			 * update did not come to a conclusive result). So will be the failed
+			 * active ones be treated as still 'non-idle'. This is for a graceful
+			 * handling to the unexpected timeout condition.
+			 */
+			failed_csg_bitmap[0] &= ~active_chk;
+
 		} else {
 			KBASE_KTRACE_ADD(kbdev, SLOTS_STATUS_UPDATE_ACK, NULL,
 					 db_slots);
@@ -5085,6 +5171,10 @@ static bool check_sync_update_for_idle_group_protm(
 					scheduler->csg_slots_idle_mask[0]);
 				spin_unlock_irqrestore(
 					&scheduler->interrupt_lock, flags);
+				/* Request the scheduler to confirm the condition inferred
+				 * here inside the protected mode.
+				 */
+				group->reevaluate_idle_status = true;
 				group->run_state = KBASE_CSF_GROUP_RUNNABLE;
 			}
 

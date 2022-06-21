@@ -9,11 +9,13 @@ else ifeq ($(MTK_PLATFORM),mt6761)
 endif
 
 ccflags-$(CONFIG_MTK_TINYSYS_SSPM_SUPPORT) += -DSSPM_DEBUG
+ccflags-$(LOCAL_MTK_GPU_PROTECTED_SUPPORT) += -DSUPPORT_TRUSTED_DEVICE
 
 RGX_TOP := $(if $(filter /%,$(src)),,$(srctree)/)$(src)
 
 $(info [GPU_DEBUG] MTK_PLATFORM = $(MTK_PLATFORM))
 $(info [GPU_DEBUG] RGX_TOP=$(RGX_TOP))
+$(info [GPU_DEBUG] LOCAL_MTK_GPU_PROTECTED_SUPPORT=$(LOCAL_MTK_GPU_PROTECTED_SUPPORT))
 
 ifeq ($(MTK_DDK_DEBUG),y)
 	ccflags-y += -include $(RGX_TOP)/include/config_kernel_debug_$(MTK_PLATFORM).h
@@ -263,5 +265,10 @@ ccflags-y += \
 	-I$(srctree)/drivers/misc/mediatek/include/mt-plat \
 	-I$(srctree)/drivers/gpu/mediatek/gpueb/include
 
-obj-$(CONFIG_MTK_GPU_SUPPORT) += pvrsrvkm_$(MTK_PLATFORM).o
-pvrsrvkm_$(MTK_PLATFORM)-y := pvrsrvkm.o
+ifeq ($(LOCAL_MTK_GPU_PROTECTED_SUPPORT),y)
+ obj-$(CONFIG_MTK_GPU_SUPPORT) += pvrsrvkm_$(MTK_PLATFORM)_sec.o
+ pvrsrvkm_$(MTK_PLATFORM)_sec-y := pvrsrvkm.o
+else
+ obj-$(CONFIG_MTK_GPU_SUPPORT) += pvrsrvkm_$(MTK_PLATFORM).o
+ pvrsrvkm_$(MTK_PLATFORM)-y := pvrsrvkm.o
+endif
