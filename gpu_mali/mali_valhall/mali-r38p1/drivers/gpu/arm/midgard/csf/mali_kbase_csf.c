@@ -1372,6 +1372,7 @@ static int create_queue_group(struct kbase_context *const kctx,
 			group->doorbell_nr = KBASEP_USER_DB_NR_INVALID;
 			group->faulted = false;
 			group->cs_unrecoverable = false;
+			group->reevaluate_idle_status = false;
 
 
 			group->group_uid = generate_group_uid();
