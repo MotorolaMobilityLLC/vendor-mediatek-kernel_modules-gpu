@@ -44,7 +44,7 @@ ifneq (,$(wildcard mt6985))
 endif
 
 ifneq (,$(wildcard mt6886))
-	PARAMS += mali,mt6886,mali_valhall,mali-r38p0,mali_valhall_r38p0_mt6886
+	PARAMS += mali,mt6886,mali_valhall,mali-r38p1,mali_valhall_r38p1_mt6886
 endif
 
 all modules_install clean: RULE := $(BUILD_RULE)
