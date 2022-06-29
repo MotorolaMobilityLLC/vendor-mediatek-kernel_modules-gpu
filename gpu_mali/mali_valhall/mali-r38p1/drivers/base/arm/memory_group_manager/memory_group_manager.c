@@ -358,7 +358,7 @@ static u64 example_mgm_update_gpu_pte(
 	struct mgm_groups *const data = mgm_dev->data;
 
 #if IS_ENABLED(CONFIG_MTK_MODIFY)
-	int default_group_id = data->default_group_id != 0?data->default_group_id:0;
+	int default_group_id = data->default_group_id != 0?data->default_group_id:group_id;
 
 	dev_vdbg(data->dev,
 		"%s(mgm_dev=%p, group_id=%d, mmu_level=%d, pte=0x%llx)\n",
