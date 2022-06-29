@@ -43,6 +43,11 @@
 #include "mtk_platform_diagnosis_mode.h"
 #endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CM7_TRACE)
+#include <bus_tracer_v1.h>
+#include "mtk_platform_cm7_trace.h"
+#endif /* CONFIG_MALI_MTK_CM7_TRACE */
+
 #include "csf/mali_kbase_csf_trace_buffer.h"
 
 #if IS_ENABLED(CONFIG_PROC_FS)
@@ -148,6 +153,9 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 #if IS_ENABLED(CONFIG_MALI_MTK_CSFFWLOG)
 		mtk_kbase_csf_firmware_dump_fwlog(kbdev); /* dump fwlog, reserve 16k for fwlog*/
 #endif /* CONFIG_MALI_MTK_CSFFWLOG */
+#if IS_ENABLED(CONFIG_MALI_MTK_CM7_TRACE)
+		disable_etb_capture(); /* stop ETB capture before DFD trig */
+#endif /* CONFIG_MALI_MTK_CM7_TRACE */
 		BUG_ON(1);
 #endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
 		break;
@@ -276,6 +284,10 @@ void mtk_common_sysfs_init(struct kbase_device *kbdev)
         mtk_diagnosis_mode_sysfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CM7_TRACE)
+        mtk_cm7_trace_sysfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_CM7_TRACE */
+
 }
 
 void mtk_common_sysfs_term(struct kbase_device *kbdev)
@@ -286,6 +298,10 @@ void mtk_common_sysfs_term(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
         mtk_diagnosis_mode_sysfs_term(kbdev);
 #endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_CM7_TRACE)
+        mtk_cm7_trace_sysfs_term(kbdev);
+#endif /* CONFIG_MALI_MTK_CM7_TRACE */
 
 }
 #endif /* CONFIG_MALI_MTK_SYSFS */
