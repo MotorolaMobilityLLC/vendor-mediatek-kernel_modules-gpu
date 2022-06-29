@@ -102,15 +102,10 @@ int kbasep_pm_metrics_init(struct kbase_device *kbdev)
 #if MALI_USE_CSF
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
-	struct kbase_ipa_control_perf_counter perf_counter[4];
-
-	/* Four counter groups */
-	const size_t NUM_PERF_COUNTERS = 4;
+	struct kbase_ipa_control_perf_counter perf_counter[NUM_PERF_COUNTERS];
+	int index = 0;
 #else
 	struct kbase_ipa_control_perf_counter perf_counter;
-
-	/* One counter group */
-	const size_t NUM_PERF_COUNTERS = 1;
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 	int err;
 
@@ -120,14 +115,10 @@ int kbasep_pm_metrics_init(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
-	kbdev->pm.backend.metrics.values.time_busy[0] = 0;
-	kbdev->pm.backend.metrics.values.time_idle[0] = 0;
-	kbdev->pm.backend.metrics.values.time_busy[1] = 0;
-	kbdev->pm.backend.metrics.values.time_idle[1] = 0;
-	kbdev->pm.backend.metrics.values.time_busy[2] = 0;
-	kbdev->pm.backend.metrics.values.time_idle[2] = 0;
-	kbdev->pm.backend.metrics.values.time_busy[3] = 0;
-	kbdev->pm.backend.metrics.values.time_idle[3] = 0;
+	for (index = 0; index < NUM_PERF_COUNTERS; index++) {
+		kbdev->pm.backend.metrics.values.time_busy[index] = 0;
+		kbdev->pm.backend.metrics.values.time_idle[index] = 0;
+	}
 #else
 	kbdev->pm.backend.metrics.values.time_busy = 0;
 	kbdev->pm.backend.metrics.values.time_idle = 0;
@@ -160,6 +151,12 @@ int kbasep_pm_metrics_init(struct kbase_device *kbdev)
 	perf_counter[3].gpu_norm       = true;
 	perf_counter[3].type           = KBASE_IPA_CORE_TYPE_CSHW;
 	perf_counter[3].idx            = ITER_FRAG_ACTIVE_IDX;
+
+	// ITER_ITER_ACTIVE_IDX
+	perf_counter[4].scaling_factor = GPU_ACTIVE_SCALING_FACTOR;
+	perf_counter[4].gpu_norm       = true;
+	perf_counter[4].type           = KBASE_IPA_CORE_TYPE_CSHW;
+	perf_counter[4].idx            = ITER_ITER_ACTIVE_IDX;
 
 	err = kbase_ipa_control_register(
 		kbdev, perf_counter, NUM_PERF_COUNTERS,
@@ -267,7 +264,7 @@ static void kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 	int err;
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
-	u64 gpu_active_counter[4];
+	u64 gpu_active_counter[NUM_PERF_COUNTERS];
 #else
 	u64 gpu_active_counter;
 #endif  /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
@@ -283,11 +280,11 @@ static void kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	err = kbase_ipa_control_query(
 		kbdev, kbdev->pm.backend.metrics.ipa_control_client,
-		gpu_active_counter, 4, &protected_time);
+		gpu_active_counter, NUM_PERF_COUNTERS, &protected_time);
 #else
 	err = kbase_ipa_control_query(
 		kbdev, kbdev->pm.backend.metrics.ipa_control_client,
-		&gpu_active_counter, 1, &protected_time);
+		&gpu_active_counter, NUM_PERF_COUNTERS, &protected_time);
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 	/* Read the timestamp after reading the GPU_ACTIVE counter value.
@@ -377,7 +374,7 @@ static void kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
-		for (index = 0; index < 4; index++) {
+		for (index = 0; index < NUM_PERF_COUNTERS; index++) {
 			gpu_active_counter[index] >>= KBASE_PM_TIME_SHIFT;
 			gpu_active_counter[index] += protected_time;
 
@@ -469,7 +466,6 @@ void kbase_pm_get_dvfs_metrics(struct kbase_device *kbdev,
 {
 	struct kbasep_pm_metrics *cur = &kbdev->pm.backend.metrics.values;
 	unsigned long flags;
-
 #if MALI_USE_CSF && \
 	IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
@@ -489,7 +485,7 @@ void kbase_pm_get_dvfs_metrics(struct kbase_device *kbdev,
 	IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 
-	for (index = 0; index < 4; index++) {
+	for (index = 0; index < NUM_PERF_COUNTERS; index++) {
 		diff->time_busy[index] = cur->time_busy[index] - last->time_busy[index];
 		diff->time_idle[index] = cur->time_idle[index] - last->time_idle[index];
 	}

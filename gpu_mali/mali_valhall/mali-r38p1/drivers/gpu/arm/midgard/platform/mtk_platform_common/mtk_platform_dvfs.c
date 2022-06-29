@@ -97,7 +97,7 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 			(struct GpuUtilization_Ex *) Util_Ex;
 #endif
 
-	int utilisation[4];
+	int utilisation[NUM_PERF_COUNTERS];
 	struct kbasep_pm_metrics *diff;
 	int index = 0;
 
@@ -108,7 +108,7 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 	kbase_pm_get_dvfs_metrics(kbdev, &kbdev->pm.backend.metrics.dvfs_last,
 				  diff);
 
-	for (index = 0; index < 4; index++) {
+	for (index = 0; index < NUM_PERF_COUNTERS; index++) {
 		utilisation[index] = (100 * diff->time_busy[index]) /
 			max(diff->time_busy[index]+ diff->time_idle[index], 1u);
 	}
@@ -118,6 +118,7 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 	util_ex->util_ta        = utilisation[1];
 	util_ex->util_compute   = utilisation[2];
 	util_ex->util_3d        = utilisation[3];
+	util_ex->util_iter      = utilisation[4];
 #endif
 
 	if (pui32Loading)
