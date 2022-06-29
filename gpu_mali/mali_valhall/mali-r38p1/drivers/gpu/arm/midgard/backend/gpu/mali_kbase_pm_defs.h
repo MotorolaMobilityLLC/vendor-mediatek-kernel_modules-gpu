@@ -33,6 +33,15 @@
 #define KBASE_PM_RUNTIME 1
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+/* counters defined in mali_kbase_csf_defs.h */
+#define NUM_PERF_COUNTERS (5)
+#else
+/* GPU_ACTIVE */
+#define NUM_PERF_COUNTERS (1)
+#endif
+
 /* Forward definition - see mali_kbase.h */
 struct kbase_device;
 struct kbase_jd_atom;
@@ -121,9 +130,9 @@ struct kbasep_pm_metrics {
 	u32 time_in_protm;
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
-	//[0]: Active, [1]: TILER, [2]: COMP, [3]: FRAG
-	u32 time_busy[4];
-	u32 time_idle[4];
+	//[0]: Active, [1]: TILER, [2]: COMP, [3]: FRAGP, [4]: ITER
+	u32 time_busy[NUM_PERF_COUNTERS];
+	u32 time_idle[NUM_PERF_COUNTERS];
 
 	u32 busy_cl[2];
 	u32 busy_gl;
