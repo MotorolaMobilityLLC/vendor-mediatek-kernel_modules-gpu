@@ -48,6 +48,11 @@
 #include "mtk_platform_cm7_trace.h"
 #endif /* CONFIG_MALI_MTK_CM7_TRACE */
 
+#if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+#include <mtk_gpu_power_sspm_ipi.h>
+#include <platform/mtk_mfg_counter.h>
+#endif
+
 #include "csf/mali_kbase_csf_trace_buffer.h"
 
 #if IS_ENABLED(CONFIG_PROC_FS)
@@ -369,6 +374,11 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	mtk_common_procfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_PROC_FS */
 
+#if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+	MTKGPUPower_model_init();
+	//mtk_mfg_counter_init();
+#endif
+
 	return 0;
 }
 
@@ -402,6 +412,11 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_PROC_FS)
 	mtk_common_procfs_term(kbdev);
 #endif /* CONFIG_MALI_MTK_PROC_FS */
+
+#if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+	MTKGPUPower_model_destroy();
+	//mtk_mfg_counter_destroy();
+#endif
 
 	mtk_platform_pm_term(kbdev);
 }

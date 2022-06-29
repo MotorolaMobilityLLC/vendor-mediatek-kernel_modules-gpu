@@ -295,6 +295,7 @@ mali_kbase-y += \
     mali_kbase_hw.o \
     mali_kbase_debug.o \
     mali_kbase_gpu_memory_debugfs.o \
+    mali_kbase_gator_api.o \
     mali_kbase_mem_linux.o \
     mali_kbase_core_linux.o \
     mali_kbase_mem_profile_debugfs.o \
