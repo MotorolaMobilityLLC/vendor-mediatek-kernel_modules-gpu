@@ -87,7 +87,12 @@ enum {
  * interface should sample counters with a resolution in the order of
  * milliseconds, while keeping GPU overhead as limited as possible.
  */
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+#define IPA_CONTROL_TIMER_DEFAULT_VALUE_MS ((u32)1) /* 1 milliseconds */
+#else
 #define IPA_CONTROL_TIMER_DEFAULT_VALUE_MS ((u32)10) /* 10 milliseconds */
+#endif
 #endif /* MALI_USE_CSF */
 
 /* Default period for DVFS sampling (can be overridden by platform header) */
