@@ -83,9 +83,12 @@ static int pm_callback_power_on_nolock(struct kbase_device *kbdev)
 
 	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_1);
 
+	/* get required frequency from GED */
+	g_cur_opp_idx = mtk_common_ged_dvfs_get_last_commit_idx();
+
 	/* on,off/ SWCG(BG3D)/ MTCMOS/ BUCK */
 #if defined(CONFIG_MTK_GPUFREQ_V2)
-	if (gpufreq_power_control(POWER_ON) < 0) {
+	if (gpufreq_power_control(POWER_ON, g_cur_opp_idx) < 0) {
 		dev_info(kbdev->dev, "GPU PM Callback - Power On Failed");
 		return 1;
 	}
@@ -126,33 +129,28 @@ static void pm_callback_power_off_nolock(struct kbase_device *kbdev)
 
 	dev_vdbg(kbdev->dev, "GPU PM Callback - Idle");
 
-	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_6);
+	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_5);
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	ged_dvfs_gpu_clock_switch_notify(0);
 #endif
 
-	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_7);
+	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_6);
 
 	/* set a flag to disable GPU DVFS */
 	mtk_common_pm_mfg_idle();
 
-	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_8);
-
-	/* suspend frequency */
-	g_cur_opp_idx = mtk_common_ged_dvfs_get_last_commit_idx();
-
-	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_9);
+	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_7);
 
 	/* on,off/ SWCG(BG3D)/ MTCMOS/ BUCK */
 #if defined(CONFIG_MTK_GPUFREQ_V2)
-	if (gpufreq_power_control(POWER_OFF) < 0) {
+	if (gpufreq_power_control(POWER_OFF, GPUPPM_DEFAULT_IDX) < 0) {
 		dev_info(kbdev->dev, "GPU PM Callback - Power Off Failed");
 		return;
 	}
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
 
-	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_A);
+	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_8);
 }
 
 static int pm_callback_power_on(struct kbase_device *kbdev)
