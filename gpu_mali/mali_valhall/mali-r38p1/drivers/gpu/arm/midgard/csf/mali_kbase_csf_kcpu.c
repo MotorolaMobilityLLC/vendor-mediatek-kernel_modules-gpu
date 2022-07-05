@@ -1333,27 +1333,31 @@ static void fence_timeout_callback(struct timer_list *timer)
 		dev_warn(kctx->kbdev->dev, "fence has not yet signalled in %ums",
 			 FENCE_WAIT_TIMEOUT_MS);
 		dev_warn(kctx->kbdev->dev,
-			 "ctx:%d_%d kcpu queue:%u still waiting for fence[%pK] context#seqno:%s",
-			 kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name);
+			 "ctx:%d_%d kcpu queue:%u still waiting for fence[%pK] context#seqno:%s (driver=%s, timeline=%s)",
+			 kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name,
+			 fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
 			"fence has not yet signalled in %ums\n");
 		mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
-			"ctx:%d_%d kcpu queue:%u still waiting for fence[%pK] context#seqno:%s\n",
-			kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name);
+			"ctx:%d_%d kcpu queue:%u still waiting for fence[%pK] context#seqno:%s (driver=%s, timeline=%s)\n",
+			kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name,
+			fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		queue_work(kcpu_queue->timeout_wq, &kcpu_queue->timeout_work);
 	} else {
 		dev_warn(kctx->kbdev->dev, "fence has got error");
 		dev_warn(kctx->kbdev->dev,
-			 "ctx:%d_%d kcpu queue:%u faulty fence[%pK] context#seqno:%s error(%d)",
-			 kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name, info.status);
+			 "ctx:%d_%d kcpu queue:%u faulty fence[%pK] context#seqno:%s error(%d) (driver=%s, timeline=%s)",
+			 kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name, info.status,
+			 fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
 			"fence has got error\n");
 		mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
-			"ctx:%d_%d kcpu queue:%u faulty fence[%pK] context#seqno:%s error(%d)\n",
-			kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name, info.status);
+			"ctx:%d_%d kcpu queue:%u faulty fence[%pK] context#seqno:%s error(%d) (driver=%s, timeline=%s)\n",
+			kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name, info.status,
+			fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 
