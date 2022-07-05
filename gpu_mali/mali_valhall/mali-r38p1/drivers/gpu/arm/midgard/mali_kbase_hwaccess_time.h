@@ -70,3 +70,12 @@ unsigned int kbase_get_timeout_ms(struct kbase_device *kbdev,
  * Return: Snapshot of the GPU cycle count register.
  */
 u64 kbase_backend_get_cycle_cnt(struct kbase_device *kbdev);
+
+/**
+ * kbase_backend_get_timestamp - Reads the GPU timestamp
+ *
+ * @kbdev: Instance of a GPU platform device that implements a CSF interface.
+ *
+ * Return: Snapshot of the GPU timestamp register.
+ */
+u64 kbase_backend_get_timestamp(struct kbase_device *kbdev);

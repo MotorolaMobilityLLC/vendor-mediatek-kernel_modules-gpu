@@ -36,6 +36,7 @@
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <mali_kbase_hwaccess_time.h>
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -397,7 +398,8 @@ static enum kbasep_soft_reset_status kbase_csf_reset_gpu_once(struct kbase_devic
 								RESET_TIMEOUT);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
-			"Resetting GPU (allowing up to %d ms)\n",
+			"[%llxt] Resetting GPU (allowing up to %d ms)\n",
+			kbase_backend_get_timestamp(kbdev),
 			RESET_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
@@ -527,7 +529,8 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 		dev_err(kbdev->dev, "Reset complete");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
-			"Reset complete\n");
+			"[%llxt] Reset complete\n",
+			kbase_backend_get_timestamp(kbdev));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 
@@ -630,7 +633,8 @@ void kbase_reset_gpu(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_exception,
-		"Preparing to soft-reset GPU\n");
+		"[%llxt] Preparing to soft-reset GPU\n",
+		kbase_backend_get_timestamp(kbdev));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	kbase_disjoint_state_up(kbdev);

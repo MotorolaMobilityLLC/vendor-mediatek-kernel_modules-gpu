@@ -46,6 +46,7 @@
 #include <mali_kbase_reset_gpu.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <mali_kbase_hwaccess_time.h>
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -1167,7 +1168,8 @@ int kbase_mem_do_sync_imported(struct kbase_context *kctx,
 			 reg, reg->start_pfn, ret);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
-			"Failed to sync mem region %pK at GPU VA %llx: %d\n",
+			"[%llxt] Failed to sync mem region %pK at GPU VA %llx: %d\n",
+			kbase_backend_get_timestamp(kctx->kbdev),
 			reg, reg->start_pfn, ret);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
