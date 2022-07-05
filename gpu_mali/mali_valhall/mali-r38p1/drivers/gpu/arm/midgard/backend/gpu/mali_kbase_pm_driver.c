@@ -2390,7 +2390,11 @@ int kbase_pm_wait_for_desired_state(struct kbase_device *kbdev)
 			 "Wait for desired PM state got interrupted");
 		err = (int)remaining;
 	}
-
+	if(!err)
+		if((kbdev->pm.backend.mcu_state != KBASE_MCU_ON) && (kbdev->pm.backend.mcu_state != KBASE_MCU_OFF))
+		{
+			dev_info(kbdev->dev, "mali-debug: mcu desired %x mcu status %x in desired state %x remaining %d", kbase_pm_is_mcu_desired(kbdev), kbdev->pm.backend.mcu_state, kbase_pm_is_in_desired_state(kbdev),remaining);
+		}
 	return err;
 }
 KBASE_EXPORT_TEST_API(kbase_pm_wait_for_desired_state);
