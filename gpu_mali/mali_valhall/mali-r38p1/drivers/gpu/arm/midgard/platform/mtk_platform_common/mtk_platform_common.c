@@ -372,7 +372,7 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
 	MTKGPUPower_model_init();
-	//mtk_mfg_counter_init();
+	mtk_mfg_counter_init();
 #endif
 
 	return 0;
@@ -411,7 +411,7 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
 	MTKGPUPower_model_destroy();
-	//mtk_mfg_counter_destroy();
+	mtk_mfg_counter_destroy();
 #endif
 
 	mtk_platform_pm_term(kbdev);

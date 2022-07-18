@@ -499,6 +499,7 @@ static void _mtk_mfg_init_counter(void)
 		mfg_is_power_on = 0;
 		binited = 1;
 		/* Dump PMU info */
+		/*
 		pr_debug("[GPU pmu]bitmask[0] %x\n", info.bitmask[0]);
 		pr_debug("[GPU pmu]bitmask[1] %x\n", info.bitmask[1]);
 		pr_debug("[GPU pmu]bitmask[2] %x\n", info.bitmask[2]);
@@ -511,6 +512,7 @@ static void _mtk_mfg_init_counter(void)
 			pr_debug("[GPU pmu]hwc_layout[%d] %d\n", i, info.hwc_layout[i]);
 
 		pr_debug("[GPU pmu]num_of_counter %d\n", number_of_hardware_counters);
+		*/
 		kbase_gator_instr_hwcnt_dump_irq(handle);
 	}
 }
@@ -530,7 +532,7 @@ static int _mtk_mfg_update_counter(void)
 	}
 
 	if (ret != PMU_NG) {
-		u32 *hwcnt_data = (u32 *)info.kernel_dump_buffer;
+		u64 *hwcnt_data = (u64 *)info.kernel_dump_buffer;
 		int shader_block, block_type, i, j, name_offset, data_offset, cnt, nr_hwc_blocks;
 
 		nr_hwc_blocks = info.nr_hwc_blocks ;
@@ -574,9 +576,10 @@ static int _mtk_mfg_update_counter(void)
 				if (mali_pmus[cnt].name && (strstr(mali_pmus[cnt].name, "GPU_ACTIVE")
 				|| strstr(mali_pmus[cnt].name, "EXEC_ACTIVE")
 				|| strstr(mali_pmus[cnt].name, "FRAG_ACTIVE")))
-					pr_debug("[PMU]id %d name %s value %d time %llu gpu_freq %d active_cycle %d\n",
-					cnt, mali_pmus[cnt].name, mali_pmus[cnt].value, timd_diff_us,
-					gpu_freq, active_cycle)
+					pr_debug("[PMU]id %d name %s value %d\n",
+						cnt, 
+						mali_pmus[cnt].name, 
+						mali_pmus[cnt].value);
 				*/
 				cnt++;
 			}
@@ -770,10 +773,10 @@ int gator_gpu_pmu_init()
 	}
 	cnt = block_type = 0;
 	nr_hwc_blocks = info.nr_hwc_blocks - info.nr_cores + 1;
-	pr_debug("block num:%u, core:%u", info.nr_hwc_blocks, info.nr_cores);
+	//pr_debug("block num:%u, core:%u", info.nr_hwc_blocks, info.nr_cores);
 	for (i = 0; i < info.nr_hwc_blocks; i++) {
 		block_type = info.hwc_layout[i];
-		pr_debug("block:%d", block_type);
+		//pr_debug("block:%d", block_type);
 		if (block_type == RESERVED_BLOCK)
 			continue;
 		name_offset = name_offset_table[block_type] * MALI_COUNTERS_PER_BLOCK;
@@ -782,16 +785,9 @@ int gator_gpu_pmu_init()
 			const char *name = hardware_counter_names[name_offset + j];
 			if (name[0] == '\0')
 				continue;
-			//mali_pmus[cnt].id = cnt;
-			//mali_pmus[cnt].name = name;
-			pr_debug("%u:%s", data_offset + j, name);
+			//pr_debug("%u:%s", data_offset + j, name);
 			cnt++;
 		}
-	}
-	for (i = 0; i < MFG_MTK_COUNTER_SIZE; i++) {
-		mali_pmus[cnt].id = cnt;
-		mali_pmus[cnt].name = mfg_mtk_counters[i].name;
-		cnt++;
 	}
 	return ret;
 }

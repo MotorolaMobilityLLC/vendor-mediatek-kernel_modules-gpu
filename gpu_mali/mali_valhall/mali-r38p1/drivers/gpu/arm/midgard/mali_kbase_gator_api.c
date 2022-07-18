@@ -14,8 +14,12 @@
 
 #define MALI_MAX_CORES_PER_GROUP		4
 #define MALI_MAX_NUM_BLOCKS_PER_GROUP	8
+#if IS_ENABLED(CONFIG_MALI_PMU_CPB128)
+#define MALI_COUNTERS_PER_BLOCK			128
+#else
 #define MALI_COUNTERS_PER_BLOCK			64
-#define MALI_BYTES_PER_COUNTER			4
+#endif
+#define MALI_BYTES_PER_COUNTER			8
 
 struct kbase_gator_hwcnt_handles {
 	struct kbase_device *kbdev;
@@ -62,6 +66,10 @@ const char * const *kbase_gator_hwcnt_init_names(uint32_t *total_counters)
 	case GPU_ID2_PRODUCT_TODX:
 		hardware_counters = hardware_counters_mali_tODx;
 		count = ARRAY_SIZE(hardware_counters_mali_tODx);
+		break;
+	case GPU_ID2_PRODUCT_TTUX:
+		hardware_counters = hardware_counters_mali_tTUx;
+		count = ARRAY_SIZE(hardware_counters_mali_tTUx);
 		break;
 	default:
 		hardware_counters = NULL;

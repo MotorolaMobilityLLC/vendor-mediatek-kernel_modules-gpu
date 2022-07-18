@@ -78,13 +78,13 @@ static void MTKGPUPower_model_kbase_setup(int flag, unsigned int interval_ns) {
 }
 
 void MTKGPUPower_model_sspm_enable(void) {
-	//int pm_tool = MTK_get_mtk_pm();
-/*
+	int pm_tool = MTK_get_mtk_pm();
+
 	if (pm_tool == pm_non)
 		MTKGPUPower_model_kbase_setup(pm_swpm, 0);
 
 	MTKGPUPower_model_kbase_setup(pm_swpm, 0);
-*/
+
 	gpu_send_enable_ipi(GPU_PM_SWITCH, 1);
 	init_flag = gpm_sspm_side;
 }
@@ -217,7 +217,7 @@ int MTKGPUPower_model_init(void) {
 	}
 #endif
 
-	//mtk_ltr_gpu_pmu_start_fp = MTKGPUPower_model_start;
+	mtk_ltr_gpu_pmu_start_fp = MTKGPUPower_model_start;
 	mtk_ltr_gpu_pmu_stop_fp = MTKGPUPower_model_stop;
 	mtk_swpm_gpu_pm_start_fp = MTKGPUPower_model_sspm_enable;
 	mtk_set_gpu_idle_fp = MTKGPUSet_idle_time;
@@ -226,7 +226,7 @@ int MTKGPUPower_model_init(void) {
 }
 
 void MTKGPUPower_model_destroy(void) {
-	//mtk_ltr_gpu_pmu_start_fp = NULL;
+	mtk_ltr_gpu_pmu_start_fp = NULL;
 	mtk_ltr_gpu_pmu_stop_fp = NULL;
 	mtk_swpm_gpu_pm_start_fp = NULL;
 	mtk_set_gpu_idle_fp = NULL;
