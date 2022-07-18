@@ -5055,7 +5055,7 @@ void kbase_device_debugfs_term(struct kbase_device *kbdev)
 #endif /* CONFIG_DEBUG_FS */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-static u32 config_system_coherency = 0;
+static u32 config_system_coherency = 31;
 module_param(config_system_coherency, uint, 0444);
 MODULE_PARM_DESC(config_system_coherency, "System Coherency");
 #endif /* CONFIG_MALI_MTK_DEBUG */
