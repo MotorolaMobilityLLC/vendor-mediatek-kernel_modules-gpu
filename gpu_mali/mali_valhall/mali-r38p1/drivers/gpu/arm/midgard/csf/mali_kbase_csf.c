@@ -2332,6 +2332,11 @@ handle_fault_event(struct kbase_queue *const queue,
 		kbase_gpu_exception_name(cs_fault_exception_type),
 		cs_fault_exception_data, cs_fault_info_exception_data);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	if (cs_fault_exception_type != CS_FAULT_EXCEPTION_TYPE_CS_INHERIT_FAULT)
+	{
+#endif /* CONFIG_MALI_MTK_DEBUG */
 	dev_warn(kbdev->dev,
 		 "Ctx %d_%d Group %d CSG %d CSI: %d\n"
 		 "CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
@@ -2342,6 +2347,9 @@ handle_fault_event(struct kbase_queue *const queue,
 		 cs_fault_exception_type,
 		 kbase_gpu_exception_name(cs_fault_exception_type),
 		 cs_fault_exception_data, cs_fault_info_exception_data);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	}
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_CSFAULT);
