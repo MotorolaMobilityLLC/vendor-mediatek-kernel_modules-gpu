@@ -26,6 +26,18 @@
 #include <linux/string.h>
 #include <linux/workqueue.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+/* csffw reserved memory */
+#include <linux/of.h>
+#include <linux/of_address.h>
+#include <linux/of_reserved_mem.h>
+
+/* for fwlog get latest 16kb data */
+struct device_node *g_rmem_node = NULL;
+struct reserved_mem *g_fwlogdump = NULL;
+u8 *g_fw_dump_dest = NULL;
+#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
+
 #if defined(CONFIG_DEBUG_FS)
 
 static int kbase_csf_firmware_log_enable_mask_read(void *data, u64 *val)
@@ -221,6 +233,22 @@ int kbase_csf_firmware_log_init(struct kbase_device *kbdev)
 	debugfs_create_file("fw_trace_mode", 0644, kbdev->mali_debugfs_directory, kbdev,
 			    &kbase_csf_firmware_log_mode_fops);
 #endif /* CONFIG_DEBUG_FS */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+	g_rmem_node = of_find_compatible_node(NULL, NULL, "mediatek,me_CSFFWLOG_reserved");
+	if(!g_rmem_node) {
+		dev_vdbg(kbdev->dev, "[CSFFWLOG] no node for reserved memory\n");
+		return -ENOMEM;
+	}
+	g_fwlogdump = of_reserved_mem_lookup(g_rmem_node);
+	if(!g_fwlogdump) {
+		dev_vdbg(kbdev->dev, "[CSFFWLOG] cannot lookup reserved memory\n");
+		return -ENOMEM;
+	}
+	g_fw_dump_dest = ioremap_wc(g_fwlogdump->base, g_fwlogdump->size);
+	dev_info(kbdev->dev, "[me_CSFFWLOG_reserved] phys = 0x%x, size = %d, virt = 0x%llx\n",
+			g_fwlogdump->base, g_fwlogdump->size, g_fw_dump_dest);
+#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
 
 	return 0;
 }
