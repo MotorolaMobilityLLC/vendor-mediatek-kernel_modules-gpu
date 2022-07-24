@@ -25,7 +25,7 @@
 #include <linux/types.h>
 
 #define CSF_FIRMWARE_TRACE_ENABLE_INIT_MASK_MAX (4)
-#define FW_TRACE_BUF_NAME "fwlog"
+#define FIRMWARE_LOG_BUF_NAME "fwlog"
 
 /* Forward declarations */
 struct firmware_trace_buffer;
@@ -203,14 +203,23 @@ bool mtk_kbase_csf_firmware_trace_buffer_is_need_drain(const struct firmware_tra
 void mtk_kbase_csf_firmware_check_drain_fwlog(struct kbase_device *kbdev);
 #endif /* CONFIG_MALI_MTK_CSFFWLOG */
 
-#if IS_ENABLED(CONFIG_DEBUG_FS)
 /**
- * kbase_csf_firmware_trace_buffer_debugfs_init() - Add debugfs entries for
- * setting enable mask and dumping the binary firmware trace buffer
+ * kbase_csf_firmware_trace_buffer_get_active_mask64 - Get trace buffer active mask
  *
- * @kbdev: Pointer to the device
+ * @tb: Trace buffer handle
+ *
+ * Return: Trace buffer active mask.
  */
-void kbase_csf_firmware_trace_buffer_debugfs_init(struct kbase_device *kbdev);
-#endif /* CONFIG_DEBUG_FS */
+u64 kbase_csf_firmware_trace_buffer_get_active_mask64(struct firmware_trace_buffer *tb);
+
+/**
+ * kbase_csf_firmware_trace_buffer_set_active_mask64 - Set trace buffer active mask
+ *
+ * @tb: Trace buffer handle
+ * @mask: New active mask
+ *
+ * Return: 0 if successful, negative error code on failure.
+ */
+int kbase_csf_firmware_trace_buffer_set_active_mask64(struct firmware_trace_buffer *tb, u64 mask);
 
 #endif /* _KBASE_CSF_TRACE_BUFFER_H_ */
