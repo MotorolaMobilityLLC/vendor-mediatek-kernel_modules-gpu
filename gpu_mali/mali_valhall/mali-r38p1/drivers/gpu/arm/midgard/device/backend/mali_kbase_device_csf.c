@@ -48,7 +48,6 @@
 #include <platform/mtk_platform_common.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-#include <mali_kbase_hwaccess_time.h>
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -378,8 +377,7 @@ int kbase_device_init(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_regular,
-		"[%llxt] Kernel DDK version %s\n",
-		kbase_backend_get_timestamp(kbdev),
+		"Kernel DDK version %s\n",
 		MALI_RELEASE_NAME);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -528,8 +526,7 @@ int kbase_device_firmware_init_once(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_regular,
-		"[%llxt] CSF firmware was successfully initialized by process '%s'\n",
-		kbase_backend_get_timestamp(kbdev),
+		"CSF firmware was successfully initialized by process '%s'\n",
 		current->comm);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 

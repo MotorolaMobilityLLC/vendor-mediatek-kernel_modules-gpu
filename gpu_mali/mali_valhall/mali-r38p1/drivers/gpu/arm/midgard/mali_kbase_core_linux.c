@@ -1731,8 +1731,7 @@ static int kbasep_ioctl_set_limited_core_count(struct kbase_context *kctx,
 static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 			struct kbase_ioctl_internal_fence_wait *fence_wait)
 {
-	dev_info(kctx->kbdev->dev, "[%llu] internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u",
-	         kbase_backend_get_cycle_cnt(kctx->kbdev),
+	dev_info(kctx->kbdev->dev, "internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u",
 	         fence_wait->time_in_microseconds,
 	         fence_wait->flags,
 	         fence_wait->pid);
@@ -1740,7 +1739,7 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
 		"[%llxt] internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u\n",
-		kbase_backend_get_timestamp(kctx->kbdev),
+		mtk_logbuffer_get_timestamp(kctx->kbdev),
 		fence_wait->time_in_microseconds,
 		fence_wait->flags,
 		fence_wait->pid);
@@ -5687,8 +5686,7 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_regular,
-			"[%llxt] Probed as %s\n",
-			kbase_backend_get_timestamp(kbdev),
+			"Probed as %s\n",
 			dev_name(kbdev->mdev.this_device));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}

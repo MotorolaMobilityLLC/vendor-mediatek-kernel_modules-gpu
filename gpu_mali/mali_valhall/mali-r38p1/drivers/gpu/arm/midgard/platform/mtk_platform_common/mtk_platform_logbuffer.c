@@ -12,6 +12,8 @@
 #endif
 #include <mali_kbase.h>
 #include <mali_kbase_defs.h>
+#include <mali_kbase_hwaccess_time.h>
+#include <backend/gpu/mali_kbase_pm_internal.h>
 #include <platform/mtk_platform_common.h>
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 
@@ -74,6 +76,27 @@ int mtk_logbuffer_procfs_term(struct kbase_device *kbdev, struct proc_dir_entry 
 	return 0;
 }
 #endif
+
+u64 mtk_logbuffer_get_timestamp(struct kbase_device *kbdev)
+{
+	u64 val;
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return 0;
+
+#if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
+	/* If MCU is not active, not need to print timestamp for CSFFW logs.
+	 */
+	if (!kbase_pm_is_mcu_inactive(kbdev, kbdev->pm.backend.mcu_state))
+		val = kbase_backend_get_timestamp(kbdev);
+	else
+		val = 0;
+#else
+	val = 0;
+#endif
+
+	return val;
+}
 
 bool mtk_logbuffer_is_empty(struct mtk_logbuffer_info *logbuf)
 {

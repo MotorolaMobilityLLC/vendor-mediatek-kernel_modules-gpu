@@ -30,5 +30,6 @@ bool mtk_logbuffer_is_full(struct mtk_logbuffer_info *logbuf);
 void mtk_logbuffer_clear(struct mtk_logbuffer_info *logbuf);
 void mtk_logbuffer_print(struct mtk_logbuffer_info *logbuf, const char *fmt, ...);
 void mtk_logbuffer_dump(struct mtk_logbuffer_info *logbuf, struct seq_file *seq);
+u64 mtk_logbuffer_get_timestamp(struct kbase_device *kbdev);
 
 #endif /* __MTK_PLATFORM_LOGBUF_H__ */

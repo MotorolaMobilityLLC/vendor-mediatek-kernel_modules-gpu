@@ -1167,7 +1167,7 @@ int kbase_mem_do_sync_imported(struct kbase_context *kctx,
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
 			"[%llxt] Failed to sync mem region %pK at GPU VA %llx: %d\n",
-			kbase_backend_get_timestamp(kctx->kbdev),
+			mtk_logbuffer_get_timestamp(kctx->kbdev),
 			reg, reg->start_pfn, ret);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}

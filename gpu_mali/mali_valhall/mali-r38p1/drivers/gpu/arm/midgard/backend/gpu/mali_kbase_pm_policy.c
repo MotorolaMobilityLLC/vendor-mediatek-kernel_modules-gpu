@@ -37,7 +37,6 @@
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
-#include <mali_kbase_hwaccess_time.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 static const struct kbase_pm_policy *const all_policy_list[] = {
@@ -387,8 +386,7 @@ void kbase_pm_set_policy(struct kbase_device *kbdev,
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_regular,
-		"[%llxt] Power policy changed from %s to %s\n",
-		kbase_backend_get_timestamp(kbdev),
+		"Power policy changed from %s to %s\n",
 		old_policy->name, new_policy->name);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	kbdev->pm.backend.pm_current_policy = new_policy;

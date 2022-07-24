@@ -326,7 +326,7 @@ static void mmu_flush_invalidate_on_gpu_ctrl(struct kbase_device *kbdev, struct 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"[%llxt] Flush for GPU page table update did not complete. Issuing GPU soft-reset to recover\n",
-			kbase_backend_get_timestamp(kbdev));
+			mtk_logbuffer_get_timestamp(kbdev));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
@@ -1288,7 +1288,7 @@ page_fault_retry:
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 			mtk_logbuffer_print(&kbdev->logbuf_exception,
 				"[%llxt] Flush for GPU page table update did not complete on handling page fault @ 0x%llx\n",
-				kbase_backend_get_timestamp(kbdev),
+				mtk_logbuffer_get_timestamp(kbdev),
 				fault->addr);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		}
@@ -2143,7 +2143,7 @@ static void kbase_mmu_flush_noretain(struct kbase_context *kctx, u64 vpfn, size_
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"[%llxt] Flush for GPU page table update did not complete. Issuing GPU soft-reset to recover\n",
-			kbase_backend_get_timestamp(kbdev));
+			mtk_logbuffer_get_timestamp(kbdev));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 		if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_NONE))
