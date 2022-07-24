@@ -27,6 +27,9 @@
 #include <mali_kbase_reset_gpu.h>
 #include <mmu/mali_kbase_mmu.h>
 #include <mali_kbase_ctx_sched.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+#include <platform/mtk_platform_common/mtk_platform_irq_trace.h>
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 /**
  * kbase_report_gpu_fault - Report a GPU fault of the device.
@@ -86,9 +89,19 @@ static void kbase_gpu_fault_interrupt(struct kbase_device *kbdev)
 void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 {
 	KBASE_KTRACE_ADD(kbdev, CORE_GPU_IRQ, NULL, val);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_start(KBASE_IRQ_GPU, 1);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 	if (val & GPU_FAULT)
 		kbase_gpu_fault_interrupt(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_end(KBASE_IRQ_GPU, 1);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_start(KBASE_IRQ_GPU, 2);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 	if (val & GPU_PROTECTED_FAULT) {
 		struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 		unsigned long flags;
@@ -129,9 +142,18 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 		/* Defer the clearing to the GPU reset sequence */
 		val &= ~GPU_PROTECTED_FAULT;
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_end(KBASE_IRQ_GPU, 2);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_start(KBASE_IRQ_GPU, 3);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 	if (val & RESET_COMPLETED)
 		kbase_pm_reset_done(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_end(KBASE_IRQ_GPU, 3);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 	/* Defer clearing CLEAN_CACHES_COMPLETED to kbase_clean_caches_done.
 	 * We need to acquire hwaccess_lock to avoid a race condition with
@@ -140,6 +162,9 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 	KBASE_KTRACE_ADD(kbdev, CORE_GPU_IRQ_CLEAR, NULL, val & ~CLEAN_CACHES_COMPLETED);
 	kbase_reg_write(kbdev, GPU_CONTROL_REG(GPU_IRQ_CLEAR), val & ~CLEAN_CACHES_COMPLETED);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_start(KBASE_IRQ_GPU, 4);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 #ifdef KBASE_PM_RUNTIME
 	if (val & DOORBELL_MIRROR) {
 		unsigned long flags;
@@ -155,6 +180,9 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	}
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_end(KBASE_IRQ_GPU, 4);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 	/* kbase_pm_check_transitions (called by kbase_pm_power_changed) must
 	 * be called after the IRQ has been cleared. This is because it might
@@ -165,9 +193,18 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 	 * generate another interrupt which shouldn't be missed.
 	 */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_start(KBASE_IRQ_GPU, 5);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 	if (val & CLEAN_CACHES_COMPLETED)
 		kbase_clean_caches_done(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_end(KBASE_IRQ_GPU, 5);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_start(KBASE_IRQ_GPU, 6);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 	if (val & (POWER_CHANGED_ALL | MCU_STATUS_GPU_IRQ)) {
 		kbase_pm_power_changed(kbdev);
 	} else if (val & CLEAN_CACHES_COMPLETED) {
@@ -181,6 +218,9 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 			kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_TTRX_921))
 			kbase_pm_power_changed(kbdev);
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_end(KBASE_IRQ_GPU, 6);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 	KBASE_KTRACE_ADD(kbdev, CORE_GPU_IRQ_DONE, NULL, val);
 }
