@@ -267,7 +267,7 @@ int mtk_dvfs_procfs_init(struct kbase_device *kbdev, struct proc_dir_entry *pare
 	if (IS_ERR_OR_NULL(kbdev))
 		return -1;
 
-	proc_create(PROC_GPU_UTILIZATION, 0444, parent, &mtk_dvfs_gpu_utilization_proc_ops);
+	proc_create(PROC_GPU_UTILIZATION, 0440, parent, &mtk_dvfs_gpu_utilization_proc_ops);
 
 	return 0;
 }
