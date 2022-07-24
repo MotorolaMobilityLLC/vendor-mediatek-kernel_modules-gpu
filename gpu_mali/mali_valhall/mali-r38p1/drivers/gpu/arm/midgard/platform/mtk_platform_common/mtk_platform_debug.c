@@ -664,6 +664,8 @@ static int mtk_debug_dump_cpu_queues(struct seq_file *file, void *data)
 	struct kbase_device *kbdev = file->private;
 	struct kbase_context *kctx;
 
+	return 0;
+
 	mutex_lock(&kbdev->kctx_list_lock);
 	list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
 		mutex_lock(&kctx->csf.lock);
