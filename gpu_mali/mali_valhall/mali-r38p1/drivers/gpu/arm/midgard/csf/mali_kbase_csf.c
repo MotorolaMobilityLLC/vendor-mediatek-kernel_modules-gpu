@@ -2635,6 +2635,21 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 				get_queue(queue);
 				KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, CSI_INTERRUPT_TILER_OOM,
 							 group, queue, cs_req ^ cs_ack);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+				if (!queue_work(wq, &queue->oom_event_work)) {
+					dev_info(kbdev->dev, "%s %d:OoM event have been already queued",
+						__func__, __LINE__);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+					mtk_logbuffer_print(&kbdev->logbuf_exception,
+						"[%llxt]%s %d:OoM event have been already queued",
+						mtk_logbuffer_get_timestamp(kbdev), __func__, __LINE__);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+					release_queue(queue);
+				}
+#else
 				if (WARN_ON(!queue_work(wq, &queue->oom_event_work))) {
 					/* The work item shall not have been
 					 * already queued, there can be only
@@ -2643,6 +2658,7 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 					 */
 					release_queue(queue);
 				}
+#endif /* CONFIG_MALI_MTK_DEBUG */
 			}
 
 			if ((cs_req & CS_REQ_PROTM_PEND_MASK) ^
