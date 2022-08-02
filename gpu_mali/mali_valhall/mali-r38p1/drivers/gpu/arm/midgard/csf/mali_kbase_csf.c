@@ -3249,6 +3249,38 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 #endif
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KCPU_FENCE_WA)
+void kbase_process_csg_retry_job_irq(struct kbase_context *kctx, unsigned long time_in_ms)
+{
+	struct kbase_device *const kbdev = kctx->kbdev;
+	struct kbase_queue_group *group = NULL;
+	struct irq_idle_and_protm_track track = { .protm_grp = NULL, .idle_seq = U32_MAX };
+	unsigned long flags;
+	unsigned int csg_nr = 0;
+
+	kbase_csf_scheduler_spin_lock(kbdev, &flags);
+
+	for (csg_nr = 0 ; csg_nr < kbdev->csf.global_iface.group_num ; ++csg_nr) {
+		group = kbase_csf_scheduler_get_group_on_slot(kbdev, csg_nr);
+		if (group && group->kctx == kctx) {
+			dev_info(kbdev->dev,
+				"try to recover csg %d (tgid %d) redo job irq handler after waiting fence %lu(ms)",
+				csg_nr, kctx->tgid, time_in_ms);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_print(&kbdev->logbuf_exception,
+				"[%llxt] try to recover csg %d (tgid %d) redo job irq handler after waiting fence %lu(ms)\n",
+				mtk_logbuffer_get_timestamp(kbdev),
+				csg_nr, kctx->tgid, time_in_ms);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+			process_csg_interrupts(kbdev, csg_nr, &track);
+		}
+	}
+
+	kbase_csf_scheduler_spin_unlock(kbdev, flags);
+}
+#endif /* CONFIG_MALI_MTK_KCPU_FENCE_WA */
+
 void kbase_csf_doorbell_mapping_term(struct kbase_device *kbdev)
 {
 	if (kbdev->csf.db_filp) {
