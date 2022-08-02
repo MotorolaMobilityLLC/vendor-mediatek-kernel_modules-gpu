@@ -1099,8 +1099,8 @@ static int kbase_jit_allocate_process(struct kbase_jd_atom *katom)
 	 * is disabled at the context scope, then bypass JIT pressure limit
 	 * logic in kbase_jit_allocate().
 	 */
-	if (!kbase_ctx_flag(kctx, KCTX_JPL_ENABLED)
-		|| (kctx->jit_current_allocations == 0)) {
+	if (!kbase_ctx_flag(kctx, KCTX_JPL_ENABLED) ||
+	    (atomic_read(&kctx->jit_current_allocations) == 0)) {
 		ignore_pressure_limit = true;
 	}
 #else

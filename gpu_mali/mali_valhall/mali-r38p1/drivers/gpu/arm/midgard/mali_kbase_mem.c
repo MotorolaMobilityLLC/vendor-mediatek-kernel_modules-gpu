@@ -3807,6 +3807,8 @@ static void kbase_jit_destroy_worker(struct work_struct *work)
 
 int kbase_jit_init(struct kbase_context *kctx)
 {
+	size_t i;
+
 	mutex_lock(&kctx->jit_evict_lock);
 	INIT_LIST_HEAD(&kctx->jit_active_head);
 	INIT_LIST_HEAD(&kctx->jit_pool_head);
@@ -3824,7 +3826,9 @@ int kbase_jit_init(struct kbase_context *kctx)
 	mutex_unlock(&kctx->jit_evict_lock);
 
 	kctx->jit_max_allocations = 0;
-	kctx->jit_current_allocations = 0;
+	atomic_set(&kctx->jit_current_allocations, 0);
+	for (i = 0; i != ARRAY_SIZE(kctx->jit_current_allocations_per_bin); ++i)
+		atomic_set(&kctx->jit_current_allocations_per_bin[i], 0);
 	kctx->trim_level = 0;
 
 	return 0;
@@ -4149,8 +4153,7 @@ update_failed:
 static void trace_jit_stats(struct kbase_context *kctx,
 		u32 bin_id, u32 max_allocations)
 {
-	const u32 alloc_count =
-		kctx->jit_current_allocations_per_bin[bin_id];
+	const u32 alloc_count = atomic_read(&kctx->jit_current_allocations_per_bin[bin_id]);
 	struct kbase_device *kbdev = kctx->kbdev;
 
 	struct kbase_va_region *walker;
@@ -4252,6 +4255,10 @@ static bool jit_allow_allocate(struct kbase_context *kctx,
 		const struct base_jit_alloc_info *info,
 		bool ignore_pressure_limit)
 {
+	u32 const jit_current_allocations = atomic_read(&kctx->jit_current_allocations);
+	u32 const jit_current_allocations_per_bin =
+		atomic_read(&kctx->jit_current_allocations_per_bin[info->bin_id]);
+
 #if !MALI_USE_CSF
 	lockdep_assert_held(&kctx->jctx.lock);
 #endif
@@ -4268,24 +4275,23 @@ static bool jit_allow_allocate(struct kbase_context *kctx,
 	}
 #endif /* MALI_JIT_PRESSURE_LIMIT_BASE */
 
-	if (kctx->jit_current_allocations >= kctx->jit_max_allocations) {
+
+	/* The counters have already been pre-incremented so this should fail
+	 * iff its value exceeds the allocation limit.
+	 */
+	if (jit_current_allocations > kctx->jit_max_allocations) {
 		/* Too many current allocations */
 		dev_vdbg(kctx->kbdev->dev,
 			"Max JIT allocations limit reached: active allocations %d, max allocations %d\n",
-			kctx->jit_current_allocations,
-			kctx->jit_max_allocations);
+			jit_current_allocations - 1, kctx->jit_max_allocations);
 		return false;
 	}
 
-	if (info->max_allocations > 0 &&
-			kctx->jit_current_allocations_per_bin[info->bin_id] >=
-			info->max_allocations) {
+	if (info->max_allocations > 0 && jit_current_allocations_per_bin > info->max_allocations) {
 		/* Too many current allocations in this bin */
 		dev_vdbg(kctx->kbdev->dev,
 			"Per bin limit of max JIT allocations reached: bin_id %d, active allocations %d, max allocations %d\n",
-			info->bin_id,
-			kctx->jit_current_allocations_per_bin[info->bin_id],
-			info->max_allocations);
+			info->bin_id, jit_current_allocations_per_bin - 1, info->max_allocations);
 		return false;
 	}
 
@@ -4338,6 +4344,8 @@ struct kbase_va_region *kbase_jit_allocate(struct kbase_context *kctx,
 {
 	struct kbase_va_region *reg = NULL;
 	struct kbase_sub_alloc *prealloc_sas[2] = { NULL, NULL };
+	//u32 const jit_current_allocations = atomic_read(&kctx->jit_current_allocations);
+	//u32 const jit_current_allocations_per_bin = atomic_read(&kctx->jit_current_allocations_per_bin[info->bin_id]);
 	int i;
 
 	/* Calls to this function are inherently synchronous, with respect to
@@ -4349,15 +4357,25 @@ struct kbase_va_region *kbase_jit_allocate(struct kbase_context *kctx,
 	lockdep_assert_held(&kctx->jctx.lock);
 #endif
 
-	if (!jit_allow_allocate(kctx, info, ignore_pressure_limit))
+	/* Pre-account this allocation to avoid the race condition where more
+	 * than 1 queues attempt to allocate JIT memory at once.
+	 */
+	atomic_inc(&kctx->jit_current_allocations);
+	atomic_inc(&kctx->jit_current_allocations_per_bin[info->bin_id]);
+
+	if (!jit_allow_allocate(kctx, info, ignore_pressure_limit)) {
+		atomic_dec(&kctx->jit_current_allocations_per_bin[info->bin_id]);
+		atomic_dec(&kctx->jit_current_allocations);
+
 		return NULL;
+	}
 
 #ifdef CONFIG_MALI_2MB_ALLOC
 	/* Preallocate memory for the sub-allocation structs */
 	for (i = 0; i != ARRAY_SIZE(prealloc_sas); ++i) {
 		prealloc_sas[i] = kmalloc(sizeof(*prealloc_sas[i]), GFP_KERNEL);
 		if (!prealloc_sas[i])
-			goto end;
+			goto out_free_prealloc_sas;
 	}
 #endif
 
@@ -4469,7 +4487,7 @@ struct kbase_va_region *kbase_jit_allocate(struct kbase_context *kctx,
 			list_move(&reg->jit_node, &kctx->jit_pool_head);
 			mutex_unlock(&kctx->jit_evict_lock);
 			reg = NULL;
-			goto end;
+			goto out_free_prealloc_sas;
 		}
 	} else {
 		/* No suitable JIT allocation was found so create a new one */
@@ -4508,7 +4526,7 @@ struct kbase_va_region *kbase_jit_allocate(struct kbase_context *kctx,
 			dev_vdbg(kctx->kbdev->dev,
 				"Failed to allocate JIT memory: va_pages 0x%llx, commit_pages 0x%llx\n",
 				info->va_pages, info->commit_pages);
-			goto end;
+			goto out_free_prealloc_sas;
 		}
 
 		if (!ignore_pressure_limit) {
@@ -4527,10 +4545,6 @@ struct kbase_va_region *kbase_jit_allocate(struct kbase_context *kctx,
 	}
 
 	trace_mali_jit_alloc(reg, info->id);
-
-	kctx->jit_current_allocations++;
-	kctx->jit_current_allocations_per_bin[info->bin_id]++;
-
 	trace_jit_stats(kctx, info->bin_id, info->max_allocations);
 
 	reg->jit_usage_id = info->usage_id;
@@ -4544,9 +4558,22 @@ struct kbase_va_region *kbase_jit_allocate(struct kbase_context *kctx,
 			KBASE_JIT_REPORT_ON_ALLOC_OR_FREE);
 #endif /* MALI_JIT_PRESSURE_LIMIT_BASE */
 
-end:
+out_free_prealloc_sas:
 	for (i = 0; i != ARRAY_SIZE(prealloc_sas); ++i)
 		kfree(prealloc_sas[i]);
+
+	if (reg == NULL) {
+		atomic_dec(&kctx->jit_current_allocations_per_bin[info->bin_id]);
+		atomic_dec(&kctx->jit_current_allocations);
+
+		/* Re-kick the queues currently blocked on JIT_ALLOC if this
+		 * were near the JIT allocation limit, which might have caused
+		 * parallel JIT allocations to fail.
+		 */
+		/*if ((jit_current_allocations == (kctx->jit_max_allocations - 1)) ||
+		    (jit_current_allocations_per_bin == (info->jit_max_allocations - 1)))
+		    kbase_kcpu_jit_retry_pending_allocs(kctx);*/
+	}
 
 	return reg;
 }
@@ -4581,8 +4608,8 @@ void kbase_jit_free(struct kbase_context *kctx, struct kbase_va_region *reg)
 			KBASE_JIT_REPORT_ON_ALLOC_OR_FREE);
 #endif /* MALI_JIT_PRESSURE_LIMIT_BASE */
 
-	kctx->jit_current_allocations--;
-	kctx->jit_current_allocations_per_bin[reg->jit_bin_id]--;
+	atomic_dec(&kctx->jit_current_allocations_per_bin[reg->jit_bin_id]);
+	atomic_dec(&kctx->jit_current_allocations);
 
 	trace_jit_stats(kctx, reg->jit_bin_id, UINT_MAX);
 
