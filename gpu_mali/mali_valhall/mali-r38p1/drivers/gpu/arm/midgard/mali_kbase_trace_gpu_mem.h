@@ -97,4 +97,5 @@ void kbase_remove_dma_buf_usage(struct kbase_context *kctx,
 void kbase_add_dma_buf_usage(struct kbase_context *kctx,
 				    struct kbase_mem_phy_alloc *alloc);
 
+void kbase_clean_dma_buf_usage(struct rb_root * root);
 #endif /* _KBASE_TRACE_GPU_MEM_H_ */

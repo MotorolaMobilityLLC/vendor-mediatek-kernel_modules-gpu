@@ -31,7 +31,7 @@
 #include <tl/mali_kbase_timeline.h>
 #include <mmu/mali_kbase_mmu.h>
 #include <context/mali_kbase_context_internal.h>
-
+#include <mali_kbase_trace_gpu_mem.h>
 /**
  * find_process_node - Used to traverse the process rb_tree to find if
  *                     process exists already in process rb_tree.
@@ -243,6 +243,10 @@ static void kbase_remove_kctx_from_process(struct kbase_context *kctx)
 		WARN_ON(kprcs->total_gpu_pages);
 		spin_unlock(&kctx->kbdev->gpu_mem_usage_lock);
 		WARN_ON(!RB_EMPTY_ROOT(&kprcs->dma_buf_root));
+
+		/* Free dma buffer usage rb tree here. */
+		kbase_clean_dma_buf_usage(&kprcs->dma_buf_root);
+
 		kfree(kprcs);
 	}
 }
