@@ -161,6 +161,12 @@ int kbasep_pm_metrics_init(struct kbase_device *kbdev)
 	perf_counter[4].type           = KBASE_IPA_CORE_TYPE_CSHW;
 	perf_counter[4].idx            = ITER_ITER_ACTIVE_IDX;
 
+	// MCU_ACTIVE_IDX
+	perf_counter[5].scaling_factor = GPU_ACTIVE_SCALING_FACTOR;
+	perf_counter[5].gpu_norm       = true;
+	perf_counter[5].type           = KBASE_IPA_CORE_TYPE_CSHW;
+	perf_counter[5].idx            = MCU_ACTIVE_IDX;
+
 	err = kbase_ipa_control_register(
 		kbdev, perf_counter, NUM_PERF_COUNTERS,
 		&kbdev->pm.backend.metrics.ipa_control_client);

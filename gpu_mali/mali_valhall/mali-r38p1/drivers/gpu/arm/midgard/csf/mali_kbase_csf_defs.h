@@ -1079,6 +1079,7 @@ struct kbase_csf_scheduler {
 #define ITER_COMP_ACTIVE_IDX  (24)
 #define ITER_FRAG_ACTIVE_IDX  (32)
 #define ITER_ITER_ACTIVE_IDX  (6)
+#define MCU_ACTIVE_IDX  (5)
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 /*

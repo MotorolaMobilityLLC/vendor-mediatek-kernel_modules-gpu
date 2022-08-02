@@ -36,7 +36,7 @@
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 /* counters defined in mali_kbase_csf_defs.h */
-#define NUM_PERF_COUNTERS (5)
+#define NUM_PERF_COUNTERS (6)
 #endif
 
 /* Forward definition - see mali_kbase.h */
