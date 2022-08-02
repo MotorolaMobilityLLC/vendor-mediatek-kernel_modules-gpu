@@ -2947,6 +2947,7 @@ void kbase_csf_scheduler_group_deschedule(struct kbase_queue_group *group)
 {
 	struct kbase_device *kbdev = group->kctx->kbdev;
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
+	bool wait_for_termination = true;
 	bool on_slot;
 
 	kbase_reset_gpu_assert_failed_or_prevented(kbdev);
@@ -2961,55 +2962,45 @@ void kbase_csf_scheduler_group_deschedule(struct kbase_queue_group *group)
 
 #ifdef KBASE_PM_RUNTIME
 	/* If the queue group is on slot and Scheduler is in SLEEPING state,
-	 * then we need to wait here for Scheduler to exit the sleep state
-	 * (i.e. wait for the runtime suspend or power down of GPU). This would
-	 * be better than aborting the power down. The group will be suspended
-	 * anyways on power down, so won't have to send the CSG termination
-	 * request to FW.
+	 * then we need to wake up the Scheduler to exit the sleep state rather
+	 * than waiting for the runtime suspend or power down of GPU.
+	 * The group termination is usually triggered in the context of Application
+	 * thread and it has been seen that certain Apps can destroy groups at
+	 * random points and not necessarily when the App is exiting.
 	 */
 	if (on_slot && (scheduler->state == SCHED_SLEEPING)) {
-		if (wait_for_scheduler_to_exit_sleep(kbdev)) {
+		scheduler_wakeup(kbdev, true);
+
+		/* Wait for MCU firmware to start running */
+		if (kbase_csf_scheduler_wait_mcu_active(kbdev)) {
 			dev_warn(
 				kbdev->dev,
-				"Wait for scheduler to exit sleep state timedout when terminating group %d of context %d_%d on slot %d",
+				"[%llu] Wait for MCU active failed when terminating group %d of context %d_%d on slot %d",
+				kbase_backend_get_cycle_cnt(kbdev),
 				group->handle, group->kctx->tgid,
 				group->kctx->id, group->csg_nr);
 
 			scheduler_wakeup(kbdev, true);
 
-			/* Wait for MCU firmware to start running */
-			if (kbase_csf_scheduler_wait_mcu_active(kbdev)) {
-				dev_warn(
-					kbdev->dev,
-					"[%llu] Wait for MCU active failed when terminating group %d of context %d_%d on slot %d",
-					kbase_backend_get_cycle_cnt(kbdev),
-					group->handle, group->kctx->tgid,
-					group->kctx->id, group->csg_nr);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-				mtk_logbuffer_print(&kbdev->logbuf_exception,
-					"[%llxt] Wait for MCU active failed when terminating group %d of context %d_%d on slot %d\n",
-					mtk_logbuffer_get_timestamp(kbdev),
-					group->handle, group->kctx->tgid,
-					group->kctx->id, group->csg_nr);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-			}
+			/* No point in waiting for CSG termination if MCU didn't
+			* become active.
+			*/
+			wait_for_termination = false;
+
 		}
-
-		/* Check the group state again as scheduler lock would have been
-		 * released when waiting for the exit from SLEEPING state.
-		 */
-		if (!queue_group_scheduled_locked(group))
-			goto unlock;
-
-		on_slot = kbasep_csf_scheduler_group_is_on_slot_locked(group);
 	}
 #endif
+
 	if (!on_slot) {
 		sched_evict_group(group, false, true);
 	} else {
 		bool as_faulty;
 
-		term_group_sync(group);
+		if (likely(wait_for_termination))
+			term_group_sync(group);
+		else
+			term_csg_slot(group);
+		
 		/* Treat the csg been terminated */
 		as_faulty = cleanup_csg_slot(group);
 		/* remove from the scheduler list */
