@@ -3092,6 +3092,8 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 
 	KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT_START, NULL, val);
 	kbase_reg_write(kbdev, JOB_CONTROL_REG(JOB_IRQ_CLEAR), val);
+	/* fix update sequence to promise irq scquence */
+	mb();
 
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
 	if (csg_interrupts != 0) {
