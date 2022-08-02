@@ -299,12 +299,6 @@ struct kbase_kcpu_command_queue {
 #ifdef CONFIG_MALI_FENCE_DEBUG
 	struct timer_list fence_timeout;
 #endif /* CONFIG_MALI_FENCE_DEBUG */
-#if IS_ENABLED(CONFIG_MALI_MTK_KCPU_DEBUG)
-	bool pending_cmds_timer_active;
-	struct workqueue_struct *cmds_timeout_wq;
-	struct work_struct cmds_timeout_work;
-	struct timer_list pending_cmds_timer;
-#endif /* CONFIG_MALI_MTK_KCPU_DEBUG */
 };
 
 /**
