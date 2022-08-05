@@ -111,7 +111,17 @@ struct _DEVMEMINT_HEAP_
 {
 	struct _DEVMEMINT_CTX_ *psDevmemCtx;
 	IMG_UINT32 uiLog2PageSize;
+	IMG_DEV_VIRTADDR sBaseAddr;
 	ATOMIC_T uiRefCount;
+
+	/* Private data for callback functions */
+	IMG_HANDLE hPrivData;
+
+	/* Callback function init */
+	PFN_HEAP_INIT pfnInit;
+
+	/* Callback function deinit */
+	PFN_HEAP_DEINIT pfnDeInit;
 };
 
 struct _DEVMEMINT_RESERVATION_
@@ -521,9 +531,72 @@ DevmemIntHeapCreate(DEVMEMINT_CTX *psDevmemCtx,
 
 	psDevmemHeap->uiLog2PageSize = uiLog2DataPageSize;
 
+	psDevmemHeap->pfnInit = NULL;
+	psDevmemHeap->pfnDeInit = NULL;
+	psDevmemHeap->hPrivData = NULL;
+
 	*ppsDevmemHeapPtr = psDevmemHeap;
 
 	return PVRSRV_OK;
+}
+
+/* Fix for UM/KM compatibility. */
+PVRSRV_ERROR
+DevmemIntHeapCreate2(DEVMEMINT_CTX *psDevmemCtx,
+                    IMG_UINT32 uiHeapConfigIndex,
+                    IMG_UINT32 uiHeapIndex,
+                    IMG_DEV_VIRTADDR sHeapBaseAddr,
+                    IMG_DEVMEM_SIZE_T uiHeapLength,
+                    IMG_UINT32 uiLog2DataPageSize,
+                    DEVMEMINT_HEAP **ppsDevmemHeapPtr)
+{
+	DEVMEMINT_HEAP *psDevmemHeap;
+	PVRSRV_ERROR eError;
+
+	PVR_DPF((PVR_DBG_MESSAGE, "%s", __func__));
+
+	/* allocate a Devmem context */
+	psDevmemHeap = OSAllocMem(sizeof(*psDevmemHeap));
+	PVR_LOG_RETURN_IF_NOMEM(psDevmemHeap, "psDevmemHeap");
+
+	psDevmemHeap->psDevmemCtx = psDevmemCtx;
+
+	DevmemIntCtxAcquire(psDevmemHeap->psDevmemCtx);
+
+	OSAtomicWrite(&psDevmemHeap->uiRefCount, 1);
+
+	psDevmemHeap->uiLog2PageSize = uiLog2DataPageSize;
+	psDevmemHeap->sBaseAddr = sHeapBaseAddr;
+
+	eError = HeapCfgGetCallbacks(psDevmemHeap->psDevmemCtx->psDevNode,
+	                             uiHeapConfigIndex,
+	                             uiHeapIndex,
+	                             &psDevmemHeap->pfnInit,
+	                             &psDevmemHeap->pfnDeInit);
+	if (eError != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to get callbacks for HeapConfig:%d HeapIndex:%d.",
+				 __func__, uiHeapConfigIndex, uiHeapIndex));
+		goto ErrorCtxRelease;
+	}
+
+	if (psDevmemHeap->pfnInit != NULL)
+	{
+		eError = psDevmemHeap->pfnInit(psDevmemHeap->psDevmemCtx->psDevNode,
+		                               psDevmemHeap,
+		                               &psDevmemHeap->hPrivData);
+		PVR_GOTO_IF_ERROR(eError, ErrorCtxRelease);
+	}
+
+	*ppsDevmemHeapPtr = psDevmemHeap;
+
+	return PVRSRV_OK;
+
+ErrorCtxRelease:
+	DevmemIntCtxRelease(psDevmemHeap->psDevmemCtx);
+	OSFreeMem(psDevmemHeap);
+
+	return eError;
 }
 
 PVRSRV_ERROR DevmemIntAllocDefBackingPage(PVRSRV_DEVICE_NODE *psDevNode,
@@ -624,9 +697,10 @@ DevmemIntMapPages(DEVMEMINT_RESERVATION *psReservation,
                   IMG_DEV_VIRTADDR sDevVAddrBase)
 {
 	PVRSRV_ERROR eError;
+	IMG_UINT32 uiPMRMaxChunkCount = PMRGetMaxChunkCount(psPMR);
 
-	PVR_LOG_RETURN_IF_INVALID_PARAM((ui32PageCount < PMR_MAX_SUPPORTED_PAGE_COUNT), "ui32PageCount");
-	PVR_LOG_RETURN_IF_INVALID_PARAM((ui32PhysicalPgOffset < PMR_MAX_SUPPORTED_PAGE_COUNT), "ui32PhysicalPgOffset");
+	PVR_LOG_RETURN_IF_INVALID_PARAM((ui32PageCount < uiPMRMaxChunkCount), "ui32PageCount");
+	PVR_LOG_RETURN_IF_INVALID_PARAM((ui32PhysicalPgOffset < uiPMRMaxChunkCount), "ui32PhysicalPgOffset");
 
 	if (psReservation->psDevmemHeap->uiLog2PageSize > PMR_GetLog2Contiguity(psPMR))
 	{
@@ -657,7 +731,7 @@ DevmemIntUnmapPages(DEVMEMINT_RESERVATION *psReservation,
                     IMG_DEV_VIRTADDR sDevVAddrBase,
                     IMG_UINT32 ui32PageCount)
 {
-	PVR_LOG_RETURN_IF_INVALID_PARAM((ui32PageCount < PMR_MAX_SUPPORTED_PAGE_COUNT), "ui32PageCount");
+	PVR_LOG_RETURN_IF_INVALID_PARAM((ui32PageCount < PMR_MAX_SUPPORTED_4K_PAGE_COUNT), "ui32PageCount");
 
 	/* Unmap the pages and mark them invalid in the MMU PTE */
 	MMU_UnmapPages(psReservation->psDevmemHeap->psDevmemCtx->psMMUContext,
@@ -986,6 +1060,12 @@ DevmemIntUnreserveRange(DEVMEMINT_RESERVATION *psReservation)
 PVRSRV_ERROR
 DevmemIntHeapDestroy(DEVMEMINT_HEAP *psDevmemHeap)
 {
+	if (psDevmemHeap->pfnDeInit != NULL)
+	{
+		psDevmemHeap->pfnDeInit(psDevmemHeap->hPrivData);
+		psDevmemHeap->pfnDeInit = NULL;
+	}
+
 	if (OSAtomicRead(&psDevmemHeap->uiRefCount) != DEVMEMHEAP_REFCOUNT_MIN)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "BUG!  %s called but has too many references (%d) "
@@ -1015,6 +1095,14 @@ DevmemIntHeapDestroy(DEVMEMINT_HEAP *psDevmemHeap)
 	OSFreeMem(psDevmemHeap);
 
 	return PVRSRV_OK;
+}
+
+IMG_DEV_VIRTADDR
+DevmemIntHeapGetBaseAddr(DEVMEMINT_HEAP *psDevmemHeap)
+{
+	PVR_ASSERT(psDevmemHeap != NULL);
+
+	return psDevmemHeap->sBaseAddr;
 }
 
 PVRSRV_ERROR

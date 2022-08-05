@@ -575,6 +575,16 @@ PhysmemCreateNewDmaBufBackedPMR(PHYS_HEAP *psHeap,
 		goto errReturn;
 	}
 
+	if (!PMRValidateSize((IMG_UINT64) ui32NumVirtChunks << uiChunkSize))
+	{
+		PVR_LOG_VA(PVR_DBG_ERROR,
+				 "PMR size exceeds limit #Chunks: %u ChunkSz %"IMG_UINT64_FMTSPECX"",
+				 ui32NumVirtChunks,
+				 uiChunkSize);
+		eError = PVRSRV_ERROR_PMR_TOO_LARGE;
+		goto errReturn;
+	}
+
 	psPrivData = OSAllocZMem(sizeof(*psPrivData));
 	if (psPrivData == NULL)
 	{
@@ -1020,6 +1030,46 @@ PhysmemImportDmaBuf(CONNECTION_DATA *psConnection,
 	                                 puiAlign);
 
 	dma_buf_put(psDmaBuf);
+
+	return eError;
+}
+
+PVRSRV_ERROR
+PhysmemImportDmaBufLocked(CONNECTION_DATA *psConnection,
+                          PVRSRV_DEVICE_NODE *psDevNode,
+                          IMG_INT fd,
+                          PVRSRV_MEMALLOCFLAGS_T uiFlags,
+                          IMG_UINT32 ui32NameSize,
+                          const IMG_CHAR pszName[DEVMEM_ANNOTATION_MAX_LEN],
+                          PMR **ppsPMRPtr,
+                          IMG_DEVMEM_SIZE_T *puiSize,
+                          IMG_DEVMEM_ALIGN_T *puiAlign)
+{
+	PMR *psPMRPtr;
+	PVRSRV_ERROR eError;
+
+	eError = PhysmemImportDmaBuf(psConnection,
+	                             psDevNode,
+	                             fd,
+	                             uiFlags,
+	                             ui32NameSize,
+	                             pszName,
+	                             &psPMRPtr,
+	                             puiSize,
+	                             puiAlign);
+
+	if (eError == PVRSRV_OK)
+	{
+		eError = PMRLockSysPhysAddresses(psPMRPtr);
+		if (eError == PVRSRV_OK)
+		{
+			*ppsPMRPtr = psPMRPtr;
+		}
+		else
+		{
+			PMRUnrefPMR(psPMRPtr);
+		}
+	}
 
 	return eError;
 }
