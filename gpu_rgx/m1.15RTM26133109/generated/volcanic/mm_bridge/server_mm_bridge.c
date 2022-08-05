@@ -793,8 +793,8 @@ static PVRSRV_ERROR _PhysmemNewRamBackedPMRpsPMRPtrIntRelease(void *pvData)
 	return eError;
 }
 
-static_assert(PMR_MAX_SUPPORTED_PAGE_COUNT <= IMG_UINT32_MAX,
-	      "PMR_MAX_SUPPORTED_PAGE_COUNT must not be larger than IMG_UINT32_MAX");
+static_assert(PMR_MAX_SUPPORTED_4K_PAGE_COUNT <= IMG_UINT32_MAX,
+	      "PMR_MAX_SUPPORTED_4K_PAGE_COUNT must not be larger than IMG_UINT32_MAX");
 static_assert(DEVMEM_ANNOTATION_MAX_LEN <= IMG_UINT32_MAX,
 	      "DEVMEM_ANNOTATION_MAX_LEN must not be larger than IMG_UINT32_MAX");
 
@@ -826,7 +826,8 @@ PVRSRVBridgePhysmemNewRamBackedPMR(IMG_UINT32 ui32DispatchTableEntry,
 	    ((IMG_UINT64) psPhysmemNewRamBackedPMRIN->ui32NumPhysChunks * sizeof(IMG_UINT32)) +
 	    ((IMG_UINT64) psPhysmemNewRamBackedPMRIN->ui32AnnotationLength * sizeof(IMG_CHAR)) + 0;
 
-	if (unlikely(psPhysmemNewRamBackedPMRIN->ui32NumPhysChunks > PMR_MAX_SUPPORTED_PAGE_COUNT))
+	if (unlikely
+	    (psPhysmemNewRamBackedPMRIN->ui32NumPhysChunks > PMR_MAX_SUPPORTED_4K_PAGE_COUNT))
 	{
 		psPhysmemNewRamBackedPMROUT->eError = PVRSRV_ERROR_BRIDGE_ARRAY_SIZE_TOO_BIG;
 		goto PhysmemNewRamBackedPMR_exit;
@@ -997,8 +998,8 @@ static PVRSRV_ERROR _PhysmemNewRamBackedLockedPMRpsPMRPtrIntRelease(void *pvData
 	return eError;
 }
 
-static_assert(PMR_MAX_SUPPORTED_PAGE_COUNT <= IMG_UINT32_MAX,
-	      "PMR_MAX_SUPPORTED_PAGE_COUNT must not be larger than IMG_UINT32_MAX");
+static_assert(PMR_MAX_SUPPORTED_4K_PAGE_COUNT <= IMG_UINT32_MAX,
+	      "PMR_MAX_SUPPORTED_4K_PAGE_COUNT must not be larger than IMG_UINT32_MAX");
 static_assert(DEVMEM_ANNOTATION_MAX_LEN <= IMG_UINT32_MAX,
 	      "DEVMEM_ANNOTATION_MAX_LEN must not be larger than IMG_UINT32_MAX");
 
@@ -1033,7 +1034,7 @@ PVRSRVBridgePhysmemNewRamBackedLockedPMR(IMG_UINT32 ui32DispatchTableEntry,
 	     sizeof(IMG_CHAR)) + 0;
 
 	if (unlikely
-	    (psPhysmemNewRamBackedLockedPMRIN->ui32NumVirtChunks > PMR_MAX_SUPPORTED_PAGE_COUNT))
+	    (psPhysmemNewRamBackedLockedPMRIN->ui32NumVirtChunks > PMR_MAX_SUPPORTED_4K_PAGE_COUNT))
 	{
 		psPhysmemNewRamBackedLockedPMROUT->eError = PVRSRV_ERROR_BRIDGE_ARRAY_SIZE_TOO_BIG;
 		goto PhysmemNewRamBackedLockedPMR_exit;
@@ -2030,10 +2031,10 @@ DevmemIntUnreserveRange_exit:
 	return 0;
 }
 
-static_assert(PMR_MAX_SUPPORTED_PAGE_COUNT <= IMG_UINT32_MAX,
-	      "PMR_MAX_SUPPORTED_PAGE_COUNT must not be larger than IMG_UINT32_MAX");
-static_assert(PMR_MAX_SUPPORTED_PAGE_COUNT <= IMG_UINT32_MAX,
-	      "PMR_MAX_SUPPORTED_PAGE_COUNT must not be larger than IMG_UINT32_MAX");
+static_assert(PMR_MAX_SUPPORTED_4K_PAGE_COUNT <= IMG_UINT32_MAX,
+	      "PMR_MAX_SUPPORTED_4K_PAGE_COUNT must not be larger than IMG_UINT32_MAX");
+static_assert(PMR_MAX_SUPPORTED_4K_PAGE_COUNT <= IMG_UINT32_MAX,
+	      "PMR_MAX_SUPPORTED_4K_PAGE_COUNT must not be larger than IMG_UINT32_MAX");
 
 static IMG_INT
 PVRSRVBridgeChangeSparseMem(IMG_UINT32 ui32DispatchTableEntry,
@@ -2063,13 +2064,13 @@ PVRSRVBridgeChangeSparseMem(IMG_UINT32 ui32DispatchTableEntry,
 	    ((IMG_UINT64) psChangeSparseMemIN->ui32AllocPageCount * sizeof(IMG_UINT32)) +
 	    ((IMG_UINT64) psChangeSparseMemIN->ui32FreePageCount * sizeof(IMG_UINT32)) + 0;
 
-	if (unlikely(psChangeSparseMemIN->ui32AllocPageCount > PMR_MAX_SUPPORTED_PAGE_COUNT))
+	if (unlikely(psChangeSparseMemIN->ui32AllocPageCount > PMR_MAX_SUPPORTED_4K_PAGE_COUNT))
 	{
 		psChangeSparseMemOUT->eError = PVRSRV_ERROR_BRIDGE_ARRAY_SIZE_TOO_BIG;
 		goto ChangeSparseMem_exit;
 	}
 
-	if (unlikely(psChangeSparseMemIN->ui32FreePageCount > PMR_MAX_SUPPORTED_PAGE_COUNT))
+	if (unlikely(psChangeSparseMemIN->ui32FreePageCount > PMR_MAX_SUPPORTED_4K_PAGE_COUNT))
 	{
 		psChangeSparseMemOUT->eError = PVRSRV_ERROR_BRIDGE_ARRAY_SIZE_TOO_BIG;
 		goto ChangeSparseMem_exit;
@@ -2573,6 +2574,9 @@ PVRSRVBridgeHeapCfgHeapCount(IMG_UINT32 ui32DispatchTableEntry,
 	return 0;
 }
 
+static_assert(DEVMEM_HEAPNAME_MAXLENGTH <= IMG_UINT32_MAX,
+	      "DEVMEM_HEAPNAME_MAXLENGTH must not be larger than IMG_UINT32_MAX");
+
 static IMG_INT
 PVRSRVBridgeHeapCfgHeapConfigName(IMG_UINT32 ui32DispatchTableEntry,
 				  IMG_UINT8 * psHeapCfgHeapConfigNameIN_UI8,
@@ -2699,6 +2703,9 @@ HeapCfgHeapConfigName_exit:
 
 	return 0;
 }
+
+static_assert(DEVMEM_HEAPNAME_MAXLENGTH <= IMG_UINT32_MAX,
+	      "DEVMEM_HEAPNAME_MAXLENGTH must not be larger than IMG_UINT32_MAX");
 
 static IMG_INT
 PVRSRVBridgeHeapCfgHeapDetails(IMG_UINT32 ui32DispatchTableEntry,
@@ -2982,6 +2989,105 @@ PVRSRVBridgePVRSRVUpdateOOMStats(IMG_UINT32 ui32DispatchTableEntry,
 #define PVRSRVBridgePVRSRVUpdateOOMStats NULL
 #endif
 
+static PVRSRV_ERROR _DevmemIntHeapCreate2psDevmemHeapPtrIntRelease(void *pvData)
+{
+	PVRSRV_ERROR eError;
+	eError = DevmemIntHeapDestroy((DEVMEMINT_HEAP *) pvData);
+	return eError;
+}
+
+static IMG_INT
+PVRSRVBridgeDevmemIntHeapCreate2(IMG_UINT32 ui32DispatchTableEntry,
+				 IMG_UINT8 * psDevmemIntHeapCreate2IN_UI8,
+				 IMG_UINT8 * psDevmemIntHeapCreate2OUT_UI8,
+				 CONNECTION_DATA * psConnection)
+{
+	PVRSRV_BRIDGE_IN_DEVMEMINTHEAPCREATE2 *psDevmemIntHeapCreate2IN =
+	    (PVRSRV_BRIDGE_IN_DEVMEMINTHEAPCREATE2 *) IMG_OFFSET_ADDR(psDevmemIntHeapCreate2IN_UI8,
+								      0);
+	PVRSRV_BRIDGE_OUT_DEVMEMINTHEAPCREATE2 *psDevmemIntHeapCreate2OUT =
+	    (PVRSRV_BRIDGE_OUT_DEVMEMINTHEAPCREATE2 *)
+	    IMG_OFFSET_ADDR(psDevmemIntHeapCreate2OUT_UI8, 0);
+
+	IMG_HANDLE hDevmemCtx = psDevmemIntHeapCreate2IN->hDevmemCtx;
+	DEVMEMINT_CTX *psDevmemCtxInt = NULL;
+	DEVMEMINT_HEAP *psDevmemHeapPtrInt = NULL;
+
+	/* Lock over handle lookup. */
+	LockHandle(psConnection->psHandleBase);
+
+	/* Look up the address from the handle */
+	psDevmemIntHeapCreate2OUT->eError =
+	    PVRSRVLookupHandleUnlocked(psConnection->psHandleBase,
+				       (void **)&psDevmemCtxInt,
+				       hDevmemCtx, PVRSRV_HANDLE_TYPE_DEVMEMINT_CTX, IMG_TRUE);
+	if (unlikely(psDevmemIntHeapCreate2OUT->eError != PVRSRV_OK))
+	{
+		UnlockHandle(psConnection->psHandleBase);
+		goto DevmemIntHeapCreate2_exit;
+	}
+	/* Release now we have looked up handles. */
+	UnlockHandle(psConnection->psHandleBase);
+
+	psDevmemIntHeapCreate2OUT->eError =
+	    DevmemIntHeapCreate2(psDevmemCtxInt,
+				 psDevmemIntHeapCreate2IN->ui32HeapConfigIndex,
+				 psDevmemIntHeapCreate2IN->ui32HeapIndex,
+				 psDevmemIntHeapCreate2IN->sHeapBaseAddr,
+				 psDevmemIntHeapCreate2IN->uiHeapLength,
+				 psDevmemIntHeapCreate2IN->ui32Log2DataPageSize,
+				 &psDevmemHeapPtrInt);
+	/* Exit early if bridged call fails */
+	if (unlikely(psDevmemIntHeapCreate2OUT->eError != PVRSRV_OK))
+	{
+		goto DevmemIntHeapCreate2_exit;
+	}
+
+	/* Lock over handle creation. */
+	LockHandle(psConnection->psHandleBase);
+
+	psDevmemIntHeapCreate2OUT->eError = PVRSRVAllocHandleUnlocked(psConnection->psHandleBase,
+								      &psDevmemIntHeapCreate2OUT->
+								      hDevmemHeapPtr,
+								      (void *)psDevmemHeapPtrInt,
+								      PVRSRV_HANDLE_TYPE_DEVMEMINT_HEAP,
+								      PVRSRV_HANDLE_ALLOC_FLAG_MULTI,
+								      (PFN_HANDLE_RELEASE) &
+								      _DevmemIntHeapCreate2psDevmemHeapPtrIntRelease);
+	if (unlikely(psDevmemIntHeapCreate2OUT->eError != PVRSRV_OK))
+	{
+		UnlockHandle(psConnection->psHandleBase);
+		goto DevmemIntHeapCreate2_exit;
+	}
+
+	/* Release now we have created handles. */
+	UnlockHandle(psConnection->psHandleBase);
+
+DevmemIntHeapCreate2_exit:
+
+	/* Lock over handle lookup cleanup. */
+	LockHandle(psConnection->psHandleBase);
+
+	/* Unreference the previously looked up handle */
+	if (psDevmemCtxInt)
+	{
+		PVRSRVReleaseHandleUnlocked(psConnection->psHandleBase,
+					    hDevmemCtx, PVRSRV_HANDLE_TYPE_DEVMEMINT_CTX);
+	}
+	/* Release now we have cleaned up look up handles. */
+	UnlockHandle(psConnection->psHandleBase);
+
+	if (psDevmemIntHeapCreate2OUT->eError != PVRSRV_OK)
+	{
+		if (psDevmemHeapPtrInt)
+		{
+			DevmemIntHeapDestroy(psDevmemHeapPtrInt);
+		}
+	}
+
+	return 0;
+}
+
 /* ***************************************************************************
  * Server bridge dispatch related glue
  */
@@ -3106,6 +3212,9 @@ PVRSRV_ERROR InitMMBridge(void)
 	SetDispatchTableEntry(PVRSRV_BRIDGE_MM, PVRSRV_BRIDGE_MM_PVRSRVUPDATEOOMSTATS,
 			      PVRSRVBridgePVRSRVUpdateOOMStats, NULL);
 
+	SetDispatchTableEntry(PVRSRV_BRIDGE_MM, PVRSRV_BRIDGE_MM_DEVMEMINTHEAPCREATE2,
+			      PVRSRVBridgeDevmemIntHeapCreate2, NULL);
+
 	return PVRSRV_OK;
 }
 
@@ -3188,6 +3297,8 @@ PVRSRV_ERROR DeinitMMBridge(void)
 	UnsetDispatchTableEntry(PVRSRV_BRIDGE_MM, PVRSRV_BRIDGE_MM_DEVMEMGETFAULTADDRESS);
 
 	UnsetDispatchTableEntry(PVRSRV_BRIDGE_MM, PVRSRV_BRIDGE_MM_PVRSRVUPDATEOOMSTATS);
+
+	UnsetDispatchTableEntry(PVRSRV_BRIDGE_MM, PVRSRV_BRIDGE_MM_DEVMEMINTHEAPCREATE2);
 
 	return PVRSRV_OK;
 }

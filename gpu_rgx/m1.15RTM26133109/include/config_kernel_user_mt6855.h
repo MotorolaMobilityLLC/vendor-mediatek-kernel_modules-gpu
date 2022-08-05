@@ -178,6 +178,7 @@
 #define PVR_ANDROID_ION_PRIV_HEADER "../drivers/gpu/ion/ion_priv.h"
 #define PVR_ANDROID_SYNC_HEADER "linux/sync.h"
 #define PVRSRV_ENABLE_PVR_ION_STATS
+#define PVR_ANDROID_HAS_DMA_HEAP_FIND
 #define MTK_MINI_PORTING
 #define MTK_FULL_PORTING
 #define MTK_USE_HW_APM

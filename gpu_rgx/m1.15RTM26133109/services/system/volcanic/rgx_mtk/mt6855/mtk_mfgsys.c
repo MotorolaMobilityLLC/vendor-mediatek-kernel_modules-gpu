@@ -63,9 +63,6 @@ static void MTKCalGPULoading(unsigned int *pui32Loading,
 	PVRSRV_RGXDEV_INFO *psDevInfo = NULL;
 	RGXFWIF_GPU_UTIL_STATS sGpuUtilStats = {};
 
-	struct GpuUtilization_Ex *util_ex =
-		(struct GpuUtilization_Ex *) Util_Ex;
-
 	psDevNode = MTKGetRGXDevNode();
 	if (!psDevNode) {
 		MTK_LOGE("fail to get RGX device node");
@@ -92,7 +89,6 @@ static void MTKCalGPULoading(unsigned int *pui32Loading,
 				(unsigned long)sGpuUtilStats.ui64GpuStatCumulative;
 #endif /* defined(__arm64__) || defined(__aarch64__) */
 		}
-	util_ex->util_active=*pui32Loading;
 	}
 }
 
