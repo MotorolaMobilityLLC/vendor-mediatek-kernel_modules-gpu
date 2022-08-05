@@ -663,6 +663,7 @@ PopulateContextFromBlueprint(struct DEVMEM_CONTEXT_TAG *psCtx,
 				uiLog2ImportAlignment,
 				aszHeapName,
 				uiHeapBlueprintID,
+				uiHeapIndex,
 				&ppsHeapArray[uiHeapIndex]);
 		PVR_GOTO_IF_ERROR(eError, e1);
 
@@ -999,6 +1000,7 @@ DevmemCreateHeap(DEVMEM_CONTEXT *psCtx,
 		IMG_UINT32 ui32Log2ImportAlignment,
 		const IMG_CHAR *pszName,
 		DEVMEM_HEAPCFGID uiHeapBlueprintID,
+		IMG_UINT32 uiHeapIndex,
 		DEVMEM_HEAP **ppsHeapPtr)
 {
 	PVRSRV_ERROR eError = PVRSRV_OK;
@@ -1013,11 +1015,11 @@ DevmemCreateHeap(DEVMEM_CONTEXT *psCtx,
 	IMG_CHAR *pszStr;
 	IMG_UINT32 ui32pszStrSize;
 
-	if (ppsHeapPtr == NULL ||
-	    uiReservedRegionLength % DEVMEM_HEAP_RESERVED_SIZE_GRANULARITY)
-	{
-		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_INVALID_PARAMS, e0);
-	}
+	PVR_LOG_RETURN_IF_INVALID_PARAM(ppsHeapPtr, "ppsHeapPtr");
+
+	/* Reserved VA space of a heap must always be multiple of DEVMEM_HEAP_RESERVED_SIZE_GRANULARITY.
+	 * Granularity has been chosen to support the max possible practically used OS page size. */
+	PVR_LOG_RETURN_IF_INVALID_PARAM((uiReservedRegionLength % DEVMEM_HEAP_RESERVED_SIZE_GRANULARITY) == 0, "uiReservedRegionLength");
 
 	ui32PolicyVMRA = RA_POLICY_DEFAULT;
 
@@ -1166,12 +1168,24 @@ DevmemCreateHeap(DEVMEM_CONTEXT *psCtx,
 
 
 	/* Create server-side counterpart of Device Memory heap */
-	eError = BridgeDevmemIntHeapCreate(GetBridgeHandle(psCtx->hDevConnection),
+	eError = BridgeDevmemIntHeapCreate2(GetBridgeHandle(psCtx->hDevConnection),
 			psCtx->hDevMemServerContext,
+			uiHeapBlueprintID,
+			uiHeapIndex,
 			sBaseAddress,
 			uiLength,
 			ui32Log2Quantum,
 			&hDevMemServerHeap);
+	/* Fix for UM/KM compatibility. */
+	if (eError == PVRSRV_ERROR_BRIDGE_CALL_FAILED)
+	{
+		eError = BridgeDevmemIntHeapCreate(GetBridgeHandle(psCtx->hDevConnection),
+										   psCtx->hDevMemServerContext,
+										   sBaseAddress,
+										   uiLength,
+										   ui32Log2Quantum,
+										   &hDevMemServerHeap);
+	}
 	PVR_GOTO_IF_ERROR(eError, e6);
 
 	psHeap->hDevMemServerHeap = hDevMemServerHeap;

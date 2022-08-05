@@ -1416,6 +1416,11 @@ PVRSRV_ERROR RGXInitDevPart2 (PVRSRV_DEVICE_NODE	*psDeviceNode,
 	eError = PVRSRVTQLoadShaders(psDeviceNode);
 	PVR_LOG_GOTO_IF_ERROR(eError, "PVRSRVTQLoadShaders", ErrorExit);
 
+#if defined(SUPPORT_SECURE_ALLOC_KM)
+	eError = OSAllocateSecBuf(psDeviceNode, RGXFWIF_KM_GENERAL_HEAP_TOTAL_BYTES, "SharedSecMem", &psDevInfo->psGenHeapSecMem);
+	PVR_LOG_GOTO_IF_ERROR(eError, "OSAllocateSecBuf", ErrorExit);
+#endif
+
 	psDevInfo->bDevInit2Done = IMG_TRUE;
 
 	return PVRSRV_OK;
@@ -3324,6 +3329,13 @@ PVRSRV_ERROR DevDeInitRGX(PVRSRV_DEVICE_NODE *psDeviceNode)
 	{
 		psDevInfo->bDevInit2Done = IMG_FALSE;
 
+#if defined(SUPPORT_SECURE_ALLOC_KM)
+		if (psDevInfo->psGenHeapSecMem != NULL)
+		{
+			OSFreeSecBuf(psDevInfo->psGenHeapSecMem);
+		}
+#endif
+
 		eError = PVRSRVTQUnloadShaders(psDeviceNode);
 		if (eError != PVRSRV_OK)
 		{
@@ -3593,8 +3605,83 @@ typedef struct RGX_HEAP_INFO_TAG
 	IMG_DEVMEM_SIZE_T  uiHeapReservedRegionLength;
 	IMG_UINT32         ui32Log2ImportAlignment;
 	PFN_IS_PRESENT     pfnIsHeapPresent;
+	PFN_HEAP_INIT      pfnInit;
+	PFN_HEAP_DEINIT    pfnDeInit;
 	IMG_UINT32         ui32HeapInstanceFlags;
 } RGX_HEAP_INFO;
+
+#if defined(SUPPORT_SECURE_ALLOC_KM)
+/* Private data struct for general heap. */
+typedef struct RGX_GENERAL_HEAP_DATA_TAG
+{
+	DEVMEMINT_RESERVATION  *psSecMemReservation;
+	DEVMEMINT_MAPPING      *psSecMemMapping;
+} RGX_GENERAL_HEAP_DATA;
+
+/* Init callback function for general heap. */
+static PVRSRV_ERROR GeneralHeapInit(PVRSRV_DEVICE_NODE *psDeviceNode,
+                                    DEVMEMINT_HEAP *psDevmemHeap,
+                                    IMG_HANDLE *phPrivData)
+{
+	PVRSRV_RGXDEV_INFO *psDevInfo;
+	RGX_GENERAL_HEAP_DATA *psHeapData;
+	IMG_DEV_VIRTADDR sCarveOutAddr;
+	PVRSRV_ERROR eError;
+
+	PVR_LOG_RETURN_IF_INVALID_PARAM(psDeviceNode, "psDeviceNode");
+	PVR_LOG_RETURN_IF_INVALID_PARAM(psDevmemHeap, "psDevmemHeap");
+	PVR_LOG_RETURN_IF_INVALID_PARAM(phPrivData, "phPrivData");
+
+	psDevInfo = psDeviceNode->pvDevice;
+
+	psHeapData = OSAllocMem(sizeof(*psHeapData));
+	PVR_LOG_RETURN_IF_NOMEM(psHeapData, "psHeapData");
+
+	/* Map the per device secure mem PMR allocation to the general devmem heap carveout. */
+	sCarveOutAddr = DevmemIntHeapGetBaseAddr(psDevmemHeap);
+	sCarveOutAddr.uiAddr += RGX_HEAP_KM_GENERAL_RESERVED_REGION_OFFSET;
+
+	eError = DevmemIntReserveRange(psDevmemHeap,
+								   sCarveOutAddr,
+								   RGXFWIF_KM_GENERAL_HEAP_TOTAL_BYTES,
+								   &psHeapData->psSecMemReservation);
+	PVR_GOTO_IF_ERROR(eError, ErrorFreeHeapData);
+
+	eError = DevmemIntMapPMR(psDevmemHeap, psHeapData->psSecMemReservation, psDevInfo->psGenHeapSecMem,
+					PVRSRV_MEMALLOCFLAG_GPU_READABLE
+					| PVRSRV_MEMALLOCFLAG_GPU_WRITEABLE,
+					&psHeapData->psSecMemMapping);
+	PVR_GOTO_IF_ERROR(eError, ErrorUnreserve);
+
+	*phPrivData = (IMG_HANDLE)psHeapData;
+
+	return PVRSRV_OK;
+
+ErrorUnreserve:
+	DevmemIntUnreserveRange(psHeapData->psSecMemReservation);
+ErrorFreeHeapData:
+	OSFreeMem(psHeapData);
+
+	return eError;
+}
+
+/* Deinit callback function for general heap. */
+static void GeneralHeapDeInit(IMG_HANDLE hPrivData)
+{
+	RGX_GENERAL_HEAP_DATA *psHeapData = (RGX_GENERAL_HEAP_DATA*)hPrivData;
+
+	PVR_ASSERT(hPrivData);
+
+	DevmemIntUnmapPMR(psHeapData->psSecMemMapping);
+	DevmemIntUnreserveRange(psHeapData->psSecMemReservation);
+
+	OSFreeMem(psHeapData);
+}
+#else
+/* Callbacks not used */
+#define GeneralHeapInit NULL
+#define GeneralHeapDeInit NULL
+#endif
 
 /* Feature Present function prototypes */
 
@@ -3644,31 +3731,31 @@ static IMG_BOOL FWVZMainHeapPresent(PVRSRV_RGXDEV_INFO* psDevInfo, const RGX_HEA
 
 static const RGX_HEAP_INFO gasRGXHeapLayoutApp[] =
 {
-	/* Name                             HeapBase                          HeapLength                        HeapReservedRegionLength                     Log2ImportAlignment pfnIsHeapPresent HeapInstanceFlags   */
-	{RGX_GENERAL_SVM_HEAP_IDENT,        RGX_GENERAL_SVM_HEAP_BASE,        RGX_GENERAL_SVM_HEAP_SIZE,        0,                                           0,                  NULL,            HEAP_INST_DEFAULT_VALUE},
-	{RGX_GENERAL_HEAP_IDENT,            RGX_GENERAL_HEAP_BASE,            RGX_GENERAL_HEAP_SIZE,            (1 * DEVMEM_HEAP_RESERVED_SIZE_GRANULARITY), 0,                  NULL,            HEAP_INST_DEFAULT_VALUE},
-	{RGX_GENERAL_NON4K_HEAP_IDENT,      RGX_GENERAL_NON4K_HEAP_BASE,      RGX_GENERAL_NON4K_HEAP_SIZE,      0,                                           0,                  NULL,            HEAP_INST_DEFAULT_VALUE | HEAP_INST_NON4K_FLAG},
-	{RGX_PDSCODEDATA_HEAP_IDENT,        RGX_PDSCODEDATA_HEAP_BASE,        RGX_PDSCODEDATA_HEAP_SIZE,        (1 * DEVMEM_HEAP_RESERVED_SIZE_GRANULARITY), 0,                  NULL,            HEAP_INST_DEFAULT_VALUE},
-	{RGX_USCCODE_HEAP_IDENT,            RGX_USCCODE_HEAP_BASE,            RGX_USCCODE_HEAP_SIZE,            (1 * DEVMEM_HEAP_RESERVED_SIZE_GRANULARITY), 0,                  NULL,            HEAP_INST_DEFAULT_VALUE},
-	{RGX_VK_CAPT_REPLAY_HEAP_IDENT,     RGX_VK_CAPT_REPLAY_HEAP_BASE,     RGX_VK_CAPT_REPLAY_HEAP_SIZE,     0,                                           0,                  NULL,            HEAP_INST_DEFAULT_VALUE},
-	{RGX_SIGNALS_HEAP_IDENT,            RGX_SIGNALS_HEAP_BASE,            RGX_SIGNALS_HEAP_SIZE,            0,                                           0,                  NULL,            HEAP_INST_DEFAULT_VALUE},
-	{RGX_COMPONENT_CTRL_HEAP_IDENT,     RGX_COMPONENT_CTRL_HEAP_BASE,     RGX_COMPONENT_CTRL_HEAP_SIZE,     0,                                           0,                  NULL,            HEAP_INST_DEFAULT_VALUE},
-	{RGX_FBCDC_HEAP_IDENT,              RGX_FBCDC_HEAP_BASE,              RGX_FBCDC_HEAP_SIZE,              0,                                           0,                  NULL,            HEAP_INST_DEFAULT_VALUE},
-	{RGX_FBCDC_LARGE_HEAP_IDENT,        RGX_FBCDC_LARGE_HEAP_BASE,        RGX_FBCDC_LARGE_HEAP_SIZE,        0,                                           0,                  NULL,            HEAP_INST_DEFAULT_VALUE},
-	{RGX_PDS_INDIRECT_STATE_HEAP_IDENT, RGX_PDS_INDIRECT_STATE_HEAP_BASE, RGX_PDS_INDIRECT_STATE_HEAP_SIZE, 0,                                           0,                  NULL,            HEAP_INST_DEFAULT_VALUE},
-	{RGX_CMP_MISSION_RMW_HEAP_IDENT,    RGX_CMP_MISSION_RMW_HEAP_BASE,    RGX_CMP_MISSION_RMW_HEAP_SIZE,    0,                                           0,                  NULL,            HEAP_INST_DEFAULT_VALUE},
-	{RGX_CMP_SAFETY_RMW_HEAP_IDENT,     RGX_CMP_SAFETY_RMW_HEAP_BASE,     RGX_CMP_SAFETY_RMW_HEAP_SIZE,     0,                                           0,                  NULL,            HEAP_INST_DEFAULT_VALUE},
-	{RGX_TEXTURE_STATE_HEAP_IDENT,      RGX_TEXTURE_STATE_HEAP_BASE,      RGX_TEXTURE_STATE_HEAP_SIZE,      0,                                           0,                  NULL,            HEAP_INST_DEFAULT_VALUE},
-	{RGX_VISIBILITY_TEST_HEAP_IDENT,    RGX_VISIBILITY_TEST_HEAP_BASE,    RGX_VISIBILITY_TEST_HEAP_SIZE,    0,                                           0,                  NULL,            HEAP_INST_DEFAULT_VALUE}
+	/* Name                             HeapBase                          HeapLength                        HeapReservedRegionLength                     Log2ImportAlignment pfnIsHeapPresent      pfnInit           pfnDeInit          HeapInstanceFlags   */
+	{RGX_GENERAL_SVM_HEAP_IDENT,        RGX_GENERAL_SVM_HEAP_BASE,        RGX_GENERAL_SVM_HEAP_SIZE,        0,                                           0,                  NULL,                 NULL,             NULL,              HEAP_INST_DEFAULT_VALUE},
+	{RGX_GENERAL_HEAP_IDENT,            RGX_GENERAL_HEAP_BASE,            RGX_GENERAL_HEAP_SIZE,            RGX_HEAP_GENERAL_RESERVED_TOTAL_SIZE,        0,                  NULL,                 GeneralHeapInit,  GeneralHeapDeInit, HEAP_INST_DEFAULT_VALUE},
+	{RGX_GENERAL_NON4K_HEAP_IDENT,      RGX_GENERAL_NON4K_HEAP_BASE,      RGX_GENERAL_NON4K_HEAP_SIZE,      0,                                           0,                  NULL,                 NULL,             NULL,              HEAP_INST_DEFAULT_VALUE | HEAP_INST_NON4K_FLAG},
+	{RGX_PDSCODEDATA_HEAP_IDENT,        RGX_PDSCODEDATA_HEAP_BASE,        RGX_PDSCODEDATA_HEAP_SIZE,        RGX_HEAP_PDS_RESERVED_TOTAL_SIZE,            0,                  NULL,                 NULL,             NULL,              HEAP_INST_DEFAULT_VALUE},
+	{RGX_USCCODE_HEAP_IDENT,            RGX_USCCODE_HEAP_BASE,            RGX_USCCODE_HEAP_SIZE,            RGX_HEAP_USC_RESERVED_TOTAL_SIZE,            0,                  NULL,                 NULL,             NULL,              HEAP_INST_DEFAULT_VALUE},
+	{RGX_VK_CAPT_REPLAY_HEAP_IDENT,     RGX_VK_CAPT_REPLAY_HEAP_BASE,     RGX_VK_CAPT_REPLAY_HEAP_SIZE,     0,                                           0,                  NULL,                 NULL,             NULL,              HEAP_INST_DEFAULT_VALUE},
+	{RGX_SIGNALS_HEAP_IDENT,            RGX_SIGNALS_HEAP_BASE,            RGX_SIGNALS_HEAP_SIZE,            0,                                           0,                  NULL,                 NULL,             NULL,              HEAP_INST_DEFAULT_VALUE},
+	{RGX_COMPONENT_CTRL_HEAP_IDENT,     RGX_COMPONENT_CTRL_HEAP_BASE,     RGX_COMPONENT_CTRL_HEAP_SIZE,     0,                                           0,                  NULL,                 NULL,             NULL,              HEAP_INST_DEFAULT_VALUE},
+	{RGX_FBCDC_HEAP_IDENT,              RGX_FBCDC_HEAP_BASE,              RGX_FBCDC_HEAP_SIZE,              0,                                           0,                  NULL,                 NULL,             NULL,              HEAP_INST_DEFAULT_VALUE},
+	{RGX_FBCDC_LARGE_HEAP_IDENT,        RGX_FBCDC_LARGE_HEAP_BASE,        RGX_FBCDC_LARGE_HEAP_SIZE,        0,                                           0,                  NULL,                 NULL,             NULL,              HEAP_INST_DEFAULT_VALUE},
+	{RGX_PDS_INDIRECT_STATE_HEAP_IDENT, RGX_PDS_INDIRECT_STATE_HEAP_BASE, RGX_PDS_INDIRECT_STATE_HEAP_SIZE, 0,                                           0,                  NULL,                 NULL,             NULL,              HEAP_INST_DEFAULT_VALUE},
+	{RGX_CMP_MISSION_RMW_HEAP_IDENT,    RGX_CMP_MISSION_RMW_HEAP_BASE,    RGX_CMP_MISSION_RMW_HEAP_SIZE,    0,                                           0,                  NULL,                 NULL,             NULL,              HEAP_INST_DEFAULT_VALUE},
+	{RGX_CMP_SAFETY_RMW_HEAP_IDENT,     RGX_CMP_SAFETY_RMW_HEAP_BASE,     RGX_CMP_SAFETY_RMW_HEAP_SIZE,     0,                                           0,                  NULL,                 NULL,             NULL,              HEAP_INST_DEFAULT_VALUE},
+	{RGX_TEXTURE_STATE_HEAP_IDENT,      RGX_TEXTURE_STATE_HEAP_BASE,      RGX_TEXTURE_STATE_HEAP_SIZE,      0,                                           0,                  NULL,                 NULL,             NULL,              HEAP_INST_DEFAULT_VALUE},
+	{RGX_VISIBILITY_TEST_HEAP_IDENT,    RGX_VISIBILITY_TEST_HEAP_BASE,    RGX_VISIBILITY_TEST_HEAP_SIZE,    0,                                           0,                  NULL,                 NULL,             NULL,              HEAP_INST_DEFAULT_VALUE}
 };
 
 static const RGX_HEAP_INFO gasRGXHeapLayoutFW[] =
 {
-	/* Name                          HeapBase                             HeapLength                        HeapReservedRegionLength Log2ImportAlignment pfnPresent           HeapInstanceFlags*/
-	{RGX_FIRMWARE_CONFIG_HEAP_IDENT, RGX_FIRMWARE_GUEST_CONFIG_HEAP_BASE, RGX_FIRMWARE_CONFIG_HEAP_SIZE,    0,                       0,                  FWVZConfigPresent,   HEAP_INST_DEFAULT_VALUE},
-	{RGX_FIRMWARE_MAIN_HEAP_IDENT,   RGX_FIRMWARE_GUEST_MAIN_HEAP_BASE,   RGX_FIRMWARE_META_MAIN_HEAP_SIZE, 0,                       0,                  FWVZMainHeapPresent, HEAP_INST_DEFAULT_VALUE},
-	{RGX_FIRMWARE_MAIN_HEAP_IDENT,   RGX_FIRMWARE_HOST_MAIN_HEAP_BASE,    RGX_FIRMWARE_META_MAIN_HEAP_SIZE, 0,                       0,                  FWVZMainHeapPresent, HEAP_INST_DEFAULT_VALUE},
-	{RGX_FIRMWARE_CONFIG_HEAP_IDENT, RGX_FIRMWARE_HOST_CONFIG_HEAP_BASE,  RGX_FIRMWARE_CONFIG_HEAP_SIZE,    0,                       0,                  FWVZConfigPresent,   HEAP_INST_DEFAULT_VALUE}
+	/* Name                          HeapBase                             HeapLength                        HeapReservedRegionLength Log2ImportAlignment pfnPresent           pfnInit pfnDeInit HeapInstanceFlags*/
+	{RGX_FIRMWARE_CONFIG_HEAP_IDENT, RGX_FIRMWARE_GUEST_CONFIG_HEAP_BASE, RGX_FIRMWARE_CONFIG_HEAP_SIZE,    0,                       0,                  FWVZConfigPresent,   NULL,   NULL,     HEAP_INST_DEFAULT_VALUE},
+	{RGX_FIRMWARE_MAIN_HEAP_IDENT,   RGX_FIRMWARE_GUEST_MAIN_HEAP_BASE,   RGX_FIRMWARE_META_MAIN_HEAP_SIZE, 0,                       0,                  FWVZMainHeapPresent, NULL,   NULL,     HEAP_INST_DEFAULT_VALUE},
+	{RGX_FIRMWARE_MAIN_HEAP_IDENT,   RGX_FIRMWARE_HOST_MAIN_HEAP_BASE,    RGX_FIRMWARE_META_MAIN_HEAP_SIZE, 0,                       0,                  FWVZMainHeapPresent, NULL,   NULL,     HEAP_INST_DEFAULT_VALUE},
+	{RGX_FIRMWARE_CONFIG_HEAP_IDENT, RGX_FIRMWARE_HOST_CONFIG_HEAP_BASE,  RGX_FIRMWARE_CONFIG_HEAP_SIZE,    0,                       0,                  FWVZConfigPresent,   NULL,   NULL,     HEAP_INST_DEFAULT_VALUE}
 };
 
 /* Generic counting method. */
@@ -3739,6 +3826,8 @@ static void _InstantiateRequiredHeaps(PVRSRV_RGXDEV_INFO     *psDevInfo,
 			                 psHeapInfo->uiHeapReservedRegionLength,
 			                 ui32Log2DataPageSize,
 			                 psHeapInfo->ui32Log2ImportAlignment,
+			                 psHeapInfo->pfnInit,
+			                 psHeapInfo->pfnDeInit,
 			                 *psDeviceMemoryHeapCursor);
 
 		(*psDeviceMemoryHeapCursor)++;
@@ -4675,6 +4764,8 @@ static PVRSRV_ERROR RGXInitFwRawHeap(DEVMEM_HEAP_BLUEPRINT *psDevMemHeap, IMG_UI
 		                 0,
 		                 ui32Log2RgxDefaultPageShift,
 		                 0,
+		                 NULL,
+		                 NULL,
 		                 psDevMemHeap);
 
 	return PVRSRV_OK;
