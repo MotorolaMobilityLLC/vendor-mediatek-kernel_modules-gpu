@@ -10,9 +10,8 @@
 struct mtk_irq_trace_recorder mtk_irq_trace_recorders[KBASE_IRQ_NUM][MAX_PHASE_NUM];
 struct mtk_irq_trace_recorder mtk_l2_trace_recorders[MAX_PHASE_NUM];
 unsigned long long mtk_irq_trace_data[MAX_DATA_NUM];
-bool irq_monitor_default_enabled = false;
-bool irq_monitor_override_thresholds = false;
-unsigned int irq_monitor_override_th1_ms = DEFAULT_IRQ_MONITOR_OVERRIDE_TH1_MS;
+unsigned int irq_monitor_default_enabled = false;
+unsigned int irq_monitor_override_threshold_ms = DEFAULT_GPU_TH1_MS;
 
 void mtk_debug_irq_trace_record_data(unsigned int data_id, unsigned long long data)
 {
@@ -58,7 +57,7 @@ static void mtk_debug_irq_trace_show(void)
 	long long int interval = 0;
 	pr_info("IRQ Trace INFO:\n");
 	pr_info("IRQ Monitor enabled: %s\n", (irq_monitor_default_enabled) ? "true" : "false");
-	pr_info("IRQ Monitor th1 ms: %dms\n", irq_monitor_override_th1_ms);
+	pr_info("IRQ Monitor th1 ms: %dms\n", irq_monitor_override_threshold_ms);
 	pr_info("GPU_IRQ_count: %llu\n", mtk_irq_trace_data[0]);
 	pr_info("GPU_IRQ_status: 0x%llx\n", mtk_irq_trace_data[1]);
 	pr_info("JOB_IRQ_count: %llu\n", mtk_irq_trace_data[2]);
@@ -97,7 +96,7 @@ void mtk_debug_irq_trace_check_timeout(enum KBASE_IRQ_ID irq_id, unsigned int ph
 	interval = mtk_irq_trace_recorders[irq_id][phase_id].end_record_time_ns -
 				mtk_irq_trace_recorders[irq_id][phase_id].start_record_time_ns;
 
-	if (interval / 1000000 > irq_monitor_override_th1_ms)
+	if (interval / 1000000 > irq_monitor_override_threshold_ms)
 		mtk_debug_irq_trace_show();
 
 	return;
@@ -111,22 +110,14 @@ int mtk_debug_irq_trace_init(struct kbase_device *kbdev)
 		return -1;
 
 	/* check if irq moniter dts property exists */
-	node = of_find_node_by_name(NULL, "mtk_irq_monitor");
+	node = of_find_node_by_name(NULL, "gpufreq");
 	if (node) {
-		irq_monitor_default_enabled = of_property_read_bool(node, "mediatek,default-enabled");
-		irq_monitor_override_thresholds = of_property_read_bool(node, "mediatek,override-thresholds");
-
-		/* check if override threshold exists
-		 * there are 3 threshold:
-		 * th1 for printing to ftrace
-		 * th2 for printing to kernel log
-		 * th3 for making db (each IRQ will only have 1 db in life time)
-		 */
-		if (irq_monitor_default_enabled && irq_monitor_override_thresholds) {
-			/* if get property of override threshold fail use default threshold */
-			if (of_property_read_u32_index(node, "mediatek,override-thresholds", 0,
-				&irq_monitor_override_th1_ms))
-				irq_monitor_override_th1_ms = DEFAULT_IRQ_MONITOR_OVERRIDE_TH1_MS;
+		/* irq monitor only enabled in aging load */
+		if (!of_property_read_u32(node, "aging-load", &irq_monitor_default_enabled)) {
+			if (irq_monitor_default_enabled) {
+				/* irq monitor will override IRQ LONG trigger threshold */
+				irq_monitor_override_threshold_ms = DEFAULT_IRQ_MONITOR_OVERRIDE_TH1_MS;
+			}
 		}
 	}
 
@@ -149,7 +140,7 @@ static int mtk_debug_irq_trace(struct seq_file *file, void *data)
 	long long int interval = 0;
 	seq_printf(file, "IRQ Trace INFO:\n");
 	seq_printf(file, "IRQ Monitor enabled: %s\n", (irq_monitor_default_enabled) ? "true" : "false");
-	seq_printf(file, "IRQ Monitor th1 ms: %dms\n", irq_monitor_override_th1_ms);
+	seq_printf(file, "IRQ Monitor th1 ms: %dms\n", irq_monitor_override_threshold_ms);
 	seq_printf(file, "GPU_IRQ_count: %llu\n", mtk_irq_trace_data[0]);
 	seq_printf(file, "GPU_IRQ_status: 0x%llx\n", mtk_irq_trace_data[1]);
 	seq_printf(file, "JOB_IRQ_count: %llu\n", mtk_irq_trace_data[2]);
