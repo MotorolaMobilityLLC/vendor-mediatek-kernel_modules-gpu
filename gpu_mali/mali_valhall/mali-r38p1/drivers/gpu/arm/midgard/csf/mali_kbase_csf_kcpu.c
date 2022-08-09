@@ -1288,7 +1288,7 @@ static void pending_cmds_timer_callback(struct timer_list *timer)
 	struct kbase_context *const kctx = kcpu_queue->kctx;
 	struct kbase_kcpu_command *cmd = &kcpu_queue->commands[kcpu_queue->start_offset];
 
-	dev_info(kctx->kbdev->dev,
+	dev_vdbg(kctx->kbdev->dev,
 		 "KCPU queue has stuck in %ums! ctx=%d_%d queue_idx=%u cmd_type=%u start_offset=%u",
 		 COMMAND_TIMEOUT_MS, kctx->tgid, kctx->id, kcpu_queue->id, cmd->type, kcpu_queue->start_offset);
 
@@ -1640,7 +1640,7 @@ static void kcpu_queue_cmds_timeout_worker(struct work_struct *data)
 	struct kbase_context *const kctx = kcpu_queue->kctx;
 	struct kbase_kcpu_command *cmd = &kcpu_queue->commands[kcpu_queue->start_offset];
 
-	dev_info(kctx->kbdev->dev,
+	dev_vdbg(kctx->kbdev->dev,
 		 "KCPU queue fence command timeouts(%d ms)! ctx=%d_%d queue_idx=%u cmd_type=%u start_offset=%u",
 		 COMMAND_TIMEOUT_MS, kctx->tgid, kctx->id, kcpu_queue->id, cmd->type, kcpu_queue->start_offset);
 
