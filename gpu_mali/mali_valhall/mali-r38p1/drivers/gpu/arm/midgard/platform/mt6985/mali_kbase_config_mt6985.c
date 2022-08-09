@@ -206,7 +206,6 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 		cpu_latency_qos_update_request(&g_qos_request, PM_QOS_DEFAULT_VALUE);
 }
 
-#if IS_ENABLED(CONFIG_MALI_SLEEP_MODE)
 static void pm_callback_runtime_gpu_active(struct kbase_device *kbdev)
 {
 	unsigned long flags;
@@ -312,7 +311,6 @@ static void pm_callback_runtime_off(struct kbase_device *kbdev)
 {
 	KBASE_PLATFORM_LOGD("%s", __func__);
 }
-#endif /* CONFIG_MALI_SLEEP_MODE */
 
 static void pm_callback_resume(struct kbase_device *kbdev)
 {
@@ -335,27 +333,35 @@ struct kbase_pm_callback_conf pm_callbacks = {
 	.power_off_callback = pm_callback_power_off,
 	.power_suspend_callback = pm_callback_suspend,
 	.power_resume_callback = pm_callback_resume,
-#if IS_ENABLED(CONFIG_MALI_SLEEP_MODE)
-	.power_runtime_init_callback = kbase_device_runtime_init,
-	.power_runtime_term_callback = kbase_device_runtime_disable,
-	.power_runtime_on_callback = pm_callback_runtime_on,
-	.power_runtime_off_callback = pm_callback_runtime_off,
-	.power_runtime_gpu_idle_callback = pm_callback_runtime_gpu_idle,
-	.power_runtime_gpu_active_callback = pm_callback_runtime_gpu_active,
-#else /* CONFIG_MALI_SLEEP_MODE */
 	.power_runtime_init_callback = NULL,
 	.power_runtime_term_callback = NULL,
 	.power_runtime_on_callback = NULL,
 	.power_runtime_off_callback = NULL,
 	.power_runtime_gpu_idle_callback = NULL,
 	.power_runtime_gpu_active_callback = NULL,
-#endif /* CONFIG_MALI_SLEEP_MODE */
 };
 
 int mtk_platform_pm_init(struct kbase_device *kbdev)
 {
+	struct device_node *np = kbdev->dev->of_node;
+	u32 sleep_mode_enable = 0;
+
 	if (IS_ERR_OR_NULL(kbdev))
 		return -1;
+
+	if (!of_property_read_u32(np, "sleep-mode-enable", &sleep_mode_enable)) {
+		dev_info(kbdev->dev, "Sleep mode %s", (sleep_mode_enable)? "enabled": "disabled");
+
+		if (sleep_mode_enable == 1) {
+			pm_callbacks.power_runtime_init_callback = kbase_device_runtime_init;
+			pm_callbacks.power_runtime_term_callback = kbase_device_runtime_disable;
+			pm_callbacks.power_runtime_on_callback = pm_callback_runtime_on;
+			pm_callbacks.power_runtime_off_callback = pm_callback_runtime_off;
+			pm_callbacks.power_runtime_gpu_idle_callback = pm_callback_runtime_gpu_idle;
+			pm_callbacks.power_runtime_gpu_active_callback = pm_callback_runtime_gpu_active;
+		}
+	} else
+		dev_info(kbdev->dev, "Sleep mode: No dts property setting, default disabled");
 
 	cpu_latency_qos_add_request(&g_qos_request,
 		PM_QOS_DEFAULT_VALUE);
