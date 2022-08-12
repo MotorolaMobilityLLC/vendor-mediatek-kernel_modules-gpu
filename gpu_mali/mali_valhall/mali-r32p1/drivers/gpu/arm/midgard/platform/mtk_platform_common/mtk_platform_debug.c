@@ -7,7 +7,6 @@
 #include <mali_kbase_defs.h>
 #include <mali_kbase_sync.h>
 #include <mali_kbase_mem_linux.h>
-#include <mali_kbase_hwaccess_time.h>
 #include <linux/delay.h>
 #include <linux/seq_file.h>
 #include <platform/mtk_platform_common.h>
@@ -1049,8 +1048,7 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type, int timeouts)
 
 	mutex_lock(&fence_debug_lock);
 
-	dev_info(kbdev->dev, "[%llu] %s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d",
-	         kbase_backend_get_cycle_cnt(kbdev),
+	dev_info(kbdev->dev, "%s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d",
 	         fence_timeout_type_to_string(type),
 	         timeouts,
 	         fd,
@@ -1058,8 +1056,7 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type, int timeouts)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
-		 "[%llu] %s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d\n",
-		 kbase_backend_get_cycle_cnt(kbdev),
+		 "%s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d\n",
 		 fence_timeout_type_to_string(type),
 		 timeouts,
 		 fd,
