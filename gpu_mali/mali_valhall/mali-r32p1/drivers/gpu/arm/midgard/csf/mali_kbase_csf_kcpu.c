@@ -1574,6 +1574,7 @@ static void kcpu_queue_timeout_worker(struct work_struct *data)
 
 	dev_info(kctx->kbdev->dev,
 	         "%s: mali fence timeouts(%d ms)! kcpu_queue=%u pid=%d",
+	         __func__,
 	         FENCE_WAIT_TIMEOUT_MS,
 	         kcpu_queue->id,
 	         kctx->tgid);
@@ -1581,6 +1582,7 @@ static void kcpu_queue_timeout_worker(struct work_struct *data)
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	ged_log_buf_print2(kctx->kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
 		 "%s: mali fence timeouts(%d ms)! kcpu_queue=%u pid=%d\n",
+		 __func__,
 		 FENCE_WAIT_TIMEOUT_MS,
 		 kcpu_queue->id,
 		 kctx->tgid);
