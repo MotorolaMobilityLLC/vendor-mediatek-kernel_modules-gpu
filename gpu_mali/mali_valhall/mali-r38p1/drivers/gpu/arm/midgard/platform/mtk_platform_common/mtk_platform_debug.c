@@ -2026,7 +2026,7 @@ static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int tim
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_exception,
 		"[%llxt] %s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d\n",
-		mtk_logbuffer_get_timestamp(kbdev),
+		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
 		fence_timeout_type_to_string(type),
 		timeouts,
 		fd,

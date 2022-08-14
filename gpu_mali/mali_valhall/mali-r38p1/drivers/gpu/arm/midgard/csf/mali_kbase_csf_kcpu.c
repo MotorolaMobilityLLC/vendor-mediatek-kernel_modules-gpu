@@ -1295,7 +1295,7 @@ static void pending_cmds_timer_callback(struct timer_list *timer)
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
 		"[%llxt] %s: KCPU queue has stuck in %ums! ctx=%d_%d queue_idx=%u cmd_type=%u start_offset=%u\n",
-		mtk_logbuffer_get_timestamp(kctx->kbdev),
+		mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
 		__func__, COMMAND_TIMEOUT_MS, kctx->tgid, kctx->id, kcpu_queue->id, cmd->type, kcpu_queue->start_offset);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -1334,7 +1334,7 @@ static void fence_timeout_callback(struct timer_list *timer)
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
 			"[%llxt] %s: Unexpected command type %d in ctx:%d_%d kcpu queue:%u\n",
-			mtk_logbuffer_get_timestamp(kctx->kbdev),
+			mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
 			__func__, cmd->type, kctx->tgid, kctx->id, kcpu_queue->id);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return;
@@ -1349,7 +1349,7 @@ static void fence_timeout_callback(struct timer_list *timer)
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
 			"[%llxt] No fence found in ctx:%d_%d kcpu queue:%u\n",
-			mtk_logbuffer_get_timestamp(kctx->kbdev),
+			mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
 			kctx->tgid, kctx->id, kcpu_queue->id);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return;
@@ -1369,10 +1369,10 @@ static void fence_timeout_callback(struct timer_list *timer)
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
 			"[%llxt] fence has not yet signalled in %ums\n",
-			mtk_logbuffer_get_timestamp(kctx->kbdev), FENCE_WAIT_TIMEOUT_MS);
+			mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception), FENCE_WAIT_TIMEOUT_MS);
 		mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
 			"[%llxt] ctx:%d_%d kcpu queue:%u still waiting for fence[%pK] context#seqno:%s (driver=%s, timeline=%s)\n",
-			mtk_logbuffer_get_timestamp(kctx->kbdev),
+			mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
 			kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name,
 			fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
@@ -1388,10 +1388,10 @@ static void fence_timeout_callback(struct timer_list *timer)
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
 			"[%llxt] fence has got error\n",
-			mtk_logbuffer_get_timestamp(kctx->kbdev));
+			mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception));
 		mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
 			"[%llxt] ctx:%d_%d kcpu queue:%u faulty fence[%pK] context#seqno:%s error(%d) (driver=%s, timeline=%s)\n",
-			mtk_logbuffer_get_timestamp(kctx->kbdev),
+			mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
 			kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name, info.status,
 			fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
@@ -1647,7 +1647,7 @@ static void kcpu_queue_cmds_timeout_worker(struct work_struct *data)
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
 		"[%llxt] %s: KCPU queue fence command timeouts(%d ms)! ctx=%d_%d queue_idx=%u cmd_type=%u start_offset=%u\n",
-		mtk_logbuffer_get_timestamp(kctx->kbdev),
+		mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
 		__func__,  COMMAND_TIMEOUT_MS, kctx->tgid, kctx->id, kcpu_queue->id, cmd->type, kcpu_queue->start_offset);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -1673,7 +1673,7 @@ static void kcpu_queue_timeout_worker(struct work_struct *data)
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
 		"[%llxt] mali fence timeouts(%d ms)! kcpu_queue=%u pid=%d\n",
-		mtk_logbuffer_get_timestamp(kctx->kbdev),
+		mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
 		FENCE_WAIT_TIMEOUT_MS,
 		kcpu_queue->id,
 		kctx->tgid);
