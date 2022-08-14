@@ -79,6 +79,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_CM7_TRACE := y
         CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME := y
         CONFIG_MALI_MTK_IRQ_TRACE := y
+        CONFIG_MALI_MTK_GPU_IDLE_TEST := y
     endif ## mt6985 ##
 
     ifeq ($(MTK_PLATFORM_VERSION),mt6886)
