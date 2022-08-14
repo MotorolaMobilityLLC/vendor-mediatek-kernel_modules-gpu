@@ -585,6 +585,7 @@ void mtk_kbase_csf_firmware_ke_dump_fwlog(struct kbase_device *kbdev)
 			break;
 		}
 	}
+	dev_info(kbdev->dev, "[CSFFW]:(ke)dump fwlog size = 0x%x\n", total_size);
 }
 EXPORT_SYMBOL(mtk_kbase_csf_firmware_ke_dump_fwlog);
 #endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
