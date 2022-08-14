@@ -11,6 +11,8 @@
 #include <linux/spinlock.h>
 #include <linux/pm_qos.h>
 #include <linux/pm_runtime.h>
+#include <linux/arm-smccc.h>
+#include <linux/soc/mediatek/mtk_sip_svc.h>
 #include <device/mali_kbase_device.h>
 #include <mali_kbase.h>
 #include <mali_kbase_defs.h>
@@ -32,9 +34,14 @@
 /* KBASE_PLATFORM_SUSPEND_DELAY, the ms for autosuspend timeout */
 #define KBASE_PLATFORM_SUSPEND_DELAY (100) /* ms */
 
+#define POWER_ON (1)
+#define POWER_OFF (0)
+#define GPUACP_SMC_OP_CPUPM_PWR (1)
+
 DEFINE_MUTEX(g_mfg_lock);
 static int g_cur_opp_idx;
 static struct pm_qos_request g_qos_request;
+bool sleep_mode;
 
 enum gpu_dvfs_status_step {
 	GPU_DVFS_STATUS_STEP_1 = 0x1,
@@ -158,6 +165,7 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 {
 	int ret = 1;
 	unsigned long flags;
+	struct arm_smccc_res res;
 
 	KBASE_PLATFORM_LOGD("%s", __func__);
 
@@ -170,8 +178,16 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 	}
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
-	if (kbdev->gpu_props.props.raw_props.coherency_mode == COHERENCY_ACE_LITE)
-		cpu_latency_qos_update_request(&g_qos_request, 149);
+	if ((!sleep_mode) && (kbdev->gpu_props.props.raw_props.coherency_mode == COHERENCY_ACE_LITE))
+	{
+		/* Call smc into security mode */
+		//KBASE_PLATFORM_LOGI("[Power on] Enter security mode %d", sleep_mode);
+		arm_smccc_smc(
+			MTK_SIP_KERNEL_GPUEB_CONTROL,  /* a0 */
+			GPUACP_SMC_OP_CPUPM_PWR,       /* a1 */
+			POWER_ON,		       /* a2 */
+			0, 0, 0, 0, 0, &res);
+	}
 
 	mutex_lock(&g_mfg_lock);
 	ret = pm_callback_power_on_nolock(kbdev);
@@ -184,6 +200,7 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 static void pm_callback_power_off(struct kbase_device *kbdev)
 {
 	unsigned long flags;
+	struct arm_smccc_res res;
 
 	KBASE_PLATFORM_LOGD("%s", __func__);
 
@@ -202,14 +219,23 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 	pm_callback_power_off_nolock(kbdev);
 	mutex_unlock(&g_mfg_lock);
 
-	if (kbdev->gpu_props.props.raw_props.coherency_mode == COHERENCY_ACE_LITE)
-		cpu_latency_qos_update_request(&g_qos_request, PM_QOS_DEFAULT_VALUE);
+	if ((!sleep_mode) && (kbdev->gpu_props.props.raw_props.coherency_mode == COHERENCY_ACE_LITE))
+	{
+		/* Call smc into security mode */
+		//KBASE_PLATFORM_LOGI("[Power off] Enter security mode %d", sleep_mode);
+		arm_smccc_smc(
+			MTK_SIP_KERNEL_GPUEB_CONTROL,  /* a0 */
+			GPUACP_SMC_OP_CPUPM_PWR,       /* a1 */
+			POWER_OFF,		       /* a2 */
+			0, 0, 0, 0, 0, &res);
+	}
 }
 
 static void pm_callback_runtime_gpu_active(struct kbase_device *kbdev)
 {
 	unsigned long flags;
 	int error;
+	struct arm_smccc_res res;
 
 	KBASE_PLATFORM_LOGD("%s", __func__);
 
@@ -240,11 +266,22 @@ static void pm_callback_runtime_gpu_active(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	ged_dvfs_gpu_clock_switch_notify(GED_POWER_ON);
 #endif
+	if ((sleep_mode) && (kbdev->gpu_props.props.raw_props.coherency_mode == COHERENCY_ACE_LITE))
+	{
+		/* Call smc into security mode */
+		//KBASE_PLATFORM_LOGI("[Sleep active] Enter security mode");
+		arm_smccc_smc(
+			MTK_SIP_KERNEL_GPUEB_CONTROL,  /* a0 */
+			GPUACP_SMC_OP_CPUPM_PWR,       /* a1 */
+			POWER_ON,		       /* a2 */
+			0, 0, 0, 0, 0, &res);
+	}
 }
 
 static void pm_callback_runtime_gpu_idle(struct kbase_device *kbdev)
 {
 	unsigned long flags;
+	struct arm_smccc_res res;
 
 	KBASE_PLATFORM_LOGD("%s", __func__);
 
@@ -253,6 +290,17 @@ static void pm_callback_runtime_gpu_idle(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	ged_dvfs_gpu_clock_switch_notify(GED_SLEEP);
 #endif
+
+	if ((sleep_mode) && (kbdev->gpu_props.props.raw_props.coherency_mode == COHERENCY_ACE_LITE))
+	{
+		/* Call smc into security mode */
+		//KBASE_PLATFORM_LOGI("[Sleep idle] Enter security mode");
+		arm_smccc_smc(
+			MTK_SIP_KERNEL_GPUEB_CONTROL,  /* a0 */
+			GPUACP_SMC_OP_CPUPM_PWR,       /* a1 */
+			POWER_OFF,		       /* a2 */
+			0, 0, 0, 0, 0, &res);
+	}
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	WARN_ON(!kbdev->pm.backend.gpu_powered);
@@ -345,6 +393,7 @@ int mtk_platform_pm_init(struct kbase_device *kbdev)
 {
 	struct device_node *np = kbdev->dev->of_node;
 	u32 sleep_mode_enable = 0;
+	sleep_mode = false;
 
 	if (IS_ERR_OR_NULL(kbdev))
 		return -1;
@@ -359,7 +408,9 @@ int mtk_platform_pm_init(struct kbase_device *kbdev)
 			pm_callbacks.power_runtime_off_callback = pm_callback_runtime_off;
 			pm_callbacks.power_runtime_gpu_idle_callback = pm_callback_runtime_gpu_idle;
 			pm_callbacks.power_runtime_gpu_active_callback = pm_callback_runtime_gpu_active;
-		}
+			sleep_mode = true;
+		} else
+			sleep_mode = false;
 	} else
 		dev_info(kbdev->dev, "Sleep mode: No dts property setting, default disabled");
 
