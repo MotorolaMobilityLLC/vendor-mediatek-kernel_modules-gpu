@@ -125,6 +125,13 @@ int kbase_context_common_init(struct kbase_context *kctx)
 {
 	const unsigned long cookies_mask = KBASE_COOKIE_MASK;
 	int err = 0;
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
+		int i;
+
+		mutex_init(&kctx->coherenct_region_lock);
+		for (i = 0; i < MAX_COHERENT_REGION; i++)
+			kctx->coherenct_regions[i] = NULL;
+#endif
 
 	/* creating a context is considered a disjoint event */
 	kbase_disjoint_event(kctx->kbdev);
@@ -255,6 +262,13 @@ void kbase_context_common_term(struct kbase_context *kctx)
 {
 	unsigned long flags;
 	int pages;
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
+	int i;
+
+	for (i = 0; i < MAX_COHERENT_REGION; i++)
+		kctx->coherenct_regions[i] = NULL;
+	mutex_destroy(&kctx->coherenct_region_lock);
+#endif
 
 	mutex_lock(&kctx->kbdev->mmu_hw_mutex);
 	spin_lock_irqsave(&kctx->kbdev->hwaccess_lock, flags);

@@ -189,6 +189,10 @@ static int gpu_mmap_user_io_pages(struct kbase_device *kbdev,
 	 */
 	const enum kbase_caller_mmu_sync_info mmu_sync_info = CALLER_MMU_ASYNC;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
+	mem_flags |=
+		KBASE_REG_MEMATTR_INDEX(AS_MEMATTR_INDEX_NON_CACHEABLE);
+#else
 	if (kbdev->system_coherency == COHERENCY_NONE) {
 		mem_flags |=
 			KBASE_REG_MEMATTR_INDEX(AS_MEMATTR_INDEX_NON_CACHEABLE);
@@ -196,6 +200,7 @@ static int gpu_mmap_user_io_pages(struct kbase_device *kbdev,
 		mem_flags |= KBASE_REG_SHARE_BOTH |
 			KBASE_REG_MEMATTR_INDEX(AS_MEMATTR_INDEX_SHARED);
 	}
+#endif
 
 	mutex_lock(&kbdev->csf.reg_lock);
 	ret = kbase_add_va_region_rbtree(kbdev, reg, 0, num_pages, 1);
@@ -269,10 +274,14 @@ static int kernel_map_user_io_pages(struct kbase_context *kctx,
 	/* The pages are mapped to Userspace also, so use the same mapping
 	 * attributes as used inside the CPU page fault handler.
 	 */
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
+	cpu_map_prot = pgprot_writecombine(PAGE_KERNEL);
+#else
 	if (kctx->kbdev->system_coherency == COHERENCY_NONE)
 		cpu_map_prot = pgprot_writecombine(PAGE_KERNEL);
 	else
 		cpu_map_prot = PAGE_KERNEL;
+#endif
 
 	for (i = 0; i < ARRAY_SIZE(page_list); i++)
 		page_list[i] = as_page(queue->phys[i]);
