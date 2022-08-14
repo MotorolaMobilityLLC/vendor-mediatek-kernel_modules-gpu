@@ -40,6 +40,11 @@ enum mtk_common_debug_types {
 #define MTK_DBG_HOOK_PM_TIMEOUT                                ((u64)0x1<<37)
 #define MTK_DBG_HOOK_PM_RESET_FAIL                             ((u64)0x1<<38)
 #define MTK_DBG_HOOK_FWBOOT_TIMEOUT                            ((u64)0x1<<39)
+// bit 56~63 to skip specific dump in common dump flow
+#define MTK_DBG_COMMON_DUMP_SKIP_ETB                           ((u64)0x1<<60)
+#define MTK_DBG_COMMON_DUMP_SKIP_FWLOG                         ((u64)0x1<<61)
+#define MTK_DBG_COMMON_DUMP_SKIP_COREDUMP                      ((u64)0x1<<62)
+#define MTK_DBG_COMMON_DUMP_SKIP_GROUPS_QUEUES                 ((u64)0x1<<63)
 
 struct kbase_device *mtk_common_get_kbdev(void);
 
