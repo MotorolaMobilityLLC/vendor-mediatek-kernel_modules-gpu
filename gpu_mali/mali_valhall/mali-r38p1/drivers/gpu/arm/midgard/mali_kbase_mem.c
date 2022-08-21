@@ -1690,7 +1690,7 @@ void kbase_free_alloced_region(struct kbase_va_region *reg)
 
 		mutex_lock(&kctx->jit_evict_lock);
 #if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
-		mutex_unlock(&kctx->coherenct_region_lock);
+		mutex_lock(&kctx->coherenct_region_lock);
 		for (r_index = 0; r_index < MAX_COHERENT_REGION; r_index++) {
 			if (kctx->coherenct_regions[r_index] == reg) {
 				dev_vdbg(kctx->kbdev->dev,
@@ -2250,7 +2250,7 @@ int kbase_mem_free_region(struct kbase_context *kctx, struct kbase_va_region *re
 	lockdep_assert_held(&kctx->reg_lock);
 #if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
 	if ((reg->flags & KBASE_REG_SHARE_BOTH)) {
-			mutex_unlock(&kctx->coherenct_region_lock);
+			mutex_lock(&kctx->coherenct_region_lock);
 			for (r_index = 0; r_index < MAX_COHERENT_REGION; r_index++) {
 				if (kctx->coherenct_regions[r_index] == reg) {
 					dev_vdbg(kctx->kbdev->dev,

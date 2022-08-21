@@ -403,7 +403,10 @@ static unsigned long convert_mem_flags(const struct kbase_device * const kbdev,
 		cache_mode = CSF_FIRMWARE_CACHE_MODE_NONE;
 
 #if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
-	cache_mode = CSF_FIRMWARE_CACHE_MODE_NONE;
+	if (is_shared && (cache_mode == CSF_FIRMWARE_CACHE_MODE_UNCACHED_COHERENT)) {
+		dev_vdbg(kbdev->dev, "Forcing none cache mode for shared interface memory");
+		cache_mode = CSF_FIRMWARE_CACHE_MODE_NONE;
+	}
 #endif
 	*cm = cache_mode;
 
