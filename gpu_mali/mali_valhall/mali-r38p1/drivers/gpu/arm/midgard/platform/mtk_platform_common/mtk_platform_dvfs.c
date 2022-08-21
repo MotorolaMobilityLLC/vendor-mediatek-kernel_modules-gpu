@@ -97,6 +97,7 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 #if IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE)
 	struct GpuUtilization_Ex *util_ex =
 			(struct GpuUtilization_Ex *) Util_Ex;
+	unsigned long long delta_time;
 #endif
 
 	int utilisation[NUM_PERF_COUNTERS];
@@ -110,9 +111,10 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 	kbase_pm_get_dvfs_metrics(kbdev, &kbdev->pm.backend.metrics.dvfs_last,
 				  diff);
 
+	delta_time = max(diff->time_busy[0] + diff->time_idle[0], 1u);
 	for (index = 0; index < NUM_PERF_COUNTERS; index++) {
-		utilisation[index] = (100 * diff->time_busy[index]) /
-			max(diff->time_busy[index]+ diff->time_idle[index], 1u);
+		// delta time should be the same for all PMU, so simply reuse it
+		utilisation[index] = (100 * diff->time_busy[index]) / delta_time;
 	}
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE)
@@ -122,6 +124,7 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 	util_ex->util_3d        = utilisation[3];
 	util_ex->util_iter      = utilisation[4];
 	util_ex->util_mcu       = utilisation[5];
+	util_ex->delta_time     = delta_time << 8;   // 8 = KBASE_PM_TIME_SHIFT
 #endif
 
 	if (pui32Loading)
