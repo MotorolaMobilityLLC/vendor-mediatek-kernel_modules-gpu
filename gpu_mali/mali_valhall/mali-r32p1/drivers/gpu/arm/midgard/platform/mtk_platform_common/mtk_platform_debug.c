@@ -7,6 +7,7 @@
 #include <mali_kbase_defs.h>
 #include <mali_kbase_sync.h>
 #include <mali_kbase_mem_linux.h>
+#include <mali_kbase_hwaccess_time.h>
 #include <linux/delay.h>
 #include <linux/seq_file.h>
 #include <platform/mtk_platform_common.h>
@@ -23,9 +24,6 @@
 #endif
 
 static DEFINE_MUTEX(fence_debug_lock);
-//#if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
-//void kbase_csf_dump_firmware_trace_buffer(struct kbase_device *kbdev);
-//#endif
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 bool mtk_common_debug_logbuf_is_empty(struct mtk_debug_logbuf *logbuf)
@@ -708,55 +706,9 @@ static void mtk_common_csf_scheduler_dump_active_group(struct kbase_queue_group 
 		}
 	}
 }
-#endif
 
-static const char *fence_timeout_type_to_string(int type)
+void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 {
-#define FENCE_STATUS_TIMEOUT_TYPE_DEQUEUE 0x0
-#define FENCE_STATUS_TIMEOUT_TYPE_QUEUE   0x1
-
-	static const char *const fence_timeout_type[] = {
-		[FENCE_STATUS_TIMEOUT_TYPE_DEQUEUE] = "DEQUEUE_BUFFER",
-		[FENCE_STATUS_TIMEOUT_TYPE_QUEUE] = "QUEUE_BUFFER",
-	};
-
-	if ((size_t)type >= ARRAY_SIZE(fence_timeout_type))
-		return "UNKNOWN";
-
-	return fence_timeout_type[type];
-}
-
-void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type, int timeouts)
-{
-	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
-
-	if (IS_ERR_OR_NULL(kbdev))
-		return;
-
-	lockdep_off();
-
-	mutex_lock(&fence_debug_lock);
-
-	dev_info(kbdev->dev, "@%s: %s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d",
-	         __func__,
-	         fence_timeout_type_to_string(type),
-	         timeouts,
-	         fd,
-	         pid);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
-		 "%s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d\n",
-		 fence_timeout_type_to_string(type),
-		 timeouts,
-		 fd,
-		 pid);
-	mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
-		"%s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d",
-		fence_timeout_type_to_string(type), timeouts, fd, pid);
-#endif
-
-#if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 	mutex_lock(&kbdev->kctx_list_lock);
 	{
 		struct kbase_context *kctx;
@@ -813,7 +765,7 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type, int timeouts)
 				dev_info(kbdev->dev, "[kcpu_queues] MALI_CSF_KCPU_DEBUGFS_VERSION: v%u\n", MALI_CSF_CSG_DEBUGFS_VERSION);
 				dev_info(kbdev->dev, "[kcpu_queues] ##### Ctx %d_%d #####", kctx->tgid, kctx->id);
 				dev_info(kbdev->dev,
-				         "[%d_%d] Queue Idx(err-mode), Pending Commands, Enqueue err, Blocked, Fence context  &  seqno",
+				         "[%d_%d] Queue Idx(err-mode), Pending Commands, Enqueue err, Blocked, Start Offset, Fence context  &  seqno",
 				         kctx->tgid,
 				         kctx->id);
 
@@ -830,31 +782,51 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type, int timeouts)
 					}
 
 					dev_info(kbdev->dev,
-					         "[%d_%d] %9lu( %s ), %16u, %11u, %7u, %13llu  %8u",
-							kctx->tgid,
-							kctx->id,
-							idx,
-							queue->has_error ? "InErr" : "NoErr",
-							queue->num_pending_cmds,
-							queue->enqueue_failed,
-							queue->command_started ? 1 : 0,
-							queue->fence_context,
-							queue->fence_seqno);
+					         "[%d_%d] %9lu(  %s ), %16u, %11u, %7u, %12u, %13llu  %8u",
+					         kctx->tgid,
+					         kctx->id,
+					         idx,
+					         queue->has_error ? "InErr" : "NoErr",
+					         queue->num_pending_cmds,
+					         queue->enqueue_failed,
+					         queue->command_started ? 1 : 0,
+					         queue->start_offset,
+					         queue->fence_context,
+					         queue->fence_seqno);
 
 					if (queue->command_started) {
 						int i;
 						for (i = 0; i < queue->num_pending_cmds; i++) {
-						struct kbase_kcpu_command *cmd = &queue->commands[queue->start_offset + i];
-						if (cmd->type < 0 || cmd->type >= BASE_KCPU_COMMAND_TYPE_COUNT) {
+						struct kbase_kcpu_command *cmd;
+						u8 cmd_idx = queue->start_offset + i;
+						if (cmd_idx > KBASEP_KCPU_QUEUE_SIZE) {
 							dev_info(kbdev->dev,
-							         "[%d_%d] Queue Idx, Wait Type, Additional info",
+							         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
 							         kctx->tgid,
 							         kctx->id);
 							dev_info(kbdev->dev,
-							         "[%d_%d] %9lu,         %d, (unknown blocking command)",
+							         "[%d_%d] %9lu(  %s ), %7d,      None, (command index out of size limits %d)",
 							         kctx->tgid,
 							         kctx->id,
 							         idx,
+							         queue->has_error ? "InErr" : "NoErr",
+							         cmd_idx,
+							         KBASEP_KCPU_QUEUE_SIZE);
+							break;
+						}
+						cmd = &queue->commands[cmd_idx];
+						if (cmd->type >= BASE_KCPU_COMMAND_TYPE_COUNT) {
+							dev_info(kbdev->dev,
+							         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
+							         kctx->tgid,
+							         kctx->id);
+							dev_info(kbdev->dev,
+							         "[%d_%d] %9lu(  %s ), %7d, %9d, (unknown blocking command)",
+							         kctx->tgid,
+							         kctx->id,
+							         idx,
+							         queue->has_error ? "InErr" : "NoErr",
+							         cmd_idx,
 							         cmd->type);
 							continue;
 						}
@@ -866,18 +838,20 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type, int timeouts)
 
 							kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
 							dev_info(kbdev->dev,
-										 "[%d_%d] Queue Idx(err-mode), Wait Type, Additional info",
-										 kctx->tgid,
-										 kctx->id);
+							         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
+							         kctx->tgid,
+							         kctx->id);
 							dev_info(kbdev->dev,
-										 "[%d_%d] %9lu( %s ),     Fence Signal, %pK %s %s",
-										 kctx->tgid,
-										 kctx->id,
-										 idx,
-										 queue->has_error ? "InErr" : "NoErr",
-										 info.fence,
-										 info.name,
-										 kbase_sync_status_string(info.status));
+							         "[%d_%d] %9lu(  %s ), %7d, Fence Signal, %pK %s %s",
+							         kctx->tgid,
+							         kctx->id,
+							         idx,
+							         queue->has_error ? "InErr" : "NoErr",
+							         cmd_idx,
+							         info.fence,
+							         info.name,
+							         kbase_sync_status_string(info.status));
+
 							break;
 						}
 						case BASE_KCPU_COMMAND_TYPE_FENCE_WAIT:
@@ -886,15 +860,16 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type, int timeouts)
 
 							kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
 							dev_info(kbdev->dev,
-							         "[%d_%d] Queue Idx(err-mode), Wait Type, Additional info",
+							         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
 							         kctx->tgid,
 							         kctx->id);
 							dev_info(kbdev->dev,
-							         "[%d_%d] %9lu( %s ),     Fence Wait, %pK %s %s",
+							         "[%d_%d] %9lu(  %s ), %7d, Fence Wait, %pK %s %s",
 							         kctx->tgid,
 							         kctx->id,
 							         idx,
 							         queue->has_error ? "InErr" : "NoErr",
+							         cmd_idx,
 							         info.fence,
 							         info.name,
 							         kbase_sync_status_string(info.status));
@@ -908,15 +883,18 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type, int timeouts)
 
 							for (i = 0; i < sets->nr_objs; i++) {
 								dev_info(kbdev->dev,
-								         "[%d_%d] Queue Idx(err-mode), Wait Type, Additional info",
+								         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
 								         kctx->tgid,
 								         kctx->id);
 								dev_info(kbdev->dev,
-								        "[%d_%d] %9lu,       CQS Set %llx",
+								        "[%d_%d] %9lu(  %s ), %7d,   CQS Set, %llx",
 								         kctx->tgid,
 								         kctx->id,
 								         idx,
+								         queue->has_error ? "InErr" : "NoErr",
+								         cmd_idx,
 								         sets->objs[i].addr);
+
 							}
 							break;
 						}
@@ -940,15 +918,16 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type, int timeouts)
 								msg = (waits->inherit_err_flags && (1U << i)) ? "true" : "false";
 
 								dev_info(kbdev->dev,
-								         "[%d_%d] Queue Idx(err-mode), Wait Type, Additional info",
+								         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
 								         kctx->tgid,
 								         kctx->id);
 								dev_info(kbdev->dev,
-								         "[%d_%d] %9lu( %s ),       CQS Wait, %llx(%u > %u, inherit_err: %s)",
+								         "[%d_%d] %9lu(  %s ), %7d,  CQS Wait, %llx(%u > %u, inherit_err: %s)",
 								         kctx->tgid,
 								         kctx->id,
 								         idx,
 								         queue->has_error ? "InErr" : "NoErr",
+								         cmd_idx,
 								         waits->objs[i].addr,
 								         val,
 								         waits->objs[i].val,
@@ -958,14 +937,16 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type, int timeouts)
 						}
 						default:
 							dev_info(kbdev->dev,
-							         "[%d_%d] Queue Idx, Wait Type, Additional info",
+							         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
 							         kctx->tgid,
 							         kctx->id);
 							dev_info(kbdev->dev,
-							         "[%d_%d] %9lu,         %d, (other blocking command)",
+							         "[%d_%d] %9lu(  %s ), %7d, %9d, (other blocking command)",
 							         kctx->tgid,
 							         kctx->id,
 							         idx,
+							         queue->has_error ? "InErr" : "NoErr",
+							         cmd_idx,
 							         cmd->type);
 							break;
 						}
@@ -1037,13 +1018,64 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type, int timeouts)
 	}
 
 	mutex_unlock(&kbdev->kctx_list_lock);
+}
+#endif
+
+static const char *fence_timeout_type_to_string(int type)
+{
+#define FENCE_STATUS_TIMEOUT_TYPE_DEQUEUE 0x0
+#define FENCE_STATUS_TIMEOUT_TYPE_QUEUE   0x1
+
+	static const char *const fence_timeout_type[] = {
+		[FENCE_STATUS_TIMEOUT_TYPE_DEQUEUE] = "DEQUEUE_BUFFER",
+		[FENCE_STATUS_TIMEOUT_TYPE_QUEUE] = "QUEUE_BUFFER",
+	};
+
+	if ((size_t)type >= ARRAY_SIZE(fence_timeout_type))
+		return "UNKNOWN";
+
+	return fence_timeout_type[type];
+}
+
+void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type, int timeouts)
+{
+	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return;
+
+	lockdep_off();
+
+	mutex_lock(&fence_debug_lock);
+
+	dev_info(kbdev->dev, "[%llu] %s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d",
+	         kbase_backend_get_cycle_cnt(kbdev),
+	         fence_timeout_type_to_string(type),
+	         timeouts,
+	         fd,
+	         pid);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
+		 "[%llu] %s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d\n",
+		 kbase_backend_get_cycle_cnt(kbdev),
+		 fence_timeout_type_to_string(type),
+		 timeouts,
+		 fd,
+		 pid);
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
-	if (!mtk_common_gpufreq_bringup()) {
-		if (kbdev->pm.backend.gpu_powered)
-			gpufreq_dump_infra_status();
-		mtk_common_debug_dump();
+#ifdef CONFIG_MALI_FENCE_DEBUG
+	if (timeouts > 3000)
+#endif
+	{
+		mtk_debug_csf_dump_groups_and_queues(kbdev, pid);
+		if (!mtk_common_gpufreq_bringup()) {
+			if (kbdev->pm.backend.gpu_powered)
+				gpufreq_dump_infra_status();
+			mtk_common_debug_dump();
+		}
 	}
 #endif
 
