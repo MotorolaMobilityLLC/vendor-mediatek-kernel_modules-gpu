@@ -1071,11 +1071,6 @@ void mtk_common_gpu_fence_debug_dump(int fd, int pid, int type, int timeouts)
 #endif
 	{
 		mtk_debug_csf_dump_groups_and_queues(kbdev, pid);
-		if (!mtk_common_gpufreq_bringup()) {
-			if (kbdev->pm.backend.gpu_powered)
-				gpufreq_dump_infra_status();
-			mtk_common_debug_dump();
-		}
 	}
 #endif
 
