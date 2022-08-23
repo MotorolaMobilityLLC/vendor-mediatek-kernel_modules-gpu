@@ -514,6 +514,10 @@ struct kbase_csf_kcpu_queue_context {
 	struct kbase_kcpu_command_queue *array[KBASEP_MAX_KCPU_QUEUES];
 	DECLARE_BITMAP(in_use, KBASEP_MAX_KCPU_QUEUES);
 	struct workqueue_struct *wq;
+#ifdef CONFIG_MALI_FENCE_DEBUG
+	struct workqueue_struct *timeout_wq;
+#endif /* CONFIG_MALI_FENCE_DEBUG */
+
 	u64 num_cmds;
 
 	struct list_head jit_cmds_head;
