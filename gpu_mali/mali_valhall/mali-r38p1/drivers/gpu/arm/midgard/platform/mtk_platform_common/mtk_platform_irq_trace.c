@@ -96,7 +96,7 @@ void mtk_debug_irq_trace_check_timeout(enum KBASE_IRQ_ID irq_id, unsigned int ph
 	interval = mtk_irq_trace_recorders[irq_id][phase_id].end_record_time_ns -
 				mtk_irq_trace_recorders[irq_id][phase_id].start_record_time_ns;
 
-	if (interval / 1000000 > irq_monitor_override_threshold_ms)
+	if ((interval / 1000000) >= irq_monitor_override_threshold_ms)
 		mtk_debug_irq_trace_show();
 
 	return;
