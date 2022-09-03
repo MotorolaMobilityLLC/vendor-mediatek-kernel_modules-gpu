@@ -1187,13 +1187,6 @@ struct kbase_va_region *kbase_region_tracker_find_region_base_address(
 struct kbase_va_region *kbase_find_region_base_address(struct rb_root *rbtree,
 		u64 gpu_addr);
 
-#if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
-struct kbase_va_region *kbase_region_tracker_find_region_base_address_by_page(
-		struct kbase_context *kctx, u64 gpu_addr);
-struct kbase_va_region *kbase_find_region_base_address_by_page(struct rb_root *rbtree,
-		u64 gpu_addr);
-#endif /* CONFIG_MALI_CSF_SUPPORT && CONFIG_MALI_MTK_FENCE_DEBUG */
-
 struct kbase_va_region *kbase_alloc_free_region(struct rb_root *rbtree,
 		u64 start_pfn, size_t nr_pages, int zone);
 void kbase_free_alloced_region(struct kbase_va_region *reg);
