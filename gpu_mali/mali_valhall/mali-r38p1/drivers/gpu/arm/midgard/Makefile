@@ -112,6 +112,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_KE_DUMP_FWLOG := y
         CONFIG_MALI_MTK_CM7_TRACE := y
         CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME := y
+        CONFIG_MALI_MTK_GLB_PWROFF_TIMEOUT:= y
     endif ## mt6886 ##
 endif
 
