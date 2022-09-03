@@ -1648,21 +1648,24 @@ void kbase_free_alloced_region(struct kbase_va_region *reg)
 			kbase_unlink_event_mem_page(kctx, reg);
 #endif
 
-		mutex_lock(&kctx->jit_evict_lock);
 #if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
-		mutex_lock(&kctx->coherenct_region_lock);
-		for (r_index = 0; r_index < MAX_COHERENT_REGION; r_index++) {
-			if (kctx->coherenct_regions[r_index] == reg) {
-				dev_vdbg(kctx->kbdev->dev,
-				"Free alloced coherent region[%d]=0x%p, tgid: %d, reg_nr: %u",
-					r_index, reg , kctx->tgid, kctx->coherent_region_nr);
-				kctx->coherent_region_nr--;
-				kctx->coherenct_regions[r_index] = NULL;
-				break;
+		if (kctx->kbdev->system_coherency != COHERENCY_NONE) {
+			mutex_lock(&kctx->coherenct_region_lock);
+			for (r_index = 0; r_index < MAX_COHERENT_REGION; r_index++) {
+				if (kctx->coherenct_regions[r_index] == reg) {
+					dev_vdbg(kctx->kbdev->dev,
+					"Free alloced coherent region[%d]=0x%p, tgid: %d, reg_nr: %u",
+						r_index, reg , kctx->tgid, kctx->coherent_region_nr);
+					kctx->coherent_region_nr--;
+					kctx->coherenct_regions[r_index] = NULL;
+					break;
+				}
 			}
+			mutex_unlock(&kctx->coherenct_region_lock);
 		}
-		mutex_unlock(&kctx->coherenct_region_lock);
 #endif
+
+		mutex_lock(&kctx->jit_evict_lock);
 
 		/*
 		 * The physical allocation should have been removed from the
@@ -2208,22 +2211,7 @@ int kbase_mem_free_region(struct kbase_context *kctx, struct kbase_va_region *re
 	dev_vdbg(kctx->kbdev->dev, "%s %pK in kctx %pK\n",
 		__func__, (void *)reg, (void *)kctx);
 	lockdep_assert_held(&kctx->reg_lock);
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
-	if ((reg->flags & KBASE_REG_SHARE_BOTH)) {
-			mutex_lock(&kctx->coherenct_region_lock);
-			for (r_index = 0; r_index < MAX_COHERENT_REGION; r_index++) {
-				if (kctx->coherenct_regions[r_index] == reg) {
-					dev_vdbg(kctx->kbdev->dev,
-						"Free coherent region[%d]=0x%p, tgid %d, reg_nr: %u",
-						r_index, reg , kctx->tgid, kctx->coherent_region_nr);
-					kctx->coherent_region_nr--;
-					kctx->coherenct_regions[r_index] = NULL;
-					break;
-				}
-			}
-			mutex_unlock(&kctx->coherenct_region_lock);
-	}
-#endif
+
 	if (reg->flags & KBASE_REG_NO_USER_FREE) {
 		dev_warn(kctx->kbdev->dev, "Attempt to free GPU memory whose freeing by user space is forbidden!\n");
 		return -EINVAL;
