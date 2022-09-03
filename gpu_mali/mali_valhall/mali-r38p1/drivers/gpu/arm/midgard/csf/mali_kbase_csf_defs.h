@@ -506,6 +506,9 @@ struct kbase_queue_group {
 	u8 handle;
 	s8 csg_nr;
 	u8 priority;
+	u8 prio_boost; // 0: normal mode, 1: protect mode, 2: ready to leave
+	struct timer_list protm_sched_timeout;
+	bool protm_boost;
 
 	u8 tiler_max;
 	u8 fragment_max;
@@ -1043,6 +1046,7 @@ struct kbase_csf_scheduler {
 	u32 tick_protm_pending_seq;
 	ktime_t protm_enter_time;
 	struct kbase_csf_sched_heap_reclaim_mgr reclaim_mgr;
+	struct kbase_queue_group *active_protm_grp_bkup;
 };
 
 /*

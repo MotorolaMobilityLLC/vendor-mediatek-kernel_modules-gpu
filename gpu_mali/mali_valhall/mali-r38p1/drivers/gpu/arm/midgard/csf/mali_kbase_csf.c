@@ -1338,6 +1338,24 @@ static u32 generate_group_uid(void)
 	return (u32)atomic_inc_return(&global_csg_uid);
 }
 
+static void protm_sched_timeout_callback(struct timer_list *timer)
+{
+	struct kbase_queue_group * group =
+		container_of(timer, struct kbase_queue_group, protm_sched_timeout);
+	struct kbase_context *const kctx = group->kctx;
+	unsigned long flags;
+
+	kbase_csf_scheduler_spin_lock(kctx->kbdev, &flags);
+	/* only when group have pending protm need to handle */
+	if (*(group->protm_pending_bitmap) != 0) {
+		group->protm_boost = true;
+
+		dev_info(kctx->kbdev->dev,"protm schedule timeout\n");
+		kbase_csf_scheduler_invoke_tock(kctx->kbdev);
+	}
+	kbase_csf_scheduler_spin_unlock(kctx->kbdev, flags);
+}
+
 /**
  * create_queue_group() - Create a queue group
  *
@@ -1387,6 +1405,7 @@ static int create_queue_group(struct kbase_context *const kctx,
 			group->faulted = false;
 			group->cs_unrecoverable = false;
 			group->reevaluate_idle_status = false;
+			group->protm_boost = false;
 
 
 			group->group_uid = generate_group_uid();
@@ -1401,6 +1420,7 @@ static int create_queue_group(struct kbase_context *const kctx,
 			INIT_WORK(&group->protm_event_work, protm_event_worker);
 			bitmap_zero(group->protm_pending_bitmap,
 					MAX_SUPPORTED_STREAMS_PER_GROUP);
+			kbase_timer_setup(&group->protm_sched_timeout, protm_sched_timeout_callback);
 
 			group->run_state = KBASE_CSF_GROUP_INACTIVE;
 			err = create_suspend_buffers(kctx, group);
@@ -2584,6 +2604,14 @@ static void handle_queue_exception_event(struct kbase_queue *const queue,
 	}
 }
 
+#define PROTM_SCHED_TIMEOUT_MS 500
+
+static void protm_sched_timeout_start(struct kbase_queue_group *group)
+{
+	if (!timer_pending(&group->protm_sched_timeout))
+		mod_timer(&group->protm_sched_timeout, jiffies + msecs_to_jiffies(PROTM_SCHED_TIMEOUT_MS));
+}
+
 /**
  * process_cs_interrupts - Process interrupts for a CS.
  *
@@ -2701,6 +2729,9 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 				KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, CSI_PROTM_PEND_SET, group, queue,
 							   group->protm_pending_bitmap[0]);
 				protm_pend = true;
+
+				/* start protm schedule timeout */
+				protm_sched_timeout_start(group);
 			}
 		}
 	}
@@ -3013,12 +3044,20 @@ static inline void process_protm_exit(struct kbase_device *kbdev, u32 glb_ack)
 					     GLB_REQ_PROTM_EXIT_MASK);
 
 	if (likely(scheduler->active_protm_grp)) {
+		struct kbase_queue_group *active_pgrp_backup = scheduler->active_protm_grp;
+
 		KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_PROTM_EXIT,
 					 scheduler->active_protm_grp, 0u);
 		scheduler->apply_pmode_exit_wa = true;
 		queue_work(system_highpri_wq,
 				&scheduler->pmode_exit_wa_work);
 		scheduler->active_protm_grp = NULL;
+
+		//+JT - set flag to notify scheduler to restore its original pirority.
+		if(active_pgrp_backup->prio_boost == 1){
+			scheduler->active_protm_grp_bkup = active_pgrp_backup;
+
+		}
 	} else {
 		dev_warn(kbdev->dev, "PROTM_EXIT interrupt after no pmode group");
 	}
