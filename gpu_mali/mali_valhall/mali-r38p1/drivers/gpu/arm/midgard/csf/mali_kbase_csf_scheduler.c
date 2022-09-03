@@ -2815,9 +2815,9 @@ static void program_csg_slot(struct kbase_queue_group *group, s8 slot,
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_regular,
-		"[%d_%d] Starting group %d on slot %d with priority %u, as_nr %u, group_uid %u and req_state %u\n",
+		"[%d_%d] Starting group %d on slot %d with priority %u, as_nr %u, group_uid %u, priority %u, req_state %u\n",
 		kctx->tgid, kctx->id, group->handle, slot, prio,
-		kctx->as_nr, group->group_uid, state);
+		kctx->as_nr, group->group_uid, group->priority, state);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_SLOT_START_REQ, group,
