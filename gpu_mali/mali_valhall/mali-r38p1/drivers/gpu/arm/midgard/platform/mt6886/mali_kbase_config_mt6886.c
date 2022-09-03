@@ -249,3 +249,10 @@ void mtk_platform_pm_term(struct kbase_device *kbdev)
 
 	cpu_latency_qos_remove_request(&g_qos_request);
 }
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+void mtk_platform_cpu_cache_request(struct kbase_device *kbdev, int request)
+{
+	// needed only when system-coherency is supported
+	return;
+}
+#endif

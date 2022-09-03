@@ -75,5 +75,12 @@ void mtk_common_csf_debugfs_init(struct kbase_device *kbdev);
 int mtk_platform_pm_init(struct kbase_device *kbdev);
 void mtk_platform_pm_term(struct kbase_device *kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+#define REQ_DSU_POWER_ON (1)
+#define REQ_DSU_POWER_OFF (0)
+#define GPUACP_SMC_OP_CPUPM_PWR (1)
+void mtk_platform_cpu_cache_request(struct kbase_device *kbdev, int request);
+#endif
+
 #endif /* __MTK_PLATFORM_COMMON_H__ */
 
