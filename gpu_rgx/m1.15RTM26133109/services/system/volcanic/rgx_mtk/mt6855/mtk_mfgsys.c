@@ -360,6 +360,7 @@ int secgpu_gpueb_init(void)
 	//MTK_LOGI("[SECGPU] status shared memory virt_addr: 0x%llx g_secgpu_ipi_shared_mem_va", g_secgpu_ipi_shared_mem_va);
 
 	send_msg.cmd_id = CMD_SECGPU_INIT_SHARED_MEM;
+	send_msg.return_value = 0;
 	send_msg.reserved_ipi_shm_base = shared_mem_pa;
 	send_msg.reserved_ipi_shm_size = (uint32_t)shared_mem_size;
 	g_secgpu_ipi_shared_mem_va = shared_mem_va;
@@ -380,7 +381,15 @@ static void setPowerParams()
 {
 	int i;
 	PVRSRV_DEVICE_NODE *psDevNode = MTKGetRGXDevNode();
+	if (!psDevNode) {
+		MTK_LOGE("fail to get RGX device node");
+		return;
+	}
 	PVRSRV_RGXDEV_INFO *psDevInfo = (PVRSRV_RGXDEV_INFO *)psDevNode->pvDevice;
+	if (!psDevInfo) {
+		MTK_LOGE("fail to get RGX device info");
+		return;
+	}
 	MTK_RGX_LAYER_PARAMS *pPowerParam = (MTK_RGX_LAYER_PARAMS *) (g_secgpu_ipi_shared_mem_va + SECGPU_SHM_POWERPAR_OFFSET);
 	//pPowerParam->sPCAddr = psTDPowerParams->sPCAddr; //RGXAcquireKernelMMUPC
 	pPowerParam->sDevFeatureCfg.ui64ErnsBrns = psDevInfo->sDevFeatureCfg.ui64ErnsBrns;
@@ -405,7 +414,15 @@ PVRSRV_ERROR MTKTDSendFWImage(IMG_HANDLE hSysData, PVRSRV_TD_FW_PARAMS *psTDFWPa
 	MTK_TD_FW_MEM fw_mem;
 	MTK_RGX_FW_BOOT_PARAMS bootParam;
 	PVRSRV_DEVICE_NODE *psDevNode = MTKGetRGXDevNode();
+	if (!psDevNode) {
+		MTK_LOGE("fail to get RGX device node");
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
 	PVRSRV_RGXDEV_INFO *psDevInfo = (PVRSRV_RGXDEV_INFO *)psDevNode->pvDevice;
+	if (!psDevInfo) {
+		MTK_LOGE("fail to get RGX device info");
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
 	IMG_DEV_PHYADDR sPhyAddr;
 	PMR *psFWCodePMR, *psFWDataPMR, *psFWCoreCodePMR, *psFWCoreDataPMR;
 	IMG_BOOL bValid;
@@ -428,6 +445,7 @@ PVRSRV_ERROR MTKTDSendFWImage(IMG_HANDLE hSysData, PVRSRV_TD_FW_PARAMS *psTDFWPa
 
 	psFWCodePMR = (PMR *)(psDevInfo->psRGXFWCodeMemDesc->psImport->hPMR);
 	psFWDataPMR = (PMR *)(psDevInfo->psRGXFWDataMemDesc->psImport->hPMR);
+	sPhyAddr.uiAddr = 0;
 	RGXGetPhyAddr(psFWCodePMR, &sPhyAddr, 0, OSGetPageShift(), 1, &bValid);
 	fw_mem.code_addr_lo = (unsigned int)sPhyAddr.uiAddr;
 	fw_mem.code_addr_hi = (unsigned int)(sPhyAddr.uiAddr >> 32);
@@ -451,6 +469,7 @@ PVRSRV_ERROR MTKTDSendFWImage(IMG_HANDLE hSysData, PVRSRV_TD_FW_PARAMS *psTDFWPa
 	setPowerParams();
 
 	send_msg.cmd_id = CMD_SECGPU_SET_FWIMG;
+	send_msg.return_value = 0;
 
 	ret = secgpu_ipi_to_gpueb(send_msg);
 	if (unlikely(ret)) {
@@ -469,7 +488,15 @@ PVRSRV_ERROR MTKTDSetPowerParams(IMG_HANDLE hSysData, PVRSRV_TD_POWER_PARAMS *ps
 	struct secgpu_ipi_data send_msg;
 	MTK_RGX_LAYER_PARAMS *pPowerParam = (MTK_RGX_LAYER_PARAMS *) (g_secgpu_ipi_shared_mem_va + SECGPU_SHM_POWERPAR_OFFSET);
 	PVRSRV_DEVICE_NODE *psDevNode = MTKGetRGXDevNode();
+	if (!psDevNode) {
+		MTK_LOGE("fail to get RGX device node");
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
 	PVRSRV_RGXDEV_INFO *psDevInfo = (PVRSRV_RGXDEV_INFO *)psDevNode->pvDevice;
+	if (!psDevInfo) {
+		MTK_LOGE("fail to get RGX device info");
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
 	int i;
 	PVR_UNREFERENCED_PARAMETER(hSysData);
 
@@ -485,6 +512,7 @@ PVRSRV_ERROR MTKTDSetPowerParams(IMG_HANDLE hSysData, PVRSRV_TD_POWER_PARAMS *ps
 	pPowerParam->sDevFeatureCfg.ui32MAXDustCount = psDevInfo->sDevFeatureCfg.ui32MAXDMCount;
 
 	send_msg.cmd_id = CMD_SECGPU_SET_POWER;
+	send_msg.return_value = 0;
 	int ret = secgpu_ipi_to_gpueb(send_msg);
 	if (unlikely(ret)) {
 		MTK_LOGE("[SECGPU] secgpu_ipi_to_gpueb fail (cmd id: %d)", send_msg.cmd_id);
@@ -503,6 +531,7 @@ PVRSRV_ERROR MTKTDRGXStart(IMG_HANDLE hSysData)
 	PVR_UNREFERENCED_PARAMETER(hSysData);
 
 	send_msg.cmd_id = CMD_SECGPU_SET_START;
+	send_msg.return_value = 0;
 	int ret = secgpu_ipi_to_gpueb(send_msg);
 	if (unlikely(ret)) {
 		MTK_LOGE("[SECGPU] secgpu_ipi_to_gpueb fail (cmd id: %d)", send_msg.cmd_id);
@@ -521,6 +550,7 @@ PVRSRV_ERROR MTKTDRGXStop(IMG_HANDLE hSysData)
 	PVR_UNREFERENCED_PARAMETER(hSysData);
 
 	send_msg.cmd_id = CMD_SECGPU_SET_STOP;
+	send_msg.return_value = 0;
 	int ret = secgpu_ipi_to_gpueb(send_msg);
 	if (unlikely(ret)) {
 		MTK_LOGE("[SECGPU] secgpu_ipi_to_gpueb fail (cmd id: %d)", send_msg.cmd_id);
