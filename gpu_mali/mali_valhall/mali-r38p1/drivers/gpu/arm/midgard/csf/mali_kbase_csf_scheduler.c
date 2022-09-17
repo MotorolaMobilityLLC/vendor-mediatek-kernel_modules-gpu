@@ -637,7 +637,8 @@ static bool scheduler_protm_wait_quit(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"[%llxt] Timeout (%d ms), protm_quit wait skipped\n",
-			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception));
+			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
+			kbdev->csf.fw_timeout_ms);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		success = false;
 	}
