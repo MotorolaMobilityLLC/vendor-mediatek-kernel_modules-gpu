@@ -1158,7 +1158,8 @@ static void *mtk_debug_cs_queue_mem_map_and_dump_once(struct kbase_device *kbdev
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 				mtk_logbuffer_print(&kbdev->logbuf_regular,
 					"%016llx: %08x %08x %08x %08x\n",
-					gpu_addr + i, ptr[0], ptr[1], ptr[2], ptr[3]);
+					gpu_addr + i, (unsigned int)ptr[0], (unsigned int)ptr[1],
+					(unsigned int)ptr[2], (unsigned int)ptr[3]);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			}
 			ptr += num_cols;
