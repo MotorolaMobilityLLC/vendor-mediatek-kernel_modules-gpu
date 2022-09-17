@@ -664,6 +664,7 @@ static int mtk_debug_dump_cpu_queues(struct seq_file *file, void *data)
 
 	return 0;
 
+#if 0
 	mutex_lock(&kbdev->kctx_list_lock);
 	list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
 		mutex_lock(&kctx->csf.lock);
@@ -719,6 +720,7 @@ static int mtk_debug_dump_cpu_queues(struct seq_file *file, void *data)
 	mutex_unlock(&kbdev->kctx_list_lock);
 
 	return 0;
+#endif
 }
 #else
 static int mtk_debug_dump_kcpu_queues(struct seq_file *file, void *data)
