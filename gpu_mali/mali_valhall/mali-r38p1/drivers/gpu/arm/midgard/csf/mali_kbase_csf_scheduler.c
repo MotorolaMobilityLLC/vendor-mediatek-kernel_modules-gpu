@@ -2908,11 +2908,13 @@ static void sched_evict_group(struct kbase_queue_group *group, bool fault,
 static int term_group_sync(struct kbase_queue_group *group)
 {
 	struct kbase_device *kbdev = group->kctx->kbdev;
-	long remaining = kbase_csf_timeout_in_jiffies(kbdev->csf.fw_timeout_ms / 10);
+	long remaining = kbase_csf_timeout_in_jiffies(kbdev->csf.fw_timeout_ms);
 	int err = 0;
 
 	term_csg_slot(group);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CSG_DOORBELL_RECOVERY)
+	remaining = kbase_csf_timeout_in_jiffies(kbdev->csf.fw_timeout_ms / 10);
 	remaining = wait_event_timeout(kbdev->csf.event_wait,
 		group->cs_unrecoverable || csg_slot_stopped_locked(kbdev, group->csg_nr),
 		remaining);
@@ -2938,6 +2940,7 @@ static int term_group_sync(struct kbase_queue_group *group)
 	}
 
 	remaining = kbase_csf_timeout_in_jiffies(kbdev->csf.fw_timeout_ms * 9 / 10);
+#endif /* CONFIG_MALI_MTK_CSG_DOORBELL_RECOVERY */
 
 	remaining = wait_event_timeout(kbdev->csf.event_wait,
 		group->cs_unrecoverable || csg_slot_stopped_locked(kbdev, group->csg_nr),
@@ -3571,7 +3574,7 @@ static void wait_csg_slots_start(struct kbase_device *kbdev)
 {
 	u32 num_groups = kbdev->csf.global_iface.group_num;
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
-	long remaining = kbase_csf_timeout_in_jiffies(kbdev->csf.fw_timeout_ms / 10);
+	long remaining = kbase_csf_timeout_in_jiffies(kbdev->csf.fw_timeout_ms);
 	DECLARE_BITMAP(slot_mask, MAX_SUPPORTED_CSGS) = {0};
 	u32 i;
 
@@ -3584,6 +3587,8 @@ static void wait_csg_slots_start(struct kbase_device *kbdev)
 			set_bit(i, slot_mask);
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CSG_DOORBELL_RECOVERY)
+	remaining = kbase_csf_timeout_in_jiffies(kbdev->csf.fw_timeout_ms / 10);
 	while (!bitmap_empty(slot_mask, MAX_SUPPORTED_CSGS)) {
 		DECLARE_BITMAP(changed, MAX_SUPPORTED_CSGS);
 
@@ -3629,6 +3634,8 @@ static void wait_csg_slots_start(struct kbase_device *kbdev)
 	}
 
 	remaining = kbase_csf_timeout_in_jiffies(kbdev->csf.fw_timeout_ms * 9 / 10);
+#endif /* CONFIG_MALI_MTK_CSG_DOORBELL_RECOVERY */
+
 	while (!bitmap_empty(slot_mask, MAX_SUPPORTED_CSGS)) {
 		DECLARE_BITMAP(changed, MAX_SUPPORTED_CSGS);
 
@@ -5493,7 +5500,7 @@ static int wait_csg_slots_suspend(struct kbase_device *kbdev,
 			   unsigned int timeout_ms)
 {
 	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
-	long remaining = kbase_csf_timeout_in_jiffies(timeout_ms / 10);
+	long remaining = kbase_csf_timeout_in_jiffies(timeout_ms);
 	u32 num_groups = kbdev->csf.global_iface.group_num;
 	int err = 0;
 	u32 i;
@@ -5503,6 +5510,8 @@ static int wait_csg_slots_suspend(struct kbase_device *kbdev,
 
 	bitmap_copy(slot_mask_local, slot_mask, MAX_SUPPORTED_CSGS);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CSG_DOORBELL_RECOVERY)
+	remaining = kbase_csf_timeout_in_jiffies(timeout_ms / 10);
 	while (!bitmap_empty(slot_mask_local, MAX_SUPPORTED_CSGS)
 		&& remaining) {
 		DECLARE_BITMAP(changed, MAX_SUPPORTED_CSGS);
@@ -5559,8 +5568,9 @@ static int wait_csg_slots_suspend(struct kbase_device *kbdev,
 		return err;
 	}
 
-	remaining = kbase_csf_timeout_in_jiffies(kbdev->csf.fw_timeout_ms * 9 / 10);
-
+	remaining = kbase_csf_timeout_in_jiffies(timeout_ms * 9 / 10);
+#endif /* CONFIG_MALI_MTK_CSG_DOORBELL_RECOVERY */
+	
 	while (!bitmap_empty(slot_mask_local, MAX_SUPPORTED_CSGS)
 		&& remaining) {
 		DECLARE_BITMAP(changed, MAX_SUPPORTED_CSGS);
