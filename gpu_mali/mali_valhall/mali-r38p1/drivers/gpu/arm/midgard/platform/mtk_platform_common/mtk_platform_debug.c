@@ -576,7 +576,7 @@ static int mtk_debug_dump_kcpu_queues(struct seq_file *file, void *data)
 								   idx,
 								   queue->has_error ? "InErr" : "NoErr",
 								   cmd_idx,
-								   sets->objs[i].addr);
+								   sets->objs ? sets->objs[i].addr : 0);
 					}
 					break;
 				}
@@ -2016,7 +2016,7 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 								         idx,
 								         queue->has_error ? "InErr" : "NoErr",
 								         cmd_idx,
-								         sets->objs[i].addr);
+								         sets->objs ? sets->objs[i].addr : 0);
 							}
 							break;
 						}
