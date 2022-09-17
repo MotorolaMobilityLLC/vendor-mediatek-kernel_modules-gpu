@@ -47,7 +47,7 @@ static DEFINE_SPINLOCK(kbase_csf_fence_lock);
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_MTK_KCPU_DEBUG)
-#define COMMAND_TIMEOUT_MS 100
+#define COMMAND_TIMEOUT_MS 10000
 #endif /* CONFIG_MALI_MTK_KCPU_DEBUG */
 
 static void kcpu_queue_process(struct kbase_kcpu_command_queue *kcpu_queue,
@@ -1651,6 +1651,11 @@ static void kcpu_queue_cmds_timeout_worker(struct work_struct *data)
 		__func__,  COMMAND_TIMEOUT_MS, kctx->tgid, kctx->id, kcpu_queue->id, cmd->type, kcpu_queue->start_offset);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, kctx->tgid, MTK_DBG_HOOK_FENCE_EXTERNAL_KCPU_TIMEOUT);
+	mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, kctx->tgid, MTK_DBG_HOOK_FENCE_EXTERNAL_KCPU_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_KCPU_FENCE_WA)
 	kbase_process_csg_retry_job_irq(kctx, COMMAND_TIMEOUT_MS);
 #endif /* CONFIG_MALI_MTK_KCPU_FENCE_WA */
@@ -1745,6 +1750,11 @@ static int delete_queue(struct kbase_context *kctx, u32 id)
 		destroy_workqueue(queue->wq);
 
 		mutex_destroy(&queue->lock);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_KCPU_DEBUG)
+		cancel_work_sync(&queue->cmds_timeout_work);
+		destroy_workqueue(queue->cmds_timeout_wq);
+#endif /* CONFIG_MALI_MTK_KCPU_DEBUG */
 
 #ifdef CONFIG_MALI_FENCE_DEBUG
 		cancel_work_sync(&queue->timeout_work);
