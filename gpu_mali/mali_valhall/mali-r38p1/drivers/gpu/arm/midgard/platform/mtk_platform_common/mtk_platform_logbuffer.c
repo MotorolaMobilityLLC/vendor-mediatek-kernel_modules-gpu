@@ -156,11 +156,11 @@ void mtk_logbuffer_print(struct mtk_logbuffer_info *logbuf, const char *fmt, ...
 		 */
 		entry_len = scnprintf(logbuf->tmp_entry,
 		                      MTK_LOG_BUFFER_ENTRY_SIZE, "\n[%5lu.%06lu] %s",
-		                      (unsigned long)ts_nsec, rem_nsec / 1000, buffer);
+		                      (unsigned long)ts_nsec, (unsigned long)rem_nsec / 1000, buffer);
 	} else
 		entry_len = scnprintf(logbuf->tmp_entry,
 		                      MTK_LOG_BUFFER_ENTRY_SIZE, "[%5lu.%06lu] %s",
-		                      (unsigned long)ts_nsec, rem_nsec / 1000, buffer);
+		                      (unsigned long)ts_nsec, (unsigned long)rem_nsec / 1000, buffer);
 
 	if (entry_len == 0 || entry_len >= logbuf->size)
 		goto fail_invalid_entry;
