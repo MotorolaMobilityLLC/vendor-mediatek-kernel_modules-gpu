@@ -79,7 +79,11 @@ static int kbase_csf_firmware_log_enable_mask_write(void *data, u64 val)
 		dev_vdbg(kbdev->dev, "Limit enabled bits count from %u to 64", enable_bits_count);
 		enable_bits_count = 64;
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+	new_mask = val & ((1ULL << enable_bits_count) - 1ULL);
+#else
 	new_mask = val & ((1 << enable_bits_count) - 1);
+#endif /* CONFIG_MALI_MTK_COMMON */
 
 	if (new_mask != kbase_csf_firmware_trace_buffer_get_active_mask64(tb))
 		return kbase_csf_firmware_trace_buffer_set_active_mask64(tb, new_mask);
@@ -270,7 +274,7 @@ static ssize_t mtk_fwlog_enable_mask_store(struct device * const dev,
 		dev_vdbg(kbdev->dev, "Limit enabled bits count from %u to 64", enable_bits_count);
 		enable_bits_count = 64;
 	}
-	new_mask = val & ((1 << enable_bits_count) - 1);
+	new_mask = val & ((1ULL << enable_bits_count) - 1ULL);
 
 	if (new_mask != kbase_csf_firmware_trace_buffer_get_active_mask64(tb))
 		kbase_csf_firmware_trace_buffer_set_active_mask64(tb, new_mask);
