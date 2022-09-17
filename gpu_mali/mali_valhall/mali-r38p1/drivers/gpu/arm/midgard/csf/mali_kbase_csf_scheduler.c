@@ -1122,6 +1122,7 @@ static int halt_stream_sync(struct kbase_queue *queue)
 	struct kbase_csf_cmd_stream_info *stream;
 	int csi_index = queue->csi_index;
 	long remaining = kbase_csf_timeout_in_jiffies(kbdev->csf.fw_timeout_ms);
+	unsigned long flags;
 
 	if (WARN_ON(!group) ||
 	    WARN_ON(!kbasep_csf_scheduler_group_is_on_slot_locked(group)))
@@ -1159,12 +1160,14 @@ static int halt_stream_sync(struct kbase_queue *queue)
 			kbase_csf_timeout_in_jiffies(kbdev->csf.fw_timeout_ms);
 	}
 
+	spin_lock_irqsave(&kbdev->csf.scheduler.interrupt_lock, flags);
 	/* Set state to STOP */
 	kbase_csf_firmware_cs_input_mask(stream, CS_REQ, CS_REQ_STATE_STOP,
 					 CS_REQ_STATE_MASK);
+	kbase_csf_ring_cs_kernel_doorbell(kbdev, csi_index, group->csg_nr, true);
+	spin_unlock_irqrestore(&kbdev->csf.scheduler.interrupt_lock, flags);
 
 	KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, CSI_STOP_REQ, group, queue, 0u);
-	kbase_csf_ring_cs_kernel_doorbell(kbdev, csi_index, group->csg_nr, true);
 
 	/* Timed wait */
 	remaining = wait_event_timeout(kbdev->csf.event_wait,
@@ -1540,6 +1543,7 @@ static void program_cs(struct kbase_device *kbdev,
 	int csi_index = queue->csi_index;
 	u64 user_input;
 	u64 user_output;
+	unsigned long flags;
 
 	if (WARN_ON(!group))
 		return;
@@ -1603,15 +1607,17 @@ static void program_cs(struct kbase_device *kbdev,
 			CS_REQ_IDLE_EMPTY_MASK | CS_REQ_IDLE_SYNC_WAIT_MASK,
 			CS_REQ_IDLE_EMPTY_MASK | CS_REQ_IDLE_SYNC_WAIT_MASK);
 
+	spin_lock_irqsave(&kbdev->csf.scheduler.interrupt_lock, flags);
 	/* Set state to START/STOP */
 	kbase_csf_firmware_cs_input_mask(stream, CS_REQ,
 		queue->enabled ? CS_REQ_STATE_START : CS_REQ_STATE_STOP,
 		CS_REQ_STATE_MASK);
+	kbase_csf_ring_cs_kernel_doorbell(kbdev, csi_index, group->csg_nr,
+					  ring_csg_doorbell);
+	spin_unlock_irqrestore(&kbdev->csf.scheduler.interrupt_lock, flags);
 
 	KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, CSI_START, group, queue, queue->enabled);
 
-	kbase_csf_ring_cs_kernel_doorbell(kbdev, csi_index, group->csg_nr,
-					  ring_csg_doorbell);
 	update_hw_active(queue, true);
 }
 
@@ -1826,6 +1832,7 @@ static void halt_csg_slot(struct kbase_queue_group *group, bool suspend)
 		/* Set state to SUSPEND/TERMINATE */
 		kbase_csf_firmware_csg_input_mask(ginfo, CSG_REQ, halt_cmd,
 						  CSG_REQ_STATE_MASK);
+		kbase_csf_ring_csg_doorbell(kbdev, slot);
 		spin_unlock_irqrestore(&kbdev->csf.scheduler.interrupt_lock,
 					flags);
 		atomic_set(&csg_slot[slot].state, CSG_SLOT_DOWN2STOP);
@@ -1834,7 +1841,6 @@ static void halt_csg_slot(struct kbase_queue_group *group, bool suspend)
 
 		KBASE_TLSTREAM_TL_KBASE_DEVICE_HALT_CSG(
 			kbdev, kbdev->gpu_props.props.raw_props.gpu_id, slot);
-		kbase_csf_ring_csg_doorbell(kbdev, slot);
 	}
 }
 
@@ -2657,6 +2663,7 @@ static void update_csg_slot_priority(struct kbase_queue_group *group, u8 prio)
 	csg_req ^= CSG_REQ_EP_CFG_MASK;
 	kbase_csf_firmware_csg_input_mask(ginfo, CSG_REQ, csg_req,
 					  CSG_REQ_EP_CFG_MASK);
+	kbase_csf_ring_csg_doorbell(kbdev, slot);
 	spin_unlock_irqrestore(&kbdev->csf.scheduler.interrupt_lock, flags);
 
 	csg_slot->priority = prio;
@@ -2667,7 +2674,6 @@ static void update_csg_slot_priority(struct kbase_queue_group *group, u8 prio)
 
 	KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_SLOT_PRIO_UPDATE, group, prev_prio);
 
-	kbase_csf_ring_csg_doorbell(kbdev, slot);
 	set_bit(slot, kbdev->csf.scheduler.csg_slots_prio_update);
 }
 
@@ -2799,6 +2805,7 @@ static void program_csg_slot(struct kbase_queue_group *group, s8 slot,
 
 	kbase_csf_firmware_csg_input_mask(ginfo, CSG_REQ,
 			state, CSG_REQ_STATE_MASK);
+	kbase_csf_ring_csg_doorbell(kbdev, slot);
 	spin_unlock_irqrestore(&kbdev->csf.scheduler.interrupt_lock, flags);
 
 	/* Update status before rings the door-bell, marking ready => run */
@@ -2824,8 +2831,6 @@ static void program_csg_slot(struct kbase_queue_group *group, s8 slot,
 	KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_SLOT_START_REQ, group,
 				 (((u64)ep_cfg) << 32) | ((((u32)kctx->as_nr) & 0xF) << 16) |
 					 (state & (CSG_REQ_STATE_MASK >> CS_REQ_STATE_SHIFT)));
-
-	kbase_csf_ring_csg_doorbell(kbdev, slot);
 
 	/* Update the heap reclaim manager */
 	update_kctx_heap_info_on_grp_on_slot(group);
@@ -2922,6 +2927,7 @@ static int term_group_sync(struct kbase_queue_group *group)
 	if (remaining) {
 		return err;
 	} else {
+		unsigned long flags;
 		dev_vdbg(kbdev->dev, "[%llu] term request timeout (%d ms) for group %d of context %d_%d on slot %d, try again",
 			kbase_backend_get_cycle_cnt(kbdev), (int)kbdev->csf.fw_timeout_ms / 10,
 			group->handle, group->kctx->tgid,
@@ -2935,7 +2941,10 @@ static int term_group_sync(struct kbase_queue_group *group)
 			group->kctx->id, group->csg_nr);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+		kbase_csf_scheduler_spin_lock(kbdev, &flags);
 		kbase_csf_ring_csg_doorbell(kbdev, group->csg_nr);
+		kbase_csf_scheduler_spin_unlock(kbdev, flags);
+
 		dev_vdbg(kbdev->dev, "ring csg doorbell for slot %d", group->csg_nr);
 	}
 
@@ -3608,6 +3617,7 @@ static void wait_csg_slots_start(struct kbase_device *kbdev)
 				group->run_state = KBASE_CSF_GROUP_RUNNABLE;
 			}
 		} else {
+			unsigned long flags;
 			dev_vdbg(kbdev->dev, "[%llu] Timeout (%d ms) waiting for CSG slots to start, slots: 0x%*pb, try again\n",
 				kbase_backend_get_cycle_cnt(kbdev),
 				(int)kbdev->csf.fw_timeout_ms / 10,
@@ -3620,10 +3630,12 @@ static void wait_csg_slots_start(struct kbase_device *kbdev)
 				num_groups, slot_mask);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+			kbase_csf_scheduler_spin_lock(kbdev, &flags);
 			for_each_set_bit(i, slot_mask, num_groups) {
 				kbase_csf_ring_csg_doorbell(kbdev, i);
 				dev_vdbg(kbdev->dev, "ring csg doorbell for slot %d", i);
 			}
+			kbase_csf_scheduler_spin_unlock(kbdev, flags);
 
 			break;
 		}
@@ -4588,8 +4600,6 @@ static void scheduler_update_idle_slots_status(struct kbase_device *kbdev,
 		}
 	}
 
-	spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
-
 	/* The groups are aggregated into a single kernel doorbell request */
 	if (!bitmap_empty(csg_bitmap, num_groups)) {
 		long wt =
@@ -4597,6 +4607,7 @@ static void scheduler_update_idle_slots_status(struct kbase_device *kbdev,
 		u32 db_slots = (u32)csg_bitmap[0];
 
 		kbase_csf_ring_csg_slots_doorbell(kbdev, db_slots);
+		spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 
 		if (wait_csg_slots_handshake_ack(kbdev,
 				CSG_REQ_STATUS_UPDATE_MASK, csg_bitmap, wt)) {
@@ -4636,6 +4647,8 @@ static void scheduler_update_idle_slots_status(struct kbase_device *kbdev,
 			KBASE_KTRACE_ADD(kbdev, SCHEDULER_UPDATE_IDLE_SLOTS_ACK, NULL, db_slots);
 			csg_bitmap[0] = db_slots;
 		}
+	} else {
+		spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 	}
 }
 
@@ -5545,6 +5558,7 @@ static int wait_csg_slots_suspend(struct kbase_device *kbdev,
 				}
 			}
 		} else {
+			unsigned long flags;
 			dev_vdbg(kbdev->dev, "[%llu] Timeout waiting for CSG slots to suspend, slot_mask: 0x%*pb, try again\n",
 				kbase_backend_get_cycle_cnt(kbdev),
 				num_groups, slot_mask_local);
@@ -5555,10 +5569,12 @@ static int wait_csg_slots_suspend(struct kbase_device *kbdev,
 				num_groups, slot_mask_local);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+			kbase_csf_scheduler_spin_lock(kbdev, &flags);
 			for_each_set_bit(i, slot_mask_local, num_groups) {
 				kbase_csf_ring_csg_doorbell(kbdev, i);
 				dev_vdbg(kbdev->dev, "ring csg doorbell for slot %d", i);
 			}
+			kbase_csf_scheduler_spin_unlock(kbdev, flags);
 
 			break;
 		}
