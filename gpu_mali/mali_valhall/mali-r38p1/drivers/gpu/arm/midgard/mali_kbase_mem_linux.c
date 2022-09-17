@@ -1241,13 +1241,18 @@ static int kbase_mem_umm_map_attachment(struct kbase_context *kctx,
 
 #if IS_ENABLED(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && IS_ENABLED(CONFIG_MTK_GZ_KREE)
 		uint64_t phy_addr = 0;
+		u32 sec_handle = 0;
 
 		if (reg->flags & KBASE_REG_PROTECTED) {
 			struct dma_buf *dma_buf = reg->gpu_alloc->imported.umm.dma_buf;
-			u32 sec_handle = dmabuf_to_secure_handle(dma_buf);
 
-			if (sec_handle) {
-				trusted_mem_api_query_pa(0, 0, 0, NULL, &sec_handle, NULL, 0, 0, &phy_addr);
+			if (is_support_secure_handle(dma_buf)) {
+				sec_handle = dmabuf_to_secure_handle(dma_buf);
+
+				if (sec_handle) {
+					trusted_mem_api_query_pa(0, 0, 0, NULL,
+						&sec_handle, NULL, 0, 0, &phy_addr);
+				} 
 			} else {
 				// page_base heap have no sec_handle.
 				// use sg_phys to get PA
