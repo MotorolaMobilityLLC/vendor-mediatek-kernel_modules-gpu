@@ -610,9 +610,9 @@ static int mtk_debug_dump_kcpu_queues(struct seq_file *file, void *data)
 								   idx,
 								   queue->has_error ? "InErr" : "NoErr",
 								   cmd_idx,
-								   waits->objs[i].addr,
+								   waits->objs ? waits->objs[i].addr : 0,
 								   val,
-								   waits->objs[i].val,
+								   waits->objs ? waits->objs[i].val : 0,
 								   msg);
 					}
 					break;
@@ -2050,9 +2050,9 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 								         idx,
 								         queue->has_error ? "InErr" : "NoErr",
 								         cmd_idx,
-								         waits->objs[i].addr,
+								         waits->objs ? waits->objs[i].addr : 0,
 								         val,
-								         waits->objs[i].val,
+								         waits->objs ? waits->objs[i].val : 0,
 								         msg);
 							}
 							break;
