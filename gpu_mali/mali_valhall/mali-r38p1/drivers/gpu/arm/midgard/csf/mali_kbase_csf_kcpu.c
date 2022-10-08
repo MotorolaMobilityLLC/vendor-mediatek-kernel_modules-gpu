@@ -1619,12 +1619,14 @@ static int kbase_kcpu_fence_signal_prepare(
 fd_flags_fail:
 	fput(sync_file->file);
 file_create_fail:
+#if (KERNEL_VERSION(4, 9, 67) >= LINUX_VERSION_CODE)
 	/*
 	 * Upon failure, dma_fence refcount that was increased by
 	 * dma_fence_get() or sync_file_create() needs to be decreased
 	 * to release it.
 	 */
 	dma_fence_put(fence_out);
+#endif
 
 	current_command->info.fence.fence = NULL;
 	kfree(fence_out);
