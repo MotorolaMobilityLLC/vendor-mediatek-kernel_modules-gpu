@@ -3286,7 +3286,7 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 #endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 				/* Handle IDLE Hysteresis notification event */
 				if ((glb_req ^ glb_ack) & GLB_REQ_IDLE_EVENT_MASK) {
-					dev_dbg(kbdev->dev, "Idle-hysteresis event flagged");
+					dev_vdbg(kbdev->dev, "Idle-hysteresis event flagged");
 					kbase_csf_firmware_global_input_mask(
 						global_iface, GLB_REQ, glb_ack,
 						GLB_REQ_IDLE_EVENT_MASK);
