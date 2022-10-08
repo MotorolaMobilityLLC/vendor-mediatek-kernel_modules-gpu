@@ -507,12 +507,22 @@ void kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev)
 
 	if (!non_idle_offslot_grps) {
 		if (can_suspend_on_idle) {
+			/* fast_gpu_idle_handling is protected by the
+			 * interrupt_lock, which would prevent this from being
+			 * updated whilst gpu_idle_worker() is executing.
+			 */
+			scheduler->fast_gpu_idle_handling =
+				(kbdev->csf.gpu_idle_hysteresis_ms == 0) ||
+				!kbase_csf_scheduler_all_csgs_idle(kbdev);
+
 			/* The GPU idle worker relies on update_on_slot_queues_offsets() to have
 			 * finished. It's queued before to reduce the time it takes till execution
 			 * but it'll eventually be blocked by the scheduler->interrupt_lock.
 			 */
 			enqueue_gpu_idle_work(scheduler);
-			update_on_slot_queues_offsets(kbdev);
+			/* The extract offsets are unused in fast GPU idle handling */
+			if (!scheduler->fast_gpu_idle_handling)
+				update_on_slot_queues_offsets(kbdev);
 		}
 	} else {
 		/* Advance the scheduling tick to get the non-idle suspended groups loaded soon */
@@ -4898,6 +4908,21 @@ static bool scheduler_idle_suspendable(struct kbase_device *kbdev)
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	spin_lock(&scheduler->interrupt_lock);
+
+	if (scheduler->fast_gpu_idle_handling) {
+		scheduler->fast_gpu_idle_handling = false;
+
+		if (scheduler->total_runnable_grps) {
+			suspend = !atomic_read(&scheduler->non_idle_offslot_grps) &&
+				  kbase_pm_idle_groups_sched_suspendable(kbdev);
+		} else
+			suspend = kbase_pm_no_runnables_sched_suspendable(kbdev);
+		spin_unlock(&scheduler->interrupt_lock);
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+		return suspend;
+	}
+
 	if (scheduler->total_runnable_grps) {
 
 		/* Check both on-slots and off-slots groups idle status */
@@ -6634,6 +6659,7 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 
 	INIT_WORK(&scheduler->gpu_idle_work, gpu_idle_worker);
 	INIT_WORK(&scheduler->pmode_exit_wa_work, pmode_exit_wa_worker);
+	scheduler->fast_gpu_idle_handling = false;
 	atomic_set(&scheduler->gpu_no_longer_idle, false);
 	atomic_set(&scheduler->non_idle_offslot_grps, 0);
 

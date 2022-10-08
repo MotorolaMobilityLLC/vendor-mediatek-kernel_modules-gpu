@@ -360,9 +360,9 @@ struct kbase_csf_notification {
  * @cs_fatal_info:    Records additional information about the CS fatal event.
  * @cs_fatal:         Records information about the CS fatal event.
  * @pending:          Indicating whether the queue has new submitted work.
- * @extract_ofs: The current EXTRACT offset, this is updated during certain
- *               events such as GPU idle IRQ in order to help detect a
- *               queue's true idle status.
+ * @extract_ofs: The current EXTRACT offset, this is only updated when handling
+ *               the GLB IDLE IRQ if the idle timeout value is non-0 in order
+ *               to help detect a queue's true idle status.
  * @saved_cmd_ptr: The command pointer value for the GPU queue, saved when the
  *                 group to which queue is bound is suspended.
  *                 This can be useful in certain cases to know that till which
@@ -970,6 +970,11 @@ struct kbase_csf_sched_heap_reclaim_mgr {
  *                          handler.
  * @gpu_idle_work:          Work item for facilitating the scheduler to bring
  *                          the GPU to a low-power mode on becoming idle.
+ * @fast_gpu_idle_handling: Indicates whether to relax many of the checks
+ *                          normally done in the GPU idle worker. This is
+ *                          typically set to true for very small idle
+ *                          hysteresis timeouts. This would affect the handling
+ *                          of both GPU and driver-initiated idle events.
  * @gpu_no_longer_idle:     Effective only when the GPU idle worker has been
  *                          queued for execution, this indicates whether the
  *                          GPU has become non-idle since the last time the
@@ -1037,6 +1042,7 @@ struct kbase_csf_scheduler {
 	bool apply_pmode_exit_wa;
 	struct workqueue_struct *idle_wq;
 	struct work_struct gpu_idle_work;
+	bool fast_gpu_idle_handling;
 	atomic_t gpu_no_longer_idle;
 	atomic_t non_idle_offslot_grps;
 	u32 non_idle_scanout_grps;
