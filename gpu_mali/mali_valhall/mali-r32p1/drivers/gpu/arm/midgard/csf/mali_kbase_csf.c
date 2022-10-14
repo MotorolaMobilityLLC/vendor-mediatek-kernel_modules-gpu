@@ -2542,7 +2542,7 @@ handle_fault_event(struct kbase_queue *const queue,
 	{
 		if (0 == cs_inherit_fault_count++) {
 			ged_log_dump(kbdev->ged_log_buf_hnd_kbase);
-			mtk_common_debug_logbuf_dump(&kbdev->logbuf_kbase, NULL);
+			mtk_common_debug_logbuf_dump(&kbdev->logbuf_exception, NULL);
 		}
 //		ged_log_buf_reset(kbdev->ged_log_buf_hnd_kbase);
 	}
