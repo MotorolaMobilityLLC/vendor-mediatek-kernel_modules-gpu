@@ -44,8 +44,6 @@ int kbase_csf_tiler_heap_context_init(struct kbase_context *kctx);
  */
 void kbase_csf_tiler_heap_context_term(struct kbase_context *kctx);
 
-void kbase_csf_tiler_heap_print_kctx_chunks(struct kbase_context *kctx);
-
 /**
  * kbase_csf_tiler_heap_init - Initialize a chunked tiler memory heap.
  *
