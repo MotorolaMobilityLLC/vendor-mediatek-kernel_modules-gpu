@@ -29,7 +29,6 @@
 #include <mali_kbase_reset_gpu.h>
 #include <mali_kbase_as_fault_debugfs.h>
 #include <mmu/mali_kbase_mmu_internal.h>
-#include <csf/mali_kbase_csf_tiler_heap.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <platform/mtk_platform_common.h>
@@ -264,8 +263,6 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 	/* Make sure the context was active */
 	if (WARN_ON(atomic_read(&kctx->refcount) <= 0))
 		return;
-
-	kbase_csf_tiler_heap_print_kctx_chunks(kctx);
 
 	/* decode the fault status */
 	exception_type = AS_FAULTSTATUS_EXCEPTION_TYPE_GET(status);
