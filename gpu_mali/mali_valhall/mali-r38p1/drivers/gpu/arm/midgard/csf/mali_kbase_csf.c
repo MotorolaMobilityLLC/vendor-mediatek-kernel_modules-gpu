@@ -1692,6 +1692,15 @@ void kbase_csf_queue_group_terminate(struct kbase_context *kctx,
 		kctx->csf.queue_groups[group_handle] = NULL;
 		mutex_unlock(&kctx->csf.lock);
 
+		if (reset_prevented) {
+			/* Allow GPU reset before cancelling the group specific
+			 * work item to avoid potential deadlock.
+			 * Reset prevention isn't needed after group termination.
+			 */
+			kbase_reset_gpu_allow(kbdev);
+			reset_prevented = false;
+		}
+
 		/* Cancel any pending event callbacks. If one is in progress
 		 * then this thread waits synchronously for it to complete (which
 		 * is why we must unlock the context first). We already ensured
@@ -1937,8 +1946,6 @@ void kbase_csf_ctx_term(struct kbase_context *kctx)
 	else
 		reset_prevented = true;
 
-	cancel_work_sync(&kctx->csf.pending_submission_work);
-
 	mutex_lock(&kctx->csf.lock);
 
 	/* Iterate through the queue groups that were not terminated by
@@ -1956,6 +1963,8 @@ void kbase_csf_ctx_term(struct kbase_context *kctx)
 
 	if (reset_prevented)
 		kbase_reset_gpu_allow(kbdev);
+
+	cancel_work_sync(&kctx->csf.pending_submission_work);
 
 	/* Now that all queue groups have been terminated, there can be no
 	 * more OoM or timer event interrupts but there can be inflight work
