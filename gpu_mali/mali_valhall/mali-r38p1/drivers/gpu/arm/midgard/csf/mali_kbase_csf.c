@@ -2092,9 +2092,12 @@ void kbase_csf_ctx_term(struct kbase_context *kctx)
 		kbase_reset_gpu_allow(kbdev);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
-	if (kctx->csf.pending_submission_mode == GPU_PENDING_SUBMISSION_KTHREAD)
-		kthread_stop(kctx->csf.pending_submission_work_kthread);
-	else
+	if (kctx->csf.pending_submission_mode == GPU_PENDING_SUBMISSION_KTHREAD) {
+		if (!IS_ERR_OR_NULL(kctx->csf.pending_submission_work_kthread)) {
+			kthread_stop(kctx->csf.pending_submission_work_kthread);
+			kctx->csf.pending_submission_work_kthread = NULL;
+		}
+	} else
 		cancel_work_sync(&kctx->csf.pending_submission_work);
 #else
 		cancel_work_sync(&kctx->csf.pending_submission_work);
