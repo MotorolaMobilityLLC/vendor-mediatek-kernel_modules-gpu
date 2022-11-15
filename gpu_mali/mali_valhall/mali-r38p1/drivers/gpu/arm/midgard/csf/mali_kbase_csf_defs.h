@@ -818,7 +818,6 @@ struct kbase_csf_context {
 	u32 pending_submission_mode;
 	struct task_struct *pending_submission_work_kthread;
 	wait_queue_head_t pending_wait_queue;
-	struct rw_semaphore trigger_submission_sem;
 	atomic_t trigger_submission;
 #endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
 	struct work_struct pending_submission_work;
