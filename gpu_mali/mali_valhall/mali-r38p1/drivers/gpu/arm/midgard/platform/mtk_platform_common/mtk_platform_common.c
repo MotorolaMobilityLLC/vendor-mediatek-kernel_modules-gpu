@@ -159,6 +159,7 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 	case MTK_COMMON_DBG_DUMP_FULL_DB:
 #if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
 		dev_info(kbdev->dev, "trigger gpu full DB dump");
+#if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 		if (!(diagnosis_dump_mask & MTK_DBG_COMMON_DUMP_SKIP_GROUPS_QUEUES)) {
 			mtk_debug_csf_dump_groups_and_queues(kbdev, pid);
@@ -169,6 +170,7 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 			mtk_kbase_csf_firmware_ke_dump_fwlog(kbdev); /* dump fwlog, reserve 16k for fwlog*/
 		}
 #endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
+#endif /* CONFIG_MALI_CSF_SUPPORT */
 #if IS_ENABLED(CONFIG_MALI_MTK_CM7_TRACE)
 #if IS_ENABLED(CONFIG_MTK_GPU_DIAGNOSIS_DEBUG)
 		disable_etb_capture(); /* stop ETB capture before DFD trig */

@@ -120,6 +120,30 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME := y
         CONFIG_MALI_MTK_GLB_PWROFF_TIMEOUT:= y
     endif ## mt6886 ##
+
+    ifeq ($(MTK_PLATFORM_VERSION),mt6835)
+        MTK_GPU_VERSION := $(LOCAL_MTK_GPU_VERSION)
+        MTK_PLATFORM := $(MTK_PLATFORM_VERSION)
+        CONFIG_MALI_REAL_HW := y
+        CONFIG_MALI_DEBUG := y
+        CONFIG_MALI_MIDGARD_DVFS := y
+        CONFIG_MALI_DEVFREQ := y
+        CONFIG_MALI_FENCE_DEBUG := y
+        CONFIG_MALI_MTK_DEBUG := y
+        CONFIG_MALI_MTK_LOG_BUFFER := y
+        CONFIG_MALI_MTK_SYSFS := y
+        CONFIG_MALI_MTK_PROC_FS := y
+        CONFIG_MALI_MTK_DEBUG_FS := y
+        CONFIG_MALI_MTK_MEMTRACK := y
+        CONFIG_MALI_MTK_DEVFREQ_GOVERNOR := y
+        CONFIG_MALI_MTK_DEVFREQ_THERMAL := y
+        CONFIG_MALI_MTK_GPU_BM_2 := y
+        CONFIG_MALI_MTK_FENCE_DEBUG := y
+        CONFIG_MALI_MTK_MFGSYS_PM := y
+        CONFIG_MALI_MTK_BRINGUP := n
+        CONFIG_MALI_MTK_DIAGNOSIS_MODE := y
+    endif ## mt6835 ##
+
 endif
 
 # make $(src) as absolute path if it is not already, by prefixing $(srctree)
