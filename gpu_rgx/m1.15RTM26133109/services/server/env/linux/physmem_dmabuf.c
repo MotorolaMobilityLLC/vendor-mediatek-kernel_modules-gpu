@@ -575,7 +575,7 @@ PhysmemCreateNewDmaBufBackedPMR(PHYS_HEAP *psHeap,
 		goto errReturn;
 	}
 
-	if (!PMRValidateSize((IMG_UINT64) ui32NumVirtChunks << uiChunkSize))
+	if (!PMRValidateSize((IMG_UINT64) ui32NumVirtChunks * uiChunkSize))
 	{
 		PVR_LOG_VA(PVR_DBG_ERROR,
 				 "PMR size exceeds limit #Chunks: %u ChunkSz %"IMG_UINT64_FMTSPECX"",

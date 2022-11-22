@@ -614,7 +614,7 @@ static PVRSRV_ERROR InitFirmware(PVRSRV_DEVICE_NODE *psDeviceNode,
 	 */
 	eError = RGXLoadAndGetFWData(psDeviceNode, &psRGXFW, &pbRGXFirmware);
 
-	if (eError != PVRSRV_OK || psRGXFW == NULL)
+	if (eError != PVRSRV_OK)
 	{
 		/* Error or confirmation message generated in RGXLoadAndGetFWData */
 		goto fw_load_fail;
@@ -779,7 +779,10 @@ static PVRSRV_ERROR InitFirmware(PVRSRV_DEVICE_NODE *psDeviceNode,
 	}
 
 #if defined(SUPPORT_TRUSTED_DEVICE) && !defined(NO_HARDWARE) && !defined(SUPPORT_SECURITY_VALIDATION)
-	RGXTDProcessFWImage(psDeviceNode, psRGXFW, &uFWParams);
+	if (psRGXFW)
+	{
+		RGXTDProcessFWImage(psDeviceNode, psRGXFW, &uFWParams);
+	}
 #endif
 
 
