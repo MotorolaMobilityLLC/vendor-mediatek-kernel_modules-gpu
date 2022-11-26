@@ -238,4 +238,13 @@ IMG_INTERNAL PVRSRV_ERROR BridgeDevmemGetFaultAddress(IMG_HANDLE hBridge,
 IMG_INTERNAL PVRSRV_ERROR BridgePVRSRVUpdateOOMStats(IMG_HANDLE hBridge,
 						     IMG_UINT32 ui32ui32StatType, IMG_PID ui32pid);
 
+IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntHeapCreate2(IMG_HANDLE hBridge,
+						     IMG_HANDLE hDevmemCtx,
+						     IMG_UINT32 ui32HeapConfigIndex,
+						     IMG_UINT32 ui32HeapIndex,
+						     IMG_DEV_VIRTADDR sHeapBaseAddr,
+						     IMG_DEVMEM_SIZE_T uiHeapLength,
+						     IMG_UINT32 ui32Log2DataPageSize,
+						     IMG_HANDLE * phDevmemHeapPtr);
+
 #endif /* CLIENT_MM_BRIDGE_H */
