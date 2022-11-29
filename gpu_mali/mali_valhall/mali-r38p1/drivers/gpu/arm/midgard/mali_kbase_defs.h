@@ -1907,6 +1907,7 @@ struct kbase_context {
 	struct kbase_va_region *coherenct_regions[MAX_COHERENT_REGION];
 	unsigned int coherent_region_nr;
 #endif
+	bool has_page_faults;
 };
 
 #ifdef CONFIG_MALI_CINSTR_GWT
