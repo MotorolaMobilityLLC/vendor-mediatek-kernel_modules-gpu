@@ -234,15 +234,16 @@ static void dump_worker(struct work_struct *work)
 	errcode = kbase_hwcnt_virtualizer_client_dump(
 		hand->hvcli, &ts_start_ns, &ts_end_ns, &hand->dump_buf);
 	if (!errcode) {
+		unsigned long flags;
 		/* Patch the header to hide other client's counter choices */
 		kbase_hwcnt_gpu_patch_dump_headers(
 			&hand->dump_buf, &hand->enable_map);
 		/* Zero all non-enabled counters (currently undefined values) */
 		kbase_hwcnt_dump_buffer_zero_non_enabled(
 			&hand->dump_buf, &hand->enable_map);
-		spin_lock_bh(&hand->dump_lock);
+		spin_lock_irqsave(&hand->dump_lock, flags);
 		hand->dump_complete = 1;
-		spin_unlock_bh(&hand->dump_lock);
+		spin_unlock_irqrestore(&hand->dump_lock, flags);
 	} else {
 		schedule_work(&hand->dump_work);
 	}
@@ -252,15 +253,18 @@ uint32_t kbase_gator_instr_hwcnt_dump_complete(
 		struct kbase_gator_hwcnt_handles *opaque_handles,
 		uint32_t * const success)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+	unsigned long flags;
+#endif
 
 	if (opaque_handles && success) {
 #if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
-		spin_lock_bh(&opaque_handles->dump_lock);
+		spin_lock_irqsave(&opaque_handles->dump_lock, flags);
 #endif
 		*success = opaque_handles->dump_complete;
 		opaque_handles->dump_complete = 0;
 #if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
-		spin_unlock_bh(&opaque_handles->dump_lock);
+		spin_unlock_irqrestore(&opaque_handles->dump_lock, flags);
 #endif
 		return *success;
 	}
