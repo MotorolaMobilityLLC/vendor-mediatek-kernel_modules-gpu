@@ -37,6 +37,10 @@
 #include <backend/gpu/mali_kbase_jm_internal.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
 
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+#include <gpu_bm.h>
+#endif
+
 /**
  * SLOT_RB_EMPTY - Return whether the specified ringbuffer is empty.
  *
@@ -1353,7 +1357,6 @@ void kbase_gpu_complete_hw(struct kbase_device *kbdev, int js,
 			if(js == 0) {
 				kbdev->v1->ctx = (u32)next_katom->kctx->id;
 				kbdev->v1->job = next_katom->work_id;
-				kbdev->v1->freq = js;
 				kbdev->v1->frame = (u32)next_katom->frame_nr;
 			}
 #endif
@@ -1378,7 +1381,6 @@ void kbase_gpu_complete_hw(struct kbase_device *kbdev, int js,
 			if (js == 0) {
 				kbdev->v1->ctx = (u32)next_katom->kctx->id;
 				kbdev->v1->job = next_katom->work_id;
-				kbdev->v1->freq = js;
 				kbdev->v1->frame = (u32)next_katom->frame_nr;
 			}
 		}

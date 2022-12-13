@@ -604,14 +604,6 @@ struct job_status_qos {
 	phys_addr_t phyaddr;
 	size_t size;
 };
-
-struct v1_data {
-	unsigned int version;
-	unsigned int ctx;
-	unsigned int frame;
-	unsigned int job;
-	unsigned int freq;
-};
 #endif /* CONFIG_MALI_MTK_GPU_BM_JM */
 
 /**
