@@ -1933,6 +1933,7 @@ int kbase_csf_ctx_init(struct kbase_context *kctx)
 	u32 pending_submission_mode = GPU_PENDING_SUBMISSION_KWORKER;
 	struct device_node *np;
 
+	kctx->csf.pending_submission_work_kthread = NULL;
 	kctx->csf.pending_submission_mode = pending_submission_mode;
 	np = kctx->kbdev->dev->of_node;
 
