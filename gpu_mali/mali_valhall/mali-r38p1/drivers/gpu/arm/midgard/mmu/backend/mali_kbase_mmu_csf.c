@@ -282,7 +282,7 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 		"exception type 0x%X: %s\n"
 		"access type 0x%X: %s\n"
 		"source id 0x%X\n"
-		"pid: %d\n",
+		"pid: %d\n"
 		"Ctx %d_%d\n",
 		as_no, fault->addr,
 		reason_str,
@@ -303,7 +303,7 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 		"exception type 0x%X: %s\n"
 		"access type 0x%X: %s\n"
 		"source id 0x%X\n"
-		"pid: %d\n",
+		"pid: %d\n"
 		"Ctx %d_%d\n",
 		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
 		as_no, fault->addr,
