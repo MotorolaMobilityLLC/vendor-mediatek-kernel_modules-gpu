@@ -251,6 +251,12 @@ static void kernel_unmap_user_io_pages(struct kbase_context *kctx,
 
 	vunmap(queue->user_io_addr);
 
+	queue->user_io_addr = (char *)(uintptr_t)0xDEADBEEF;
+	if (queue->enabled) {
+		WARN(1, "IO pages unmapped for enabled queue %d (state %d) of ctx %d_%d",
+			queue->csi_index, queue->bind_state, kctx->tgid, kctx->id);
+	}
+
 	WARN_ON(num_pages > atomic_read(&kctx->permanent_mapped_pages));
 	atomic_sub(num_pages, &kctx->permanent_mapped_pages);
 
@@ -271,6 +277,9 @@ static int kernel_map_user_io_pages(struct kbase_context *kctx,
 
 	if (ARRAY_SIZE(page_list) > (KBASE_PERMANENTLY_MAPPED_MEM_LIMIT_PAGES -
 			 atomic_read(&kctx->permanent_mapped_pages))) {
+		dev_info(kctx->kbdev->dev, "Exceeded permanent mapped limit on IO pages of queue %d of group %d of ctx %d_%d",
+			queue->csi_index, queue->group->handle,
+			kctx->tgid, kctx->id);
 		ret = -ENOMEM;
 		goto unlock;
 	}
@@ -336,6 +345,7 @@ static void kbase_csf_free_command_stream_user_pages(struct kbase_context *kctx,
 		struct kbase_queue *queue)
 {
 	const size_t num_pages = 2;
+	unsigned long flags;
 
 	gpu_munmap_user_io_pages(kctx, queue->reg, &queue->phys[0]);
 	kernel_unmap_user_io_pages(kctx, queue);
@@ -346,6 +356,15 @@ static void kbase_csf_free_command_stream_user_pages(struct kbase_context *kctx,
 
 	kfree(queue->reg);
 	queue->reg = NULL;
+
+	kbase_csf_scheduler_spin_lock(kctx->kbdev, &flags);
+	if (queue->group) {
+	        dev_info(kctx->kbdev->dev, "IO pages unmapped for bound queue %d (bind_state %d) of group %d (run_state %d) of ctx %d_%d on slot %d",
+	                 queue->csi_index, queue->bind_state, queue->group->handle, queue->group->run_state,
+	                 kctx->tgid, kctx->id, queue->group->csg_nr);
+	}
+	kbase_csf_scheduler_spin_unlock(kctx->kbdev, flags);
+
 
 	/* If the queue has already been terminated by userspace
 	 * then the ref count for queue object will drop to 0 here.
@@ -712,6 +731,10 @@ void kbase_csf_queue_terminate(struct kbase_context *kctx,
 		 * lookups for the queue in find_queue() would fail.
 		 */
 		list_del_init(&queue->link);
+
+		if (queue->bind_state != KBASE_CSF_QUEUE_UNBOUND)
+			dev_info(kbdev->dev, "Queue %d of ctx %d_%d terminating in bound state",
+				queue->csi_index, kctx->tgid, kctx->id);
 
 		/* Stop the CSI to which queue was bound */
 		unbind_queue(kctx, queue);

@@ -1445,6 +1445,10 @@ int kbase_csf_scheduler_queue_stop(struct kbase_queue *queue)
 	queue->enabled = false;
 	KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, CSI_STOP, group, queue, cs_enabled);
 
+	dev_info(kbdev->dev, "Queue %d of group %d (run_state %d) of ctx %d_%d on slot %d is stopped",
+		queue->csi_index, group->handle, group->run_state,
+		queue->kctx->tgid, queue->kctx->id, group->csg_nr);
+
 	if (cs_enabled && queue_group_scheduled_locked(group)) {
 		struct kbase_csf_csg_slot *const csg_slot =
 			kbdev->csf.scheduler.csg_slots;
