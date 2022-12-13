@@ -2150,10 +2150,19 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 				kbase_csf_scheduler_lock(kbdev);
 
 				if (kctx->csf.cpu_queue.buffer) {
+					int i;
+					int next_str_idx = 0;
+
 					WARN_ON(atomic_read(&kctx->csf.cpu_queue.dump_req_status) !=
 							    BASE_CSF_CPU_QUEUE_DUMP_PENDING);
 
-					dev_info(kbdev->dev, "[%d_%d] %s", kctx->tgid, kctx->id, kctx->csf.cpu_queue.buffer);
+					for (i = 0; i < kctx->csf.cpu_queue.buffer_size; i++) {
+						if (kctx->csf.cpu_queue.buffer[i] == '\n') {
+							kctx->csf.cpu_queue.buffer[i] = '\0';
+							dev_info(kbdev->dev, "%s", &(kctx->csf.cpu_queue.buffer[next_str_idx]));
+							next_str_idx = i + 1;
+						}
+					}
 
 					kfree(kctx->csf.cpu_queue.buffer);
 					kctx->csf.cpu_queue.buffer = NULL;
