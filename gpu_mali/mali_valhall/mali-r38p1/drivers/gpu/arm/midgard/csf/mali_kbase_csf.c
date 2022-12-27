@@ -864,11 +864,14 @@ static int pending_submission_worker_kthread(void* data)
 		wait_event_freezable_timeout(kctx->csf.pending_wait_queue,
 			((check_trigger_submission(kctx) > 0) || kthread_should_stop()), MAX_SCHEDULE_TIMEOUT);
 
+		if (kthread_should_stop())
+			return 0;
+
 		err = kbase_reset_gpu_prevent_and_wait(kbdev);
 
 		if (err) {
 			dev_err(kbdev->dev, "Unsuccessful GPU reset detected when kicking queue ");
-			return 0;
+			continue;
 		}
 
 		mutex_lock(&kctx->csf.lock);
