@@ -304,31 +304,38 @@ static void boot_csf_firmware(struct kbase_device *kbdev)
 
 static void wait_ready(struct kbase_device *kbdev)
 {
-	u32 max_loops = KBASE_AS_INACTIVE_MAX_LOOPS;
-	u32 val;
+	u64 wait_loop_start = ktime_get_raw();
 
-	val = kbase_reg_read(kbdev, MMU_AS_REG(MCU_AS_NR, AS_STATUS));
+	do {
+		u64 diff;
+		unsigned int i;
 
-	/* Wait for a while for the update command to take effect */
-	while (--max_loops && (val & AS_STATUS_AS_ACTIVE))
-		val = kbase_reg_read(kbdev, MMU_AS_REG(MCU_AS_NR, AS_STATUS));
+		for (i = 0; i < 1000; i++) {
+			u32 val = kbase_reg_read(kbdev, MMU_AS_REG(MCU_AS_NR, AS_STATUS));
+			/* Wait for the MMU status to indicate there is no active command */
+			if (!(val & AS_STATUS_AS_ACTIVE))
+				return;
+		}
+
+		diff = ktime_to_ms(ktime_sub(ktime_get_raw(), wait_loop_start));
+		if (diff > kbdev->mmu_as_inactive_wait_time_ms) {
+			dev_err(kbdev->dev,
+			"AS_ACTIVE bit stuck for MCU AS, might be caused by slow/unstable GPU clock or possible faulty system");
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	if (max_loops == 0) {
-		dev_info(kbdev->dev, "AS_ACTIVE bit stuck when MCU load the MMU tables\n");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kbdev->logbuf_exception,
-			"[%llxt] AS_ACTIVE bit stuck when MCU load the MMU tables\n",
-			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception));
+			mtk_logbuffer_print(&kbdev->logbuf_exception,
+				"[%llxt] AS_ACTIVE bit stuck when MCU load the MMU tables\n",
+				mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_LOADMMUTABLE_FAIL);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_LOADMMUTABLE_FAIL);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_LOADMMUTABLE_FAIL);
-	}
-#else
-	if (max_loops == 0)
-		dev_err(kbdev->dev, "AS_ACTIVE bit stuck, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n");
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_LOADMMUTABLE_FAIL);
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_LOADMMUTABLE_FAIL);
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_LOADMMUTABLE_FAIL);
 #endif /* CONFIG_MALI_MTK_DEBUG */
+
+			return;
+		}
+	} while (1);
 }
 
 static void unload_mmu_tables(struct kbase_device *kbdev)

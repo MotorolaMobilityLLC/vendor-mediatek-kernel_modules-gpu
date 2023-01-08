@@ -155,103 +155,72 @@ static int lock_region(struct kbase_gpu_props const *gpu_props, u64 *lockaddr,
 static int wait_ready(struct kbase_device *kbdev,
 		unsigned int as_nr)
 {
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	bool early_timeouts = false;
-#endif
-	u32 max_loops = KBASE_AS_INACTIVE_MAX_LOOPS;
+	u64 wait_loop_start = ktime_get_raw();
 
-	/* Wait for the MMU status to indicate there is no active command. */
-	while (--max_loops &&
-	       kbase_reg_read(kbdev, MMU_AS_REG(as_nr, AS_STATUS)) &
-		       AS_STATUS_AS_ACTIVE) {
+	do {
+		u64 diff;
+		unsigned int i;
+
+		for (i = 0; i < 1000; i++) {
+			u32 val = kbase_reg_read(kbdev, MMU_AS_REG(as_nr, AS_STATUS));
+			/* Wait for the MMU status to indicate there is no active command */
+			if (!(val & AS_STATUS_AS_ACTIVE))
+				return 0;
+		}
 
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
 		if (kbdev->reset_force_mmu_not_ready) {
-			if (max_loops == (KBASE_AS_INACTIVE_MAX_LOOPS - 1000)) {
-				dev_info(kbdev->dev, "reset_force_mmu_not_ready, 1000 timeout return");
-				return -1;
-			}
+			// if reset_force_mmu_not_ready is true, just return to do gpu reset
+			dev_info(kbdev->dev, "reset_force_mmu_not_ready, 1000 timeout return");
+			return -1;
 		}
 #endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
 
+		diff = ktime_to_ms(ktime_sub(ktime_get_raw(), wait_loop_start));
+		if (diff > kbdev->mmu_as_inactive_wait_time_ms) {
+			dev_err(kbdev->dev,
+				"AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty system",
+			as_nr);
+
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		if((max_loops == KBASE_AS_INACTIVE_DUMP_POINT_1S) ||
-			(max_loops == KBASE_AS_INACTIVE_DUMP_POINT_3S) ||
-			(max_loops == KBASE_AS_INACTIVE_DUMP_POINT_5S) ||
-			(max_loops == KBASE_AS_INACTIVE_DUMP_POINT_8S)) {
-			dev_info(kbdev->dev, "%s: Early dump for MMU not ready, remain loops: %d", __func__, max_loops);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 			mtk_logbuffer_print(&kbdev->logbuf_exception,
-				"[%llxt] %s: Early dump for MMU not ready, remain loops: %d\n",
-				mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
-				__func__, max_loops);
+				"[%llxt] AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty system\n",
+				mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception), as_nr);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_NA);
 			mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
-		}
-		if (max_loops == KBASE_AS_INACTIVE_DUMP_POINT_3S) {
-			early_timeouts = true;
-			break;
-		}
-#endif /* CONFIG_MALI_MTK_DEBUG */
-		;
-	}
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	if (early_timeouts || max_loops == 0) {
-		dev_info(kbdev->dev,
-			"AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty FPGA connector, early_timeouts=%d max_loops=%d",
-			as_nr, early_timeouts, max_loops);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kbdev->logbuf_exception,
-			"[%llxt] AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty FPGA connector, early_timeouts=%d max_loops=%d\n",
-			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
-			as_nr, early_timeouts, max_loops);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_NA);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
-		spin_lock(&kbdev->reset_force_change);
-		kbdev->reset_force_evict_group_work = true;
-		kbdev->reset_force_hard_reset = true;
-		kbdev->reset_force_mmu_not_ready = true;
-		spin_unlock(&kbdev->reset_force_change);
-		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE)) {
-			dev_info(kbdev->dev, "Trigger GPU reset for MMU as command timeouts, early_timeouts=%d max_loops=%d",
-				early_timeouts, max_loops);
+			if (!kbdev->reset_force_mmu_not_ready) {
+				spin_lock(&kbdev->reset_force_change);
+				kbdev->reset_force_evict_group_work = true;
+				kbdev->reset_force_hard_reset = true;
+				kbdev->reset_force_mmu_not_ready = true;
+				spin_unlock(&kbdev->reset_force_change);
+				if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE)) {
+					dev_info(kbdev->dev, "Trigger GPU reset for MMU as command timeouts");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_print(&kbdev->logbuf_exception,
-				"[%llxt] Trigger GPU reset for MMU as command timeouts, early_timeouts=%d max_loops=%d\n",
-				mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
-				early_timeouts, max_loops);
+					mtk_logbuffer_print(&kbdev->logbuf_exception,
+						"[%llxt] Trigger GPU reset for MMU as command timeouts\n",
+						mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-			kbase_reset_gpu(kbdev);
-		} else {
-			dev_info(kbdev->dev, "MMU as command timeouts! Other threads are already resetting the GPU, early_timeouts=%d max_loops=%d",
-				early_timeouts, max_loops);
+					kbase_reset_gpu(kbdev);
+				} else {
+					dev_info(kbdev->dev, "MMU as command timeouts! Other threads are already resetting the GPU");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_print(&kbdev->logbuf_exception,
-				"[%llxt] MMU as command timeouts! Other threads are already resetting the GPU, early_timeouts=%d max_loops=%d\n",
-				mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
-				early_timeouts, max_loops);
+					mtk_logbuffer_print(&kbdev->logbuf_exception,
+						"[%llxt] MMU as command timeouts! Other threads are already resetting the GPU\n",
+						mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-		}
+				}
+			}
 #endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
-		return -1;
-	}
-#else /* CONFIG_MALI_MTK_DEBUG */
-	if (WARN_ON_ONCE(max_loops == 0)) {
-		dev_err(kbdev->dev,
-			"AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty FPGA connector",
-			as_nr);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kbdev->logbuf_exception,
-			"[%llxt] AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n",
-			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
-			as_nr);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-		return -1;
-	}
 #endif /* CONFIG_MALI_MTK_DEBUG */
+
+			return -1;
+		}
+	} while (1);
 
 	return 0;
 }
