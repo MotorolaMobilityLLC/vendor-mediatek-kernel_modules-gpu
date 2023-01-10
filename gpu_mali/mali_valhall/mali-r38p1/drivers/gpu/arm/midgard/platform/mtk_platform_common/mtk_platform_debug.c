@@ -2249,25 +2249,24 @@ static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int tim
 		spin_lock(&kbdev->reset_force_change);
 		kbdev->reset_force_evict_group_work = true;
 		spin_unlock(&kbdev->reset_force_change);
-		if (kbdev->pm.backend.gpu_powered) {
-			if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE)) {
-				dev_info(kbdev->dev, "External fence timeouts(%d ms)! Trigger GPU reset", timeouts);
+
+		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE)) {
+			dev_info(kbdev->dev, "External fence timeouts(%d ms)! Trigger GPU reset", timeouts);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-				mtk_logbuffer_print(&kbdev->logbuf_exception,
-					"[%llxt] External fence timeouts(%d ms)! Trigger GPU reset\n",
-					mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
-					timeouts);
+			mtk_logbuffer_print(&kbdev->logbuf_exception,
+				"[%llxt] External fence timeouts(%d ms)! Trigger GPU reset\n",
+				mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
+				timeouts);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-				kbase_reset_gpu(kbdev);
-			} else {
-				dev_info(kbdev->dev, "External fence timeouts(%d ms)! Other threads are already resetting the GPU", timeouts);
+			kbase_reset_gpu(kbdev);
+		} else {
+			dev_info(kbdev->dev, "External fence timeouts(%d ms)! Other threads are already resetting the GPU", timeouts);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-				mtk_logbuffer_print(&kbdev->logbuf_exception,
-					"[%llxt] External fence timeouts(%d ms)! Other threads are already resetting the GPU\n",
-					mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
-					timeouts);
+			mtk_logbuffer_print(&kbdev->logbuf_exception,
+				"[%llxt] External fence timeouts(%d ms)! Other threads are already resetting the GPU\n",
+				mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
+				timeouts);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-			}
 		}
 	}
 #endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
