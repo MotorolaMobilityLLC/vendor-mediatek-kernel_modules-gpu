@@ -48,7 +48,12 @@ static int busy_wait_on_irq(struct kbase_device *kbdev, u32 irq_bit)
 	 * And we're using the same max-loops count for GPU command, because amount of
 	 * L2 cache flush overhead are same between them.
 	 */
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+	// MTK: Use small loop to prevent HWT
+	unsigned int max_loops = KBASE_CLEAN_CACHE_MAX_LOOPS;
+#else
 	unsigned int max_loops = KBASE_AS_INACTIVE_MAX_LOOPS;
+#endif /* CONFIG_MALI_MTK_COMMON */
 
 	/* Wait for the GPU cache clean operation to complete */
 	while (--max_loops &&
