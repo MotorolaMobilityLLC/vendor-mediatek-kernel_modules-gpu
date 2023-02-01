@@ -359,6 +359,7 @@ int mtk_platform_pm_init(struct kbase_device *kbdev)
 {
 	struct device_node *np = kbdev->dev->of_node;
 	u32 sleep_mode_enable = 0;
+	bool sleep_mode_policy = false;
 	u32 segment_id = 0;
 
 	if (IS_ERR_OR_NULL(kbdev))
@@ -367,17 +368,21 @@ int mtk_platform_pm_init(struct kbase_device *kbdev)
 	segment_id = ged_get_segment_id();
 
 	if (!of_property_read_u32(np, "sleep-mode-enable", &sleep_mode_enable)) {
-		dev_info(kbdev->dev, "Sleep mode %s", (sleep_mode_enable)? "enabled": "disabled");
+		dev_info(kbdev->dev, "Sleep mode %s", (sleep_mode_enable == 1)? "enabled": "disabled");
 		dev_info(kbdev->dev, "Segment ID %08X", segment_id);
 
-		if ((sleep_mode_enable == 1) || (segment_id == MT6985W_TCZA_SEGMENT)) {
+
+		sleep_mode_policy = (sleep_mode_enable == 1) || ((sleep_mode_enable == 0xFF) &&
+			(segment_id == MT6985W_TCZA_SEGMENT));
+
+		if (sleep_mode_policy == true) {
 			pm_callbacks.power_runtime_init_callback = kbase_device_runtime_init;
 			pm_callbacks.power_runtime_term_callback = kbase_device_runtime_disable;
 			pm_callbacks.power_runtime_on_callback = pm_callback_runtime_on;
 			pm_callbacks.power_runtime_off_callback = pm_callback_runtime_off;
 			pm_callbacks.power_runtime_gpu_idle_callback = pm_callback_runtime_gpu_idle;
 			pm_callbacks.power_runtime_gpu_active_callback = pm_callback_runtime_gpu_active;
-		}
+        	}
 	} else
 		dev_info(kbdev->dev, "Sleep mode: No dts property setting, default disabled");
 
