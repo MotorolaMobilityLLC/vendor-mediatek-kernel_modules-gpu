@@ -368,12 +368,11 @@ int mtk_platform_pm_init(struct kbase_device *kbdev)
 	segment_id = ged_get_segment_id();
 
 	if (!of_property_read_u32(np, "sleep-mode-enable", &sleep_mode_enable)) {
-		dev_info(kbdev->dev, "Sleep mode %s", (sleep_mode_enable == 1)? "enabled": "disabled");
-		dev_info(kbdev->dev, "Segment ID %08X", segment_id);
-
-
 		sleep_mode_policy = (sleep_mode_enable == 1) || ((sleep_mode_enable == 0xFF) &&
 			(segment_id == MT6985W_TCZA_SEGMENT));
+
+		dev_info(kbdev->dev, "Sleep mode enable: %s", (sleep_mode_enable == 1)? "enabled": "disabled");
+		dev_info(kbdev->dev, "Sleep mode policy: %s", (sleep_mode_policy == true)? "enabled": "disabled");
 
 		if (sleep_mode_policy == true) {
 			pm_callbacks.power_runtime_init_callback = kbase_device_runtime_init;

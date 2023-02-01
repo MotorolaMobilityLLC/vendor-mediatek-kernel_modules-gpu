@@ -10,6 +10,8 @@
 #include <platform/mtk_platform_common.h>
 #include <mtk_gpufreq.h>
 #include <ged_dvfs.h>
+#include <ged_base.h>
+#include <ged_type.h>
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 #include <platform/mtk_platform_common/mtk_platform_dvfs.h>
@@ -341,15 +343,21 @@ static int mtk_debug_sleep_mode(struct seq_file *file, void *data)
 	struct kbase_device *kbdev = file->private;
 	struct device_node *np;
 	u32 sleep_mode_enable = 0;
+	bool sleep_mode_policy = false;
+	u32 segment_id = 0;
 
 	if (IS_ERR_OR_NULL(kbdev))
 		return -1;
 
+	segment_id = ged_get_segment_id();
 	np = kbdev->dev->of_node;
 
-	if (!of_property_read_u32(np, "sleep-mode-enable", &sleep_mode_enable))
-		seq_printf(file, "Sleep mode: %s\n", (sleep_mode_enable) ? "enabled": "disabled");
-	else
+	if (!of_property_read_u32(np, "sleep-mode-enable", &sleep_mode_enable)) {
+		sleep_mode_policy = (sleep_mode_enable == 1) ||
+		((sleep_mode_enable == 0xFF) && (segment_id == MT6985W_TCZA_SEGMENT));
+		seq_printf(file, "Sleep mode enable: %s\n", (sleep_mode_enable == 1) ? "enabled": "disabled");
+		seq_printf(file, "Sleep mode policy: %s\n", (sleep_mode_policy == true) ? "enabled": "disabled");
+	} else
 		seq_printf(file, "Sleep mode: No dts property setting, default disabled\n");
 
 	return 0;
