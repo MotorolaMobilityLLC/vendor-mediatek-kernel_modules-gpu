@@ -226,6 +226,116 @@ fail_invalid_entry:
 	spin_unlock_irqrestore(&logbuf->access_lock, flags);
 }
 
+void __mtk_logbuffer_print(struct mtk_logbuffer_info *logbuf, uint8_t* buffer)
+{
+	unsigned long flags;
+	uint64_t ts_nsec = local_clock();
+	uint32_t rem_nsec, entry_len;
+
+	if (!logbuf->entries)
+		return;
+
+	spin_lock_irqsave(&logbuf->access_lock, flags);
+
+	if (!logbuf->is_circular && mtk_logbuffer_is_full(logbuf))
+		goto fail_overflow;
+
+	rem_nsec = do_div(ts_nsec, 1000000000);
+
+	/* Calculate the new entry length */
+	if (mtk_logbuffer_is_empty(logbuf)) {
+		/*
+		 * Since each logbuffer must be null-terminated,
+		 * so add a newline at the beginning of this logbuffer
+		 */
+		entry_len = scnprintf(logbuf->tmp_entry,
+		                      MTK_LOG_BUFFER_ENTRY_SIZE, "\n[%5lu.%06lu] %s",
+		                      (unsigned long)ts_nsec, (unsigned long)rem_nsec / 1000, buffer);
+	} else
+		entry_len = scnprintf(logbuf->tmp_entry,
+		                      MTK_LOG_BUFFER_ENTRY_SIZE, "[%5lu.%06lu] %s",
+		                      (unsigned long)ts_nsec, (unsigned long)rem_nsec / 1000, buffer);
+
+	if (entry_len == 0 || entry_len >= logbuf->size)
+		goto fail_invalid_entry;
+
+	if (!logbuf->is_circular) {
+		if ((logbuf->tail + entry_len) >= logbuf->size) {
+			/* Overflow */
+			logbuf->tail = logbuf->size - 1;
+
+			goto fail_overflow;
+		} else {
+			/* Append the new entry to the tail */
+			scnprintf(logbuf->entries + logbuf->tail, entry_len + 1, "%s", logbuf->tmp_entry);
+
+			/* Make sure the tail points to the end of the new entry */
+			logbuf->tail += entry_len - 1;
+
+			/* Update the buffer indices */
+			logbuf->tail = (logbuf->tail + 1) % logbuf->size;
+		}
+	} else {
+		if ((logbuf->tail + entry_len) >= logbuf->size) {
+			/* Clean the unused contents */
+			size_t remaining_size = logbuf->size - logbuf->tail;
+			memset(logbuf->entries + logbuf->tail, 0, remaining_size);
+
+			/* Update the tail and head to start over from the beginning */
+			logbuf->tail = 0;
+			logbuf->head = 1;
+
+			/* Append the new entry to the tail */
+			scnprintf(logbuf->entries + logbuf->tail, entry_len + 1, "%s", logbuf->tmp_entry);
+
+			/* Make sure the tail points to the end of the new entry */
+			logbuf->tail += entry_len - 1;
+
+			/* Update the circular buffer indices */
+			logbuf->tail = (logbuf->tail + 1) % logbuf->size;
+			logbuf->head = (logbuf->tail + 1) % logbuf->size;
+		} else {
+			/* Append the new entry to the tail */
+			scnprintf(logbuf->entries + logbuf->tail, entry_len + 1, "%s", logbuf->tmp_entry);
+
+			if (mtk_logbuffer_is_full(logbuf)) {
+				/* Make sure the tail points to the end of the new entry */
+				logbuf->tail += entry_len - 1;
+
+				/* Update the circular buffer indices */
+				logbuf->tail = (logbuf->tail + 1) % logbuf->size;
+				logbuf->head = (logbuf->tail + 1) % logbuf->size;
+			} else {
+				/* Make sure the tail points to the end of the new entry */
+				logbuf->tail += entry_len - 1;
+
+				/* Update the circular buffer indices */
+				logbuf->tail = (logbuf->tail + 1) % logbuf->size;
+			}
+		}
+	}
+
+fail_overflow:
+fail_invalid_entry:
+	spin_unlock_irqrestore(&logbuf->access_lock, flags);
+}
+
+void mtk_logbuffer_type_print(struct kbase_device *const kbdev, enum mtk_logbuffer_type logType, const char *fmt, ...)
+{
+	va_list args;
+	uint8_t buffer[MTK_LOG_BUFFER_ENTRY_SIZE];
+
+	va_start(args, fmt);
+	vsnprintf(buffer, sizeof(buffer), fmt, args);
+	va_end(args);
+
+	if (logType == MTK_LOGBUFFER_TYPE_ALL || logType == MTK_LOGBUFFER_TYPE_REGULAR)
+		__mtk_logbuffer_print(&kbdev->logbuf_regular, buffer);
+
+	if (logType == MTK_LOGBUFFER_TYPE_ALL || logType == MTK_LOGBUFFER_TYPE_EXCEPTION)
+		__mtk_logbuffer_print(&kbdev->logbuf_exception, buffer);
+}
+
 void mtk_logbuffer_dump(struct mtk_logbuffer_info *logbuf, struct seq_file *seq)
 {
 	uint32_t start, end, used_entry_num;
