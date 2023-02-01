@@ -2640,11 +2640,7 @@ void kbase_csf_firmware_trigger_mcu_sleep(struct kbase_device *kbdev)
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 	set_global_request(global_iface, GLB_REQ_SLEEP_MASK);
 	dev_vdbg(kbdev->dev, "Sending sleep request to MCU");
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_print(&kbdev->logbuf_regular,
-		"[%llxt] Sending sleep request to MCU\n",
-		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_regular));
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 }
