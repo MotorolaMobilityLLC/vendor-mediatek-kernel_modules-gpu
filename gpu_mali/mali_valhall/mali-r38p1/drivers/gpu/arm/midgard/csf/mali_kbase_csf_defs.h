@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2018-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -269,6 +269,8 @@ enum kbase_queue_group_priority {
  * @CSF_FIRMWARE_PING_TIMEOUT: Maximum time to wait for firmware to respond
  *                             to a ping from KBase.
  * @CSF_SCHED_PROTM_PROGRESS_TIMEOUT: Timeout used to prevent protected mode execution hang.
+ * @MMU_AS_INACTIVE_WAIT_TIMEOUT: Maximum waiting time in ms for the completion
+ *                                of a MMU operation
  * @KBASE_TIMEOUT_SELECTOR_COUNT: Number of timeout selectors. Must be last in
  *                                the enum.
  */
@@ -280,6 +282,7 @@ enum kbase_timeout_selector {
 	CSF_FIRMWARE_BOOT_TIMEOUT,
 	CSF_FIRMWARE_PING_TIMEOUT,
 	CSF_SCHED_PROTM_PROGRESS_TIMEOUT,
+	MMU_AS_INACTIVE_WAIT_TIMEOUT,
 
 	/* Must be the last in the enum */
 	KBASE_TIMEOUT_SELECTOR_COUNT
@@ -1450,9 +1453,9 @@ struct kbase_csf_firmware_log {
  *                              the glb_pwoff register. This is separated from
  *                              the @p mcu_core_pwroff_dur_count as an update
  *                              to the latter is asynchronous.
- * @gpu_idle_hysteresis_ms: Sysfs attribute for the idle hysteresis time
- *                          window in unit of ms. The firmware does not use it
- *                          directly.
+ * @gpu_idle_hysteresis_us: Sysfs attribute for the idle hysteresis time
+ *                          window in unit of microseconds. The firmware does not
+ *                          use it directly.
  * @gpu_idle_dur_count:     The counterpart of the hysteresis time window in
  *                          interface required format, ready to be used
  *                          directly in the firmware.
@@ -1540,6 +1543,10 @@ struct kbase_csf_device {
  * @bf_data:           Data relating to Bus fault.
  * @gf_data:           Data relating to GPU fault.
  * @current_setup:     Stores the MMU configuration for this address space.
+ * @is_unresponsive:   Flag to indicate MMU is not responding.
+ *                     Set if a MMU command isn't completed within
+ *                     &kbase_device:mmu_as_inactive_wait_time_ms.
+ *                     Clear by kbase_ctx_sched_restore_all_as() after GPU reset completes.
  */
 struct kbase_as {
 	int number;
@@ -1551,6 +1558,7 @@ struct kbase_as {
 	struct kbase_fault bf_data;
 	struct kbase_fault gf_data;
 	struct kbase_mmu_setup current_setup;
+	bool is_unresponsive;
 };
 
 #endif /* _KBASE_CSF_DEFS_H_ */

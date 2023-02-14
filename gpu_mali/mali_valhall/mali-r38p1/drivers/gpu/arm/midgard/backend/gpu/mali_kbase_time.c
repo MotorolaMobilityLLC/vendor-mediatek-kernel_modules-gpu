@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2014-2016, 2018-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -121,14 +121,19 @@ unsigned int kbase_get_timeout_ms(struct kbase_device *kbdev,
 	/* Only for debug messages, safe default in case it's mis-maintained */
 	const char *selector_str = "(unknown)";
 
-	if (WARN(!kbdev->lowest_gpu_freq_khz,
-		 "Lowest frequency uninitialized! Using reference frequency for scaling")) {
+	if (!kbdev->lowest_gpu_freq_khz) {
+		dev_dbg(kbdev->dev,
+			"Lowest frequency uninitialized! Using reference frequency for scaling");
 		freq_khz = DEFAULT_REF_TIMEOUT_FREQ_KHZ;
 	} else {
 		freq_khz = kbdev->lowest_gpu_freq_khz;
 	}
 
 	switch (selector) {
+	case MMU_AS_INACTIVE_WAIT_TIMEOUT:
+		selector_str = "MMU_AS_INACTIVE_WAIT_TIMEOUT";
+		nr_cycles = MMU_AS_INACTIVE_WAIT_TIMEOUT_CYCLES;
+		break;
 	case KBASE_TIMEOUT_SELECTOR_COUNT:
 	default:
 #if !MALI_USE_CSF
