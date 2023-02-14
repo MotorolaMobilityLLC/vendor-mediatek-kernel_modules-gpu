@@ -53,7 +53,11 @@
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
 #include <mtk_gpu_power_sspm_ipi.h>
 #include <platform/mtk_mfg_counter.h>
-#endif
+#endif /* CONFIG_MTK_GPU_SWPM_SUPPORT */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_RECLAIM_POLICY)
+#include <mtk_platform_reclaim_policy.h>
+#endif /* CONFIG_MALI_MTK_RECLAIM_POLICY */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
 #include <platform/mtk_platform_common/mtk_platform_irq_trace.h>
@@ -465,6 +469,9 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
 	spin_lock_init(&kbdev->reset_force_change);
 #endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
+#if IS_ENABLED(CONFIG_MALI_MTK_RECLAIM_POLICY)
+	MTKGPU_reclaim_policy_init(kbdev);
+#endif /* CONFIG_MALI_MTK_RECLAIM_POLICY */
 
 	return 0;
 }
@@ -508,6 +515,11 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 	MTKGPUPower_model_destroy();
 	mtk_mfg_counter_destroy();
 #endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_RECLAIM_POLICY)
+	MTKGPU_reclaim_policy_destroy(kbdev);
+#endif /* CONFIG_MALI_MTK_RECLAIM_POLICY */
+
 
 	mtk_platform_pm_term(kbdev);
 }

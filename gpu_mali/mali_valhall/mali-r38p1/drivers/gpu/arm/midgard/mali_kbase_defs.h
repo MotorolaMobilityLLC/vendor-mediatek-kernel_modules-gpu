@@ -1267,6 +1267,10 @@ struct kbase_device {
 	bool reset_force_hard_reset;
 	spinlock_t reset_force_change;
 #endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
+#if IS_ENABLED(CONFIG_MALI_MTK_RECLAIM_POLICY)
+	unsigned int reclaim_policy;
+#endif /* CONFIG_MALI_MTK_RECLAIM_POLICY */
+
 };
 
 /**

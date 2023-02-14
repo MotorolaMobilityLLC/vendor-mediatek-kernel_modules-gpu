@@ -721,6 +721,11 @@ unsigned long kbase_mem_evictable_reclaim_count_objects(struct shrinker *s,
 
 	kctx = container_of(s, struct kbase_context, reclaim);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_RECLAIM_POLICY)
+	if (kctx->kbdev->reclaim_policy == 1)
+		return 0;
+#endif /* CONFIG_MALI_MTK_RECLAIM_POLICY */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
 	// MTK add to prevent false alarm
 	lockdep_off();
@@ -773,6 +778,10 @@ unsigned long kbase_mem_evictable_reclaim_scan_objects(struct shrinker *s,
 	unsigned long freed = 0;
 
 	kctx = container_of(s, struct kbase_context, reclaim);
+#if IS_ENABLED(CONFIG_MALI_MTK_RECLAIM_POLICY)
+		if (kctx->kbdev->reclaim_policy == 1)
+			return SHRINK_STOP;
+#endif /* CONFIG_MALI_MTK_RECLAIM_POLICY */
 
 	mutex_lock(&kctx->jit_evict_lock);
 
@@ -836,6 +845,7 @@ int kbase_mem_evictable_init(struct kbase_context *kctx)
 	 * struct shrinker does not define batch
 	 */
 	kctx->reclaim.batch = 0;
+
 	register_shrinker(&kctx->reclaim);
 	return 0;
 }

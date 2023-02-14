@@ -44,6 +44,9 @@ endif ## CONFIG_MALI_MTK_IRQ_TRACE ##
 ifeq ($(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE),y)
     mali_kbase-y += $(curr)/mtk_platform_pending_submission.o
 endif ## CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE ##
+ifeq ($(CONFIG_MALI_MTK_RECLAIM_POLICY),y)
+	mali_kbase-y += $(curr)/mtk_platform_reclaim_policy.o
+endif ## CONFIG_MALI_MTK_RECLAIM_POLICY ##
 
 ccflags-y += -I$(srctree)/drivers/devfreq/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/perf_common/

@@ -1337,6 +1337,10 @@ static unsigned long kbase_csf_tiler_heap_reclaim_count_objects(struct shrinker 
 		.count_cb = count_kctx_unused_heap_pages_cb,
 		.scan_cb = scan_kctx_unused_heap_pages_cb,
 	};
+#if IS_ENABLED(CONFIG_MALI_MTK_RECLAIM_POLICY)
+	if (kbdev->reclaim_policy == 1)
+		return 0;
+#endif /* CONFIG_MALI_MTK_RECLAIM_POLICY */
 
 	return kbase_csf_scheduler_count_free_heap_pages(kbdev, &shrink_ctrl);
 }
@@ -1350,6 +1354,10 @@ static unsigned long kbase_csf_tiler_heap_reclaim_scan_objects(struct shrinker *
 		.count_cb = count_kctx_unused_heap_pages_cb,
 		.scan_cb = scan_kctx_unused_heap_pages_cb,
 	};
+#if IS_ENABLED(CONFIG_MALI_MTK_RECLAIM_POLICY)
+		if (kbdev->reclaim_policy == 1)
+			return SHRINK_STOP;
+#endif /* CONFIG_MALI_MTK_RECLAIM_POLICY */
 
 	return kbase_csf_scheduler_scan_free_heap_pages(kbdev, &shrink_ctrl);
 }
