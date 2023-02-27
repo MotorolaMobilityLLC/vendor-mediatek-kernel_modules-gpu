@@ -156,6 +156,10 @@ kbase_sync_fence_out_trigger(struct kbase_jd_atom *katom, int result)
 
 	kbase_sync_fence_out_remove(katom);
 
+#ifdef CONFIG_MALI_FENCE_DEBUG
+	kbasep_remove_waiting_soft_job(katom);
+#endif
+
 	return (result != 0) ? BASE_JD_EVENT_JOB_CANCELLED : BASE_JD_EVENT_DONE;
 }
 
