@@ -256,7 +256,9 @@ static inline void calc_prfcnt_delta(struct kbase_device *kbdev,
 		static bool warned;
 
 		if (!warned) {
-			dev_warn(kbdev->dev, "%s: GPU freq is unexpectedly 0", __func__);
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+			dev_vdbg(kbdev->dev, "%s: GPU freq is unexpectedly 0", __func__);
+#endif /* CONFIG_MALI_MTK_COMMON */
 			warned = true;
 		}
 	} else if (prfcnt->gpu_norm)
