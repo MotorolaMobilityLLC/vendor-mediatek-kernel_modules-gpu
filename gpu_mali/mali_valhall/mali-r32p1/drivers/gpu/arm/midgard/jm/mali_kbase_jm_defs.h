@@ -29,10 +29,6 @@
 
 #include "mali_kbase_js_defs.h"
 
-#if defined(CONFIG_GPU_MT6833)
-#define CONFIG_MALI_MTK_GPU_BM_JM
-#endif
-
 /* Dump Job slot trace on error (only active if KBASE_KTRACE_ENABLE != 0) */
 #define KBASE_KTRACE_DUMP_ON_JOB_SLOT_ERROR 1
 
@@ -845,9 +841,5 @@ struct kbase_as {
 	struct kbase_fault bf_data;
 	struct kbase_mmu_setup current_setup;
 };
-
-#if defined(CONFIG_GPU_MT6833)
-#undef CONFIG_MALI_MTK_GPU_BM_JM
-#endif
 
 #endif /* _KBASE_JM_DEFS_H_ */
