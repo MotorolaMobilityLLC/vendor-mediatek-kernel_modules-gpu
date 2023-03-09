@@ -1916,6 +1916,11 @@ int kbase_map_external_resource(struct kbase_context *kctx, struct kbase_va_regi
  * requires the caller to explicitly check their state.
  */
 void kbase_unmap_external_resource(struct kbase_context *kctx, struct kbase_va_region *reg);
+/**
+ * kbase_unpin_user_buf_page - Unpin a page of a user buffer.
+ * @page: page to unpin
+ */
+void kbase_unpin_user_buf_page(struct page *page);
 
 /**
  * kbase_jd_user_buf_pin_pages - Pin the pages of a user buffer.
