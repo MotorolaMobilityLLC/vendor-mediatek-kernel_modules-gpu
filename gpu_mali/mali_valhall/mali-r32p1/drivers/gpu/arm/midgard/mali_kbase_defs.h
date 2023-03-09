@@ -81,10 +81,6 @@
 
 #include "debug/mali_kbase_debug_ktrace_defs.h"
 
-#if defined(CONFIG_GPU_MT6833)
-#define CONFIG_MALI_MTK_GPU_BM_JM
-#endif
-
 
 /** Number of milliseconds before we time out on a GPU soft/hard reset */
 #define RESET_TIMEOUT           500
@@ -804,8 +800,8 @@ struct kbase_process {
  * @cache_clean_in_progress: Set when a cache clean has been started, and
  *                         cleared when it has finished. This prevents multiple
  *                         cache cleans being done simultaneously.
- * @cache_clean_queued:    Set if a cache clean is invoked while another is in
- *                         progress. If this happens, another cache clean needs
+ * @cache_clean_queued:    Pended cache clean operations invoked while another is
+ *                         in progress. If this is not 0, another cache clean needs
  *                         to be triggered immediately after completion of the
  *                         current one.
  * @cache_clean_wait:      Signalled when a cache clean has finished.
@@ -1073,7 +1069,7 @@ struct kbase_device {
 	u32 reset_timeout_ms;
 
 	bool cache_clean_in_progress;
-	bool cache_clean_queued;
+	u32 cache_clean_queued;
 	wait_queue_head_t cache_clean_wait;
 
 	void *platform_context;
@@ -1254,9 +1250,12 @@ struct kbase_device {
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	GED_LOG_BUF_HANDLE ged_log_buf_hnd_kbase;
-	struct mtk_debug_logbuf logbuf_kbase;
-	struct mtk_debug_logbuf logbuf_exception;
-	struct mtk_debug_logbuf logbuf_csffw;
+#endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+	bool reset_force_evict_group_work;
+	bool reset_force_hard_reset;
+	spinlock_t reset_force_change;
 #endif
 };
 
@@ -1981,8 +1980,5 @@ static inline bool kbase_device_is_cpu_coherent(struct kbase_device *kbdev)
 /* Maximum number of loops polling the GPU for an AS command to complete before we assume the GPU has hung */
 #define KBASE_AS_INACTIVE_MAX_LOOPS     100000000
 
-#if defined(CONFIG_GPU_MT6833)
-#undef CONFIG_MALI_MTK_GPU_BM_JM
-#endif
 
 #endif				/* _KBASE_DEFS_H_ */
