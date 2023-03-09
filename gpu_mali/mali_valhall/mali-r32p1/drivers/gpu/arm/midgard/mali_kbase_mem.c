@@ -4592,6 +4592,15 @@ void kbase_jit_report_update_pressure(struct kbase_context *kctx,
 }
 #endif /* MALI_JIT_PRESSURE_LIMIT_BASE */
 
+void kbase_unpin_user_buf_page(struct page *page)
+{
+#if KERNEL_VERSION(5, 9, 0) > LINUX_VERSION_CODE
+	put_page(page);
+#else
+	unpin_user_page(page);
+#endif
+}
+
 #if MALI_USE_CSF
 static void kbase_jd_user_buf_unpin_pages(struct kbase_mem_phy_alloc *alloc)
 {
@@ -4618,8 +4627,8 @@ static void kbase_jd_user_buf_unpin_pages(struct kbase_mem_phy_alloc *alloc)
 		WARN_ON(alloc->nents != alloc->imported.user_buf.nr_pages);
 
 		for (i = 0; i < alloc->nents; i++)
-			put_page(pages[i]);
-
+			kbase_unpin_user_buf_page(pages[i]);
+		
 		alloc->nents = 0;
 	}
 }
@@ -4683,7 +4692,7 @@ KERNEL_VERSION(4, 5, 0) > LINUX_VERSION_CODE
 		 * mapping by ensuring alloc->nents is 0
 		 */
 		for (i = 0; i < pinned_pages; i++)
-			put_page(pages[i]);
+			kbase_unpin_user_buf_page(pages[i]);
 		return -ENOMEM;
 	}
 
@@ -4770,7 +4779,7 @@ unwind:
 	kbase_mem_shrink_cpu_mapping(kctx, reg, 0, pinned_pages);
 
 	while (++i < pinned_pages) {
-		put_page(pages[i]);
+		kbase_unpin_user_buf_page(pages[i]);
 		pages[i] = NULL;
 	}
 
@@ -4809,7 +4818,7 @@ static void kbase_jd_user_buf_unmap(struct kbase_context *kctx, struct kbase_mem
 		if (writeable)
 			set_page_dirty_lock(pages[i]);
 #if !MALI_USE_CSF
-		put_page(pages[i]);
+		kbase_unpin_user_buf_page(pages[i]);
 		pages[i] = NULL;
 #endif
 
