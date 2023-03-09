@@ -54,10 +54,10 @@ static DEFINE_MUTEX(ion_config_lock);
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-#include <platform/mtk_platform_common/mtk_platform_debug.h>
+#include <platform/mtk_platform_common.h>
 #endif
 
-#if defined(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && defined(CONFIG_MTK_GZ_KREE)
+#if defined(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && defined(CONFIG_MTK_GZ_KREE) && 0
 #include <trusted_mem_api.h>
 #include <mtk/ion_sec_heap.h>
 #endif
@@ -1164,8 +1164,9 @@ int kbase_mem_do_sync_imported(struct kbase_context *kctx,
 			 "Failed to sync mem region %pK at GPU VA %llx: %d\n",
 			 reg, reg->start_pfn, ret);
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		mtk_common_debug_logbuf_print(&kctx->kbdev->logbuf_exception,
-			"Failed to sync mem region %pK at GPU VA %llx: %d",
+		ged_log_buf_print2(
+			kctx->kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
+			"Failed to sync mem region %pK at GPU VA %llx: %d\n",
 			reg, reg->start_pfn, ret);
 #endif
 	}
@@ -1269,7 +1270,7 @@ retry:
 		size_t j, pages = PFN_UP(sg_dma_len(s));
 		uint64_t phy_addr = 0;
 
-#if defined(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && defined(CONFIG_MTK_GZ_KREE)
+#if defined(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && defined(CONFIG_MTK_GZ_KREE) && 0
 		if (reg->flags & KBASE_REG_PROTECTED) {
 			enum TRUSTED_MEM_REQ_TYPE sec_mem_type = TRUSTED_MEM_REQ_SVP;
 			struct dma_buf *dma_buf = reg->gpu_alloc->imported.umm.dma_buf;
@@ -1867,7 +1868,7 @@ fault_mismatch:
 		 * the page
 		 */
 		for (i = 0; i < faulted_pages; i++)
-			put_page(pages[i]);
+			kbase_unpin_user_buf_page(pages[i]);
 	}
 no_page_array:
 invalid_flags:
