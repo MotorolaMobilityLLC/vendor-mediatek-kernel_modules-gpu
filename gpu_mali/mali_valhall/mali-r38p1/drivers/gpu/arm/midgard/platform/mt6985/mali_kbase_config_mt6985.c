@@ -101,6 +101,7 @@ static int pm_callback_power_on_nolock(struct kbase_device *kbdev)
 
 	/* get required frequency from GED */
 	g_cur_opp_idx = mtk_common_ged_dvfs_get_last_commit_idx();
+	mtk_common_ged_dvfs_write_sysram_last_commit_idx();
 
 	/* on,off/ SWCG(BG3D)/ MTCMOS/ BUCK */
 	if (gpufreq_power_control(POWER_ON, g_cur_opp_idx) < 0) {
