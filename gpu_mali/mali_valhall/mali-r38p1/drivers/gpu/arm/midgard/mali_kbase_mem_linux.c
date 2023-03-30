@@ -530,10 +530,10 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 				dev_vdbg(dev, "Coherent region overflow on tgid: %d, size %u\n", kctx->tgid, kctx->coherent_region_nr);
 				backup_size = kctx->coherent_region_nr * sizeof(struct kbase_va_region *);
 				tmp_coherent_regions = kmalloc(backup_size, GFP_KERNEL);
-				if (!kctx->coherenct_regions) {
+				if (!tmp_coherent_regions) {
 					dev_err(dev, "Re-allocate temp list fail: %d, size %u\n",
 						kctx->tgid, kctx->coherent_region_nr);
-					kfree(tmp_coherent_regions);
+					mutex_unlock(&kctx->coherenct_region_lock);
 					goto no_mem;
 				}
 				memcpy(tmp_coherent_regions, kctx->coherenct_regions, backup_size);
@@ -547,6 +547,7 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 					dev_err(dev, "Re-allocate region list fail: %d, size %u\n",
 						kctx->tgid, kctx->coherent_region_nr);
 					kfree(tmp_coherent_regions);
+					mutex_unlock(&kctx->coherenct_region_lock);
 					goto no_mem;
 				}
 				for(r_index = 0; r_index < kctx->coherent_region_nr; r_index++)
