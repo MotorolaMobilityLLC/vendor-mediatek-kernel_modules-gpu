@@ -36,7 +36,6 @@
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <platform/mtk_platform_common.h>
-#include <platform/mtk_platform_common/mtk_platform_debug.h>
 #endif
 
 #define CS_REQ_EXCEPTION_MASK (CS_REQ_FAULT_MASK | CS_REQ_FATAL_MASK)
@@ -478,6 +477,17 @@ static void release_queue(struct kbase_queue *queue)
 		/* The queue can't still be on the per context list. */
 		WARN_ON(!list_empty(&queue->link));
 		WARN_ON(queue->group);
+
+		/* After this the Userspace would be able to free the
+		 * memory for GPU queue. In case the Userspace missed
+		 * terminating the queue, the cleanup will happen on
+		 * context termination where tear down of region tracker
+		 * would free up the GPU queue memory.
+		 */
+		kbase_gpu_vm_lock(queue->kctx);
+		kbase_va_region_no_user_free_put(queue->kctx, queue->queue_reg);
+		kbase_gpu_vm_unlock(queue->kctx);
+
 		kfree(queue);
 	}
 }
@@ -531,7 +541,8 @@ static int csf_queue_register_internal(struct kbase_context *kctx,
 	region = kbase_region_tracker_find_region_enclosing_address(kctx,
 								    queue_addr);
 
-	if (kbase_is_region_invalid_or_free(region)) {
+	if (kbase_is_region_invalid_or_free(region) || kbase_is_region_shrinkable(region) ||
+	    region->gpu_alloc->type != KBASE_MEM_TYPE_NATIVE) {
 		ret = -ENOENT;
 		goto out_unlock_vm;
 	}
@@ -580,7 +591,7 @@ static int csf_queue_register_internal(struct kbase_context *kctx,
 
 	queue->kctx = kctx;
 	queue->base_addr = queue_addr;
-	queue->queue_reg = region;
+	queue->queue_reg = kbase_va_region_no_user_free_get(kctx, region);
 	queue->size = (queue_size << PAGE_SHIFT);
 	queue->csi_index = KBASEP_IF_NR_INVALID;
 	queue->enabled = false;
@@ -610,7 +621,6 @@ static int csf_queue_register_internal(struct kbase_context *kctx,
 
 	queue->extract_ofs = 0;
 
-	region->flags |= KBASE_REG_NO_USER_FREE;
 	region->user_data = queue;
 
 	/* Initialize the cs_trace configuration parameters, When buffer_size
@@ -688,10 +698,7 @@ void kbase_csf_queue_terminate(struct kbase_context *kctx,
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 		ged_log_buf_print2(
 			kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
-			"Unsuccessful GPU reset detected when terminating queue (buffer_addr=0x%.16llx), attempting to terminate regardless",
-			term->buffer_gpu_addr);
-		mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
-		    "Unsuccessful GPU reset detected when terminating queue (buffer_addr=0x%.16llx), attempting to terminate regardless",
+			"Unsuccessful GPU reset detected when terminating queue (buffer_addr=0x%.16llx), attempting to terminate regardless\n",
 			term->buffer_gpu_addr);
 #endif
 	} else
@@ -715,16 +722,8 @@ void kbase_csf_queue_terminate(struct kbase_context *kctx,
 		unbind_queue(kctx, queue);
 
 		kbase_gpu_vm_lock(kctx);
-		if (!WARN_ON(!queue->queue_reg)) {
-			/* After this the Userspace would be able to free the
-			 * memory for GPU queue. In case the Userspace missed
-			 * terminating the queue, the cleanup will happen on
-			 * context termination where tear down of region tracker
-			 * would free up the GPU queue memory.
-			 */
-			queue->queue_reg->flags &= ~KBASE_REG_NO_USER_FREE;
+		if (!WARN_ON(!queue->queue_reg))
 			queue->queue_reg->user_data = NULL;
-		}
 		kbase_gpu_vm_unlock(kctx);
 
 		spin_lock_irqsave(&kctx->csf.event_lock, flags);
@@ -861,6 +860,7 @@ void kbase_csf_ring_csg_doorbell(struct kbase_device *kbdev, int slot)
 	if (WARN_ON(slot < 0))
 		return;
 
+	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 	kbase_csf_ring_csg_slots_doorbell(kbdev, (u32) (1 << slot));
 }
 
@@ -873,8 +873,19 @@ void kbase_csf_ring_csg_slots_doorbell(struct kbase_device *kbdev,
 		(u32) ((1U << kbdev->csf.global_iface.group_num) - 1);
 	u32 value;
 
+	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
+
 	if (WARN_ON(slot_bitmap > allowed_bitmap))
 		return;
+
+	/* The access to GLB_DB_REQ/ACK needs to be ordered with respect to CSG_REQ/ACK and
+	 * CSG_DB_REQ/ACK to avoid a scenario where a CSI request overlaps with a CSG request
+	 * or 2 CSI requests overlap and FW ends up missing the 2nd request.
+	 * Memory barrier is required, both on Host and FW side, to guarantee the ordering.
+	 *
+	 * 'osh' is used as CPU and GPU would be in the same Outer shareable domain.
+	 */
+	dmb(osh);
 
 	value = kbase_csf_firmware_global_output(global_iface, GLB_DB_ACK);
 	value ^= slot_bitmap;
@@ -902,6 +913,8 @@ void kbase_csf_ring_cs_kernel_doorbell(struct kbase_device *kbdev,
 	struct kbase_csf_cmd_stream_group_info *ginfo;
 	u32 value;
 
+	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
+
 	if (WARN_ON(csg_nr < 0) ||
 	    WARN_ON(csg_nr >= kbdev->csf.global_iface.group_num))
 		return;
@@ -911,6 +924,8 @@ void kbase_csf_ring_cs_kernel_doorbell(struct kbase_device *kbdev,
 	if (WARN_ON(csi_index < 0) ||
 	    WARN_ON(csi_index >= ginfo->stream_num))
 		return;
+
+	dmb(osh);
 
 	value = kbase_csf_firmware_csg_output(ginfo, CSG_DB_ACK);
 	value ^= (1 << csi_index);
@@ -1613,10 +1628,7 @@ void kbase_csf_queue_group_terminate(struct kbase_context *kctx,
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 		 ged_log_buf_print2(
 			kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
-			"Unsuccessful GPU reset detected when terminating group %d, attempting to terminate regardless",
-			group_handle);
-		mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
-		    "Unsuccessful GPU reset detected when terminating group %d, attempting to terminate regardless",
+			"Unsuccessful GPU reset detected when terminating group %d, attempting to terminate regardless\n",
 			group_handle);
 #endif
 	} else
@@ -1629,34 +1641,38 @@ void kbase_csf_queue_group_terminate(struct kbase_context *kctx,
 	if (group) {
 		unsigned long flags;
 
-		spin_lock_irqsave(&kctx->csf.event_lock, flags);
-
-		dev_vdbg(kbdev->dev,
-			"Remove any pending group fatal error from context %pK\n",
-			(void *)group->kctx);
-
-		list_del_init(&group->error_tiler_oom.link);
-		list_del_init(&group->error_timeout.link);
-		list_del_init(&group->error_fatal.link);
-		spin_unlock_irqrestore(&kctx->csf.event_lock, flags);
-
+                /* Stop the running of the given group */
 		term_queue_group(group);
 		kctx->csf.queue_groups[group_handle] = NULL;
+
+		mutex_unlock(&kctx->csf.lock);
+
+		/* Cancel any pending event callbacks. If one is in progress
+		 * then this thread waits synchronously for it to complete (which
+		 * is why we must unlock the context first). We already ensured
+		 * that no more callbacks can be enqueued by terminating the group.
+		 */
+		cancel_queue_group_events(group);
+
+		mutex_lock(&kctx->csf.lock);
+
+		/* Clean up after the termination */
+                spin_lock_irqsave(&kctx->csf.event_lock, flags);
+
+                dev_dbg(kbdev->dev,
+                        "Remove any pending group fatal error from context %pK\n",
+                        (void *)group->kctx);
+
+                list_del_init(&group->error_tiler_oom.link);
+                list_del_init(&group->error_timeout.link);
+                list_del_init(&group->error_fatal.link);
+                spin_unlock_irqrestore(&kctx->csf.event_lock, flags);
 	}
 
 	mutex_unlock(&kctx->csf.lock);
 	if (reset_prevented)
 		kbase_reset_gpu_allow(kbdev);
 
-	if (!group)
-		return;
-
-	/* Cancel any pending event callbacks. If one is in progress
-	 * then this thread waits synchronously for it to complete (which
-	 * is why we must unlock the context first). We already ensured
-	 * that no more callbacks can be enqueued by terminating the group.
-	 */
-	cancel_queue_group_events(group);
 	kfree(group);
 }
 
@@ -1722,13 +1738,17 @@ static void add_error(struct kbase_context *const kctx,
 
 	spin_lock_irqsave(&kctx->csf.event_lock, flags);
 
-	if (!WARN_ON(!list_empty(&error->link))) {
+	if (list_empty(&error->link)) {
 		error->data = *data;
 		list_add_tail(&error->link, &kctx->csf.error_list);
 		dev_vdbg(kctx->kbdev->dev,
 			"Added error %pK of type %d in context %pK\n",
 			(void *)error, data->type, (void *)kctx);
-	}
+	} else {
+		dev_vdbg(kctx->kbdev->dev,
+			"Error %pK of type %d already pending in context %pK",
+			(void *)error, error->data.type, (void *)kctx);
+ 	}
 
 	spin_unlock_irqrestore(&kctx->csf.event_lock, flags);
 }
@@ -1819,12 +1839,6 @@ int kbase_csf_ctx_init(struct kbase_context *kctx)
 
 	/* Mark all the cookies as 'free' */
 	bitmap_fill(kctx->csf.cookies, KBASE_CSF_NUM_USER_IO_PAGES_HANDLE);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	mtk_common_debug_logbuf_print(&kbdev->logbuf_kbase,
-		"Created context %d_%d for process '%s'",
-		kctx->tgid, kctx->id, current->comm);
-#endif
 
 	kctx->csf.wq = alloc_workqueue("mali_kbase_csf_wq",
 					WQ_UNBOUND, 1);
@@ -1920,12 +1934,6 @@ void kbase_csf_ctx_term(struct kbase_context *kctx)
 	int err;
 	bool reset_prevented = false;
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	mtk_common_debug_logbuf_print(&kbdev->logbuf_kbase,
-		"Destroying context %d_%d for process '%s'",
-		kctx->tgid, kctx->id, current->comm);
-#endif
-
 	/* As the kbase context is terminating, its debugfs sub-directory would
 	 * have been removed already and so would be the debugfs file created
 	 * for queue groups & kcpu queues, hence no need to explicitly remove
@@ -2003,9 +2011,7 @@ void kbase_csf_ctx_term(struct kbase_context *kctx)
 		 * only one reference left that was taken when queue was
 		 * registered.
 		 */
-		if (atomic_read(&queue->refcount) != 1)
-			dev_warn(kctx->kbdev->dev,
-				 "Releasing queue with incorrect refcounting!\n");
+		WARN_ON(atomic_read(&queue->refcount) != 1);
 		list_del_init(&queue->link);
 		release_queue(queue);
 	}
@@ -2290,6 +2296,7 @@ static void kbase_queue_oom_event(struct kbase_queue *const queue)
 	struct kbase_csf_cmd_stream_info const *stream;
 	int csi_index = queue->csi_index;
 	u32 cs_oom_ack, cs_oom_req;
+	unsigned long flags;
 
 	lockdep_assert_held(&kctx->csf.lock);
 
@@ -2335,8 +2342,11 @@ static void kbase_queue_oom_event(struct kbase_queue *const queue)
 
 	err = handle_oom_event(kctx, stream);
 
+	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 	kbase_csf_firmware_cs_input_mask(stream, CS_REQ, cs_oom_ack,
 					 CS_REQ_TILER_OOM_MASK);
+	kbase_csf_ring_cs_kernel_doorbell(kbdev, csi_index, slot_num, true);
+	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 
 	if (err) {
 		dev_warn(
@@ -2348,7 +2358,6 @@ static void kbase_queue_oom_event(struct kbase_queue *const queue)
 		return;
 	}
 
-	kbase_csf_ring_cs_kernel_doorbell(kbdev, csi_index, slot_num, true);
 unlock:
 	kbase_csf_scheduler_unlock(kbdev);
 }
@@ -2534,34 +2543,22 @@ handle_fault_event(struct kbase_queue *const queue,
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
-		 "Ctx %d_%d Group %d CSG %d CSI: %d\n"
-		 "CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
-		 "CS_FAULT.EXCEPTION_DATA: 0x%x\n"
-		 "CS_FAULT_INFO.EXCEPTION_DATA: 0x%llx\n",
-		 queue->kctx->tgid, queue->kctx->id, queue->group->handle,
-		 queue->group->csg_nr, queue->csi_index,
-		 cs_fault_exception_type,
-		 kbase_gpu_exception_name(cs_fault_exception_type),
-		 cs_fault_exception_data, cs_fault_info_exception_data);
-	mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
-		 "Ctx %d_%d Group %d CSG %d CSI: %d\n"
-		 "CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
-		 "CS_FAULT.EXCEPTION_DATA: 0x%x\n"
-		 "CS_FAULT_INFO.EXCEPTION_DATA: 0x%llx",
-		 queue->kctx->tgid, queue->kctx->id, queue->group->handle,
-		 queue->group->csg_nr, queue->csi_index,
-		 cs_fault_exception_type,
-		 kbase_gpu_exception_name(cs_fault_exception_type),
-		 cs_fault_exception_data, cs_fault_info_exception_data);
+	ged_log_buf_print2(
+		kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
+		"Ctx %d_%d Group %d CSG %d CSI: %d\n"
+		"CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
+		"CS_FAULT.EXCEPTION_DATA: 0x%x\n"
+		"CS_FAULT_INFO.EXCEPTION_DATA: 0x%llx\n",
+		queue->kctx->tgid, queue->kctx->id, queue->group->handle,
+		queue->group->csg_nr, queue->csi_index,
+		cs_fault_exception_type,
+		kbase_gpu_exception_name(cs_fault_exception_type),
+		cs_fault_exception_data, cs_fault_info_exception_data);
 
-	/* print out records for 0x4b */
 	if (cs_fault_exception_type == CS_FAULT_EXCEPTION_TYPE_CS_INHERIT_FAULT)
 	{
-		if (0 == cs_inherit_fault_count++) {
+		if (0 == cs_inherit_fault_count++)
 			ged_log_dump(kbdev->ged_log_buf_hnd_kbase);
-			mtk_common_debug_logbuf_dump(&kbdev->logbuf_exception, NULL);
-		}
 //		ged_log_buf_reset(kbdev->ged_log_buf_hnd_kbase);
 	}
 	else
@@ -2608,10 +2605,9 @@ static void fatal_event_worker(struct work_struct *const data)
 			kbdev->dev,
 			"Unsuccessful GPU reset detected when terminating group to handle fatal event, attempting to terminate regardless");
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
-			"Unsuccessful GPU reset detected when terminating group to handle fatal event, attempting to terminate regardless");
-		mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
-			"Unsuccessful GPU reset detected when terminating group to handle fatal event, attempting to terminate regardless");
+		ged_log_buf_print2(
+			kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
+			"Unsuccessful GPU reset detected when terminating group to handle fatal event, attempting to terminate regardless\n");
 #endif
 	} else
 		reset_prevented = true;
@@ -2622,10 +2618,9 @@ static void fatal_event_worker(struct work_struct *const data)
 	if (!group) {
 		dev_warn(kbdev->dev, "queue not bound when handling fatal event");
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
-			"queue not bound when handling fatal event");
-		mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
-			"queue not bound when handling fatal event");
+		ged_log_buf_print2(
+			kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
+			"queue not bound when handling fatal event\n");
 #endif
 		goto unlock;
 	}
@@ -2684,26 +2679,17 @@ handle_fatal_event(struct kbase_queue *const queue,
 		 cs_fatal_exception_data, cs_fatal_info_exception_data);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
-		 "Ctx %d_%d Group %d CSG %d CSI: %d\n"
-		 "CS_FATAL.EXCEPTION_TYPE: 0x%x (%s)\n"
-		 "CS_FATAL.EXCEPTION_DATA: 0x%x\n"
-		 "CS_FATAL_INFO.EXCEPTION_DATA: 0x%llx\n",
-		 queue->kctx->tgid, queue->kctx->id, queue->group->handle,
-		 queue->group->csg_nr, queue->csi_index,
-		 cs_fatal_exception_type,
-		 kbase_gpu_exception_name(cs_fatal_exception_type),
-		 cs_fatal_exception_data, cs_fatal_info_exception_data);
-	mtk_common_debug_logbuf_print(&kbdev->logbuf_exception,
-		 "Ctx %d_%d Group %d CSG %d CSI: %d\n"
-		 "CS_FATAL.EXCEPTION_TYPE: 0x%x (%s)\n"
-		 "CS_FATAL.EXCEPTION_DATA: 0x%x\n"
-		 "CS_FATAL_INFO.EXCEPTION_DATA: 0x%llx",
-		 queue->kctx->tgid, queue->kctx->id, queue->group->handle,
-		 queue->group->csg_nr, queue->csi_index,
-		 cs_fatal_exception_type,
-		 kbase_gpu_exception_name(cs_fatal_exception_type),
-		 cs_fatal_exception_data, cs_fatal_info_exception_data);
+	ged_log_buf_print2(
+		kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
+		"Ctx %d_%d Group %d CSG %d CSI: %d\n"
+		"CS_FATAL.EXCEPTION_TYPE: 0x%x (%s)\n"
+		"CS_FATAL.EXCEPTION_DATA: 0x%x\n"
+		"CS_FATAL_INFO.EXCEPTION_DATA: 0x%llx\n",
+		queue->kctx->tgid, queue->kctx->id, queue->group->handle,
+		queue->group->csg_nr, queue->csi_index,
+		cs_fatal_exception_type,
+		kbase_gpu_exception_name(cs_fatal_exception_type),
+		cs_fatal_exception_data, cs_fatal_info_exception_data);
 #endif
 
 	if (cs_fatal_exception_type ==
@@ -2842,6 +2828,11 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 					 * one pending OoM event for a
 					 * queue.
 					 */
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+					ged_log_buf_print2(
+						kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
+						"OoM event have been already queued\n");
+#endif
 					release_queue(queue);
 				}
 			}
@@ -3001,7 +2992,12 @@ static void process_csg_interrupts(struct kbase_device *const kbdev, int const c
 			"[%llu] Iterator PROGRESS_TIMER timeout notification received for group %u of ctx %d_%d on slot %d\n",
 			kbase_backend_get_cycle_cnt(kbdev),
 			group->handle, group->kctx->tgid, group->kctx->id, csg_nr);
-
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		ged_log_buf_print2(
+			kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
+			"Iterator PROGRESS_TIMER timeout notification received for group %u of ctx %d_%d on slot %d\n",
+			group->handle, group->kctx->tgid, group->kctx->id, csg_nr);
+#endif
 		handle_progress_timer_event(group);
 	}
 
@@ -3152,11 +3148,6 @@ static inline void process_protm_exit(struct kbase_device *kbdev, u32 glb_ack)
 
 	dev_vdbg(kbdev->dev, "Protected mode exit interrupt received");
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	mtk_common_debug_logbuf_print(&kbdev->logbuf_kbase,
-		"Protected mode exit interrupt received");
-#endif
-
 	kbase_csf_firmware_global_input_mask(global_iface, GLB_REQ, glb_ack,
 					     GLB_REQ_PROTM_EXIT_MASK);
 
@@ -3233,6 +3224,29 @@ static inline void process_tracked_info_for_protm(struct kbase_device *kbdev,
 	}
 }
 
+static void order_job_irq_clear_with_iface_mem_read(void)
+{
+	/* Ensure that write to the JOB_IRQ_CLEAR is ordered with regards to the
+	 * read from interface memory. The ordering is needed considering the way
+	 * FW & Kbase writes to the JOB_IRQ_RAWSTAT and JOB_IRQ_CLEAR registers
+	 * without any synchronization. Without the barrier there is no guarantee
+	 * about the ordering, the write to IRQ_CLEAR can take effect after the read
+	 * from interface memory and that could cause a problem for the scenario where
+	 * FW sends back to back notifications for the same CSG for events like
+	 * SYNC_UPDATE and IDLE, but Kbase gets a single IRQ and observes only the
+	 * first event. Similar thing can happen with glb events like CFG_ALLOC_EN
+	 * acknowledgment and GPU idle notification.
+	 *
+	 *       MCU                                    CPU
+	 *  ---------------                         ----------------
+	 *  Update interface memory                 Write to IRQ_CLEAR to clear current IRQ
+	 *  <barrier>                               <barrier>
+	 *  Write to IRQ_RAWSTAT to raise new IRQ   Read interface memory
+	 */
+	/* CPU and GPU would be in the same Outer shareable domain */
+	dmb(osh);
+}
+
 void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 {
 	unsigned long flags;
@@ -3250,6 +3264,7 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 
 	KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT, NULL, val);
 	kbase_reg_write(kbdev, JOB_CONTROL_REG(JOB_IRQ_CLEAR), val);
+	order_job_irq_clear_with_iface_mem_read();
 
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
 	if (csg_interrupts != 0) {

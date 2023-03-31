@@ -519,6 +519,10 @@ struct kbase_csf_kcpu_queue_context {
 	struct kbase_kcpu_command_queue *array[KBASEP_MAX_KCPU_QUEUES];
 	DECLARE_BITMAP(in_use, KBASEP_MAX_KCPU_QUEUES);
 	struct workqueue_struct *wq;
+#ifdef CONFIG_MALI_FENCE_DEBUG
+	struct workqueue_struct *timeout_wq;
+#endif /* CONFIG_MALI_FENCE_DEBUG */
+
 	u64 num_cmds;
 
 	struct list_head jit_cmds_head;
@@ -558,6 +562,12 @@ struct kbase_csf_cpu_queue_context {
  * @lock:     Lock preventing concurrent access to the @in_use bitmap.
  * @in_use:   Bitmap that indicates which heap context structures are currently
  *            allocated (in @region).
+ * @heap_context_size_aligned: Size of a heap context structure, in bytes,
+ *                             aligned to GPU cacheline size.
+ *
+ * Heap context structures are allocated by the kernel for use by the firmware.
+ * The current implementation subdivides a single GPU memory region for use as
+ * a sparse array.
  */
 struct kbase_csf_heap_context_allocator {
 	struct kbase_context *kctx;
@@ -565,6 +575,7 @@ struct kbase_csf_heap_context_allocator {
 	u64 gpu_va;
 	struct mutex lock;
 	DECLARE_BITMAP(in_use, MAX_TILER_HEAPS);
+	u32 heap_context_size_aligned;
 };
 
 /**
