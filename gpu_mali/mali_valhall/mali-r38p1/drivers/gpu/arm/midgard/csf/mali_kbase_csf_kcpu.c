@@ -381,6 +381,14 @@ static int kbase_kcpu_jit_allocate_prepare(
 
 	lockdep_assert_held(&kcpu_queue->lock);
 
+	if (!kbase_mem_allow_alloc(kctx)) {
+		dev_dbg(kctx->kbdev->dev,
+			"Invalid attempt to allocate JIT memory by %s/%d for ctx %d_%d",
+			current->comm, current->pid, kctx->tgid, kctx->id);
+		ret = -EINVAL;
+		goto out;
+	}
+
 	if (!data || count > kcpu_queue->kctx->jit_max_allocations ||
 			count > ARRAY_SIZE(kctx->jit_alloc)) {
 		ret = -EINVAL;
@@ -674,12 +682,15 @@ static int kbase_csf_queue_group_suspend_prepare(
 							sus_buf->pages);
 		kbase_gpu_vm_lock(kctx);
 
-		if (pinned_pages < 0) {
-			ret = pinned_pages;
-			goto out_clean_pages;
-		}
 		if (pinned_pages != nr_pages) {
-			ret = -EINVAL;
+			int i;
+
+			/* Unpin those partially pinned pages */
+			for (i = 0; i < pinned_pages; i++)
+				kbase_unpin_user_buf_page(sus_buf->pages[i]);
+
+			/* Set the error return value */
+			ret = (pinned_pages < 0) ? pinned_pages : -EINVAL;
 			goto out_clean_pages;
 		}
 	} else {
@@ -2043,7 +2054,7 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 
 			break;
 		}
-		case BASE_KCPU_COMMAND_TYPE_JIT_FREE:
+		case BASE_KCPU_COMMAND_TYPE_JIT_FREE: {
 			KBASE_TLSTREAM_TL_KBASE_KCPUQUEUE_EXECUTE_JIT_FREE_START(kbdev, queue);
 
 			status = kbase_kcpu_jit_free_process(queue, cmd);
@@ -2053,6 +2064,7 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 			KBASE_TLSTREAM_TL_KBASE_KCPUQUEUE_EXECUTE_JIT_FREE_END(
 				kbdev, queue);
 			break;
+		}
 		case BASE_KCPU_COMMAND_TYPE_GROUP_SUSPEND: {
 			struct kbase_suspend_copy_buffer *sus_buf =
 					cmd->info.suspend_buf_copy.sus_buf;
@@ -2069,18 +2081,18 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 
 				KBASE_TLSTREAM_TL_KBASE_KCPUQUEUE_EXECUTE_GROUP_SUSPEND_END(
 					kbdev, queue, status);
+			}
 
-				if (!sus_buf->cpu_alloc) {
-					int i;
+			if (!sus_buf->cpu_alloc) {
+				int i;
 
-					for (i = 0; i < sus_buf->nr_pages; i++)
-						put_page(sus_buf->pages[i]);
-				} else {
-					kbase_mem_phy_alloc_kernel_unmapped(
-						sus_buf->cpu_alloc);
-					kbase_mem_phy_alloc_put(
-						sus_buf->cpu_alloc);
-				}
+				for (i = 0; i < sus_buf->nr_pages; i++)
+					put_page(sus_buf->pages[i]);
+			} else {
+				kbase_mem_phy_alloc_kernel_unmapped(
+					sus_buf->cpu_alloc);
+				kbase_mem_phy_alloc_put(
+					sus_buf->cpu_alloc);
 			}
 
 			kfree(sus_buf->pages);
