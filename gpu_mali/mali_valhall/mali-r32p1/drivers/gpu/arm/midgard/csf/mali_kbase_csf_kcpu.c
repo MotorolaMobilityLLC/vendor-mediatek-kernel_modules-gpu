@@ -1053,6 +1053,23 @@ static int kbase_kcpu_cqs_wait_operation_process(struct kbase_device *kbdev,
 				break;
 			}
 
+			switch (cqs_wait_operation->objs[i].data_type) {
+			default:
+				WARN_ON(!kbase_kcpu_cqs_is_data_type_valid(
+					cqs_wait_operation->objs[i].data_type));
+				kbase_phy_alloc_mapping_put(queue->kctx, mapping);
+				queue->has_error = true;
+				return -EINVAL;
+			case BASEP_CQS_DATA_TYPE_U32:
+				val = *(u32 *)evt;
+				evt += BASEP_EVENT32_ERR_OFFSET - BASEP_EVENT32_VAL_OFFSET;
+				break;
+			case BASEP_CQS_DATA_TYPE_U64:
+				val = *(u64 *)evt;
+				evt += BASEP_EVENT64_ERR_OFFSET - BASEP_EVENT64_VAL_OFFSET;
+				break;
+			}
+
 			switch (cqs_wait_operation->objs[i].operation) {
 			case BASEP_CQS_WAIT_OPERATION_LE:
 				sig_set = val <= cqs_wait_operation->objs[i].val;
@@ -1776,12 +1793,10 @@ static void kcpu_queue_timeout_worker(struct work_struct *data)
 	         kctx->tgid);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	ged_log_buf_print2(kctx->kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
-		 "%s: mali fence timeouts(%d ms)! kcpu_queue=%u pid=%d\n",
-		 __func__,
-		 FENCE_WAIT_TIMEOUT_MS,
-		 kcpu_queue->id,
-		 kctx->tgid);
+	ged_log_buf_print2(
+		kctx->kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
+		"%s: mali fence timeouts(%d ms)! kcpu_queue=%u pid=%d\n",
+		__func__, FENCE_WAIT_TIMEOUT_MS, kcpu_queue->id, kctx->tgid);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 	mtk_debug_csf_dump_groups_and_queues(kctx->kbdev, kctx->tgid);
