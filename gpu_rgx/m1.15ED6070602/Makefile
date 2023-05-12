@@ -6,6 +6,13 @@ ifeq ($(MTK_PLATFORM),mt6855)
 else ifeq ($(MTK_PLATFORM),mt6761)
 	PVR_ARCH := rogue
 	CONFIG_MACH_MT6761 := y
+	ccflags-y += -DCONFIG_MACH_MT6761
+else ifeq ($(MTK_PLATFORM),mt6739)
+	PVR_ARCH := rogue
+	CONFIG_MACH_MT6739 := y
+else ifeq ($(MTK_PLATFORM),mt6765)
+	PVR_ARCH := rogue
+	CONFIG_MACH_MT6765 := y
 endif
 
 ccflags-$(CONFIG_MTK_TINYSYS_SSPM_SUPPORT) += -DSSPM_DEBUG
@@ -258,9 +265,11 @@ ccflags-y += \
 	-I$(srctree)/drivers/gpu/mediatek \
 	-I$(srctree)/drivers/gpu/mediatek/ged/include \
 	-I$(srctree)/drivers/gpu/mediatek/mt-plat \
-	-I$(srctree)/drivers/gpu/mediatek/gpufreq \
+	-I$(srctree)/drivers/gpu/mediatek/gpufreq/v2/include \
 	-I$(srctree)/drivers/gpu/mediatek/gpu_bm \
 	-I$(srctree)/drivers/misc/mediatek/include/mt-plat
 
-obj-$(CONFIG_MTK_GPU_SUPPORT) += pvrsrvkm_$(MTK_PLATFORM).o
-pvrsrvkm_$(MTK_PLATFORM)-y := pvrsrvkm.o
+ifneq ($(filter $(CONFIG_MTK_GPU_SUPPORT),y m),)
+	obj-m += pvrsrvkm_$(MTK_PLATFORM).o
+	pvrsrvkm_$(MTK_PLATFORM)-y := pvrsrvkm.o
+endif
