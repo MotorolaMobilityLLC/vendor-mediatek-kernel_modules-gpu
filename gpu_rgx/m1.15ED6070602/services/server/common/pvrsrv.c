@@ -141,7 +141,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 #if defined(MTK_MINI_PORTING) && defined(CONFIG_MTK_GPUFREQ_V2)
-#include <mtk_gpufreq.h>
+#include <gpufreq_v2.h>
 #endif
 
 #if defined(PVRSRV_SERVER_THREADS_INDEFINITE_SLEEP)
