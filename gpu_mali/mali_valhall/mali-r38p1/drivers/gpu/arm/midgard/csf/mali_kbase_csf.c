@@ -281,7 +281,7 @@ int kbase_csf_alloc_command_stream_user_pages(struct kbase_context *kctx, struct
 	lockdep_assert_held(&kctx->csf.lock);
 
 	ret = kbase_mem_pool_alloc_pages(&kctx->mem_pools.small[KBASE_MEM_GROUP_CSF_IO], num_pages,
-					 queue->phys, false);
+					 queue->phys, false, kctx->task);
 	if (ret != num_pages) {
 		/* Marking both the phys to zero for indicating there is no phys allocated */
 		queue->phys[0].tagged_addr = 0;
@@ -1082,7 +1082,7 @@ static int create_normal_suspend_buffer(struct kbase_context *const kctx,
 	/* Get physical page for a normal suspend buffer */
 	err = kbase_mem_pool_alloc_pages(
 			&kctx->mem_pools.small[KBASE_MEM_GROUP_CSF_FW],
-			nr_pages, &s_buf->phy[0], false);
+			nr_pages, &s_buf->phy[0], false, kctx->task);
 
 	if (err < 0) {
 		kfree(s_buf->phy);
@@ -3287,7 +3287,7 @@ int kbase_csf_doorbell_mapping_init(struct kbase_device *kbdev)
 
 	ret = kbase_mem_pool_alloc_pages(
 		&kbdev->mem_pools.small[KBASE_MEM_GROUP_CSF_FW],
-		1, &phys, false);
+		1, &phys, false, NULL);
 
 	if (ret <= 0) {
 		fput(filp);
@@ -3323,7 +3323,7 @@ int kbase_csf_setup_dummy_user_reg_page(struct kbase_device *kbdev)
 
 	ret = kbase_mem_pool_alloc_pages(
 		&kbdev->mem_pools.small[KBASE_MEM_GROUP_CSF_FW], 1, &phys,
-		false);
+		false, NULL);
 
 	if (ret <= 0)
 		return ret;

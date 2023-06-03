@@ -1896,6 +1896,7 @@ struct kbase_context {
 #if !MALI_USE_CSF
 	void *platform_data;
 #endif
+	struct task_struct *task;
 #if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
 	struct mutex coherenct_region_lock;
 	struct kbase_va_region *coherenct_regions[MAX_COHERENT_REGION];
