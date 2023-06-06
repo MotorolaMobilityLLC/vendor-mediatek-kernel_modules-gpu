@@ -724,7 +724,7 @@ int kbase_csf_mcu_shared_regs_data_init(struct kbase_device *kbdev)
 		return -ENOMEM;
 
 	if (kbase_mem_pool_alloc_pages(&kbdev->mem_pools.small[KBASE_MEM_GROUP_CSF_FW], 1,
-				       &shared_regs->dummy_phys[0], false) <= 0)
+				       &shared_regs->dummy_phys[0], false, NULL) <= 0)
 		return -ENOMEM;
 
 	shared_regs->dummy_phys_allocated = true;
