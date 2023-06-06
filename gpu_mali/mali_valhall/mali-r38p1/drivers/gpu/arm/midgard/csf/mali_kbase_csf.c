@@ -1811,6 +1811,14 @@ void kbase_csf_ctx_handle_fault(struct kbase_context *kctx,
 			kctx->csf.queue_groups[gr];
 
 		if (group && group->run_state != KBASE_CSF_GROUP_TERMINATED) {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+			dev_info(kbdev->dev, "Terminate ctx %d_%d, group %d, kbase_csf_ctx_handle_fault", group->kctx->tgid, group->kctx->id, group->handle);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+				"Terminate ctx %d_%d, group %d, kbase_csf_ctx_handle_fault\n", group->kctx->tgid, group->kctx->id, group->handle);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 			term_queue_group(group);
 			kbase_csf_add_group_fatal_error(group, &err_payload);
 			reported = true;
@@ -2130,9 +2138,16 @@ static void kbase_queue_oom_event(struct kbase_queue *const queue)
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 
 	if (err) {
-		dev_warn(
+		dev_info(
 			kbdev->dev,
 			"Queue group to be terminated, couldn't handle the OoM event\n");
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		dev_info(kbdev->dev, "Terminate ctx %d_%d, group %d, kbase_queue_oom_event", group->kctx->tgid, group->kctx->id, group->handle);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+			"Terminate ctx %d_%d, group %d, kbase_queue_oom_event\n", group->kctx->tgid, group->kctx->id, group->handle);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_DEBUG */
 		kbase_csf_scheduler_unlock(kbdev);
 		term_queue_group(group);
 		report_tiler_oom_error(group);
@@ -2225,6 +2240,13 @@ static void timer_event_worker(struct work_struct *data)
 
 	mutex_lock(&kctx->csf.lock);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_info(kctx->kbdev->dev, "Terminate ctx %d_%d, group %d, timer_event_worker", group->kctx->tgid, group->kctx->id, group->handle);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
+			"Terminate ctx %d_%d, group %d, timer_event_worker\n", group->kctx->tgid, group->kctx->id, group->handle);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_DEBUG */
 	term_queue_group(group);
 	report_group_timeout_error(group);
 
@@ -2508,6 +2530,14 @@ static void fatal_event_worker(struct work_struct *const data)
 
 	kctx->has_page_faults = true;
 	dev_err(kctx->kbdev->dev, "CET: start to track queue termination and recreation ctx %d_%d from here", kctx->tgid, kctx->id);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		dev_info(kctx->kbdev->dev, "Terminate ctx %d_%d, group %d, fatal_event_worker", group->kctx->tgid, group->kctx->id, group->handle);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
+			"Terminate ctx %d_%d, group %d, fatal_event_worker\n", group->kctx->tgid, group->kctx->id, group->handle);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	group_handle = group->handle;
 	term_queue_group(group);
