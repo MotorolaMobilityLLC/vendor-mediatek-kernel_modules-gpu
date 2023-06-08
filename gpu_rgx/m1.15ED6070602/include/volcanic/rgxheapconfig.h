@@ -70,9 +70,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 /*
 	RGX Device Virtual Address Space Definitions
 
-	NOTES:
-	Base addresses have to be a multiple of 4MiB
-
 	This file defines the RGX virtual address heaps that are used in
 	application memory contexts. It also shows where the Firmware memory heap
 	fits into this, but the firmware heap is only ever created in the
