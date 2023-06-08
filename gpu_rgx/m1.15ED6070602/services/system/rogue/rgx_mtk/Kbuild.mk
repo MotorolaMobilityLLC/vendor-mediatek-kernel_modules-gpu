@@ -26,8 +26,17 @@ $(PVRSRVKM_NAME)-y += \
 	services/server/common/vz_vmm_vm.o \
 	services/system/rogue/$(PVR_SYSTEM)/ion_support.o \
 	services/system/rogue/$(PVR_SYSTEM)/mtk_pp.o \
-	services/system/rogue/$(PVR_SYSTEM)/sysconfig.o \
+	services/system/rogue/$(PVR_SYSTEM)/sysconfig.o
+
+ifeq ($(MTK_PLATFORM),mt6761)
+ifneq ($(filter $(CONFIG_MTK_GPUFREQ_V2),y m),)
+$(PVRSRVKM_NAME)-y += \
+	services/system/rogue/$(PVR_SYSTEM)/mt6761_v2/mtk_mfgsys.o
+endif
+else
+$(PVRSRVKM_NAME)-y += \
 	services/system/rogue/$(PVR_SYSTEM)/$(MTK_PLATFORM)/mtk_mfgsys.o
+endif
 
 ifeq ($(MTK_PLATFORM),mt6739)
 $(PVRSRVKM_NAME)-y += \
@@ -36,13 +45,23 @@ endif
 
 ccflags-y += \
 	-I$(TOP)/services/system/rogue/$(PVR_SYSTEM) \
-	-I$(TOP)/services/system/rogue/$(PVR_SYSTEM)/$(MTK_PLATFORM) \
 	-I$(TOP)/services/system/rogue/common/env/linux \
 	-I$(TOP)/services/linux/include \
 	-I$(TOP)/kernel/drivers/staging/imgtec \
 	-I$(srctree)/drivers/misc/mediatek/include/mt-plat \
 	-I$(srctree)/drivers/staging/android/ion \
 	-I$(srctree)/drivers/staging/android/ion/mtk
+
+ifeq ($(MTK_PLATFORM),mt6761)
+ifneq ($(filter $(CONFIG_MTK_GPUFREQ_V2),y m),)
+ccflags-y += \
+	-I$(TOP)/services/system/rogue/$(PVR_SYSTEM)/mt6761_v2
+endif
+else
+ccflags-y += \
+	-I$(TOP)/services/system/rogue/$(PVR_SYSTEM)/$(MTK_PLATFORM)
+endif
+
 
 ifeq ($(kernel_ver),kernel-4.14)
 ccflags-y += \
