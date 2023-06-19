@@ -1843,15 +1843,25 @@ static int kbase_kcpu_fence_signal_process(
 	if (atomic_dec_return(&kcpu_queue->fence_signal_pending_cnt) > 0) {
 		fence_signal_timeout_start(kcpu_queue);
 #ifdef CONFIG_MALI_FENCE_DEBUG
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		dev_vdbg(kctx->kbdev->dev,
+			 "kbase re-arm KCPU fence signal timeout timer for next signal command");
+#else /* CONFIG_MALI_MTK_DEBUG */
 		dev_info(kctx->kbdev->dev,
 			 "kbase re-arm KCPU fence signal timeout timer for next signal command");
+#endif /* CONFIG_MALI_MTK_DEBUG */
 #endif
 	} else {
 #ifdef CONFIG_MALI_FENCE_DEBUG
 		int del = del_timer_sync(&kcpu_queue->fence_signal_timeout);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		dev_vdbg(kctx->kbdev->dev, "kbase KCPU delete fence signal timeout timer ret: %d",
+			 del);
+#else /* CONFIG_MALI_MTK_DEBUG */
 		dev_info(kctx->kbdev->dev, "kbase KCPU delete fence signal timeout timer ret: %d",
 			 del);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 #else
 		del_timer_sync(&kcpu_queue->fence_signal_timeout);
 #endif
