@@ -214,6 +214,16 @@ enum {
  */
 #define CSF_FIRMWARE_PING_TIMEOUT_CYCLES (600000000ull)
 
+/* Waiting timeout for a KCPU queue's fence signal blocked to long, in clock cycles.
+ *
+ * Based on 10s timeout at 100MHz, scaled from a 50MHz GPU system.
+ */
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+#define KCPU_FENCE_SIGNAL_TIMEOUT_CYCLES (1200000000ull)
+#else
+#define KCPU_FENCE_SIGNAL_TIMEOUT_CYCLES (1000000000ull)
+#endif
+
 #else /* MALI_USE_CSF */
 
 /* A default timeout in clock cycles to be used when an invalid timeout

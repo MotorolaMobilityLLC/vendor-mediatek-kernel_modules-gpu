@@ -299,6 +299,8 @@ struct kbase_kcpu_command_queue {
 #ifdef CONFIG_MALI_FENCE_DEBUG
 	struct timer_list fence_timeout;
 #endif /* CONFIG_MALI_FENCE_DEBUG */
+	struct timer_list fence_signal_timeout;
+	atomic_t fence_signal_pending_cnt;
 #if IS_ENABLED(CONFIG_MALI_MTK_KCPU_DEBUG)
 	bool pending_cmds_timer_active;
 	u64 pending_cmd_prev_offset;

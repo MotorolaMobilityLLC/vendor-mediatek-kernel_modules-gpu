@@ -1645,6 +1645,49 @@ static int kbase_kcpu_fence_wait_prepare(
 	return 0;
 }
 
+/**
+ * fence_signal_timeout_start() - Start a timer to check enqueued fence-signal command is
+ *                                blocked for too long a duration
+ *
+ * @kcpu_queue: KCPU command queue
+ *
+ * Activate the queue's fence_signal_timeout timer to check whether a fence-signal command
+ * enqueued has been blocked for longer than a configured wait duration.
+ */
+static void fence_signal_timeout_start(struct kbase_kcpu_command_queue *kcpu_queue)
+{
+       unsigned int wait_ms =
+               kbase_get_timeout_ms(kcpu_queue->kctx->kbdev, KCPU_FENCE_SIGNAL_TIMEOUT);
+
+       mod_timer(&kcpu_queue->fence_signal_timeout, jiffies + msecs_to_jiffies(wait_ms));
+}
+
+/**
+ * fence_signal_timeout_cb() - Timeout callback function for fence-signal-wait
+ *
+ * @timer: Timer struct
+ *
+ * Callback function on an enqueued fence signal command has expired on its configured wait
+ * duration. At the moment it's just a simple place-holder for other tasks to expand on actual
+ * sync state dump via a bottom-half workqueue item.
+ */
+static void fence_signal_timeout_cb(struct timer_list *timer)
+{
+       struct kbase_kcpu_command_queue *kcpu_queue =
+               container_of(timer, struct kbase_kcpu_command_queue, fence_signal_timeout);
+#ifdef CONFIG_MALI_FENCE_DEBUG
+       struct kbase_context *const kctx = kcpu_queue->kctx;
+
+       dev_info(kctx->kbdev->dev, "kbase KCPU fence signal timeout callback triggered");
+#endif
+
+       /* If we have additional pending fence signal commands in the queue, re-arm for the
+        * remaining fence signal commands.
+        */
+       if (atomic_read(&kcpu_queue->fence_signal_pending_cnt) > 1)
+               fence_signal_timeout_start(kcpu_queue);
+}
+
 static int kbase_kcpu_fence_signal_process(
 		struct kbase_kcpu_command_queue *kcpu_queue,
 		struct kbase_kcpu_command_fence_info *fence_info)
@@ -1666,6 +1709,24 @@ static int kbase_kcpu_fence_signal_process(
 	KBASE_KTRACE_ADD_CSF_KCPU(kctx->kbdev, KCPU_FENCE_SIGNAL, kcpu_queue,
 				  fence_info->fence->context,
 				  fence_info->fence->seqno);
+
+	/* If one has multiple enqueued fence signal commands, re-arm the timer */
+	if (atomic_dec_return(&kcpu_queue->fence_signal_pending_cnt) > 0) {
+		fence_signal_timeout_start(kcpu_queue);
+#ifdef CONFIG_MALI_FENCE_DEBUG
+		dev_info(kctx->kbdev->dev,
+			 "kbase re-arm KCPU fence signal timeout timer for next signal command");
+#endif
+	} else {
+#ifdef CONFIG_MALI_FENCE_DEBUG
+		int del = del_timer_sync(&kcpu_queue->fence_signal_timeout);
+
+		dev_info(kctx->kbdev->dev, "kbase KCPU delete fence signal timeout timer ret: %d",
+			 del);
+#else
+		del_timer_sync(&kcpu_queue->fence_signal_timeout);
+#endif
+	}
 
 	/* dma_fence refcount needs to be decreased to release it. */
 	dma_fence_put(fence_info->fence);
@@ -1743,6 +1804,10 @@ static int kbase_kcpu_fence_signal_prepare(
 	 * before returning success.
 	 */
 	fd_install(fd, sync_file->file);
+
+	if (atomic_inc_return(&kcpu_queue->fence_signal_pending_cnt) == 1)
+		fence_signal_timeout_start(kcpu_queue);
+
 	return 0;
 
 fd_flags_fail:
@@ -2778,6 +2843,11 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx,
 		queue->fence_context, 0);
 #ifdef CONFIG_MALI_FENCE_DEBUG
 	kbase_timer_setup(&queue->fence_timeout, fence_timeout_callback);
+#endif
+
+#if IS_ENABLED(CONFIG_SYNC_FILE)
+	atomic_set(&queue->fence_signal_pending_cnt, 0);
+	kbase_timer_setup(&queue->fence_signal_timeout, fence_signal_timeout_cb);
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_MTK_KCPU_DEBUG)
