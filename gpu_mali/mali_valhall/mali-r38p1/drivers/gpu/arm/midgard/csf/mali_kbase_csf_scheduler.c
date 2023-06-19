@@ -125,6 +125,7 @@ static int suspend_active_queue_groups(struct kbase_device *kbdev,
 static int suspend_active_groups_on_powerdown(struct kbase_device *kbdev,
 					      bool system_suspend);
 static void schedule_in_cycle(struct kbase_queue_group *group, bool force);
+static void scheduler_apply_pmode_exit_wa(struct kbase_device *kbdev);
 
 #define kctx_as_enabled(kctx) (!kbase_ctx_flag(kctx, KCTX_AS_DISABLED_ON_FAULT))
 
@@ -836,6 +837,8 @@ static void scheduler_pm_idle(struct kbase_device *kbdev)
 
 	lockdep_assert_held(&kbdev->csf.scheduler.lock);
 
+	scheduler_apply_pmode_exit_wa(kbdev);
+
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	prev_count = kbdev->csf.scheduler.pm_active_count;
 	if (!WARN_ON(prev_count == 0))
@@ -871,6 +874,8 @@ static void scheduler_pm_idle_before_sleep(struct kbase_device *kbdev)
 	u32 prev_count;
 
 	lockdep_assert_held(&kbdev->csf.scheduler.lock);
+
+	scheduler_apply_pmode_exit_wa(kbdev);
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	prev_count = kbdev->csf.scheduler.pm_active_count;
@@ -973,8 +978,6 @@ static void scheduler_suspend(struct kbase_device *kbdev)
 	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
 
 	lockdep_assert_held(&scheduler->lock);
-
-	scheduler_apply_pmode_exit_wa(kbdev);
 
 	if (!WARN_ON(scheduler->state == SCHED_SUSPENDED)) {
 		dev_vdbg(kbdev->dev, "Suspending the Scheduler");
@@ -4221,7 +4224,9 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 					scheduler->apply_pmode_exit_wa = false;
 				} else {
 					spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
+					mutex_unlock(&kbdev->mmu_hw_mutex);
 					kbase_pm_apply_pmode_entry_wa(kbdev);
+					mutex_lock(&kbdev->mmu_hw_mutex);
 					spin_lock_irqsave(&scheduler->interrupt_lock, flags);
 				}
 
@@ -4948,6 +4953,13 @@ static bool scheduler_idle_suspendable(struct kbase_device *kbdev)
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	spin_lock(&scheduler->interrupt_lock);
+
+	if (kbase_csf_scheduler_protected_mode_in_use(kbdev)) {
+		dev_info(kbdev->dev, "GPU suspension skipped due to protected mode");
+		spin_unlock(&scheduler->interrupt_lock);
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+		return false;
+	}
 
 	if (scheduler->fast_gpu_idle_handling) {
 		scheduler->fast_gpu_idle_handling = false;
@@ -5919,6 +5931,11 @@ static void scheduler_inner_reset(struct kbase_device *kbdev)
 	cancel_delayed_work_sync(&scheduler->ping_work);
 
 	mutex_lock(&scheduler->lock);
+
+	/* The GPU reset would result in implicit power down. So need to switch back to
+	 * to MTK PDCA before the reset.
+	 */
+	scheduler_apply_pmode_exit_wa(kbdev);
 
 	spin_lock_irqsave(&scheduler->interrupt_lock, flags);
 	bitmap_fill(scheduler->csgs_events_enable_mask, MAX_SUPPORTED_CSGS);

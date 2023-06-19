@@ -3534,10 +3534,10 @@ static int power_up_required_cores(struct kbase_device *kbdev)
 	int err = 0;
 
 	if (cores_required) {
-		const unsigned int max_iterations = 100;
+		const unsigned int max_iterations = 5000;
 		unsigned int i;
 
-		/* Wait for ~1 ms for the cores transition to complete */
+		/* Wait for ~50 ms for the cores transition to complete */
 		for (i = 0; i < max_iterations; i++) {
 			if (!kbase_pm_get_trans_cores(kbdev, KBASE_PM_CORE_SHADER))
 				break;
@@ -3545,15 +3545,16 @@ static int power_up_required_cores(struct kbase_device *kbdev)
 		}
 
 		if (i == max_iterations) {
-			dev_err(kbdev->dev, "Wait for power transition of %llx cores failed",
-				cores_required);
+			dev_err(kbdev->dev, "Wait for power transition of %08x%08x cores failed",
+				kbase_reg_read(kbdev, GPU_CONTROL_REG(SHADER_PWRTRANS_HI)),
+				kbase_reg_read(kbdev, GPU_CONTROL_REG(SHADER_PWRTRANS_LO)));
 			err = -ETIMEDOUT;
 		}
 
 		kbase_pm_invoke(kbdev, KBASE_PM_CORE_SHADER, cores_required,
 				ACTION_PWRON);
 
-		/* Wait for ~1 ms for the cores to get powered up */
+		/* Wait for ~50 ms for the cores to get powered up */
 		for (i = 0; i < max_iterations; i++) {
 			shaders_ready =
 				kbase_pm_get_ready_cores(kbdev, KBASE_PM_CORE_SHADER);
