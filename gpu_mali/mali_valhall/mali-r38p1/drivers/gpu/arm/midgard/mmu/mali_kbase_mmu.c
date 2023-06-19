@@ -161,7 +161,7 @@ static void mmu_invalidate(struct kbase_device *kbdev, struct kbase_context *kct
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
-	if (kbdev->pm.backend.gpu_powered && (!kctx || kctx->as_nr >= 0)) {
+	if (kbdev->pm.backend.gpu_ready && (!kctx || kctx->as_nr >= 0)) {
 		as_nr = kctx ? kctx->as_nr : as_nr;
 		if (kbase_mmu_hw_do_unlock(kbdev, &kbdev->as[as_nr], op_param))
 			dev_err(kbdev->dev,
@@ -209,7 +209,7 @@ static void mmu_flush_invalidate(struct kbase_device *kbdev, struct kbase_contex
 	mutex_lock(&kbdev->mmu_hw_mutex);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
-	if (kbdev->pm.backend.gpu_powered && (!kctx || kctx->as_nr >= 0)) {
+	if (kbdev->pm.backend.gpu_ready && (!kctx || kctx->as_nr >= 0)) {
 		struct kbase_as *as = &kbdev->as[kctx ? kctx->as_nr : as_nr];
 
 		if (kbase_mmu_hw_do_flush_locked(kbdev, as, op_param))
@@ -242,7 +242,7 @@ static void mmu_flush_invalidate_on_gpu_ctrl(struct kbase_device *kbdev, struct 
 	mutex_lock(&kbdev->mmu_hw_mutex);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
-	if (kbdev->pm.backend.gpu_powered && (!kctx || kctx->as_nr >= 0)) {
+	if (kbdev->pm.backend.gpu_ready && (!kctx || kctx->as_nr >= 0)) {
 		as_nr = kctx ? kctx->as_nr : as_nr;
 		if (kbase_mmu_hw_do_flush_on_gpu_ctrl(kbdev, &kbdev->as[as_nr], op_param))
 			dev_err(kbdev->dev, "Flush for GPU page table update did not complete");
