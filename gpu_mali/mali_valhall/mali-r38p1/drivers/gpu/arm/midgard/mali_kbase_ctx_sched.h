@@ -220,22 +220,4 @@ bool kbase_ctx_sched_inc_refcount(struct kbase_context *kctx);
  */
 void kbase_ctx_sched_release_ctx_lock(struct kbase_context *kctx);
 
-#if MALI_USE_CSF
-/**
- * kbase_ctx_sched_inc_refcount_if_as_valid - Refcount the context if it has GPU
- *                                            address space slot assigned to it.
- *
- * @kctx: Context to be refcounted
- *
- * This function takes a reference on the context if it has a GPU address space
- * slot assigned to it. The address space slot will not be available for
- * re-assignment until the reference is released.
- *
- * Return: true if refcount succeeded and the address space slot will not be
- * reassigned, false if the refcount failed (because the address space slot
- * was not assigned).
- */
-bool kbase_ctx_sched_inc_refcount_if_as_valid(struct kbase_context *kctx);
-#endif
-
 #endif /* _KBASE_CTX_SCHED_H_ */

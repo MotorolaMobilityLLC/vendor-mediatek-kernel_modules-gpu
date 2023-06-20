@@ -383,39 +383,3 @@ void kbase_ctx_sched_release_ctx_lock(struct kbase_context *kctx)
 	spin_unlock_irqrestore(&kctx->kbdev->hwaccess_lock, flags);
 }
 
-#if MALI_USE_CSF
-bool kbase_ctx_sched_inc_refcount_if_as_valid(struct kbase_context *kctx)
-{
-	struct kbase_device *kbdev;
-	bool added_ref = false;
-	unsigned long flags;
-
-	if (WARN_ON(kctx == NULL))
-		return added_ref;
-
-	kbdev = kctx->kbdev;
-
-	if (WARN_ON(kbdev == NULL))
-		return added_ref;
-
-	mutex_lock(&kbdev->mmu_hw_mutex);
-	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-
-	if ((kctx->as_nr != KBASEP_AS_NR_INVALID) &&
-	    (kctx == kbdev->as_to_kctx[kctx->as_nr])) {
-		atomic_inc(&kctx->refcount);
-
-		if (kbdev->as_free & (1u << kctx->as_nr))
-			kbdev->as_free &= ~(1u << kctx->as_nr);
-
-		KBASE_KTRACE_ADD(kbdev, SCHED_RETAIN_CTX_NOLOCK, kctx,
-				 kbase_ktrace_get_ctx_refcnt(kctx));
-		added_ref = true;
-	}
-
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-	mutex_unlock(&kbdev->mmu_hw_mutex);
-
-	return added_ref;
-}
-#endif
