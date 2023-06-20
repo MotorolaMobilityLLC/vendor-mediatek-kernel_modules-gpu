@@ -64,6 +64,22 @@
  * - Added ioctl to query a register of USER page.
  * 1.14:
  * - Added support for passing down the buffer descriptor VA in tiler heap init
+ * 1.15:
+ * - Enable new sync_wait GE condition
+ * 1.16:
+ * - Remove legacy definitions:
+ *   - base_jit_alloc_info_10_2
+ *   - base_jit_alloc_info_11_5
+ *   - kbase_ioctl_mem_jit_init_10_2
+ *   - kbase_ioctl_mem_jit_init_11_5
+ * 1.17:
+ * - Fix kinstr_prfcnt issues:
+ *   - Missing implicit sample for CMD_STOP when HWCNT buffer is full.
+ *   - Race condition when stopping periodic sampling.
+ *   - prfcnt_block_metadata::block_idx gaps.
+ *   - PRFCNT_CONTROL_CMD_SAMPLE_ASYNC is removed.
+ * 1.18:
+ * - CPU mappings of USER_BUFFER imported memory handles must be cached.
  */
 
 #define BASE_UK_VERSION_MAJOR 1
