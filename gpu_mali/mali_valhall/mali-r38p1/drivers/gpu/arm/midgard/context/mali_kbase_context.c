@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -143,7 +143,6 @@ int kbase_context_common_init(struct kbase_context *kctx)
 	/* creating a context is considered a disjoint event */
 	kbase_disjoint_event(kctx->kbdev);
 
-	spin_lock_init(&kctx->mm_update_lock);
 	kctx->process_mm = NULL;
 	kctx->task = NULL;
 	atomic_set(&kctx->nonmapped_pages, 0);
@@ -184,6 +183,13 @@ int kbase_context_common_init(struct kbase_context *kctx)
 
 		if (unlikely(err))
 			return err;
+
+		/* This merely takes a reference on the mm_struct and not on the
+		 * address space and so won't block the freeing of address space
+		 * on process exit.
+		 */
+		mmgrab(current->mm);
+		kctx->process_mm = current->mm;
 	}
 
 	atomic_set(&kctx->used_pages, 0);
@@ -225,7 +231,10 @@ int kbase_context_common_init(struct kbase_context *kctx)
 		dev_err(kctx->kbdev->dev,
 			"(err:%d) failed to insert kctx to kbase_process", err);
 		if (likely(kctx->filp))
+		{
+			mmdrop(kctx->process_mm);
 			put_task_struct(kctx->task);
+		}
 	}
 
 	return err;
@@ -322,8 +331,10 @@ void kbase_context_common_term(struct kbase_context *kctx)
 	mutex_lock(&kctx->kbdev->kctx_list_lock);
 	kbase_remove_kctx_from_process(kctx);
 	mutex_unlock(&kctx->kbdev->kctx_list_lock);
-	if (likely(kctx->filp))
+	if (likely(kctx->filp)) {
+		mmdrop(kctx->process_mm);
 		put_task_struct(kctx->task);
+	}
 
 	KBASE_KTRACE_ADD(kctx->kbdev, CORE_CTX_DESTROY, kctx, 0u);
 }
