@@ -1794,7 +1794,8 @@ static struct kbase_va_region *kbase_mem_from_user_buffer(
 		 */
 		for (i = 0; i < faulted_pages; i++) {
 			dma_addr_t dma_addr =
-				dma_map_page_attrs(dev, pages[i], 0, PAGE_SIZE, DMA_BIDIRECTIONAL,
+				dma_map_page_attrs(dev, pages[i], 0, PAGE_SIZE,
+						   write ? DMA_BIDIRECTIONAL : DMA_TO_DEVICE,
 						   DMA_ATTR_SKIP_CPU_SYNC);
 
 			if (dma_mapping_error(dev, dma_addr))
@@ -1823,7 +1824,8 @@ unwind_dma_map:
 		dma_addr_t dma_addr = user_buf->dma_addrs[i];
 
 		dma_sync_single_for_device(dev, dma_addr, PAGE_SIZE, DMA_BIDIRECTIONAL);
-		dma_unmap_page_attrs(dev, dma_addr, PAGE_SIZE, DMA_BIDIRECTIONAL,
+		dma_unmap_page_attrs(dev, dma_addr, PAGE_SIZE,
+				     write ? DMA_BIDIRECTIONAL : DMA_TO_DEVICE,
 				     DMA_ATTR_SKIP_CPU_SYNC);
 	}
 fault_mismatch:

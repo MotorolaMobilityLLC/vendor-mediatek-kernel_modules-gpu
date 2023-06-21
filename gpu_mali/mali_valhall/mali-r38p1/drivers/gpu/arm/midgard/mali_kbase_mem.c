@@ -4914,6 +4914,7 @@ static int kbase_jd_user_buf_map(struct kbase_context *kctx,
 	long i, dma_mapped_pages;
 	struct device *dev;
 	unsigned long gwt_mask = ~0;
+	bool writable = (reg->flags & (KBASE_REG_CPU_WR | KBASE_REG_GPU_WR));
 	/* Calls to this function are inherently asynchronous, with respect to
 	 * MMU operations.
 	 */
@@ -4950,7 +4951,8 @@ static int kbase_jd_user_buf_map(struct kbase_context *kctx,
 	 */
 	for (i = 0; i < pinned_pages; i++) {
 		dma_addr_t dma_addr = dma_map_page_attrs(dev, pages[i], 0, PAGE_SIZE,
-							 DMA_BIDIRECTIONAL, DMA_ATTR_SKIP_CPU_SYNC);
+							 writable ? DMA_BIDIRECTIONAL : DMA_TO_DEVICE,
+							 DMA_ATTR_SKIP_CPU_SYNC);
 
 		err = dma_mapping_error(dev, dma_addr);
 		if (err)
@@ -4991,7 +4993,8 @@ unwind:
 		dma_addr_t dma_addr = alloc->imported.user_buf.dma_addrs[i];
 
 		dma_sync_single_for_device(dev, dma_addr, PAGE_SIZE, DMA_BIDIRECTIONAL);
-		dma_unmap_page_attrs(dev, dma_addr, PAGE_SIZE, DMA_BIDIRECTIONAL,
+		dma_unmap_page_attrs(dev, dma_addr, PAGE_SIZE,
+				     writable ? DMA_BIDIRECTIONAL : DMA_TO_DEVICE,
 				     DMA_ATTR_SKIP_CPU_SYNC);
 	}
 
@@ -5110,7 +5113,9 @@ static void kbase_jd_user_buf_unmap(struct kbase_context *kctx, struct kbase_mem
 
 		/* Notice: use the original DMA address to unmap the whole memory page. */
 		dma_unmap_page_attrs(kctx->kbdev->dev, alloc->imported.user_buf.dma_addrs[i],
-				     PAGE_SIZE, DMA_BIDIRECTIONAL, DMA_ATTR_SKIP_CPU_SYNC);
+				     PAGE_SIZE,
+					 writeable ? DMA_BIDIRECTIONAL : DMA_TO_DEVICE,
+					 DMA_ATTR_SKIP_CPU_SYNC);
 
 		if (writeable)
 			set_page_dirty_lock(pages[i]);
