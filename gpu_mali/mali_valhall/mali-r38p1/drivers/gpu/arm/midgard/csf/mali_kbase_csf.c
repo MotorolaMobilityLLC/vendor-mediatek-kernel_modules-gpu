@@ -2763,8 +2763,6 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 						"[%llxt] %s %d: OoM event have been already queued\n",
 						mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception), __func__, __LINE__);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-
-					release_queue(queue);
 				}
 #else
 				if (WARN_ON(!queue_work(wq, &queue->oom_event_work))) {
