@@ -148,25 +148,6 @@ int kbase_mmu_teardown_pages(struct kbase_device *kbdev, struct kbase_mmu_table 
 int kbase_mmu_update_pages(struct kbase_context *kctx, u64 vpfn,
 			   struct tagged_addr *phys, size_t nr,
 			   unsigned long flags, int const group_id);
-#if MALI_USE_CSF
-/**
- * kbase_mmu_update_csf_mcu_pages - Update MCU mappings with changes of phys and flags
- *
- * @kbdev:    Pointer to kbase device.
- * @vpfn:     Virtual PFN (Page Frame Number) of the first page to update
- * @phys:     Pointer to the array of tagged physical addresses of the physical
- *            pages that are pointed to by the page table entries (that need to
- *            be updated).
- * @nr:       Number of pages to update
- * @flags:    Flags
- * @group_id: The physical memory group in which the page was allocated.
- *            Valid range is 0..(MEMORY_GROUP_MANAGER_NR_GROUPS-1).
- *
- * Return: 0 on success, otherwise an error code.
- */
-int kbase_mmu_update_csf_mcu_pages(struct kbase_device *kbdev, u64 vpfn, struct tagged_addr *phys,
-				   size_t nr, unsigned long flags, int const group_id);
-#endif
 
 /**
  * kbase_mmu_bus_fault_interrupt - Process a bus fault interrupt.
