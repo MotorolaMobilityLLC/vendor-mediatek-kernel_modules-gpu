@@ -51,7 +51,7 @@ static DEFINE_SPINLOCK(kbase_csf_fence_lock);
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_MTK_KCPU_DEBUG)
-#define COMMAND_TIMEOUT_MS 10000
+#define COMMAND_TIMEOUT_MS 5000
 #endif /* CONFIG_MALI_MTK_KCPU_DEBUG */
 
 static void kcpu_queue_process(struct kbase_kcpu_command_queue *kcpu_queue,
