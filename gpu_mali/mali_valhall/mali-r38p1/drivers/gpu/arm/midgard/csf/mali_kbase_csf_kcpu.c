@@ -2195,9 +2195,12 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 			if (drain_queue) {
 				if (queue->kctx->has_page_faults) {
 					struct kbase_sync_fence_info info;
-					kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
-					dev_err(kbdev->dev, "%d_%d kcpuid(%d) idx  %7d fence wait %p\n",
-						queue->kctx->tgid, queue->kctx->id, queue->id, idx, info.fence);
+					if (cmd->info.fence.fence) {
+						kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
+						dev_err(kbdev->dev, "%d_%d kcpuid(%d) idx  %7d fence wait %p\n",
+							queue->kctx->tgid, queue->kctx->id, queue->id, idx, info.fence);
+					} else
+						dev_info(kbdev->dev, "fence is NULL");
 				}
 				kbase_kcpu_fence_wait_cancel(queue,
 					&cmd->info.fence);
@@ -2231,9 +2234,12 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 
 			if (drain_queue && queue->kctx->has_page_faults) {
 				struct kbase_sync_fence_info info;
-				kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
-				dev_err(kbdev->dev, "%d_%d kcpuid(%d) idx  %7d fence wait %p\n",
-					queue->kctx->tgid, queue->kctx->id, queue->id, idx, info.fence);
+				if (cmd->info.fence.fence) {
+					kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
+					dev_err(kbdev->dev, "%d_%d kcpuid(%d) idx  %7d fence wait %p\n",
+						queue->kctx->tgid, queue->kctx->id, queue->id, idx, info.fence);
+				} else
+					dev_info(kbdev->dev, "fence is NULL");
 			}
 
 #if IS_ENABLED(CONFIG_SYNC_FILE)
