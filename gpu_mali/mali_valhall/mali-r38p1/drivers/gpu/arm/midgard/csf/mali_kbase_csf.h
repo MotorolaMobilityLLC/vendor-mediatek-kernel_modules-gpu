@@ -274,6 +274,19 @@ void kbase_csf_add_group_fatal_error(
  */
 void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val);
 
+/**
+ * kbase_csf_handle_csg_sync_update - Handle SYNC_UPDATE notification for the group.
+ *
+ * @kbdev: The kbase device to handle the SYNC_UPDATE interrupt.
+ * @ginfo: Pointer to the CSG interface used by the @group
+ * @group: Pointer to the GPU command stream queue group.
+ * @req:   CSG_REQ register value corresponding to @group.
+ * @ack:   CSG_ACK register value corresponding to @group.
+ */
+void kbase_csf_handle_csg_sync_update(struct kbase_device *const kbdev,
+				      struct kbase_csf_cmd_stream_group_info *ginfo,
+				      struct kbase_queue_group *group, u32 req, u32 ack);
+
 #if IS_ENABLED(CONFIG_MALI_MTK_KCPU_FENCE_WA)
 /**
  * kbase_process_csg_retry_job_irq - Retry CSG job IRQ.

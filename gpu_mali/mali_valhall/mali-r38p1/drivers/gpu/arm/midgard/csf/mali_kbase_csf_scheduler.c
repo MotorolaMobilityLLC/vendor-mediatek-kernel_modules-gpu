@@ -2598,7 +2598,7 @@ static bool cleanup_csg_slot(struct kbase_queue_group *group)
 	s8 slot;
 	struct kbase_csf_csg_slot *csg_slot;
 	unsigned long flags;
-	u32 i;
+	u32 csg_req, csg_ack, i;
 	bool as_fault = false;
 
 	lockdep_assert_held(&kbdev->csf.scheduler.lock);
@@ -2638,6 +2638,11 @@ static bool cleanup_csg_slot(struct kbase_queue_group *group)
 
 	/* now marking the slot is vacant */
 	spin_lock_irqsave(&kbdev->csf.scheduler.interrupt_lock, flags);
+	/* Process pending SYNC_UPDATE, if any */
+	csg_req = kbase_csf_firmware_csg_input_read(ginfo, CSG_REQ);
+	csg_ack = kbase_csf_firmware_csg_output(ginfo, CSG_ACK);
+	kbase_csf_handle_csg_sync_update(kbdev, ginfo, group, csg_req, csg_ack);
+
 	kbdev->csf.scheduler.csg_slots[slot].resident_group = NULL;
 	clear_bit(slot, kbdev->csf.scheduler.csg_slots_idle_mask);
 	KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_SLOT_IDLE_CLEAR, group,
