@@ -2585,12 +2585,6 @@ static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int tim
 {
 	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
 
-#if !MALI_USE_CSF
-	struct kbase_context *kctx = NULL;
-	struct kbase_jd_atom *katom;
-	struct list_head *entry, *tmp;
-#endif
-
 	if (IS_ERR_OR_NULL(kbdev))
 		return;
 
@@ -2629,32 +2623,6 @@ static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int tim
 		spin_lock(&kbdev->reset_force_change);
 		kbdev->reset_force_evict_group_work = true;
 		spin_unlock(&kbdev->reset_force_change);
-
-#if !MALI_USE_CSF
-		/*
-		 * While holding the struct kbase_jd_context lock clean up jobs which are known to kbase but are
-		 * queued outside the job scheduler.
-		 */
-		dev_info(kbdev->dev, "External fence timeouts(%d ms)! Cancel soft job", timeouts);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"[%llxt] External fence timeouts(%d ms)! Cancel soft job\n",
-			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
-			timeouts);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-		mutex_lock(&kbdev->kctx_list_lock);
-		list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
-			mutex_lock(&kctx->jctx.lock);
-
-			del_timer_sync(&kctx->soft_job_timeout);
-			list_for_each_safe(entry, tmp, &kctx->waiting_soft_jobs) {
-				katom = list_entry(entry, struct kbase_jd_atom, queue);
-				kbase_cancel_soft_job(katom);
-			}
-			mutex_unlock(&kctx->jctx.lock);
-		}
-		mutex_unlock(&kbdev->kctx_list_lock);
-#endif
 
 		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE)) {
 			dev_info(kbdev->dev, "External fence timeouts(%d ms)! Trigger GPU reset", timeouts);
