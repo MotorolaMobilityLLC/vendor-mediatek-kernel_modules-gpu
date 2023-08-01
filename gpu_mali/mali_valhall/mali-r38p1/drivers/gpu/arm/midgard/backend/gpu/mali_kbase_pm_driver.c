@@ -61,7 +61,7 @@
 
 #include <linux/of.h>
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG) || IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG) || IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH) || IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
 #include <mtk_gpufreq.h>
 #include <platform/mtk_platform_common.h>
 #include <ged_dcs.h>
@@ -1240,6 +1240,9 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 					kbase_pm_invoke(kbdev, KBASE_PM_CORE_TILER, tiler_present,
 							ACTION_PWRON);
 				} else {
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+					mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_ON);
+#endif
 					kbase_pm_invoke(kbdev, KBASE_PM_CORE_L2, l2_present,
 							ACTION_PWRON);
 				}
@@ -1485,6 +1488,9 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 					 */
 					kbase_ipa_control_handle_gpu_sleep_enter(kbdev);
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+					mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_OFF);
+#endif
 					/* L2 is now powered off */
 					backend->l2_state = KBASE_L2_OFF;
 				}
@@ -1495,6 +1501,9 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 					 * from being seen as active during sleep.
 					 */
 					kbase_ipa_control_handle_gpu_sleep_enter(kbdev);
+#endif
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+					mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_OFF);
 #endif
 					backend->l2_state = KBASE_L2_OFF;
 				}
@@ -3117,6 +3126,10 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 	KBASE_KTRACE_ADD(kbdev, CORE_GPU_SOFT_RESET, NULL, 0);
 
 	KBASE_TLSTREAM_JD_GPU_SOFT_RESET(kbdev, kbdev);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+	mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_ON);
+#endif
 
 	if (kbdev->pm.backend.callback_soft_reset) {
 		ret = kbdev->pm.backend.callback_soft_reset(kbdev);

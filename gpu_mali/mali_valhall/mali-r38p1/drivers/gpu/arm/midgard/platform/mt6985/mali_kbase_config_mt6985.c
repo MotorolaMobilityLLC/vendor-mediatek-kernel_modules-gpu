@@ -38,7 +38,7 @@
 
 #if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
 static int gIsDsuRequested = 0;
-DEFINE_MUTEX(g_dsu_request_lock);
+spinlock_t g_dsu_request_lock;
 #endif
 
 DEFINE_MUTEX(g_mfg_lock);
@@ -178,9 +178,7 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 		WARN_ON(kbdev->pm.runtime_active);
 	}
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
-	mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_ON);
-#endif
+
 	mutex_lock(&g_mfg_lock);
 	ret = pm_callback_power_on_nolock(kbdev);
 	mtk_notify_gpu_power_change(1);
@@ -210,18 +208,13 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 	mtk_notify_gpu_power_change(0);
 	pm_callback_power_off_nolock(kbdev);
 	mutex_unlock(&g_mfg_lock);
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
-	mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_OFF);
-#endif
 }
 
 static void pm_callback_runtime_gpu_active(struct kbase_device *kbdev)
 {
 	unsigned long flags;
 	int error;
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
-	mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_ON);
-#endif
+
 	KBASE_PLATFORM_LOGD("%s", __func__);
 
 	lockdep_assert_held(&kbdev->pm.lock);
@@ -280,9 +273,6 @@ static void pm_callback_runtime_gpu_idle(struct kbase_device *kbdev)
 	pm_runtime_mark_last_busy(kbdev->dev);
 	pm_runtime_put_autosuspend(kbdev->dev);
 	kbdev->pm.runtime_active = false;
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
-	mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_OFF);
-#endif
 }
 
 static int kbase_device_runtime_init(struct kbase_device *kbdev)
@@ -370,6 +360,8 @@ int mtk_platform_pm_init(struct kbase_device *kbdev)
 	if (IS_ERR_OR_NULL(kbdev))
 		return -1;
 
+	spin_lock_init(&g_dsu_request_lock);
+
 	segment_id = ged_get_segment_id();
 
 	if (!of_property_read_u32(np, "sleep-mode-enable", &sleep_mode_enable)) {
@@ -406,7 +398,9 @@ void mtk_platform_pm_term(struct kbase_device *kbdev)
 void mtk_platform_cpu_cache_request(struct kbase_device *kbdev, int request)
 {
 	struct arm_smccc_res res;
-	mutex_lock(&g_dsu_request_lock);
+	unsigned long flags;
+
+	spin_lock_irqsave(&g_dsu_request_lock, flags);
 	if (request == REQ_DSU_POWER_ON)
 	{
 		if (gIsDsuRequested == 0 && (kbdev->gpu_props.props.raw_props.coherency_mode == COHERENCY_ACE_LITE))
@@ -438,6 +432,6 @@ void mtk_platform_cpu_cache_request(struct kbase_device *kbdev, int request)
 	else
 		KBASE_PLATFORM_LOGE("%s Unsupported request %d or bad ref cnt: %d\n",
 			__func__, request, gIsDsuRequested);
-	mutex_unlock(&g_dsu_request_lock);
+	spin_unlock_irqrestore(&g_dsu_request_lock, flags);
 }
 #endif
