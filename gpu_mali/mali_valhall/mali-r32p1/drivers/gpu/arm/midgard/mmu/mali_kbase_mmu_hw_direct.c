@@ -401,7 +401,7 @@ void kbase_mmu_hw_configure(struct kbase_device *kbdev, struct kbase_as *as)
 #endif
 }
 
-static int mmu_hw_do_operation(struct kbase_device *kbdev, struct kbase_as *as,
+__attribute__((unused)) static int mmu_hw_do_operation(struct kbase_device *kbdev, struct kbase_as *as,
 		u64 vpfn, u32 nr, u32 op,
 		bool hwaccess_locked)
 {
