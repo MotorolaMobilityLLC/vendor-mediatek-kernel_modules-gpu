@@ -7023,7 +7023,9 @@ int kbase_csf_scheduler_wait_mcu_active(struct kbase_device *kbdev)
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	kbase_pm_unlock(kbdev);
 
-	kbase_pm_wait_for_poweroff_work_complete(kbdev);
+	err = kbase_pm_wait_for_poweroff_work_complete(kbdev);
+	if (err)
+		return err;
 
 	err = kbase_pm_wait_for_desired_state(kbdev);
 	if (!err) {

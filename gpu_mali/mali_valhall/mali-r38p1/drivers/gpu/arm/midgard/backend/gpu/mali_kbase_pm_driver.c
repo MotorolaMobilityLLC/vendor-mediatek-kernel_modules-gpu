@@ -2285,11 +2285,11 @@ void kbase_pm_reset_complete(struct kbase_device *kbdev)
 #define PM_TIMEOUT_MS (5000) /* 5s */
 #endif
 
-static void kbase_pm_timed_out(struct kbase_device *kbdev)
+static void kbase_pm_timed_out(struct kbase_device *kbdev, const char *timeout_msg)
 {
 	unsigned long flags;
 
-	dev_err(kbdev->dev, "Power transition timed out unexpectedly\n");
+	dev_err(kbdev->dev, "%s", timeout_msg);
 #if !MALI_USE_CSF
 	CSTD_UNUSED(flags);
 	dev_err(kbdev->dev, "Desired state :\n");
@@ -2430,7 +2430,7 @@ int kbase_pm_wait_for_l2_powered(struct kbase_device *kbdev)
 #endif
 
 	if (!remaining) {
-		kbase_pm_timed_out(kbdev);
+		kbase_pm_timed_out(kbdev, "Wait for desired PM state with L2 powered timed out");
 		err = -ETIMEDOUT;
 	} else if (remaining < 0) {
 		dev_info(
@@ -2470,11 +2470,11 @@ int kbase_pm_wait_for_desired_state(struct kbase_device *kbdev)
 #endif
 
 	if (!remaining) {
-		kbase_pm_timed_out(kbdev);
+		kbase_pm_timed_out(kbdev, "Wait for power transition timed out");
 		err = -ETIMEDOUT;
 	} else if (remaining < 0) {
 		dev_info(kbdev->dev,
-			 "Wait for desired PM state got interrupted");
+			 "Wait for power transition got interrupted");
 		err = (int)remaining;
 	}
 
@@ -2529,7 +2529,7 @@ int kbase_pm_wait_for_cores_down_scale(struct kbase_device *kbdev)
 #endif
 
 	if (!remaining) {
-		kbase_pm_timed_out(kbdev);
+		kbase_pm_timed_out(kbdev, "Wait for cores down scaling timed out");
 		err = -ETIMEDOUT;
 	} else if (remaining < 0) {
 		dev_info(
@@ -2541,6 +2541,46 @@ int kbase_pm_wait_for_cores_down_scale(struct kbase_device *kbdev)
 	return err;
 }
 #endif
+
+static bool is_poweroff_wait_in_progress(struct kbase_device *kbdev)
+{
+	bool ret;
+	unsigned long flags;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	ret = kbdev->pm.backend.poweroff_wait_in_progress;
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	return ret;
+}
+
+int kbase_pm_wait_for_poweroff_work_complete(struct kbase_device *kbdev)
+{
+	long remaining;
+#if MALI_USE_CSF
+	/* gpu_poweroff_wait_work would be subjected to the kernel scheduling
+	 * and so the wait time can't only be the function of GPU frequency.
+	 */
+	const unsigned int extra_wait_time_ms = 2000;
+	const long timeout =
+		kbase_csf_timeout_in_jiffies(kbase_get_timeout_ms(kbdev, CSF_PM_TIMEOUT) +
+					extra_wait_time_ms);
+#else
+	const long timeout = msecs_to_jiffies(PM_TIMEOUT_MS);
+#endif
+	int err = 0;
+
+	remaining = wait_event_timeout(
+		kbdev->pm.backend.poweroff_wait,
+		!is_poweroff_wait_in_progress(kbdev), timeout);
+	if (!remaining) {
+		kbase_pm_timed_out(kbdev, "Wait for poweroff work timed out");
+		err = -ETIMEDOUT;
+	}
+
+	return err;
+}
+KBASE_EXPORT_TEST_API(kbase_pm_wait_for_poweroff_work_complete);
 
 void kbase_pm_enable_interrupts(struct kbase_device *kbdev)
 {
