@@ -534,6 +534,7 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 					dev_err(dev, "Re-allocate temp list fail: %d, size %u\n",
 						kctx->tgid, kctx->coherent_region_nr);
 					mutex_unlock(&kctx->coherenct_region_lock);
+					kbase_gpu_vm_unlock(kctx);
 					goto no_mem;
 				}
 				memcpy(tmp_coherent_regions, kctx->coherenct_regions, backup_size);
@@ -548,6 +549,7 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 						kctx->tgid, kctx->coherent_region_nr);
 					kfree(tmp_coherent_regions);
 					mutex_unlock(&kctx->coherenct_region_lock);
+					kbase_gpu_vm_unlock(kctx);
 					goto no_mem;
 				}
 				for(r_index = 0; r_index < kctx->coherent_region_nr; r_index++)
