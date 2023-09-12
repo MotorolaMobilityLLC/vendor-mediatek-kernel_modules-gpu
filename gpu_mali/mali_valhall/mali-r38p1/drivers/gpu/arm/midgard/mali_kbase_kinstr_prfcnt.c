@@ -426,6 +426,7 @@ int kbasep_kinstr_prfcnt_set_block_meta_items(struct kbase_hwcnt_enable_map *ena
 	size_t grp, blk, blk_inst;
 	struct prfcnt_metadata **ptr_md = block_meta_base;
 	const struct kbase_hwcnt_metadata *metadata;
+	uint8_t block_idx = 0;
 
 	if (!dst || !*block_meta_base)
 		return -EINVAL;
@@ -433,6 +434,10 @@ int kbasep_kinstr_prfcnt_set_block_meta_items(struct kbase_hwcnt_enable_map *ena
 	metadata = dst->metadata;
 	kbase_hwcnt_metadata_for_each_block(metadata, grp, blk, blk_inst) {
 		u8 *dst_blk;
+
+		/* Block indices must be reported with no gaps. */
+		if (blk_inst == 0)
+			block_idx = 0;
 
 		/* Skip unavailable or non-enabled blocks */
 		if (kbase_kinstr_is_block_type_reserved(metadata, grp, blk) ||
@@ -447,13 +452,14 @@ int kbasep_kinstr_prfcnt_set_block_meta_items(struct kbase_hwcnt_enable_map *ena
 			kbase_hwcnt_metadata_block_type_to_prfcnt_block_type(
 				kbase_hwcnt_metadata_block_type(metadata, grp,
 								blk));
-		(*ptr_md)->u.block_md.block_idx = (u8)blk_inst;
+		(*ptr_md)->u.block_md.block_idx = block_idx;
 		(*ptr_md)->u.block_md.set = counter_set;
 		(*ptr_md)->u.block_md.block_state = BLOCK_STATE_UNKNOWN;
 		(*ptr_md)->u.block_md.values_offset = (u32)(dst_blk - base_addr);
 
 		/* update the buf meta data block pointer to next item */
 		(*ptr_md)++;
+		block_idx++;
 	}
 
 	return 0;
