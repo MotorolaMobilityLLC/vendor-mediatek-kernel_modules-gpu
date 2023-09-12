@@ -2149,6 +2149,7 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 							"[%d_%d] %9lu(  lock held, bypass dump )\n",
 							kctx->tgid, kctx->id, idx);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+						idx = find_next_bit(kctx->csf.kcpu_queues.in_use, KBASEP_MAX_KCPU_QUEUES, idx + 1);
 						continue;
 					}
 
