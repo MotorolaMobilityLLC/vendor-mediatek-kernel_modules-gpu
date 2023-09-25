@@ -222,7 +222,9 @@ int kbase_context_common_init(struct kbase_context *kctx)
 	atomic64_set(&kctx->num_fixed_allocs, 0);
 #endif
 
+	kbase_gpu_vm_lock(kctx);
 	bitmap_copy(kctx->cookies, &cookies_mask, BITS_PER_LONG);
+	kbase_gpu_vm_unlock(kctx);
 
 	kctx->id = atomic_add_return(1, &(kctx->kbdev->ctx_num)) - 1;
 
