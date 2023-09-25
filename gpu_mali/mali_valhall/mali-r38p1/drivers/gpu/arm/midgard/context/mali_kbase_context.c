@@ -412,7 +412,7 @@ void kbase_context_sticky_resource_term(struct kbase_context *kctx)
 		unsigned int cookie = find_first_bit(&pending_regions_to_clean,
 				BITS_PER_LONG);
 
-		if (!WARN_ON(!kctx->pending_regions[cookie])) {
+		if (cookie > 0 && !WARN_ON(!kctx->pending_regions[cookie])) {
 			dev_vdbg(kctx->kbdev->dev, "Freeing pending unmapped region\n");
 			kbase_mem_phy_alloc_put(
 				kctx->pending_regions[cookie]->cpu_alloc);
