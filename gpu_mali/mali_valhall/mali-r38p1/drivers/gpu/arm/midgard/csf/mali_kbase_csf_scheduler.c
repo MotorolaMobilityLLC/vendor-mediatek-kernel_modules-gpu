@@ -4230,6 +4230,7 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 						dev_vdbg(kbdev->dev, "kctx %p, pid %d,tid %d, coherent_regioon_nr: %u\n",
 							kctx, kctx->pid, kctx->tgid, kctx->coherent_region_nr);
 						if (kctx->pid == input_grp->kctx->pid) {
+							kbase_gpu_vm_lock(kctx);
 							mutex_lock(&kctx->coherenct_region_lock);
 							// for each region in the kctx
 							for (r_index = 0; r_index < kctx->coherent_region_nr; r_index++) {
@@ -4248,6 +4249,7 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 								}
 							}
 						mutex_unlock(&kctx->coherenct_region_lock);
+						kbase_gpu_vm_unlock(kctx);
 						dev_vdbg(kbdev->dev, "Flushed kctx pid: %d, tgid: %d\n", kctx->pid, kctx->tgid);
 						}
 					}
