@@ -2090,7 +2090,6 @@ void kbase_mmu_disable(struct kbase_context *kctx)
 	/* 0xF value used to prevent skipping of any levels when flushing */
 	if (mmu_flush_cache_on_gpu_ctrl(kbdev))
 		op_param.flush_skip_levels = pgd_level_to_skip_flush(0xF);
-#endif
 
 	/* lock MMU to prevent existing jobs on GPU from executing while the AS is
 	 * not yet disabled
@@ -2123,7 +2122,34 @@ void kbase_mmu_disable(struct kbase_context *kctx)
 				kctx->tgid, kctx->id);
 	}
 
-#if !MALI_USE_CSF
+	/* kbase_gpu_cache_flush_and_busy_wait() will reset the GPU on timeout. Only
+	 * reset the GPU if locking or unlocking fails.
+	 */
+	if (lock_err)
+		if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_NONE))
+			kbase_reset_gpu_locked(kbdev);
+
+#else
+	CSTD_UNUSED(lock_err);
+
+	/*
+	 * The address space is being disabled, drain all knowledge of it out
+	 * from the caches as pages and page tables might be freed after this.
+	 *
+	 * The job scheduler code will already be holding the locks and context
+	 * so just do the flush.
+	 */
+
+	flush_err = kbase_mmu_hw_do_flush_locked(kbdev, &kbdev->as[kctx->as_nr], &op_param);
+	if (flush_err) {
+		dev_err(kbdev->dev,
+			"Flush for GPU page table update did not complete to disable AS %d for ctx %d_%d",
+			kctx->as_nr, kctx->tgid, kctx->id);
+		/* GPU reset would have been triggered by the flush function */
+	}
+
+	kbdev->mmu_mode->disable_as(kbdev, kctx->as_nr);
+
 	/*
 	 * JM GPUs has some L1 read only caches that need to be invalidated
 	 * with START_FLUSH configuration. Purge the MMU disabled kctx from
@@ -2133,12 +2159,6 @@ void kbase_mmu_disable(struct kbase_context *kctx)
 	kbase_backend_slot_kctx_purge_locked(kbdev, kctx);
 #endif
 
-	/* kbase_gpu_cache_flush_and_busy_wait() will reset the GPU on timeout. Only
-	 * reset the GPU if locking or unlocking fails.
-	 */
-	if (lock_err)
-		if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_NONE))
-			kbase_reset_gpu_locked(kbdev);
 }
 KBASE_EXPORT_TEST_API(kbase_mmu_disable);
 
