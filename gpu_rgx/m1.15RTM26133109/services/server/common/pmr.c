@@ -1742,6 +1742,20 @@ PMRUnrefPMR(PMR *psPMR)
 	return PVRSRV_OK;
 }
 
+void
+PMRRefPMR2(PMR *psPMR)
+{
+	PVR_ASSERT(psPMR != NULL);
+	_Ref(psPMR);
+}
+
+void
+PMRUnrefPMR2(PMR *psPMR)
+{
+	PVR_ASSERT(psPMR != NULL);
+	_UnrefAndMaybeDestroy(psPMR);
+}
+
 PVRSRV_ERROR
 PMRUnrefUnlockPMR(PMR *psPMR)
 {
