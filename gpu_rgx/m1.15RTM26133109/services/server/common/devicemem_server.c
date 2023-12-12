@@ -646,6 +646,14 @@ DevmemIntHeapCreate2(DEVMEMINT_CTX *psDevmemCtx,
 {
 	DEVMEMINT_HEAP *psDevmemHeap;
 	PVRSRV_ERROR eError;
+	IMG_DEV_VIRTADDR sBlueprintHeapBaseAddr;
+	IMG_DEVMEM_SIZE_T uiBlueprintHeapLength;
+	IMG_DEVMEM_SIZE_T uiBlueprintResRgnLength;
+	IMG_UINT32 ui32BlueprintLog2DataPageSize;
+	IMG_UINT32 ui32BlueprintLog2ImportAlignment;
+
+	/* uiHeapLength parameter no longer used. */
+	PVR_UNREFERENCED_PARAMETER(uiHeapLength);
 
 	PVR_DPF((PVR_DBG_MESSAGE, "%s", __func__));
 
@@ -658,6 +666,41 @@ DevmemIntHeapCreate2(DEVMEMINT_CTX *psDevmemCtx,
 	DevmemIntCtxAcquire(psDevmemHeap->psDevmemCtx);
 
 	OSAtomicWrite(&psDevmemHeap->uiRefCount, 1);
+
+	/* Check page size and base addr match the heap blueprint */
+	eError = HeapCfgHeapDetails(NULL,
+	                            psDevmemHeap->psDevmemCtx->psDevNode,
+	                            uiHeapConfigIndex,
+	                            uiHeapIndex,
+	                            0, NULL,
+	                            &sBlueprintHeapBaseAddr,
+	                            &uiBlueprintHeapLength,
+	                            &uiBlueprintResRgnLength,
+	                            &ui32BlueprintLog2DataPageSize,
+	                            &ui32BlueprintLog2ImportAlignment);
+	if (eError != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to get details for HeapConfig:%d HeapIndex:%d.",
+				 __func__, uiHeapConfigIndex, uiHeapIndex));
+		goto ErrorCtxRelease;
+	}
+
+	if (uiLog2DataPageSize != ui32BlueprintLog2DataPageSize)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "Incorrect page size passed - Passed: %d, Expected: %d for HeapConfig:%d HeapIndex:%d.",
+					uiLog2DataPageSize, ui32BlueprintLog2DataPageSize, uiHeapConfigIndex, uiHeapIndex));
+		eError = PVRSRV_ERROR_INVALID_PARAMS;
+		goto ErrorCtxRelease;
+	}
+
+	if (sHeapBaseAddr.uiAddr != sBlueprintHeapBaseAddr.uiAddr)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "Incorrect heap address passed - Passed: "IMG_DEV_VIRTADDR_FMTSPEC", Expected: "IMG_DEV_VIRTADDR_FMTSPEC" for HeapConfig: %d HeapIndex: %d.",
+					(IMG_UINT64)sHeapBaseAddr.uiAddr,
+	             (IMG_UINT64)sBlueprintHeapBaseAddr.uiAddr, uiHeapConfigIndex, uiHeapIndex));
+		eError = PVRSRV_ERROR_INVALID_PARAMS;
+		goto ErrorCtxRelease;
+	}
 
 	psDevmemHeap->uiLog2PageSize = uiLog2DataPageSize;
 	psDevmemHeap->sBaseAddr = sHeapBaseAddr;
