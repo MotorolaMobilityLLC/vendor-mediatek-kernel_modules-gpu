@@ -1512,8 +1512,12 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 
 		case KBASE_L2_RESET_WAIT:
 			/* Reset complete  */
-			if (!backend->in_reset)
+			if (!backend->in_reset) {
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+				mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_OFF);
+#endif /* CONFIG_MALI_MTK_ACP_DSU_REQ */
 				backend->l2_state = KBASE_L2_OFF;
+			}
 			break;
 
 		default:
@@ -3166,10 +3170,6 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 	KBASE_KTRACE_ADD(kbdev, CORE_GPU_SOFT_RESET, NULL, 0);
 
 	KBASE_TLSTREAM_JD_GPU_SOFT_RESET(kbdev, kbdev);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
-	mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_ON);
-#endif
 
 	if (kbdev->pm.backend.callback_soft_reset) {
 		ret = kbdev->pm.backend.callback_soft_reset(kbdev);
