@@ -2104,7 +2104,7 @@ static int delete_queue(struct kbase_context *kctx, u32 id)
 		destroy_workqueue(queue->cmds_timeout_wq);
 #endif /* CONFIG_MALI_MTK_KCPU_DEBUG */
 
-		kfree(queue);
+		vfree(queue);
 	} else {
 		dev_err(kctx->kbdev->dev,
 			"Attempt to delete a non-existent KCPU queue");
@@ -2898,7 +2898,7 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx,
 		goto out;
 	}
 
-	queue = kzalloc(sizeof(*queue), GFP_KERNEL);
+	queue = vzalloc(sizeof(*queue));
 
 	if (!queue) {
 		ret = -ENOMEM;
@@ -2907,7 +2907,7 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx,
 
 	queue->wq = alloc_workqueue("mali_kbase_csf_kcpu_wq_%i", WQ_UNBOUND | WQ_HIGHPRI, 0, idx);
 	if (queue->wq == NULL) {
-		kfree(queue);
+		vfree(queue);
 		ret = -ENOMEM;
 
 		goto out;
@@ -2959,7 +2959,7 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx,
 #if IS_ENABLED(CONFIG_MALI_MTK_KCPU_DEBUG)
 	queue->cmds_timeout_wq = alloc_workqueue("mali_kbase_csf_kcpu_cmds_timeout_wq_%i", WQ_UNBOUND | WQ_HIGHPRI, 0, idx);
 	if (queue->cmds_timeout_wq == NULL) {
-		kfree(queue);
+		vfree(queue);
 		ret = -ENOMEM;
 
 		goto out;
