@@ -32,8 +32,13 @@ ifeq ($(MTK_PLATFORM),mt6761)
 ifneq ($(filter $(CONFIG_MTK_GPUFREQ_V2),y m),)
 $(PVRSRVKM_NAME)-y += \
 	services/system/rogue/$(PVR_SYSTEM)/mt6761_v2/mtk_mfgsys.o
-endif
 else
+$(PVRSRVKM_NAME)-y += \
+	services/system/rogue/$(PVR_SYSTEM)/$(MTK_PLATFORM)/mtk_mfgsys.o
+endif
+endif
+
+ifeq ($(MTK_PLATFORM),mt6765)
 $(PVRSRVKM_NAME)-y += \
 	services/system/rogue/$(PVR_SYSTEM)/$(MTK_PLATFORM)/mtk_mfgsys.o
 endif
@@ -56,12 +61,21 @@ ifeq ($(MTK_PLATFORM),mt6761)
 ifneq ($(filter $(CONFIG_MTK_GPUFREQ_V2),y m),)
 ccflags-y += \
 	-I$(TOP)/services/system/rogue/$(PVR_SYSTEM)/mt6761_v2
-endif
 else
 ccflags-y += \
 	-I$(TOP)/services/system/rogue/$(PVR_SYSTEM)/$(MTK_PLATFORM)
 endif
+endif
 
+ifeq ($(MTK_PLATFORM),mt6765)
+ccflags-y += \
+	-I$(TOP)/services/system/rogue/$(PVR_SYSTEM)/$(MTK_PLATFORM)
+endif
+
+ifeq ($(MTK_PLATFORM),mt6739)
+ccflags-y += \
+	-I$(TOP)/services/system/rogue/$(PVR_SYSTEM)/$(MTK_PLATFORM)
+endif
 
 ifeq ($(kernel_ver),kernel-4.14)
 ccflags-y += \
