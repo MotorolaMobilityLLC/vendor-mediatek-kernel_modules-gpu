@@ -344,6 +344,30 @@ OSMMapPMRGeneric(PMR *psPMR, PMR_MMAP_DATA pOSMMapData)
 	IMG_BOOL *pbValid;
 	IMG_BOOL bUseMixedMap = IMG_FALSE;
 	IMG_BOOL bUseVMInsertPage = IMG_FALSE;
+	IMG_DEVMEM_SIZE_T uiPmrVirtualSize;
+
+	uiLength = ps_vma->vm_end - ps_vma->vm_start;
+
+	PMR_LogicalSize(psPMR, &uiPmrVirtualSize);
+
+	/* Check early if the requested mapping size doesn't exceed the virtual
+	 * PMR size. */
+	if (uiPmrVirtualSize < uiLength)
+	{
+		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_BAD_MAPPING, e0);
+	}
+
+	uiLog2PageSize = PMR_GetLog2Contiguity(psPMR);
+
+	/* Check the number of PFNs to be mapped is valid. */
+	uiNumOfPFNs = uiLength >> uiLog2PageSize;
+	if (uiNumOfPFNs == 0)
+	{
+		PVR_LOG_VA(PVR_DBG_ERROR,
+		           "uiLength is invalid. Must be >= %u.",
+		           1 << uiLog2PageSize);
+		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_BAD_MAPPING, e0);
+	}
 
 	eError = PMRLockSysPhysAddresses(psPMR);
 	if (eError != PVRSRV_OK)
@@ -409,8 +433,6 @@ OSMMapPMRGeneric(PMR *psPMR, PMR_MMAP_DATA pOSMMapData)
 
 	/* Don't allow mapping to be inherited across a process fork */
 	ps_vma->vm_flags |= VM_DONTCOPY;
-
-	uiLength = ps_vma->vm_end - ps_vma->vm_start;
 
 	/* Is this mmap targeting non order-zero pages or does it use pfn mappings?
 	 * If yes, don't use vm_insert_page */
