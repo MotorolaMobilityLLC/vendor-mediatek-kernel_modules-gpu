@@ -257,6 +257,15 @@ DevmemIntHeapCreate(DEVMEMINT_CTX *psDevmemCtx,
                     IMG_DEVMEM_SIZE_T uiHeapLength,
                     IMG_UINT32 uiLog2DataPageSize,
                     DEVMEMINT_HEAP **ppsDevmemHeapPtr);
+
+PVRSRV_ERROR
+DevmemIntHeapCreate2(DEVMEMINT_CTX *psDevmemCtx,
+                    IMG_UINT32 uiHeapConfigIndex,
+                    IMG_UINT32 uiHeapIndex,
+                    IMG_DEV_VIRTADDR sHeapBaseAddr,
+                    IMG_DEVMEM_SIZE_T uiHeapLength,
+                    IMG_UINT32 uiLog2DataPageSize,
+                    DEVMEMINT_HEAP **ppsDevmemHeapPtr);
 /*
  * DevmemIntHeapDestroy()
  *
@@ -267,6 +276,13 @@ DevmemIntHeapCreate(DEVMEMINT_CTX *psDevmemCtx,
  */
 PVRSRV_ERROR
 DevmemIntHeapDestroy(DEVMEMINT_HEAP *psDevmemHeap);
+
+/* DevmemIntHeapGetBaseAddr()
+ *
+ * Get heap base address pre carveouts.
+ */
+IMG_DEV_VIRTADDR
+DevmemIntHeapGetBaseAddr(DEVMEMINT_HEAP *psDevmemHeap);
 
 /*
  * DevmemIntMapPMR()
