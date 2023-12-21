@@ -730,3 +730,30 @@ IMG_INTERNAL PVRSRV_ERROR BridgePVRSRVUpdateOOMStats(IMG_HANDLE hBridge,
 	return PVRSRV_ERROR_NOT_IMPLEMENTED;
 #endif
 }
+
+IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntHeapCreate2(IMG_HANDLE hBridge,
+						     IMG_HANDLE hDevmemCtx,
+						     IMG_UINT32 ui32HeapConfigIndex,
+						     IMG_UINT32 ui32HeapIndex,
+						     IMG_DEV_VIRTADDR sHeapBaseAddr,
+						     IMG_DEVMEM_SIZE_T uiHeapLength,
+						     IMG_UINT32 ui32Log2DataPageSize,
+						     IMG_HANDLE * phDevmemHeapPtr)
+{
+	PVRSRV_ERROR eError;
+	DEVMEMINT_CTX *psDevmemCtxInt;
+	DEVMEMINT_HEAP *psDevmemHeapPtrInt = NULL;
+	PVR_UNREFERENCED_PARAMETER(hBridge);
+
+	psDevmemCtxInt = (DEVMEMINT_CTX *) hDevmemCtx;
+
+	eError =
+	    DevmemIntHeapCreate2(psDevmemCtxInt,
+				 ui32HeapConfigIndex,
+				 ui32HeapIndex,
+				 sHeapBaseAddr,
+				 uiHeapLength, ui32Log2DataPageSize, &psDevmemHeapPtrInt);
+
+	*phDevmemHeapPtr = psDevmemHeapPtrInt;
+	return eError;
+}
