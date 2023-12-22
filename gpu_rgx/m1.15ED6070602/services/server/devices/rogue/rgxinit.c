@@ -3982,8 +3982,7 @@ typedef struct RGX_HEAP_INFO_TAG
 /* Private data struct for general heap. */
 typedef struct RGX_GENERAL_HEAP_DATA_TAG
 {
-	DEVMEMINT_RESERVATION  *psSecMemReservation;
-	DEVMEMINT_MAPPING      *psSecMemMapping;
+	DEVMEMINT_RESERVATION2  *psSecMemReservation;
 } RGX_GENERAL_HEAP_DATA;
 
 /* Init callback function for general heap. */
@@ -4009,16 +4008,15 @@ static PVRSRV_ERROR GeneralHeapInit(PVRSRV_DEVICE_NODE *psDeviceNode,
 	sCarveOutAddr = DevmemIntHeapGetBaseAddr(psDevmemHeap);
 	sCarveOutAddr.uiAddr += RGX_HEAP_KM_GENERAL_RESERVED_REGION_OFFSET;
 
-	eError = DevmemIntReserveRange(psDevmemHeap,
+	eError = DevmemIntReserveRange2(psDevmemHeap,
 								   sCarveOutAddr,
 								   RGXFWIF_KM_GENERAL_HEAP_TOTAL_BYTES,
+								   PVRSRV_MEMALLOCFLAG_GPU_READABLE |
+								   PVRSRV_MEMALLOCFLAG_GPU_WRITEABLE,
 								   &psHeapData->psSecMemReservation);
 	PVR_GOTO_IF_ERROR(eError, ErrorFreeHeapData);
 
-	eError = DevmemIntMapPMR(psDevmemHeap, psHeapData->psSecMemReservation, psDevInfo->psGenHeapSecMem,
-					PVRSRV_MEMALLOCFLAG_GPU_READABLE
-					| PVRSRV_MEMALLOCFLAG_GPU_WRITEABLE,
-					&psHeapData->psSecMemMapping);
+	eError = DevmemIntMapPMR2(psDevmemHeap, psHeapData->psSecMemReservation, psDevInfo->psGenHeapSecMem);
 	PVR_GOTO_IF_ERROR(eError, ErrorUnreserve);
 
 	*phPrivData = (IMG_HANDLE)psHeapData;
@@ -4026,7 +4024,7 @@ static PVRSRV_ERROR GeneralHeapInit(PVRSRV_DEVICE_NODE *psDeviceNode,
 	return PVRSRV_OK;
 
 ErrorUnreserve:
-	DevmemIntUnreserveRange(psHeapData->psSecMemReservation);
+	DevmemIntUnreserveRange2(psHeapData->psSecMemReservation);
 ErrorFreeHeapData:
 	OSFreeMem(psHeapData);
 
@@ -4040,8 +4038,8 @@ static void GeneralHeapDeInit(IMG_HANDLE hPrivData)
 
 	PVR_ASSERT(hPrivData);
 
-	DevmemIntUnmapPMR(psHeapData->psSecMemMapping);
-	DevmemIntUnreserveRange(psHeapData->psSecMemReservation);
+	DevmemIntUnmapPMR2(psHeapData->psSecMemReservation);
+	DevmemIntUnreserveRange2(psHeapData->psSecMemReservation);
 
 	OSFreeMem(psHeapData);
 }
