@@ -655,16 +655,16 @@ PhysmemCreateNewDmaBufBackedPMR(PHYS_HEAP *psHeap,
 			goto errUnmap;
 		}
 
-		if (WARN_ON(ui32PageCount != ui32NumPhysChunks * uiPagesPerChunk))
+		if (WARN_ON(ui32PageCount < ui32NumPhysChunks * uiPagesPerChunk))
 		{
-			PVR_DPF((PVR_DBG_ERROR, "%s: Requested physical chunks and actual "
-					"number of physical dma buf pages don't match",
+			PVR_DPF((PVR_DBG_ERROR, "%s: Requested physical chunks greater than "
+					"number of physical dma buf pages",
 					__func__));
 			eError = PVRSRV_ERROR_INVALID_PARAMS;
 			goto errUnmap;
 		}
 
-		psPrivData->ui32PhysPageCount = ui32PageCount;
+		psPrivData->ui32PhysPageCount = ui32NumPhysChunks * uiPagesPerChunk;
 		psPrivData->psSgTable = table;
 		ui32PageCount = 0;
 		sg = table->sgl;
@@ -776,16 +776,16 @@ PhysmemCreateNewDmaBufBackedPMR(PHYS_HEAP *psHeap,
 		goto errUnmap;
 	}
 
-	if (WARN_ON(ui32PageCount != ui32NumPhysChunks * uiPagesPerChunk))
+	if (WARN_ON(ui32PageCount < ui32NumPhysChunks * uiPagesPerChunk))
 	{
-		PVR_DPF((PVR_DBG_ERROR, "%s: Requested physical chunks and actual "
-				"number of physical dma buf pages don't match",
+		PVR_DPF((PVR_DBG_ERROR, "%s: Requested physical chunks greater than "
+				"number of physical dma buf pages",
 				 __func__));
 		eError = PVRSRV_ERROR_INVALID_PARAMS;
 		goto errUnmap;
 	}
 
-	psPrivData->ui32PhysPageCount = ui32PageCount;
+	psPrivData->ui32PhysPageCount = ui32NumPhysChunks * uiPagesPerChunk;
 	psPrivData->psSgTable = table;
 	ui32PageCount = 0;
 	sg = table->sgl;
@@ -1198,7 +1198,7 @@ err:
 		IMG_UINT32 i;
 
 		/* Parameter validation */
-		if (psDmaBuf->size != (uiChunkSize * ui32NumPhysChunks) ||
+		if (psDmaBuf->size < (uiChunkSize * ui32NumPhysChunks) ||
 		    uiChunkSize != PAGE_SIZE ||
 		    ui32NumPhysChunks > ui32NumVirtChunks)
 		{
@@ -1207,7 +1207,7 @@ err:
 					"uiChunkSize ("IMG_DEVMEM_SIZE_FMTSPEC") must be equal to "
 					"OS page size (%lu). uiChunkSize * ui32NumPhysChunks "
 					"("IMG_DEVMEM_SIZE_FMTSPEC") must"
-					" be equal to the buffer size ("IMG_SIZE_FMTSPEC"). "
+					" be lesser or equal to the buffer size ("IMG_SIZE_FMTSPEC"). "
 					"ui32NumPhysChunks (%u) must be lesser or equal to "
 					"ui32NumVirtChunks (%u)",
 					 __func__,
