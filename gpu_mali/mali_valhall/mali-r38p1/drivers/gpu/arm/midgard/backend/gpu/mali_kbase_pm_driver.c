@@ -1230,6 +1230,9 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 				kbase_pm_l2_config_override(kbdev);
 				kbase_pbha_write_settings(kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+				mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_ON);
+#endif
 				/* If Host is controlling the power for shader
 				 * cores, then it also needs to control the
 				 * power for Tiler.
@@ -1240,9 +1243,6 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 					kbase_pm_invoke(kbdev, KBASE_PM_CORE_TILER, tiler_present,
 							ACTION_PWRON);
 				} else {
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
-					mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_ON);
-#endif
 					kbase_pm_invoke(kbdev, KBASE_PM_CORE_L2, l2_present,
 							ACTION_PWRON);
 				}
