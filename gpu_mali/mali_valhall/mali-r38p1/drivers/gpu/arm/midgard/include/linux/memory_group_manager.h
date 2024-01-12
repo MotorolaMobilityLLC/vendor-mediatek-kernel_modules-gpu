@@ -175,6 +175,9 @@ struct memory_group_manager_ops {
 		struct memory_group_manager_device *mgm_dev, int group_id,
 		struct vm_area_struct *vma, unsigned long addr,
 		unsigned long pfn, pgprot_t pgprot);
+#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
+	size_t (*mgm_mtk_cache_pool_size)(struct memory_group_manager_device *mgm_dev);
+#endif
 };
 
 /**

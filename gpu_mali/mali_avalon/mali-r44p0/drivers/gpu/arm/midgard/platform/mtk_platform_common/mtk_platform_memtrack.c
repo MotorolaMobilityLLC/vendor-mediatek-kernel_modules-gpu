@@ -14,6 +14,7 @@
 #include <linux/delay.h>
 
 extern unsigned int (*mtk_get_gpu_memory_usage_fp)(void);
+extern size_t (*mtk_get_gpu_memory_pool_fp)(void);
 
 #if IS_ENABLED(CONFIG_PROC_FS)
 /* name of the proc entry */
@@ -110,8 +111,26 @@ static unsigned int mtk_memtrack_gpu_memory_total(void)
 
 	used_pages = atomic_read(&(kbdev->memdev.used_pages));
 
-	return used_pages * 4096;
+	return used_pages << PAGE_SHIFT;
 }
+
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+static size_t mtk_memtrack_gpu_pool_total(void)
+{
+	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+	unsigned int cache_pool_pages;
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return 0;
+
+	cache_pool_pages = atomic_read(&(kbdev->memdev.cache_pool_pages));
+#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
+	cache_pool_pages += kbdev->mgm_dev->ops.mgm_mtk_cache_pool_size(kbdev->mgm_dev);
+#endif
+
+	return cache_pool_pages << PAGE_SHIFT;
+}
+#endif
 
 int mtk_memtrack_init(struct kbase_device *kbdev)
 {
@@ -119,6 +138,11 @@ int mtk_memtrack_init(struct kbase_device *kbdev)
 		return -1;
 
 	mtk_get_gpu_memory_usage_fp = mtk_memtrack_gpu_memory_total;
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+	mtk_get_gpu_memory_pool_fp = mtk_memtrack_gpu_pool_total;
+#else
+	mtk_get_gpu_memory_pool_fp = NULL;
+#endif
 
 	return 0;
 }
@@ -129,6 +153,7 @@ int mtk_memtrack_term(struct kbase_device *kbdev)
 		return -1;
 
 	mtk_get_gpu_memory_usage_fp = NULL;
+	mtk_get_gpu_memory_pool_fp = NULL;
 
 	return 0;
 }
