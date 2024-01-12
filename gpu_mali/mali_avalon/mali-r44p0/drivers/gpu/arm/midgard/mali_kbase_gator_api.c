@@ -72,6 +72,10 @@ const char * const *kbase_gator_hwcnt_init_names(uint32_t *total_counters)
 		hardware_counters = hardware_counters_mali_tTUx;
 		count = ARRAY_SIZE(hardware_counters_mali_tTUx);
 		break;
+	case GPU_ID2_PRODUCT_TTIX:
+		hardware_counters = hardware_counters_mali_tTIx;
+		count = ARRAY_SIZE(hardware_counters_mali_tTIx);
+		break;
 	default:
 		hardware_counters = NULL;
 		count = 0;
