@@ -245,6 +245,9 @@ void kbase_csf_firmware_disable_mcu(struct kbase_device *kbdev)
 {
 	KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_DISABLING(kbdev, kbase_backend_get_cycle_cnt(kbdev));
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DISABLE_MCU_WA)
+	kbase_reg_write(kbdev, GPU_CONTROL_REG(MCU_CONTROL), MCU_CNTRL_DISABLE);
+#else
 	if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_TITANHW_2922)) {
 		kbase_reg_write(kbdev, GPU_CONTROL_REG(MCU_CONTROL), MCU_CNTRL_ENABLE);
 		kbase_reg_write(kbdev, GPU_CONTROL_MCU_REG(GPU_CTRL_MCU_GPU_COMMAND),
@@ -252,6 +255,7 @@ void kbase_csf_firmware_disable_mcu(struct kbase_device *kbdev)
 	} else {
 		kbase_reg_write(kbdev, GPU_CONTROL_REG(MCU_CONTROL), MCU_CNTRL_DISABLE);
 	}
+#endif /* CONFIG_MALI_MTK_DISABLE_MCU_WA */
 }
 
 static void wait_for_firmware_stop(struct kbase_device *kbdev)
@@ -264,6 +268,7 @@ static void wait_for_firmware_stop(struct kbase_device *kbdev)
 	KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_OFF(kbdev, kbase_backend_get_cycle_cnt(kbdev));
 }
 
+#if !IS_ENABLED(CONFIG_MALI_MTK_DISABLE_MCU_WA)
 static void wait_for_gpu_inactive(struct kbase_device *kbdev)
 {
 	u32 max_loops = CSF_MAX_GPU_INACTIVE_LOOPS;
@@ -275,13 +280,18 @@ static void wait_for_gpu_inactive(struct kbase_device *kbdev)
 	if (!max_loops)
 		dev_err(kbdev->dev, "Wait for GPU inactive failed post Fast Reset.");
 }
+#endif /* CONFIG_MALI_MTK_DISABLE_MCU_WA */
 
 void kbase_csf_firmware_disable_mcu_wait(struct kbase_device *kbdev)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_DISABLE_MCU_WA)
+	wait_for_firmware_stop(kbdev);
+#else
 	if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_TITANHW_2922))
 		wait_for_gpu_inactive(kbdev);
 	else
 		wait_for_firmware_stop(kbdev);
+#endif /* CONFIG_MALI_MTK_DISABLE_MCU_WA */
 
 	KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_OFF(kbdev, kbase_backend_get_cycle_cnt(kbdev));
 }

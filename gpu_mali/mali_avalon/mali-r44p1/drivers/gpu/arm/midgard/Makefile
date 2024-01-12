@@ -66,6 +66,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_MFG2_BACKDOOR := n
         CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG := y
         CONFIG_MALI_MTK_FIX_COVERITY := y
+        CONFIG_MALI_MTK_DISABLE_MCU_WA := y
     endif ## mt6897 ##
 endif
 
