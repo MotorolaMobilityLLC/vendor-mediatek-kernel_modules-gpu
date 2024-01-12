@@ -29,6 +29,14 @@
 #include <linux/io.h>
 #include <linux/protected_memory_allocator.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IOMMU)
+#pragma message "enable CONFIG_MALI_MTK_GPU_IOMMU"
+#include <mtk_gpufreq.h>
+#include <linux/err.h>
+#include <linux/of_address.h>
+#include <linux/of_device.h>
+#endif
+
 /* Size of a bitfield element in bytes */
 #define BITFIELD_ELEM_SIZE sizeof(u64)
 
@@ -426,6 +434,52 @@ static void simple_pma_free_page(
 	devm_kfree(epma_dev->dev, pma);
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IOMMU)
+static int mtk_gpu_iommu_init(struct platform_device *pdev)
+{
+	int ret = 1;
+	struct device *dev = &pdev->dev;
+
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+	/* on,off/ SWCG(BG3D)/ MTCMOS/ BUCK */
+	if (gpufreq_power_control(GPU_PWR_ON) < 0) {
+		dev_err(dev, "Power On Failed");
+		return ret;
+	}
+
+	/* Control runtime active-sleep state of GPU */
+	if (gpufreq_active_sleep_control(GPU_PWR_ON) < 0) {
+		dev_err(dev, "Active Failed (on)");
+		return ret;
+	}
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+
+	/* Create platform device for the sub node. */
+	ret = of_platform_populate(dev->of_node, NULL, NULL, dev);
+	if (ret) {
+		dev_err(dev, "[gpu_iommu] Create sub node fail %d", ret);
+		return ret;
+	}
+
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+	/* Control runtime active-sleep state of GPU */
+	if (gpufreq_active_sleep_control(GPU_PWR_OFF) < 0) {
+		dev_err(dev, "Sleep Failed (off)");
+		return ret;
+	}
+
+	/* on,off/ SWCG(BG3D)/ MTCMOS/ BUCK */
+	if (gpufreq_power_control(GPU_PWR_OFF) < 0) {
+		dev_err(dev, "Power Off Failed");
+		return 1;
+	}
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+
+	dev_info(dev, "[gpu_iommu] init done %d", ret);
+	return ret;
+}
+#endif
+
 static int protected_memory_allocator_probe(struct platform_device *pdev) __attribute__((unused));
 static int protected_memory_allocator_probe(struct platform_device *pdev)
 {
@@ -535,6 +589,13 @@ static int mtk_protected_memory_allocator_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "device node pointer not set\n");
 		return -ENODEV;
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IOMMU)
+	if(mtk_gpu_iommu_init(pdev)) {
+		dev_err(&pdev->dev, "can't init gpu iommu\n");
+		return -ENODEV;
+	}
+#endif /* CONFIG_MALI_MTK_GPU_IOMMU */
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "gpueb_base");
 
