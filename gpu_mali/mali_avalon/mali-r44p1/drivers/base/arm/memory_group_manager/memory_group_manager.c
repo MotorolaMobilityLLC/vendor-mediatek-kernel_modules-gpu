@@ -624,7 +624,8 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 									gfp_t gfp_mask, unsigned int order)
 {
 	static size_t nr_4Kfree_lst = 0;
-	unsigned int order_scan_walk = 10;
+	static unsigned int try_order = 10;
+	unsigned int order_scan_walk;
 	unsigned int count;
 	gfp_t horder_gfp_mask;
 	struct page* p = NULL;
@@ -637,6 +638,7 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 
 	/* if pre-alloc list pool got available 4K page */
 	spin_lock(&data->free_4K_lst_lk);
+	order_scan_walk = try_order;
 	if (nr_4Kfree_lst) {
 		p = list_first_entry(&data->free_4K_lst, struct page, lru);
 		if (p) {
@@ -672,6 +674,8 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 				list_add(&pp->lru, &data->free_4K_lst);
 				pp++;
 			}
+			if (order_scan_walk != 10)
+				try_order = order_scan_walk + 1;
 			spin_unlock(&data->free_4K_lst_lk);
 			return p;
 		}
@@ -1273,7 +1277,7 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 	if (mtk_emicen_get_rk_cnt() == 2 &&
 		(info.totalram << PAGE_SHIFT) > mtk_emicen_get_rk_size(0)) {
 		mgm_data->ui64RankBoundary = MTK_EMI_DRAM_OFFSET + mtk_emicen_get_rk_size(0);
-		mgm_data->rank_mode = NORMAL_MODE;
+		mgm_data->rank_mode = RELAX_MODE;
 		mgm_data->szRefillTarget = REFILL_TARGET;
 
 
