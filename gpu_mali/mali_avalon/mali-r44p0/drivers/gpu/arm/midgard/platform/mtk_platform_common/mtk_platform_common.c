@@ -485,6 +485,10 @@ void mtk_common_csf_debugfs_init(struct kbase_device *kbdev)
 {
 	if (IS_ERR_OR_NULL(kbdev))
 		return;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_debug_csf_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 }
 #endif /* CONFIG_MALI_CSF_SUPPORT */
 #endif /* CONFIG_MALI_MTK_DEBUG_FS */

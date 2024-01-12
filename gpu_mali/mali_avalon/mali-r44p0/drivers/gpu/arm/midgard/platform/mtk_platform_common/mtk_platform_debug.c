@@ -25,6 +25,43 @@
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+
+#define mtk_log_all(kbdev, to_dev, fmt, args...) \
+	do { \
+		if (to_dev) \
+			dev_info(kbdev->dev, fmt, ##args); \
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL, fmt "\n", ##args); \
+	} while (0)
+#define mtk_log_regular(kbdev, to_dev, fmt, args...) \
+	do { \
+		if (to_dev) \
+			dev_info(kbdev->dev, fmt, ##args); \
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR, fmt "\n", ##args); \
+	} while (0)
+#define mtk_log_exception(kbdev, to_dev, fmt, args...) \
+	do { \
+		if (to_dev) \
+			dev_info(kbdev->dev, fmt, ##args); \
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_EXCEPTION, fmt "\n", ##args); \
+	} while (0)
+
+#else
+#define mtk_log_all(kbdev, to_dev, fmt, args...) \
+	do { \
+		if (to_dev) \
+			dev_info(kbdev->dev, fmt, ##args); \
+	} while (0)
+#define mtk_log_regular(kbdev, to_dev, fmt, args...) \
+	do { \
+		if (to_dev) \
+			dev_info(kbdev->dev, fmt, ##args); \
+	} while (0)
+#define mtk_log_exception(kbdev, to_dev, fmt, args...) \
+	do { \
+		if (to_dev) \
+			dev_info(kbdev->dev, fmt, ##args); \
+	} while (0)
+
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 extern void (*mtk_gpu_fence_debug_dump_fp)(int fd, int pid, int type, int timeouts);
@@ -422,365 +459,12 @@ static ssize_t mtk_debug_mem_dump_mode_write(struct file *file, const char __use
 	return count;
 }
 
-#if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
-/**
- * mtk_debug_dump_kcpu_queues() - Print debug info for KCPU queues
- *
- * @file: The seq_file for printing to
- * @data: The debugfs dentry private data, a pointer to kbase_device
- *
- * Return: Negative error code or 0 on success.
- */
-static int mtk_debug_dump_kcpu_queues(struct seq_file *file, void *data)
-{
-	struct kbase_device *kbdev = file->private;
-	struct kbase_context *kctx;
-
-	return 0;
-
-	mutex_lock(&kbdev->kctx_list_lock);
-	list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
-		mutex_lock(&kctx->csf.lock);
-		kbase_csf_scheduler_lock(kbdev);
-
-		// Print per-context KCPU queues debug information
-		{
-		unsigned long idx;
-
-		seq_printf(file, "[kcpu_queues] MALI_CSF_KCPU_DEBUGFS_VERSION: v%u\n", MALI_CSF_CSG_DEBUGFS_VERSION);
-		seq_printf(file, "[kcpu_queues] ##### Ctx %d_%d #####\n", kctx->tgid, kctx->id);
-		seq_printf(file, "[%d_%d] Queue Idx(err-mode), Pending Commands, Enqueue err, Blocked, Start Offset, Fence context  &  seqno\n",
-				   kctx->tgid,
-				   kctx->id);
-
-		mutex_lock(&kctx->csf.kcpu_queues.lock);
-
-		idx = find_first_bit(kctx->csf.kcpu_queues.in_use, KBASEP_MAX_KCPU_QUEUES);
-
-		while (idx < KBASEP_MAX_KCPU_QUEUES) {
-			struct kbase_kcpu_command_queue *queue = kctx->csf.kcpu_queues.array[idx];
-
-			if (!queue) {
-				idx = find_next_bit(kctx->csf.kcpu_queues.in_use, KBASEP_MAX_KCPU_QUEUES, idx + 1);
-				continue;
-			}
-
-			if (!mutex_trylock(&queue->lock)) {
-				dev_info(kbdev->dev, "[%d_%d] %9lu(  lock held, bypass dump )",
-						kctx->tgid, kctx->id, idx);
-				continue;
-			}
-
-			seq_printf(file,
-					   "[%d_%d] %9lu(  %s ), %16u, %11u, %7u, %12u, %13llu  %8u\n",
-					   kctx->tgid,
-					   kctx->id,
-					   idx,
-					   queue->has_error ? "InErr" : "NoErr",
-					   queue->num_pending_cmds,
-					   queue->enqueue_failed,
-					   queue->command_started ? 1 : 0,
-					   queue->start_offset,
-					   queue->fence_context,
-					   queue->fence_seqno);
-
-			if (queue->command_started) {
-				int i;
-				for (i = 0; i < queue->num_pending_cmds; i++) {
-				struct kbase_kcpu_command *cmd;
-				u8 cmd_idx = queue->start_offset + i;
-				if (cmd_idx > KBASEP_KCPU_QUEUE_SIZE) {
-					seq_printf(file,
-							   "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info\n",
-							   kctx->tgid,
-							   kctx->id);
-					seq_printf(file,
-							   "[%d_%d] %9lu(  %s ), %7d,      None, (command index out of size limits %lu)\n",
-							   kctx->tgid,
-							   kctx->id,
-							   idx,
-							   queue->has_error ? "InErr" : "NoErr",
-							   cmd_idx,
-							   KBASEP_KCPU_QUEUE_SIZE);
-					break;
-				}
-				cmd = &queue->commands[cmd_idx];
-				if (cmd->type < 0 || cmd->type >= BASE_KCPU_COMMAND_TYPE_COUNT) {
-					seq_printf(file,
-							   "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info\n",
-							   kctx->tgid,
-							   kctx->id);
-					seq_printf(file,
-							   "[%d_%d] %9lu(  %s ), %7d, %9d, (unknown blocking command)\n",
-							   kctx->tgid,
-							   kctx->id,
-							   idx,
-							   queue->has_error ? "InErr" : "NoErr",
-							   cmd_idx,
-							   cmd->type);
-					continue;
-				}
-				switch (cmd->type) {
-#if IS_ENABLED(CONFIG_SYNC_FILE)
-				case BASE_KCPU_COMMAND_TYPE_FENCE_SIGNAL:
-				{
-					struct kbase_sync_fence_info info = { 0 };
-
-					if (cmd->info.fence.fence)
-						kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
-					else
-						scnprintf(info.name, sizeof(info.name), "NULL");
-
-					seq_printf(file,
-							   "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info\n",
-							   kctx->tgid,
-							   kctx->id);
-					seq_printf(file,
-							   "[%d_%d] %9lu(  %s ), %7d, Fence Signal, %pK %s %s\n",
-							   kctx->tgid,
-							   kctx->id,
-							   idx,
-							   queue->has_error ? "InErr" : "NoErr",
-							   cmd_idx,
-							   info.fence,
-							   info.name,
-							   kbase_sync_status_string(info.status));
-					break;
-				}
-				case BASE_KCPU_COMMAND_TYPE_FENCE_WAIT:
-				{
-					struct kbase_sync_fence_info info = { 0 };
-
-					if (cmd->info.fence.fence)
-						kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
-					else
-						scnprintf(info.name, sizeof(info.name), "NULL");
-
-					seq_printf(file,
-							   "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info\n",
-							   kctx->tgid,
-							   kctx->id);
-					seq_printf(file,
-							   "[%d_%d] %9lu(  %s ), %7d, Fence Wait, %pK %s %s\n",
-							   kctx->tgid,
-							   kctx->id,
-							   idx,
-							   queue->has_error ? "InErr" : "NoErr",
-							   cmd_idx,
-							   info.fence,
-							   info.name,
-							   kbase_sync_status_string(info.status));
-					break;
-				}
-#endif
-				case BASE_KCPU_COMMAND_TYPE_CQS_SET:
-				{
-					unsigned int i;
-					struct kbase_kcpu_command_cqs_set_info *sets = &cmd->info.cqs_set;
-
-					for (i = 0; i < sets->nr_objs; i++) {
-						seq_printf(file,
-								   "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info\n",
-								   kctx->tgid,
-								   kctx->id);
-						seq_printf(file,
-								   "[%d_%d] %9lu(  %s ), %7d,   CQS Set, %llx\n",
-								   kctx->tgid,
-								   kctx->id,
-								   idx,
-								   queue->has_error ? "InErr" : "NoErr",
-								   cmd_idx,
-								   sets->objs ? sets->objs[i].addr : 0);
-					}
-					break;
-				}
-				case BASE_KCPU_COMMAND_TYPE_CQS_WAIT:
-				{
-					unsigned int i;
-					struct kbase_kcpu_command_cqs_wait_info *waits = &cmd->info.cqs_wait;
-
-					for (i = 0; i < waits->nr_objs; i++) {
-						struct kbase_vmap_struct *mapping;
-						u32 val;
-						char const *msg;
-						u32 *const cpu_ptr = (u32 *)kbase_phy_alloc_mapping_get(kctx, waits->objs[i].addr, &mapping);
-
-						if (!cpu_ptr)
-							break;
-
-						val = *cpu_ptr;
-						kbase_phy_alloc_mapping_put(kctx, mapping);
-
-						msg = (waits->inherit_err_flags && (1U << i)) ? "true" : "false";
-
-						seq_printf(file,
-								   "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info\n",
-								   kctx->tgid,
-								   kctx->id);
-						seq_printf(file,
-								   "[%d_%d] %9lu(  %s ), %7d,  CQS Wait, %llx(%u > %u, inherit_err: %s)\n",
-								   kctx->tgid,
-								   kctx->id,
-								   idx,
-								   queue->has_error ? "InErr" : "NoErr",
-								   cmd_idx,
-								   waits->objs ? waits->objs[i].addr : 0,
-								   val,
-								   waits->objs ? waits->objs[i].val : 0,
-								   msg);
-					}
-					break;
-				}
-				default:
-					seq_printf(file,
-							   "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info\n",
-							   kctx->tgid,
-							   kctx->id);
-					seq_printf(file,
-							   "[%d_%d] %9lu(  %s ), %7d, %9d, (other blocking command)\n",
-							   kctx->tgid,
-							   kctx->id,
-							   idx,
-							   queue->has_error ? "InErr" : "NoErr",
-							   cmd_idx,
-							   cmd->type);
-					break;
-				}
-				}
-			}
-
-			mutex_unlock(&queue->lock);
-			idx = find_next_bit(kctx->csf.kcpu_queues.in_use, KBASEP_MAX_KCPU_QUEUES, idx + 1);
-		}
-
-		mutex_unlock(&kctx->csf.kcpu_queues.lock);
-		}
-
-		kbase_csf_scheduler_unlock(kbdev);
-		mutex_unlock(&kctx->csf.lock);
-	}
-	mutex_unlock(&kbdev->kctx_list_lock);
-
-	return 0;
-}
-
-/**
- * mtk_debug_dump_cpu_queues() - Print debug info for CPU queues
- *
- * @file: The seq_file for printing to
- * @data: The debugfs dentry private data, a pointer to kbase_device
- *
- * Return: Negative error code or 0 on success.
- */
-static int mtk_debug_dump_cpu_queues(struct seq_file *file, void *data)
-{
-	struct kbase_device *kbdev = file->private;
-	struct kbase_context *kctx;
-
-	return 0;
-
-#if 0
-	mutex_lock(&kbdev->kctx_list_lock);
-	list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
-		mutex_lock(&kctx->csf.lock);
-		kbase_csf_scheduler_lock(kbdev);
-
-		// Print per-context CPU queues debug information
-		{
-		if (atomic_read(&kctx->csf.cpu_queue.dump_req_status) !=
-				BASE_CSF_CPU_QUEUE_DUMP_COMPLETE) {
-			seq_printf(file, "[%d_%d] Dump request already started! (try again)\n", kctx->tgid, kctx->id);
-			kbase_csf_scheduler_unlock(kbdev);
-			mutex_unlock(&kctx->csf.lock);
-			mutex_unlock(&kbdev->kctx_list_lock);
-			return -EINVAL;
-		}
-
-		atomic_set(&kctx->csf.cpu_queue.dump_req_status, BASE_CSF_CPU_QUEUE_DUMP_ISSUED);
-		init_completion(&kctx->csf.cpu_queue.dump_cmp);
-		kbase_event_wakeup(kctx);
-
-		kbase_csf_scheduler_unlock(kbdev);
-		mutex_unlock(&kctx->csf.lock);
-
-		seq_printf(file, "[cpu_queue] CPU Queues table (version:v%u):\n", MALI_CSF_CPU_QUEUE_DEBUGFS_VERSION);
-		seq_printf(file, "[cpu_queue] ##### Ctx %d_%d #####\n", kctx->tgid, kctx->id);
-
-		wait_for_completion_timeout(&kctx->csf.cpu_queue.dump_cmp,
-				msecs_to_jiffies(3000));
-
-		mutex_lock(&kctx->csf.lock);
-		kbase_csf_scheduler_lock(kbdev);
-
-		if (kctx->csf.cpu_queue.buffer) {
-			WARN_ON(atomic_read(&kctx->csf.cpu_queue.dump_req_status) !=
-						BASE_CSF_CPU_QUEUE_DUMP_PENDING);
-
-			seq_printf(file, "[%d_%d] %s\n", kctx->tgid, kctx->id, kctx->csf.cpu_queue.buffer);
-
-			kfree(kctx->csf.cpu_queue.buffer);
-			kctx->csf.cpu_queue.buffer = NULL;
-			kctx->csf.cpu_queue.buffer_size = 0;
-		}
-		else
-			seq_printf(file, "[%d_%d] Dump error! (time out)\n", kctx->tgid, kctx->id);
-
-		atomic_set(&kctx->csf.cpu_queue.dump_req_status,
-			BASE_CSF_CPU_QUEUE_DUMP_COMPLETE);
-
-		}
-		kbase_csf_scheduler_unlock(kbdev);
-		mutex_unlock(&kctx->csf.lock);
-	}
-	mutex_unlock(&kbdev->kctx_list_lock);
-
-	return 0;
-#endif
-}
-#else
-static int mtk_debug_dump_kcpu_queues(struct seq_file *file, void *data)
-{
-	return 0;
-}
-
-static int mtk_debug_dump_cpu_queues(struct seq_file *file, void *data)
-{
-	return 0;
-}
-#endif /* CONFIG_MALI_CSF_SUPPORT && CONFIG_MALI_MTK_FENCE_DEBUG */
-
-static int mtk_debug_kcpu_queues_open(struct inode *in, struct file *file)
-{
-	return single_open(file, mtk_debug_dump_kcpu_queues,
-	                   in->i_private);
-}
-
-static int mtk_debug_cpu_queues_open(struct inode *in, struct file *file)
-{
-	return single_open(file, mtk_debug_dump_cpu_queues,
-	                   in->i_private);
-}
-
 static const struct file_operations mtk_debug_mem_dump_mode_fops = {
 	.open    = mtk_debug_mem_dump_mode_open,
 	.release = mtk_debug_mem_dump_mode_release,
 	.read    = seq_read,
 	.write   = mtk_debug_mem_dump_mode_write,
 	.llseek  = seq_lseek
-};
-
-static const struct file_operations mtk_debug_kcpu_queues_fops = {
-	.open    = mtk_debug_kcpu_queues_open,
-	.read    = seq_read,
-	.llseek  = seq_lseek,
-	.release = single_release
-};
-
-static const struct file_operations mtk_debug_cpu_queues_fops = {
-	.open    = mtk_debug_cpu_queues_open,
-	.read    = seq_read,
-	.llseek  = seq_lseek,
-	.release = single_release
 };
 
 int mtk_debug_csf_debugfs_init(struct kbase_device *kbdev)
@@ -794,12 +478,6 @@ int mtk_debug_csf_debugfs_init(struct kbase_device *kbdev)
 	debugfs_create_file("mem_dump_mode", 0644,
 			kbdev->mali_debugfs_directory, kbdev,
 			&mtk_debug_mem_dump_mode_fops);
-	debugfs_create_file("kcpu_queues", 0444,
-			kbdev->debugfs_ctx_directory, kbdev,
-			&mtk_debug_kcpu_queues_fops);
-	debugfs_create_file("cpu_queues", 0444,
-			kbdev->debugfs_ctx_directory, kbdev,
-			&mtk_debug_cpu_queues_fops);
 
 	return 0;
 }
@@ -1055,11 +733,7 @@ static void *mtk_debug_cs_queue_dump_record_map_cpu_addr(struct kbase_context *k
 	reg = kbase_region_tracker_find_region_enclosing_address(kctx, gpu_addr);
 	if (reg == NULL || reg->gpu_alloc == NULL) {
 		/* Empty region - ignore */
-		if (mtk_debug_cs_dump_mode)
-			dev_info(kctx->kbdev->dev, "%016llx: empty region", gpu_addr);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kctx->kbdev->logbuf_regular, "%016llx: empty region\n", gpu_addr);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		mtk_log_regular(kctx->kbdev, mtk_debug_cs_dump_mode, "%016llx: empty region", gpu_addr);
 		return NULL;
 	}
 
@@ -1067,21 +741,13 @@ static void *mtk_debug_cs_queue_dump_record_map_cpu_addr(struct kbase_context *k
 		/* CPU access to protected memory is forbidden - so
 		 * skip this GPU virtual region.
 		 */
-		if (mtk_debug_cs_dump_mode)
-			dev_info(kctx->kbdev->dev, "%016llx: protected memory", gpu_addr);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kctx->kbdev->logbuf_regular, "%016llx: protected memory\n", gpu_addr);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		mtk_log_regular(kctx->kbdev, mtk_debug_cs_dump_mode, "%016llx: protected memory", gpu_addr);
 		return NULL;
 	}
 
 	offset = pfn - reg->start_pfn;
 	if (offset >= reg->gpu_alloc->nents) {
-		if (mtk_debug_cs_dump_mode)
-			dev_info(kctx->kbdev->dev, "%016llx: pfn out of range", gpu_addr);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kctx->kbdev->logbuf_regular, "%016llx: pfn out of range\n", gpu_addr);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		mtk_log_regular(kctx->kbdev, mtk_debug_cs_dump_mode, "%016llx: pfn out of range", gpu_addr);
 		return NULL;
 	}
 
@@ -1117,15 +783,9 @@ static struct mtk_debug_cs_queue_dump_record_gpu_addr *mtk_debug_cs_queue_dump_r
 			gpu_addr_node = mtk_debug_cs_gpu_addr_node_allocate();
 			if (!gpu_addr_node) {
 				vunmap(cpu_addr);
-				if (mtk_debug_cs_dump_mode)
-					dev_info(kctx->kbdev->dev,
+				mtk_log_regular(kctx->kbdev, mtk_debug_cs_dump_mode,
 						"%016llx: MAX_CS_DUMP_NUM_GPU_PAGES(%d) too small",
 						gpu_addr, MAX_CS_DUMP_NUM_GPU_PAGES);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-				mtk_logbuffer_print(&kctx->kbdev->logbuf_regular,
-					"%016llx: MAX_CS_DUMP_NUM_GPU_PAGES(%d) too small\n",
-					gpu_addr, MAX_CS_DUMP_NUM_GPU_PAGES);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 				return NULL;
 			}
 			gpu_addr_node->gpu_addr = gpu_addr;
@@ -1140,15 +800,9 @@ static struct mtk_debug_cs_queue_dump_record_gpu_addr *mtk_debug_cs_queue_dump_r
 	/* can not find kctx, add new kctx_node and gpu_addr_node */
 	kctx_node = mtk_debug_cs_kctx_node_allocate();
 	if (!kctx_node) {
-		if (mtk_debug_cs_dump_mode)
-			dev_info(kctx->kbdev->dev,
+		mtk_log_regular(kctx->kbdev, mtk_debug_cs_dump_mode,
 				"%016llx: MAX_CS_DUMP_NUM_KCTX(%d) too small",
 				gpu_addr, MAX_CS_DUMP_NUM_KCTX);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kctx->kbdev->logbuf_regular,
-			"%016llx: MAX_CS_DUMP_NUM_KCTX(%d) too small\n",
-			gpu_addr, MAX_CS_DUMP_NUM_KCTX);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return NULL;
 	}
 	INIT_LIST_HEAD(&kctx_node->record_list);
@@ -1162,15 +816,9 @@ static struct mtk_debug_cs_queue_dump_record_gpu_addr *mtk_debug_cs_queue_dump_r
 	gpu_addr_node = mtk_debug_cs_gpu_addr_node_allocate();
 	if (!gpu_addr_node) {
 		vunmap(cpu_addr);
-		if (mtk_debug_cs_dump_mode)
-			dev_info(kctx->kbdev->dev,
+		mtk_log_regular(kctx->kbdev, mtk_debug_cs_dump_mode,
 				"%016llx: MAX_CS_DUMP_NUM_GPU_PAGES(%d) too small",
 				gpu_addr, MAX_CS_DUMP_NUM_GPU_PAGES);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kctx->kbdev->logbuf_regular,
-			"%016llx: MAX_CS_DUMP_NUM_GPU_PAGES(%d) too small\n",
-			gpu_addr, MAX_CS_DUMP_NUM_GPU_PAGES);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return NULL;
 	}
 	gpu_addr_node->gpu_addr = gpu_addr;
@@ -1185,7 +833,6 @@ static void *mtk_debug_cs_queue_mem_map_and_dump_once(struct kbase_device *kbdev
 				struct mtk_debug_cs_queue_mem_data *queue_mem,
 				u64 gpu_addr, u64 offset, u64 size)
 {
-	struct device *dev = kbdev->dev;
 	struct mtk_debug_cs_queue_dump_record_gpu_addr *gpu_addr_node;
 	int bitmap_idx, bitmap_chk;
 	u64 *ptr;
@@ -1234,16 +881,10 @@ static void *mtk_debug_cs_queue_mem_map_and_dump_once(struct kbase_device *kbdev
 					break;
 			if (i == col + 4)
 				continue;
-			if (mtk_debug_cs_dump_mode)
-				dev_info(dev, "%016llx: %016llx %016llx %016llx %016llx",
+			mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+					"%016llx: %016llx %016llx %016llx %016llx",
 					gpu_addr + offset + col * sizeof(*ptr),
 					ptr[col + 0], ptr[col + 1], ptr[col + 2], ptr[col + 3]);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_print(&kbdev->logbuf_regular,
-				"%016llx: %016llx %016llx %016llx %016llx\n",
-				gpu_addr + offset + col * sizeof(*ptr),
-				ptr[col + 0], ptr[col + 1], ptr[col + 2], ptr[col + 3]);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		}
 	}
 
@@ -1253,16 +894,58 @@ static void *mtk_debug_cs_queue_mem_map_and_dump_once(struct kbase_device *kbdev
 static void mtk_debug_cs_mem_dump(struct kbase_device *kbdev,
 				struct mtk_debug_cs_queue_mem_data *queue_mem,
 				union mtk_debug_csf_register_file *rf,
-				int depth, u64 start, u64 end);
+				int depth, u64 start, u64 end, bool skippable);
+
+static void mtk_debug_cs_mem_dump_linear(struct kbase_device *kbdev,
+				struct mtk_debug_cs_queue_mem_data *queue_mem,
+				union mtk_debug_csf_register_file *rf,
+				int depth, u64 buffer, u64 size, bool skippable)
+{
+	if (skippable) {
+		if (size > PAGE_SIZE) {
+			/* dump last page */
+			u64 buffer_end = buffer + size;
+
+			memset(rf, 0, sizeof(*rf));
+			if (buffer_end & ~PAGE_MASK) {
+				mtk_debug_cs_mem_dump(kbdev, queue_mem, rf,
+					depth, buffer_end & PAGE_SIZE, buffer_end, skippable);
+				mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+						"%016llx: size of linear buffer > 1 pages, dump from 0x%016llx",
+						buffer, buffer_end & PAGE_SIZE);
+			} else {
+				mtk_debug_cs_mem_dump(kbdev, queue_mem, rf,
+					depth, buffer_end - PAGE_SIZE, buffer_end, skippable);
+				mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+						"%016llx: size of linear buffer > 1 pages, dump from 0x%016llx",
+						buffer, buffer_end - PAGE_SIZE);
+			}
+		} else
+			mtk_debug_cs_mem_dump(kbdev, queue_mem, rf,
+				depth, buffer, buffer + size, skippable);
+	} else {
+		if (size > 16 * PAGE_SIZE) {
+			/* dump first 16 pages */
+			mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+					"%016llx: size of linear buffer > 16 pages", buffer);
+			size = 16 * PAGE_SIZE;
+			mtk_debug_cs_mem_dump(kbdev, queue_mem, rf,
+				depth, buffer, (buffer + size) & PAGE_MASK, skippable);
+			memset(rf, 0, sizeof(*rf));
+		} else
+			mtk_debug_cs_mem_dump(kbdev, queue_mem, rf,
+				depth, buffer, buffer + size, skippable);
+	}
+}
 
 static void mtk_debug_cs_decode_inst(struct kbase_device *kbdev,
 				struct mtk_debug_cs_queue_mem_data *queue_mem,
 				union mtk_debug_csf_register_file *rf,
-				int depth, u64 start, u64 end)
+				int depth, u64 start, u64 end, bool skippable)
 {
 	union mtk_debug_csf_instruction *inst = (union mtk_debug_csf_instruction *)start;
 	int reg;
-	u64 size, buffer;
+	u64 size, buffer, buffer_end;
 
 	for (; (u64)inst < end; inst++) {
 		switch (inst->inst.opcode) {
@@ -1283,27 +966,15 @@ static void mtk_debug_cs_decode_inst(struct kbase_device *kbdev,
 			if (reg >= MTK_DEBUG_CSF_REG_NUM || reg & 0x1)
 				break;
 			buffer = rf->reg64[reg >> 1];
-			if (!buffer || buffer & 0x07)
+			if (!buffer || buffer & (8 - 1))
 				break;
 			reg = (int)inst->call.src1;
 			if (reg >= MTK_DEBUG_CSF_REG_NUM)
 				break;
 			size = rf->reg32[reg];
-			if (!size)
+			if (!size || size & (8 - 1))
 				break;
-			/* limit the maximum dump size */
-			if (size > 16 * PAGE_SIZE) {
-				if (mtk_debug_cs_dump_mode)
-					dev_info(kbdev->dev,
-						"%016llx: size of linear buffer > 16 pages", buffer);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-				mtk_logbuffer_print(&kbdev->logbuf_regular,
-					"%016llx: size of linear buffer > 16 pages\n", buffer);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-				size = 16 * PAGE_SIZE;
-			}
-			mtk_debug_cs_mem_dump(kbdev, queue_mem, rf,
-				depth + 1, buffer, buffer + size);
+			mtk_debug_cs_mem_dump_linear(kbdev, queue_mem, rf, depth + 1, buffer, size, skippable);
 			break;
 		default:
 			break;
@@ -1314,7 +985,7 @@ static void mtk_debug_cs_decode_inst(struct kbase_device *kbdev,
 static void mtk_debug_cs_mem_dump(struct kbase_device *kbdev,
 				struct mtk_debug_cs_queue_mem_data *queue_mem,
 				union mtk_debug_csf_register_file *rf,
-				int depth, u64 start, u64 end)
+				int depth, u64 start, u64 end, bool skippable)
 {
 	/*
 	 * There is an implementation defined maximum call stack depth,
@@ -1342,12 +1013,12 @@ static void mtk_debug_cs_mem_dump(struct kbase_device *kbdev,
 		if (depth)	/* linear buffer */
 			cpu_addr = (u64)mtk_debug_cs_queue_mem_map_and_dump_once(kbdev, queue_mem,
 				page_addr, offset, chunk_size);
-		else		/* adjust page_addr for ringbuffer */
+		else		/* ring buffer, adjust page_addr */
 			cpu_addr = (u64)mtk_debug_cs_queue_mem_map_and_dump_once(kbdev, queue_mem,
 				(queue_mem->base_addr + (page_addr % queue_mem->size)), offset, chunk_size);
 		if (cpu_addr)
 			mtk_debug_cs_decode_inst(kbdev, queue_mem, rf, depth,
-				cpu_addr + offset, cpu_addr + offset + chunk_size);
+				cpu_addr + offset, cpu_addr + offset + chunk_size, skippable);
 		page_addr += PAGE_SIZE;
 		offset = 0;
 		size -= chunk_size;
@@ -1357,32 +1028,19 @@ static void mtk_debug_cs_mem_dump(struct kbase_device *kbdev,
 
 static void mtk_debug_cs_queue_dump(struct kbase_device *kbdev, struct mtk_debug_cs_queue_mem_data *queue_mem)
 {
-	struct device *dev = kbdev->dev;
 	union mtk_debug_csf_register_file rf;
 	u64 addr_start;
 
 	if (queue_mem->group_type == 0) {
-		if (mtk_debug_cs_dump_mode)
-			dev_info(dev, "[active_groups_mem] Ctx: %d_%d, GroupID: %d, Bind Idx: %d",
-				queue_mem->kctx->tgid, queue_mem->kctx->id,
-				queue_mem->handle, queue_mem->csi_index);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kbdev->logbuf_regular,
-			"[active_groups_mem] Ctx: %d_%d, GroupID: %d, Bind Idx: %d\n",
+		mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+			"[active_groups_mem] Ctx: %d_%d, GroupID: %d, Bind Idx: %d",
 			queue_mem->kctx->tgid, queue_mem->kctx->id,
 			queue_mem->handle, queue_mem->csi_index);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	} else {
-		if (mtk_debug_cs_dump_mode)
-			dev_info(dev, "[groups_mem] Ctx: %d_%d, GroupID: %d, Bind Idx: %d",
-				queue_mem->kctx->tgid, queue_mem->kctx->id,
-				queue_mem->handle, queue_mem->csi_index);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kbdev->logbuf_regular,
-			"[groups_mem] Ctx: %d_%d, GroupID: %d, Bind Idx: %d\n",
+		mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+			"[groups_mem] Ctx: %d_%d, GroupID: %d, Bind Idx: %d",
 			queue_mem->kctx->tgid, queue_mem->kctx->id,
 			queue_mem->handle, queue_mem->csi_index);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 
 	/* adjust cs_extract/cs_insert */
@@ -1396,6 +1054,7 @@ static void mtk_debug_cs_queue_dump(struct kbase_device *kbdev, struct mtk_debug
 	/* check cs_extract/cs_insert */
 	if (queue_mem->cs_extract > queue_mem->cs_insert ||
 		(queue_mem->cs_insert - queue_mem->cs_extract) > queue_mem->size ||
+		queue_mem->cs_extract & (8 - 1) || queue_mem->cs_insert & (8 - 1) ||
 		queue_mem->base_addr & ~PAGE_MASK)
 		return;
 	/* dump four extra cache lines before cs_extract */
@@ -1405,19 +1064,17 @@ static void mtk_debug_cs_queue_dump(struct kbase_device *kbdev, struct mtk_debug
 		addr_start = 0;
 
 	memset(&rf, 0, sizeof(rf));
-	mtk_debug_cs_mem_dump(kbdev, queue_mem, &rf, 0, addr_start, queue_mem->cs_insert);
+	if (addr_start < queue_mem->cs_extract)
+		mtk_debug_cs_mem_dump(kbdev, queue_mem, &rf, 0, addr_start, queue_mem->cs_extract, true);
+	if (queue_mem->cs_extract < queue_mem->cs_insert)
+		mtk_debug_cs_mem_dump(kbdev, queue_mem, &rf, 0, queue_mem->cs_extract, queue_mem->cs_insert, false);
 }
 
 static void mtk_debug_cs_queue_data_dump(struct kbase_device *kbdev, struct mtk_debug_cs_queue_data *cs_queue_data)
 {
-	struct device *dev = kbdev->dev;
 	struct mtk_debug_cs_queue_mem_data *queue_mem;
 
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	dev_info(dev, "[cs_mem_dump] start: %d", mtk_debug_cs_dump_count);
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-		"[cs_mem_dump] start: %d\n", mtk_debug_cs_dump_count);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	mtk_log_all(kbdev, 1, "[cs_mem_dump] start: %d", mtk_debug_cs_dump_count);
 
 	mtk_debug_cs_queue_dump_record_init();
 	while (!list_empty(&cs_queue_data->queue_list)) {
@@ -1428,11 +1085,8 @@ static void mtk_debug_cs_queue_data_dump(struct kbase_device *kbdev, struct mtk_
 	}
 	mtk_debug_cs_queue_dump_record_flush();
 
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-		"[cs_mem_dump] stop: %d\n", mtk_debug_cs_dump_count);
-	dev_info(dev, "[cs_mem_dump] stop: %d", mtk_debug_cs_dump_count++);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	mtk_log_all(kbdev, 1, "[cs_mem_dump] stop: %d", mtk_debug_cs_dump_count);
+	mtk_debug_cs_dump_count++;
 }
 #endif /* CONFIG_MALI_CSF_SUPPORT && CONFIG_MALI_MTK_FENCE_DEBUG */
 
@@ -1479,76 +1133,34 @@ static void mtk_debug_csf_scheduler_dump_active_queue_cs_status_wait(
 #define WAITING "Waiting"
 #define NOT_WAITING "Not waiting"
 
-	dev_info(kbdev->dev,
-	         "[%d_%d] SB_MASK: %d, PROGRESS_WAIT: %s, PROTM_PEND: %s",
-	         tgid,
-	         id,
-	         CS_STATUS_WAIT_SB_MASK_GET(wait_status),
-	         CS_STATUS_WAIT_PROGRESS_WAIT_GET(wait_status) ? WAITING : NOT_WAITING,
-	         CS_STATUS_WAIT_PROTM_PEND_GET(wait_status) ? WAITING : NOT_WAITING);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-		"[%d_%d] SB_MASK: %d, PROGRESS_WAIT: %s, PROTM_PEND: %s\n",
-		tgid,
-		id,
+	mtk_log_all(kbdev, 1,
+		"[%d_%d] SB_MASK: %d, PROGRESS_WAIT: %s, PROTM_PEND: %s",
+		tgid, id,
 		CS_STATUS_WAIT_SB_MASK_GET(wait_status),
 		CS_STATUS_WAIT_PROGRESS_WAIT_GET(wait_status) ? WAITING : NOT_WAITING,
 		CS_STATUS_WAIT_PROTM_PEND_GET(wait_status) ? WAITING : NOT_WAITING);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	if (sb_source_supported(glb_version)) {
-		dev_info(kbdev->dev,
-		         "[%d_%d] SB_SOURCE: %d",
-		         tgid,
-		         id,
-		         CS_STATUS_WAIT_SB_SOURCE_GET(wait_status));
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"[%d_%d] SB_SOURCE: %d\n",
-			tgid,
-			id,
+		mtk_log_all(kbdev, 1,
+			"[%d_%d] SB_SOURCE: %d",
+			tgid, id,
 			CS_STATUS_WAIT_SB_SOURCE_GET(wait_status));
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
-	dev_info(kbdev->dev,
-	         "[%d_%d] SYNC_WAIT: %s, WAIT_CONDITION: %s, SYNC_POINTER: 0x%llx",
-	         tgid,
-	         id,
-	         CS_STATUS_WAIT_SYNC_WAIT_GET(wait_status) ? WAITING : NOT_WAITING,
-	         CS_STATUS_WAIT_SYNC_WAIT_CONDITION_GET(wait_status) ? "greater than" : "less or equal",
-	         wait_sync_pointer);
-	dev_info(kbdev->dev,
-	         "[%d_%d] SYNC_VALUE: %d, SYNC_LIVE_VALUE: 0x%016llx, SB_STATUS: %u",
-	         tgid,
-	         id,
-	         wait_sync_value,
-	         wait_sync_live_value,
-	         CS_STATUS_SCOREBOARDS_NONZERO_GET(sb_status));
-	dev_info(kbdev->dev,
-	         "[%d_%d] BLOCKED_REASON: %s",
-	         tgid,
-	         id,
-	         blocked_reason_to_string(CS_STATUS_BLOCKED_REASON_REASON_GET(blocked_reason)));
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-		"[%d_%d] SYNC_WAIT: %s, WAIT_CONDITION: %s, SYNC_POINTER: 0x%llx\n",
-		tgid,
-		id,
+	mtk_log_all(kbdev, 1,
+		"[%d_%d] SYNC_WAIT: %s, WAIT_CONDITION: %s, SYNC_POINTER: 0x%llx",
+		tgid, id,
 		CS_STATUS_WAIT_SYNC_WAIT_GET(wait_status) ? WAITING : NOT_WAITING,
 		CS_STATUS_WAIT_SYNC_WAIT_CONDITION_GET(wait_status) ? "greater than" : "less or equal",
 		wait_sync_pointer);
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-		"[%d_%d] SYNC_VALUE: %d, SYNC_LIVE_VALUE: 0x%016llx, SB_STATUS: %u\n",
-		tgid,
-		id,
+	mtk_log_all(kbdev, 1,
+		"[%d_%d] SYNC_VALUE: %d, SYNC_LIVE_VALUE: 0x%016llx, SB_STATUS: %u",
+		tgid, id,
 		wait_sync_value,
 		wait_sync_live_value,
 		CS_STATUS_SCOREBOARDS_NONZERO_GET(sb_status));
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-		"[%d_%d] BLOCKED_REASON: %s\n",
-		tgid,
-		id,
+	mtk_log_all(kbdev, 1,
+		"[%d_%d] BLOCKED_REASON: %s",
+		tgid, id,
 		blocked_reason_to_string(CS_STATUS_BLOCKED_REASON_REASON_GET(blocked_reason)));
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	// BLOCKED_REASON:
 	//     - WAIT: Blocked on scoreboards in some way.
@@ -1557,8 +1169,8 @@ static void mtk_debug_csf_scheduler_dump_active_queue_cs_status_wait(
 }
 
 static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
-                                                      struct kbase_queue *queue,
-                                                      struct mtk_debug_cs_queue_data *cs_queue_data)
+						struct kbase_queue *queue,
+						struct mtk_debug_cs_queue_data *cs_queue_data)
 {
 	u32 *addr;
 	u64 cs_extract;
@@ -1580,32 +1192,17 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 		return;
 
 	if (!queue->user_io_addr) {
-		dev_info(queue->kctx->kbdev->dev,
-			 "[%d_%d] user_io_addr is NULL! csi_index=%8d base_addr=%16llx priority=%4u doorbell_nr=%8d",
-			 tgid,
-			 id,
-			 queue->csi_index,
-			 queue->base_addr,
-			 queue->priority,
-			 queue->doorbell_nr);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(queue->kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"[%d_%d] user_io_addr is NULL! csi_index=%8d base_addr=%16llx priority=%4u doorbell_nr=%8d\n",
-			tgid,
-			id,
+		mtk_log_all(queue->kctx->kbdev, 1,
+			"[%d_%d] user_io_addr is NULL! csi_index=%8d base_addr=%16llx priority=%4u doorbell_nr=%8d",
+			tgid, id,
 			queue->csi_index,
 			queue->base_addr,
 			queue->priority,
 			queue->doorbell_nr);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return;
 	}
 
 	glb_version = queue->kctx->kbdev->csf.global_iface.version;
-
-	/* Ring the doorbell to have firmware update CS_EXTRACT */
-	kbase_csf_ring_cs_user_doorbell(queue->kctx->kbdev, queue);
-	msleep(100);
 
 	addr = (u32 *)queue->user_io_addr;
 	cs_insert = addr[CS_INSERT_LO/4] | ((u64)addr[CS_INSERT_HI/4] << 32);
@@ -1630,31 +1227,12 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 		}
 	}
 
-	dev_info(queue->kctx->kbdev->dev,
-			"[%d_%d] Bind Idx,     Ringbuf addr,     Size, Prio,    Insert offset,   Extract offset, Active, Doorbell",
-			tgid,
-			id);
-	dev_info(queue->kctx->kbdev->dev,
-			 "[%d_%d] %8d, %16llx, %8x, %4u, %16llx, %16llx, %6u, %8d",
-			 tgid,
-			 id,
-			 queue->csi_index,
-			 queue->base_addr,
-			 queue->size,
-			 queue->priority,
-			 cs_insert,
-			 cs_extract,
-			 cs_active,
-			 queue->doorbell_nr);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_type_print(queue->kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-		"[%d_%d] Bind Idx,     Ringbuf addr,     Size, Prio,    Insert offset,   Extract offset, Active, Doorbell\n",
-		tgid,
-		id);
-	mtk_logbuffer_type_print(queue->kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-		"[%d_%d] %8d, %16llx, %8x, %4u, %16llx, %16llx, %6u, %8d\n",
-		tgid,
-		id,
+	mtk_log_all(queue->kctx->kbdev, 1,
+		"[%d_%d] Bind Idx,     Ringbuf addr,     Size, Prio,    Insert offset,   Extract offset, Active, Doorbell",
+		tgid, id);
+	mtk_log_all(queue->kctx->kbdev, 1,
+		"[%d_%d] %8d, %16llx, %8x, %4u, %16llx, %16llx, %6u, %8d",
+		tgid, id,
 		queue->csi_index,
 		queue->base_addr,
 		queue->size,
@@ -1663,7 +1241,6 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 		cs_extract,
 		cs_active,
 		queue->doorbell_nr);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	/* if have command didn't complete print the last command's before and after 4 commands */
 	if (cs_insert != cs_extract) {
@@ -1671,11 +1248,7 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 		const unsigned int instruction_size = sizeof(u64);
 		u64 start, stop, aligned_cs_extract;
 
-		dev_info(queue->kctx->kbdev->dev,"Dumping instructions around the last Extract offset");
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(queue->kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"Dumping instructions around the last Extract offset\n");
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		mtk_log_all(queue->kctx->kbdev, 1, "Dumping instructions around the last Extract offset");
 
 		aligned_cs_extract = ALIGN_DOWN(cs_extract, 8 * instruction_size);
 
@@ -1690,12 +1263,7 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 		if (stop > cs_insert)
 			stop = cs_insert;
 
-		dev_info(queue->kctx->kbdev->dev,"Instructions from Extract offset %llx\n",  start);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(queue->kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"Instructions from Extract offset %llx\n",
-			start);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		mtk_log_all(queue->kctx->kbdev, 1, "Instructions from Extract offset %llx", start);
 
 		while (start != stop) {
 			u64 page_off = (start & size_mask) >> PAGE_SHIFT;
@@ -1705,13 +1273,9 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 			u64 *ringbuffer = kmap_atomic(page);
 			u64 *ptr = &ringbuffer[offset/8];
 
-			dev_info(queue->kctx->kbdev->dev,"%016llx %016llx %016llx %016llx %016llx %016llx %016llx %016llx\n",
-					ptr[0], ptr[1], ptr[2], ptr[3],	ptr[4], ptr[5], ptr[6], ptr[7]);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_type_print(queue->kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-				"%016llx %016llx %016llx %016llx %016llx %016llx %016llx %016llx\n",
+			mtk_log_all(queue->kctx->kbdev, 1,
+				"%016llx %016llx %016llx %016llx %016llx %016llx %016llx %016llx",
 				ptr[0], ptr[1], ptr[2], ptr[3],	ptr[4], ptr[5], ptr[6], ptr[7]);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 			kunmap_atomic(ringbuffer);
 			start += (8 * instruction_size);
@@ -1722,18 +1286,10 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 	 * if cs_trace is enabled, dump the interface's cs_trace configuration.
 	 */
 	if (kbase_csf_scheduler_group_get_slot(queue->group) < 0) {
-		dev_info(queue->kctx->kbdev->dev,
-		         "[%d_%d] SAVED_CMD_PTR: 0x%llx",
-		         tgid,
-		         id,
-		         queue->saved_cmd_ptr);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(queue->kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"[%d_%d] SAVED_CMD_PTR: 0x%llx\n",
-			tgid,
-			id,
+		mtk_log_all(queue->kctx->kbdev, 1,
+			"[%d_%d] SAVED_CMD_PTR: 0x%llx",
+			tgid, id,
 			queue->saved_cmd_ptr);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		if (CS_STATUS_WAIT_SYNC_WAIT_GET(queue->status_wait)) {
 			wait_status = queue->status_wait;
 			wait_sync_value = queue->sync_value;
@@ -1766,58 +1322,26 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 		cmd_ptr |= (u64)kbase_csf_firmware_cs_output(stream, CS_STATUS_CMD_PTR_HI) << 32;
 		req_res = kbase_csf_firmware_cs_output(stream, CS_STATUS_REQ_RESOURCE);
 
-		dev_info(queue->kctx->kbdev->dev,
-		         "[%d_%d] CMD_PTR: 0x%llx",
-		         tgid,
-		         id,
-		         cmd_ptr);
-		dev_info(queue->kctx->kbdev->dev,
-		         "[%d_%d] REQ_RESOURCE [COMPUTE]: %d",
-		         tgid,
-		         id,
-		         CS_STATUS_REQ_RESOURCE_COMPUTE_RESOURCES_GET(req_res));
-		dev_info(queue->kctx->kbdev->dev,
-		         "[%d_%d] REQ_RESOURCE [FRAGMENT]: %d",
-		         tgid,
-		         id,
-		         CS_STATUS_REQ_RESOURCE_FRAGMENT_RESOURCES_GET(req_res));
-		dev_info(queue->kctx->kbdev->dev,
-		         "[%d_%d] REQ_RESOURCE [TILER]: %d",
-		         tgid,
-		         id,
-		         CS_STATUS_REQ_RESOURCE_TILER_RESOURCES_GET(req_res));
-		dev_info(queue->kctx->kbdev->dev,
-		         "[%d_%d] REQ_RESOURCE [IDVS]: %d",
-		         tgid,
-		         id,
-		         CS_STATUS_REQ_RESOURCE_IDVS_RESOURCES_GET(req_res));
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(queue->kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"[%d_%d] CMD_PTR: 0x%llx\n",
-			tgid,
-			id,
+		mtk_log_all(queue->kctx->kbdev, 1,
+			"[%d_%d] CMD_PTR: 0x%llx",
+			tgid, id,
 			cmd_ptr);
-		mtk_logbuffer_type_print(queue->kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"[%d_%d] REQ_RESOURCE [COMPUTE]: %d\n",
-			tgid,
-			id,
+		mtk_log_all(queue->kctx->kbdev, 1,
+			"[%d_%d] REQ_RESOURCE [COMPUTE]: %d",
+			tgid, id,
 			CS_STATUS_REQ_RESOURCE_COMPUTE_RESOURCES_GET(req_res));
-		mtk_logbuffer_type_print(queue->kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"[%d_%d] REQ_RESOURCE [FRAGMENT]: %d\n",
-			tgid,
-			id,
+		mtk_log_all(queue->kctx->kbdev, 1,
+			"[%d_%d] REQ_RESOURCE [FRAGMENT]: %d",
+			tgid, id,
 			CS_STATUS_REQ_RESOURCE_FRAGMENT_RESOURCES_GET(req_res));
-		mtk_logbuffer_type_print(queue->kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"[%d_%d] REQ_RESOURCE [TILER]: %d\n",
-			tgid,
-			id,
+		mtk_log_all(queue->kctx->kbdev, 1,
+			"[%d_%d] REQ_RESOURCE [TILER]: %d",
+			tgid, id,
 			CS_STATUS_REQ_RESOURCE_TILER_RESOURCES_GET(req_res));
-		mtk_logbuffer_type_print(queue->kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"[%d_%d] REQ_RESOURCE [IDVS]: %d\n",
-			tgid,
-			id,
+		mtk_log_all(queue->kctx->kbdev, 1,
+			"[%d_%d] REQ_RESOURCE [IDVS]: %d",
+			tgid, id,
 			CS_STATUS_REQ_RESOURCE_IDVS_RESOURCES_GET(req_res));
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 		wait_status = kbase_csf_firmware_cs_output(stream, CS_STATUS_WAIT);
 		wait_sync_value = kbase_csf_firmware_cs_output(stream, CS_STATUS_WAIT_SYNC_VALUE);
@@ -1846,139 +1370,45 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 			u64 addr = ((u64)kbase_csf_firmware_cs_input_read(stream, CS_INSTR_BUFFER_BASE_HI) << 32) | val;
 			val = kbase_csf_firmware_cs_input_read(stream, CS_INSTR_BUFFER_SIZE);
 
-			dev_info(queue->kctx->kbdev->dev,
-					 "[%d_%d] CS_TRACE_BUF_ADDR: 0x%16llx, SIZE: %u",
-					 tgid,
-					 id,
-					 addr,
-					 val);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_type_print(queue->kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-				"[%d_%d] CS_TRACE_BUF_ADDR: 0x%16llx, SIZE: %u\n",
-				tgid,
-				id,
+			mtk_log_all(queue->kctx->kbdev, 1,
+				"[%d_%d] CS_TRACE_BUF_ADDR: 0x%16llx, SIZE: %u",
+				tgid, id,
 				addr,
 				val);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 			/* Write offset variable address (pointer) */
 			val = kbase_csf_firmware_cs_input_read(stream, CS_INSTR_BUFFER_OFFSET_POINTER_LO);
 			addr = ((u64)kbase_csf_firmware_cs_input_read(stream, CS_INSTR_BUFFER_OFFSET_POINTER_HI) << 32) | val;
-			dev_info(queue->kctx->kbdev->dev,
-					 "[%d_%d] CS_TRACE_BUF_OFFSET_PTR: 0x%16llx",
-					 tgid,
-					 id,
-					 addr);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_type_print(queue->kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-				"[%d_%d] CS_TRACE_BUF_OFFSET_PTR: 0x%16llx\n",
-				tgid,
-				id,
+			mtk_log_all(queue->kctx->kbdev, 1,
+				"[%d_%d] CS_TRACE_BUF_OFFSET_PTR: 0x%16llx",
+				tgid, id,
 				addr);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 			/* EVENT_SIZE and EVENT_STATEs */
 			val = kbase_csf_firmware_cs_input_read(stream, CS_INSTR_CONFIG);
-			dev_info(queue->kctx->kbdev->dev,
-					 "[%d_%d] TRACE_EVENT_SIZE: 0x%x, TRACE_EVENT_STAES 0x%x",
-					 tgid,
-					 id,
-					 CS_INSTR_CONFIG_EVENT_SIZE_GET(val),
-					 CS_INSTR_CONFIG_EVENT_STATE_GET(val));
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_type_print(queue->kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-				"[%d_%d] TRACE_EVENT_SIZE: 0x%x, TRACE_EVENT_STAES 0x%x\n",
-				tgid,
-				id,
+			mtk_log_all(queue->kctx->kbdev, 1,
+				"[%d_%d] TRACE_EVENT_SIZE: 0x%x, TRACE_EVENT_STAES 0x%x",
+				tgid, id,
 				CS_INSTR_CONFIG_EVENT_SIZE_GET(val),
 				CS_INSTR_CONFIG_EVENT_STATE_GET(val));
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		} else {
-			dev_info(queue->kctx->kbdev->dev,
-			         "[%d_%d] NO CS_TRACE",
-					 tgid,
-					 id);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_type_print(queue->kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-				"[%d_%d] NO CS_TRACE\n",
-				tgid,
-				id);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+			mtk_log_all(queue->kctx->kbdev, 1, "[%d_%d] NO CS_TRACE", tgid, id);
 		}
 	}
 }
 
-/* Waiting timeout for STATUS_UPDATE acknowledgment, in milliseconds */
-#define CSF_STATUS_UPDATE_TO_MS (100)
-
-static void update_active_group_status(struct kbase_queue_group *const group)
-{
-       struct kbase_device *const kbdev = group->kctx->kbdev;
-      struct kbase_csf_cmd_stream_group_info const *const ginfo =
-               &kbdev->csf.global_iface.groups[group->csg_nr];
-       long remaining =
-               kbase_csf_timeout_in_jiffies(CSF_STATUS_UPDATE_TO_MS);
-       unsigned long flags;
-
-       /* Global doorbell ring for CSG STATUS_UPDATE request or User doorbell
-        * ring for Extract offset update, shall not be made when MCU has been
-        * put to sleep otherwise it will undesirably make MCU exit the sleep
-        * state. Also it isn't really needed as FW will implicitly update the
-        * status of all on-slot groups when MCU sleep request is sent to it.
-        */
-       if (kbdev->csf.scheduler.state == SCHED_SLEEPING)
-               return;
-
-       /* Ring the User doobell shared between the queues bound to this
-        * group, to have FW update the CS_EXTRACT for all the queues
-        * bound to the group. Ring early so that FW gets adequate time
-        * for the handling.
-        */
-       kbase_csf_ring_doorbell(kbdev, group->doorbell_nr);
-
-       kbase_csf_scheduler_spin_lock(kbdev, &flags);
-       kbase_csf_firmware_csg_input_mask(ginfo, CSG_REQ,
-                       ~kbase_csf_firmware_csg_output(ginfo, CSG_ACK),
-                       CSG_REQ_STATUS_UPDATE_MASK);
-       kbase_csf_ring_csg_doorbell(kbdev, group->csg_nr);
-       kbase_csf_scheduler_spin_unlock(kbdev, flags);
-
-       remaining = wait_event_timeout(kbdev->csf.event_wait,
-               !((kbase_csf_firmware_csg_input_read(ginfo, CSG_REQ) ^
-               kbase_csf_firmware_csg_output(ginfo, CSG_ACK)) &
-               CSG_REQ_STATUS_UPDATE_MASK), remaining);
-
-       if (!remaining) {
-               dev_info(kbdev->dev,
-                        "[%d_%d] Timed out for STATUS_UPDATE on group %d on slot %d",
-                        group->kctx->tgid,
-                        group->kctx->id,
-                        group->handle,
-                        group->csg_nr);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"[%d_%d] Timed out for STATUS_UPDATE on group %d on slot %d\n",
-			group->kctx->tgid,
-			group->kctx->id,
-			group->handle,
-			group->csg_nr);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-       }
-}
-
-
 static void mtk_debug_csf_scheduler_dump_active_group(struct kbase_queue_group *const group,
-                                                      struct mtk_debug_cs_queue_data *cs_queue_data)
+						struct mtk_debug_cs_queue_data *cs_queue_data)
 {
+	struct kbase_device *const kbdev = group->kctx->kbdev;
+
 	if (kbase_csf_scheduler_group_get_slot(group) >= 0) {
-		struct kbase_device *const kbdev = group->kctx->kbdev;
 		u32 ep_c, ep_r;
 		char exclusive;
 		char idle = 'N';
-		struct kbase_csf_cmd_stream_group_info const *const ginfo = &kbdev->csf.global_iface.groups[group->csg_nr];
+		struct kbase_csf_cmd_stream_group_info const *const ginfo =
+			&kbdev->csf.global_iface.groups[group->csg_nr];
 		u8 slot_priority = kbdev->csf.scheduler.csg_slots[group->csg_nr].priority;
-
-		update_active_group_status(group);
 
 		ep_c = kbase_csf_firmware_csg_output(ginfo, CSG_STATUS_EP_CURRENT);
 		ep_r = kbase_csf_firmware_csg_output(ginfo, CSG_STATUS_EP_REQ);
@@ -1994,33 +1424,12 @@ static void mtk_debug_csf_scheduler_dump_active_group(struct kbase_queue_group *
 				CSG_STATUS_STATE_IDLE_MASK)
 			idle = 'Y';
 
-		dev_info(kbdev->dev,
-		        "[%d_%d] GroupID, CSG NR, CSG Prio, Run State, Priority, C_EP(Alloc/Req), F_EP(Alloc/Req), T_EP(Alloc/Req), Exclusive, Idle",
-		        group->kctx->tgid,
-		        group->kctx->id);
-		dev_info(kbdev->dev,
-		        "[%d_%d] %7d, %6d, %8d, %9d, %8d, %11d/%3d, %11d/%3d, %11d/%3d, %9c, %4c",
-		        group->kctx->tgid,
-		        group->kctx->id,
-		        group->handle,
-		        group->csg_nr,
-		        slot_priority,
-		        group->run_state,
-		        group->priority,
-		        CSG_STATUS_EP_CURRENT_COMPUTE_EP_GET(ep_c),
-		        CSG_STATUS_EP_REQ_COMPUTE_EP_GET(ep_r),
-		        CSG_STATUS_EP_CURRENT_FRAGMENT_EP_GET(ep_c),
-		        CSG_STATUS_EP_REQ_FRAGMENT_EP_GET(ep_r),
-		        CSG_STATUS_EP_CURRENT_TILER_EP_GET(ep_c),
-		        CSG_STATUS_EP_REQ_TILER_EP_GET(ep_r),
-		        exclusive, idle);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"[%d_%d] GroupID, CSG NR, CSG Prio, Run State, Priority, C_EP(Alloc/Req), F_EP(Alloc/Req), T_EP(Alloc/Req), Exclusive, Idle\n",
+		mtk_log_all(kbdev, 1,
+			"[%d_%d] GroupID, CSG NR, CSG Prio, Run State, Priority, C_EP(Alloc/Req), F_EP(Alloc/Req), T_EP(Alloc/Req), Exclusive, Idle",
 			group->kctx->tgid,
 			group->kctx->id);
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"[%d_%d] %7d, %6d, %8d, %9d, %8d, %11d/%3d, %11d/%3d, %11d/%3d, %9c, %4c\n",
+		mtk_log_all(kbdev, 1,
+			"[%d_%d] %7d, %6d, %8d, %9d, %8d, %11d/%3d, %11d/%3d, %11d/%3d, %9c, %4c",
 			group->kctx->tgid,
 			group->kctx->id,
 			group->handle,
@@ -2035,49 +1444,28 @@ static void mtk_debug_csf_scheduler_dump_active_group(struct kbase_queue_group *
 			CSG_STATUS_EP_CURRENT_TILER_EP_GET(ep_c),
 			CSG_STATUS_EP_REQ_TILER_EP_GET(ep_r),
 			exclusive, idle);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	} else {
-		dev_info(group->kctx->kbdev->dev,
-		        "[%d_%d] GroupID, CSG NR, Run State, Priority",
-		        group->kctx->tgid,
-		        group->kctx->id);
-		dev_info(group->kctx->kbdev->dev,
-		        "[%d_%d] %7d, %6d, %9d, %8d",
-		        group->kctx->tgid,
-		        group->kctx->id,
-		        group->handle,
-		        group->csg_nr,
-		        group->run_state,
-		        group->priority);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(group->kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"[%d_%d] GroupID, CSG NR, Run State, Priority\n",
+		mtk_log_all(kbdev, 1,
+			"[%d_%d] GroupID, CSG NR, Run State, Priority",
 			group->kctx->tgid,
 			group->kctx->id);
-		mtk_logbuffer_type_print(group->kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"[%d_%d] %7d, %6d, %9d, %8d\n",
+		mtk_log_all(kbdev, 1,
+			"[%d_%d] %7d, %6d, %9d, %8d",
 			group->kctx->tgid,
 			group->kctx->id,
 			group->handle,
 			group->csg_nr,
 			group->run_state,
 			group->priority);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 
 	if (group->run_state != KBASE_CSF_GROUP_TERMINATED) {
 		unsigned int i;
 
-		dev_info(group->kctx->kbdev->dev,
-		        "[%d_%d] Bound queues:",
-		        group->kctx->tgid,
-		        group->kctx->id);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(group->kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"[%d_%d] Bound queues:\n",
+		mtk_log_all(kbdev, 1,
+			"[%d_%d] Bound queues:",
 			group->kctx->tgid,
 			group->kctx->id);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 		for (i = 0; i < MAX_SUPPORTED_STREAMS_PER_GROUP; i++) {
 			mtk_debug_csf_scheduler_dump_active_queue(
@@ -2116,37 +1504,29 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 			if (kctx->tgid == pid) {
 				mutex_lock(&kctx->csf.lock);
 				kbase_csf_scheduler_lock(kbdev);
+
 				// cat /sys/kernel/debug/mali0/active_groups
 				// Print debug info for active GPU command queue groups
 				{
 				u32 csg_nr;
 				u32 num_groups = kbdev->csf.global_iface.group_num;
 
-				dev_info(kbdev->dev, "[active_groups] MALI_CSF_CSG_DEBUGFS_VERSION: v%u\n", MALI_CSF_CSG_DEBUGFS_VERSION);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-				mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-					"[active_groups] MALI_CSF_CSG_DEBUGFS_VERSION: v%u\n",
+				mtk_log_all(kbdev, 1,
+					"[active_groups] MALI_CSF_CSG_DEBUGFS_VERSION: v%u",
 					MALI_CSF_CSG_DEBUGFS_VERSION);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-				if (kbdev->csf.scheduler.state == SCHED_SLEEPING) {
-					/* Wait for the MCU sleep request to complete. Please refer the
-					 * update_active_group_status() function for the explanation.
-					 */
-					kbase_pm_wait_for_desired_state(kbdev);
-				}
+
+				kbase_csf_debugfs_update_active_groups_status(kbdev);
 
 				for (csg_nr = 0; csg_nr < num_groups; csg_nr++) {
-					struct kbase_queue_group *const group = kbdev->csf.scheduler.csg_slots[csg_nr].resident_group;
+					struct kbase_queue_group *const group =
+						kbdev->csf.scheduler.csg_slots[csg_nr].resident_group;
 
 					if (!group)
 						continue;
 
-					dev_info(kbdev->dev, "[active_groups] ##### Ctx %d_%d #####", group->kctx->tgid, group->kctx->id);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-					mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-						"[active_groups] ##### Ctx %d_%d #####\n",
+					mtk_log_all(kbdev, 1,
+						"[active_groups] ##### Ctx %d_%d #####",
 						group->kctx->tgid, group->kctx->id);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 					if (dump_queue_data) {
 						cs_queue_data.kctx = group->kctx;
@@ -2170,12 +1550,9 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 					if (!group)
 						continue;
 
-					dev_info(kbdev->dev, "[groups] ##### Ctx %d_%d #####", group->kctx->tgid, group->kctx->id);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-					mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-						"[groups] ##### Ctx %d_%d #####\n",
+					mtk_log_all(kbdev, 1,
+						"[groups] ##### Ctx %d_%d #####",
 						group->kctx->tgid, group->kctx->id);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 					if (dump_queue_data) {
 						cs_queue_data.kctx = group->kctx;
@@ -2193,23 +1570,15 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 				{
 				unsigned long idx;
 
-				dev_info(kbdev->dev, "[kcpu_queues] MALI_CSF_KCPU_DEBUGFS_VERSION: v%u\n", MALI_CSF_CSG_DEBUGFS_VERSION);
-				dev_info(kbdev->dev, "[kcpu_queues] ##### Ctx %d_%d #####", kctx->tgid, kctx->id);
-				dev_info(kbdev->dev,
-				         "[%d_%d] Queue Idx(err-mode), Pending Commands, Enqueue err, Blocked, Start Offset, Fence context  &  seqno",
-				         kctx->tgid,
-				         kctx->id);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-				mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-					"[kcpu_queues] MALI_CSF_KCPU_DEBUGFS_VERSION: v%u\n",
+				mtk_log_all(kbdev, 1,
+					"[kcpu_queues] MALI_CSF_KCPU_DEBUGFS_VERSION: v%u",
 					MALI_CSF_CSG_DEBUGFS_VERSION);
-				mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-					"[kcpu_queues] ##### Ctx %d_%d #####\n",
+				mtk_log_all(kbdev, 1,
+					"[kcpu_queues] ##### Ctx %d_%d #####",
 					kctx->tgid, kctx->id);
-				mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-					"[%d_%d] Queue Idx(err-mode), Pending Commands, Enqueue err, Blocked, Start Offset, Fence context  &  seqno\n",
+				mtk_log_all(kbdev, 1,
+					"[%d_%d] Queue Idx(err-mode), Pending Commands, Enqueue err, Blocked, Start Offset, Fence context  &  seqno",
 					kctx->tgid, kctx->id);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 				mutex_lock(&kctx->csf.kcpu_queues.lock);
 
@@ -2224,33 +1593,15 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 					}
 
 					if (!mutex_trylock(&queue->lock)) {
-						dev_info(kbdev->dev, "[%d_%d] %9lu(  lock held, bypass dump )",
-								kctx->tgid, kctx->id, idx);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-						mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-							"[%d_%d] %9lu(  lock held, bypass dump )\n",
+						mtk_log_all(kbdev, 1,
+							"[%d_%d] %9lu( lock held, bypass dump )",
 							kctx->tgid, kctx->id, idx);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 						continue;
 					}
 
-					dev_info(kbdev->dev,
-					         "[%d_%d] %9lu(  %s ), %16u, %11u, %7u, %12u, %13llu  %8u",
-							kctx->tgid,
-							kctx->id,
-							idx,
-							queue->has_error ? "InErr" : "NoErr",
-							queue->num_pending_cmds,
-							queue->enqueue_failed,
-							queue->command_started ? 1 : 0,
-							queue->start_offset,
-							queue->fence_context,
-							queue->fence_seqno);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-					mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-						"[%d_%d] %9lu(  %s ), %16u, %11u, %7u, %12u, %13llu  %8u\n",
-						kctx->tgid,
-						kctx->id,
+					mtk_log_all(kbdev, 1,
+						"[%d_%d] %9lu(  %s ), %16u, %11u, %7u, %12u, %13llu  %8u",
+						kctx->tgid, kctx->id,
 						idx,
 						queue->has_error ? "InErr" : "NoErr",
 						queue->num_pending_cmds,
@@ -2259,70 +1610,37 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 						queue->start_offset,
 						queue->fence_context,
 						queue->fence_seqno);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 					if (queue->command_started) {
 						int i;
 						for (i = 0; i < queue->num_pending_cmds; i++) {
 						struct kbase_kcpu_command *cmd;
 						u8 cmd_idx = queue->start_offset + i;
-						if (cmd_idx > KBASEP_KCPU_QUEUE_SIZE) {
-							dev_info(kbdev->dev,
-							         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
-							         kctx->tgid,
-							         kctx->id);
-							dev_info(kbdev->dev,
-							         "[%d_%d] %9lu(  %s ), %7d,      None, (command index out of size limits %lu)",
-							         kctx->tgid,
-							         kctx->id,
-							         idx,
-							         queue->has_error ? "InErr" : "NoErr",
-							         cmd_idx,
-							         KBASEP_KCPU_QUEUE_SIZE);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-							mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-								"[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info\n",
-								kctx->tgid,
-								kctx->id);
-							mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-								"[%d_%d] %9lu(  %s ), %7d,      None, (command index out of size limits %lu)\n",
-								kctx->tgid,
-								kctx->id,
+						if (cmd_idx >= KBASEP_KCPU_QUEUE_SIZE) {
+							mtk_log_all(kbdev, 1,
+								"[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
+								kctx->tgid, kctx->id);
+							mtk_log_all(kbdev, 1,
+								"[%d_%d] %9lu(  %s ), %7d,      None, (command index out of size limits %lu)",
+								kctx->tgid, kctx->id,
 								idx,
 								queue->has_error ? "InErr" : "NoErr",
 								cmd_idx,
 								KBASEP_KCPU_QUEUE_SIZE);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 							break;
 						}
 						cmd = &queue->commands[cmd_idx];
 						if (cmd->type >= BASE_KCPU_COMMAND_TYPE_COUNT) {
-							dev_info(kbdev->dev,
-							         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
-							         kctx->tgid,
-							         kctx->id);
-							dev_info(kbdev->dev,
-							         "[%d_%d] %9lu(  %s ), %7d, %9d, (unknown blocking command)",
-							         kctx->tgid,
-							         kctx->id,
-							         idx,
-							         queue->has_error ? "InErr" : "NoErr",
-							         cmd_idx,
-							         cmd->type);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-							mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-								"[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info\n",
-								kctx->tgid,
-								kctx->id);
-							mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-								"[%d_%d] %9lu(  %s ), %7d, %9d, (unknown blocking command)\n",
-								kctx->tgid,
-								kctx->id,
+							mtk_log_all(kbdev, 1,
+								"[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
+								kctx->tgid, kctx->id);
+							mtk_log_all(kbdev, 1,
+								"[%d_%d] %9lu(  %s ), %7d, %9d, (unknown blocking command)",
+								kctx->tgid, kctx->id,
 								idx,
 								queue->has_error ? "InErr" : "NoErr",
 								cmd_idx,
 								cmd->type);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 							continue;
 						}
 						switch (cmd->type) {
@@ -2336,36 +1654,18 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 							else
 								scnprintf(info.name, sizeof(info.name), "NULL");
 
-							dev_info(kbdev->dev,
-							         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
-							         kctx->tgid,
-							         kctx->id);
-							dev_info(kbdev->dev,
-							         "[%d_%d] %9lu(  %s ), %7d, Fence Signal, %pK %s %s",
-							         kctx->tgid,
-							         kctx->id,
-							         idx,
-							         queue->has_error ? "InErr" : "NoErr",
-							         cmd_idx,
-							         info.fence,
-							         info.name,
-							         kbase_sync_status_string(info.status));
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-							mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-								"[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info\n",
-								kctx->tgid,
-								kctx->id);
-							mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-								"[%d_%d] %9lu(  %s ), %7d, Fence Signal, %pK %s %s\n",
-								kctx->tgid,
-								kctx->id,
+							mtk_log_all(kbdev, 1,
+								"[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
+								kctx->tgid, kctx->id);
+							mtk_log_all(kbdev, 1,
+								"[%d_%d] %9lu(  %s ), %7d, Fence Signal, %pK %s %s",
+								kctx->tgid, kctx->id,
 								idx,
 								queue->has_error ? "InErr" : "NoErr",
 								cmd_idx,
 								info.fence,
 								info.name,
 								kbase_sync_status_string(info.status));
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 							break;
 						}
 						case BASE_KCPU_COMMAND_TYPE_FENCE_WAIT:
@@ -2377,36 +1677,18 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 							else
 								scnprintf(info.name, sizeof(info.name), "NULL");
 
-							dev_info(kbdev->dev,
-							         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
-							         kctx->tgid,
-							         kctx->id);
-							dev_info(kbdev->dev,
-							         "[%d_%d] %9lu(  %s ), %7d, Fence Wait, %pK %s %s",
-							         kctx->tgid,
-							         kctx->id,
-							         idx,
-							         queue->has_error ? "InErr" : "NoErr",
-							         cmd_idx,
-							         info.fence,
-							         info.name,
-							         kbase_sync_status_string(info.status));
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-							mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-								"[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info\n",
-								kctx->tgid,
-								kctx->id);
-							mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-								"[%d_%d] %9lu(  %s ), %7d, Fence Wait, %pK %s %s\n",
-								kctx->tgid,
-								kctx->id,
+							mtk_log_all(kbdev, 1,
+								"[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
+								kctx->tgid, kctx->id);
+							mtk_log_all(kbdev, 1,
+								"[%d_%d] %9lu(  %s ), %7d, Fence Wait, %pK %s %s",
+								kctx->tgid, kctx->id,
 								idx,
 								queue->has_error ? "InErr" : "NoErr",
 								cmd_idx,
 								info.fence,
 								info.name,
 								kbase_sync_status_string(info.status));
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 							break;
 						}
 #endif
@@ -2415,33 +1697,25 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 							unsigned int i;
 							struct kbase_kcpu_command_cqs_set_info *sets = &cmd->info.cqs_set;
 
+							mtk_log_all(kbdev, 1,
+								"[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
+								kctx->tgid, kctx->id);
+							if (sets->nr_objs == 0) {
+								mtk_log_all(kbdev, 1,
+									"[%d_%d] %9lu(  %s ), %7d,   CQS Set, nr_objs == 0",
+									kctx->tgid, kctx->id,
+									idx,
+									queue->has_error ? "InErr" : "NoErr",
+									cmd_idx);
+							}
 							for (i = 0; i < sets->nr_objs; i++) {
-								dev_info(kbdev->dev,
-								         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
-								         kctx->tgid,
-								         kctx->id);
-								dev_info(kbdev->dev,
-								        "[%d_%d] %9lu(  %s ), %7d,   CQS Set, %llx",
-								         kctx->tgid,
-								         kctx->id,
-								         idx,
-								         queue->has_error ? "InErr" : "NoErr",
-								         cmd_idx,
-								         sets->objs ? sets->objs[i].addr : 0);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-								mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-									"[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info\n",
-									kctx->tgid,
-									kctx->id);
-								mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-									"[%d_%d] %9lu(  %s ), %7d,   CQS Set, %llx\n",
-									kctx->tgid,
-									kctx->id,
+								mtk_log_all(kbdev, 1,
+									"[%d_%d] %9lu(  %s ), %7d,   CQS Set, %llx",
+									kctx->tgid, kctx->id,
 									idx,
 									queue->has_error ? "InErr" : "NoErr",
 									cmd_idx,
 									sets->objs ? sets->objs[i].addr : 0);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 							}
 							break;
 						}
@@ -2450,82 +1724,62 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 							unsigned int i;
 							struct kbase_kcpu_command_cqs_wait_info *waits = &cmd->info.cqs_wait;
 
+							mtk_log_all(kbdev, 1,
+								"[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
+								kctx->tgid, kctx->id);
+							if (waits->nr_objs == 0) {
+								mtk_log_all(kbdev, 1,
+									"[%d_%d] %9lu(  %s ), %7d,  CQS Wait, nr_objs == 0\n",
+									kctx->tgid, kctx->id,
+									idx,
+									queue->has_error ? "InErr" : "NoErr",
+									cmd_idx);
+							}
 							for (i = 0; i < waits->nr_objs; i++) {
 								struct kbase_vmap_struct *mapping;
 								u32 val;
-								char const *msg;
+								char const *msg = (waits->inherit_err_flags && (1U << i)) ? "true" : "false";
 								u32 *const cpu_ptr = (u32 *)kbase_phy_alloc_mapping_get(kctx, waits->objs[i].addr, &mapping);
 
-								if (!cpu_ptr)
-									break;
+								if (cpu_ptr) {
+									val = *cpu_ptr;
+									kbase_phy_alloc_mapping_put(kctx, mapping);
 
-								val = *cpu_ptr;
-								kbase_phy_alloc_mapping_put(kctx, mapping);
-
-								msg = (waits->inherit_err_flags && (1U << i)) ? "true" : "false";
-
-								dev_info(kbdev->dev,
-								         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
-								         kctx->tgid,
-								         kctx->id);
-								dev_info(kbdev->dev,
-								         "[%d_%d] %9lu(  %s ), %7d,  CQS Wait, %llx(%u > %u, inherit_err: %s)",
-								         kctx->tgid,
-								         kctx->id,
-								         idx,
-								         queue->has_error ? "InErr" : "NoErr",
-								         cmd_idx,
-								         waits->objs ? waits->objs[i].addr : 0,
-								         val,
-								         waits->objs ? waits->objs[i].val : 0,
-								         msg);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-								mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-									"[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info\n",
-									kctx->tgid,
-									kctx->id);
-								mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-									"[%d_%d] %9lu(  %s ), %7d,  CQS Wait, %llx(%u > %u, inherit_err: %s)\n",
-									kctx->tgid,
-									kctx->id,
-									idx,
-									queue->has_error ? "InErr" : "NoErr",
-									cmd_idx,
-									waits->objs ? waits->objs[i].addr : 0,
-									val,
-									waits->objs ? waits->objs[i].val : 0,
-									msg);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+									mtk_log_all(kbdev, 1,
+										"[%d_%d] %9lu(  %s ), %7d,  CQS Wait, %llx(%u > %u, inherit_err: %s)",
+										kctx->tgid, kctx->id,
+										idx,
+										queue->has_error ? "InErr" : "NoErr",
+										cmd_idx,
+										waits->objs ? waits->objs[i].addr : 0,
+										val,
+										waits->objs ? waits->objs[i].val : 0,
+										msg);
+								} else {
+									mtk_log_all(kbdev, 1,
+										"[%d_%d] %9lu(  %s ), %7d,  CQS Wait, %llx(??val?? > %u, inherit_err: %s)",
+										kctx->tgid, kctx->id,
+										idx,
+										queue->has_error ? "InErr" : "NoErr",
+										cmd_idx,
+										waits->objs ? waits->objs[i].addr : 0,
+										waits->objs ? waits->objs[i].val : 0,
+										msg);
+								}
 							}
 							break;
 						}
 						default:
-							dev_info(kbdev->dev,
-							         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
-							         kctx->tgid,
-							         kctx->id);
-							dev_info(kbdev->dev,
-							         "[%d_%d] %9lu(  %s ), %7d, %9d, (other blocking command)",
-							         kctx->tgid,
-							         kctx->id,
-							         idx,
-							         queue->has_error ? "InErr" : "NoErr",
-							         cmd_idx,
-							         cmd->type);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-							mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-								"[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info\n",
-								kctx->tgid,
-								kctx->id);
-							mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-								"[%d_%d] %9lu(  %s ), %7d, %9d, (other blocking command)\n",
-								kctx->tgid,
-								kctx->id,
+							mtk_log_all(kbdev, 1,
+								"[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
+								kctx->tgid, kctx->id);
+							mtk_log_all(kbdev, 1,
+								"[%d_%d] %9lu(  %s ), %7d, %9d, (other blocking command)",
+								kctx->tgid, kctx->id,
 								idx,
 								queue->has_error ? "InErr" : "NoErr",
 								cmd_idx,
 								cmd->type);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 							break;
 						}
 						}
@@ -2548,12 +1802,9 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 				{
 				if (atomic_read(&kctx->csf.cpu_queue.dump_req_status) !=
 						BASE_CSF_CPU_QUEUE_DUMP_COMPLETE) {
-					dev_info(kbdev->dev, "[%d_%d] Dump request already started! (try again)", kctx->tgid, kctx->id);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-					mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-						"[%d_%d] Dump request already started! (try again)\n",
+					mtk_log_all(kbdev, 1,
+						"[%d_%d] Dump request already started! (try again)",
 						kctx->tgid, kctx->id);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 					kbase_csf_scheduler_unlock(kbdev);
 					mutex_unlock(&kctx->csf.lock);
 					mutex_unlock(&kbdev->kctx_list_lock);
@@ -2570,25 +1821,18 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 				kbase_csf_scheduler_unlock(kbdev);
 				mutex_unlock(&kctx->csf.lock);
 
-				dev_info(kbdev->dev, "[cpu_queue] CPU Queues table (version:v%u):", MALI_CSF_CPU_QUEUE_DEBUGFS_VERSION);
-				dev_info(kbdev->dev, "[cpu_queue] ##### Ctx %d_%d #####", kctx->tgid, kctx->id);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-				mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-					"[cpu_queue] CPU Queues table (version:v%u):\n",
+				mtk_log_all(kbdev, 1,
+					"[cpu_queue] CPU Queues table (version:v%u):",
 					MALI_CSF_CPU_QUEUE_DEBUGFS_VERSION);
-				mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-					"[cpu_queue] ##### Ctx %d_%d #####\n",
+				mtk_log_all(kbdev, 1,
+					"[cpu_queue] ##### Ctx %d_%d #####",
 					kctx->tgid, kctx->id);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 				ret = wait_for_completion_timeout(&kctx->csf.cpu_queue.dump_cmp, msecs_to_jiffies(3000));
 				if (!ret) {
-					dev_info(kbdev->dev, "[%d_%d] Timeout waiting for dump completion", kctx->tgid, kctx->id);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-					mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-						"[%d_%d] Timeout waiting for dump completion\n",
+					mtk_log_all(kbdev, 1,
+						"[%d_%d] Timeout waiting for dump completion",
 						kctx->tgid, kctx->id);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 					mutex_unlock(&kbdev->kctx_list_lock);
 					if (dump_queue_data)
 						mtk_debug_cs_queue_free_memory();
@@ -2608,12 +1852,9 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 					for (i = 0; i < kctx->csf.cpu_queue.buffer_size; i++) {
 						if (kctx->csf.cpu_queue.buffer[i] == '\n') {
 							kctx->csf.cpu_queue.buffer[i] = '\0';
-							dev_info(kbdev->dev, "%s", &(kctx->csf.cpu_queue.buffer[next_str_idx]));
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-							mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-								"%s\n",
+							mtk_log_all(kbdev, 1,
+								"%s",
 								&(kctx->csf.cpu_queue.buffer[next_str_idx]));
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 							next_str_idx = i + 1;
 						}
 					}
@@ -2623,12 +1864,9 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 					kctx->csf.cpu_queue.buffer_size = 0;
 				}
 				else {
-					dev_info(kbdev->dev, "[%d_%d] Dump error! (time out)", kctx->tgid, kctx->id);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-					mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-						"[%d_%d] Dump error! (time out)\n",
+					mtk_log_all(kbdev, 1,
+						"[%d_%d] Dump error! (time out)",
 						kctx->tgid, kctx->id);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 				}
 
 				atomic_set(&kctx->csf.cpu_queue.dump_req_status,
@@ -2682,20 +1920,12 @@ static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int tim
 
 	mutex_lock(&fence_debug_lock);
 
-	dev_info(kbdev->dev, "%s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d",
-	         fence_timeout_type_to_string(type),
-	         timeouts,
-	         fd,
-	         pid);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-		"%s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d\n",
+	mtk_log_all(kbdev, 1,
+		"%s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d",
 		fence_timeout_type_to_string(type),
 		timeouts,
 		fd,
 		pid);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 #ifdef CONFIG_MALI_FENCE_DEBUG
@@ -2720,12 +1950,9 @@ static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int tim
 		 * While holding the struct kbase_jd_context lock clean up jobs which are known to kbase but are
 		 * queued outside the job scheduler.
 		 */
-		dev_info(kbdev->dev, "External fence timeouts(%d ms)! Cancel soft job", timeouts);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"External fence timeouts(%d ms)! Cancel soft job\n",
+		mtk_log_all(kbdev, 1,
+			"External fence timeouts(%d ms)! Cancel soft job",
 			timeouts);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		mutex_lock(&kbdev->kctx_list_lock);
 		list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
 			mutex_lock(&kctx->jctx.lock);
@@ -2741,20 +1968,14 @@ static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int tim
 #endif
 
 		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE)) {
-			dev_info(kbdev->dev, "External fence timeouts(%d ms)! Trigger GPU reset", timeouts);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-				mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-					"External fence timeouts(%d ms)! Trigger GPU reset\n",
-					timeouts);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+			mtk_log_all(kbdev, 1,
+				"External fence timeouts(%d ms)! Trigger GPU reset",
+				timeouts);
 			kbase_reset_gpu(kbdev);
 		} else {
-			dev_info(kbdev->dev, "External fence timeouts(%d ms)! Other threads are already resetting the GPU", timeouts);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-				mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-					"External fence timeouts(%d ms)! Other threads are already resetting the GPU\n",
-					timeouts);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+			mtk_log_all(kbdev, 1,
+				"External fence timeouts(%d ms)! Other threads are already resetting the GPU",
+				timeouts);
 		}
 	}
 #endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
