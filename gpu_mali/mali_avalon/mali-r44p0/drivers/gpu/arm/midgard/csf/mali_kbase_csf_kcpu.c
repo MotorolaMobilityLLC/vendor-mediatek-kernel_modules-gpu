@@ -2000,17 +2000,20 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 
 	/* Dump when timeout 3s, 4s */
 	if ((queue->fence_signal_command_timeout_counter == 3) || (queue->fence_signal_command_timeout_counter == 4)) {
+		unsigned int fence_signal_command_timeout_ms =
+			queue->fence_signal_command_timeout_counter * kbase_get_timeout_ms(kctx->kbdev, KCPU_FENCE_SIGNAL_TIMEOUT);
+
 		dev_info(kctx->kbdev->dev,
 			"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms) on fence[%pK] context#seqno:%s (driver=%s, timeline=%s)",
 			kctx->tgid, kctx->id, queue->id,
-			(queue->fence_signal_command_timeout_counter * kbase_get_timeout_ms(kctx->kbdev, KCPU_FENCE_SIGNAL_TIMEOUT)),
+			fence_signal_command_timeout_ms,
 			fence, info.name,
 			fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
 			"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms) on fence[%pK] context#seqno:%s (driver=%s, timeline=%s)\n",
 			kctx->tgid, kctx->id, queue->id,
-			(queue->fence_signal_command_timeout_counter * kbase_get_timeout_ms(kctx->kbdev, KCPU_FENCE_SIGNAL_TIMEOUT)),
+			fence_signal_command_timeout_ms,
 			fence, info.name,
 			fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
@@ -2022,6 +2025,29 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, kctx->tgid, MTK_DBG_HOOK_MALI_FENCE_SIGNAL_TIMEOUT);
 		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, kctx->tgid, MTK_DBG_HOOK_MALI_FENCE_SIGNAL_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+		if (queue->fence_signal_command_timeout_counter == 4) {
+			if (kbase_prepare_to_reset_gpu(kctx->kbdev, RESET_FLAGS_NONE)) {
+				dev_info(kctx->kbdev->dev, "KCPU queue command timeouts(%d ms)! Trigger GPU reset",
+					fence_signal_command_timeout_ms);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
+					"KCPU queue command timeouts(%d ms)! Trigger GPU reset\n"),
+					fence_signal_command_timeout_ms);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+				kbase_reset_gpu(kctx->kbdev);
+			} else {
+				dev_info(kctx->kbdev->dev, "KCPU queue command timeouts(%d ms)! Other threads are already resetting the GPU",
+					fence_signal_command_timeout_ms);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
+					"KCPU queue command timeouts(%d ms)! Other threads are already resetting the GPU\n"),
+					fence_signal_command_timeout_ms);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+			}
+		}
+#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
 	} else {
 		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 	}

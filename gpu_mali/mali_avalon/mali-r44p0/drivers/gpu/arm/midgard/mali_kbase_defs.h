@@ -1400,7 +1400,6 @@ struct kbase_device {
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
-	bool reset_force_evict_group_work;
 	bool reset_force_hard_reset;
 	spinlock_t reset_force_change;
 #endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */

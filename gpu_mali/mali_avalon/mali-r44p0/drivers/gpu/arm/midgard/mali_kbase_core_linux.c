@@ -1776,10 +1776,6 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
 	if (fence_wait->time_in_microseconds > 3000) {
-		spin_lock(&kctx->kbdev->reset_force_change);
-		kctx->kbdev->reset_force_evict_group_work = true;
-		spin_unlock(&kctx->kbdev->reset_force_change);
-
 		if (kbase_prepare_to_reset_gpu(kctx->kbdev, RESET_FLAGS_NONE)) {
 			dev_info(kctx->kbdev->dev, "Internal fence timeouts(%llu ms)! Trigger GPU reset",
 					 fence_wait->time_in_microseconds);
