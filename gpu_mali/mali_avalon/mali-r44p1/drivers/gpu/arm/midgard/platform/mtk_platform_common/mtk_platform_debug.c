@@ -2134,6 +2134,7 @@ static void mtk_debug_csf_dump_cpu_queues(struct kbase_device *kbdev, struct kba
 #if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY) || IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
 		mutex_unlock(&kctx->csf.lock);
 #endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY || CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT */
+		atomic_set(&kctx->csf.cpu_queue.dump_req_status, BASE_CSF_CPU_QUEUE_DUMP_COMPLETE);
 		return;
 	}
 
@@ -2142,6 +2143,7 @@ static void mtk_debug_csf_dump_cpu_queues(struct kbase_device *kbdev, struct kba
 #else
 	if (!mtk_debug_trylock(&kctx->csf.lock)) {
 		mtk_log_critical_exception(kbdev, true, "[%d_%d] lock csf.lock failed!", kctx->tgid, kctx->id);
+		atomic_set(&kctx->csf.cpu_queue.dump_req_status, BASE_CSF_CPU_QUEUE_DUMP_COMPLETE);
 		return;
 	}
 #endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY || CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT */
