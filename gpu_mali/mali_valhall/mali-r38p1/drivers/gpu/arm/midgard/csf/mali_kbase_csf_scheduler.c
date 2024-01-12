@@ -104,6 +104,9 @@
 /* Tiler heap reclaim scan (free) method size for limiting a scan run length */
 #define HEAP_RECLAIM_SCAN_BATCH_SIZE (HEAP_SHRINKER_BATCH << 7)
 
+/* Explicitly defining this blocked_reason code as SB_WAIT for clarity */
+#define CS_STATUS_BLOCKED_ON_SB_WAIT CS_STATUS_BLOCKED_REASON_REASON_WAIT
+
 static int scheduler_group_schedule(struct kbase_queue_group *group);
 static void remove_group_from_idle_wait(struct kbase_queue_group *const group);
 static
@@ -1616,8 +1619,10 @@ static void program_cs(struct kbase_device *kbdev,
 	 * or protected mode switch.
 	 */
 	kbase_csf_firmware_cs_input_mask(stream, CS_REQ,
-			CS_REQ_IDLE_EMPTY_MASK | CS_REQ_IDLE_SYNC_WAIT_MASK,
-			CS_REQ_IDLE_EMPTY_MASK | CS_REQ_IDLE_SYNC_WAIT_MASK);
+					 CS_REQ_IDLE_EMPTY_MASK | CS_REQ_IDLE_SYNC_WAIT_MASK |
+						 CS_REQ_IDLE_SHARED_SB_DEC_MASK,
+					 CS_REQ_IDLE_EMPTY_MASK | CS_REQ_IDLE_SYNC_WAIT_MASK |
+						 CS_REQ_IDLE_SHARED_SB_DEC_MASK);
 
 	spin_lock_irqsave(&kbdev->csf.scheduler.interrupt_lock, flags);
 	/* Set state to START/STOP */
@@ -1968,7 +1973,7 @@ bool save_slot_cs(struct kbase_csf_cmd_stream_group_info const *const ginfo,
 	KBASE_KTRACE_ADD_CSF_GRP_Q(stream->kbdev, QUEUE_SYNC_UPDATE_WAIT_STATUS, queue->group,
 				   queue, status);
 
-	if (CS_STATUS_WAIT_SYNC_WAIT_GET(status)) {
+	if (CS_STATUS_WAIT_SYNC_WAIT_GET(status) || CS_STATUS_WAIT_SB_MASK_GET(status)) {
 		queue->status_wait = status;
 		queue->sync_ptr = kbase_csf_firmware_cs_output(stream,
 			CS_STATUS_WAIT_SYNC_POINTER_LO);
@@ -1984,7 +1989,8 @@ bool save_slot_cs(struct kbase_csf_cmd_stream_group_info const *const ginfo,
 			kbase_csf_firmware_cs_output(stream,
 						     CS_STATUS_BLOCKED_REASON));
 
-		if (!evaluate_sync_update(queue)) {
+		if ((queue->blocked_reason == CS_STATUS_BLOCKED_ON_SB_WAIT) ||
+		    !evaluate_sync_update(queue)) {
 			is_waiting = true;
 		} else {
 			/* Sync object already got updated & met the condition
@@ -2519,9 +2525,14 @@ static void save_csg_slot(struct kbase_queue_group *group)
 			if (!queue || !queue->enabled)
 				continue;
 
-			if (save_slot_cs(ginfo, queue))
-				sync_wait = true;
-			else {
+			if (save_slot_cs(ginfo, queue)) {
+				/* sync_wait is only true if the queue is blocked on
+				 * a CQS and not a scoreboard.
+				 */
+				if (queue->blocked_reason !=
+				    CS_STATUS_BLOCKED_ON_SB_WAIT)
+					sync_wait = true;
+			} else {
 				/* Need to confirm if ringbuffer of the GPU
 				 * queue is empty or not. A race can arise
 				 * between the flush of GPU queue and suspend
