@@ -1432,6 +1432,9 @@ int kbase_mem_init(struct kbase_device *kbdev)
 
 	/* Initialize memory usage */
 	atomic_set(&memdev->used_pages, 0);
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+	atomic_set(&memdev->cache_pool_pages, 0);
+#endif
 
 	spin_lock_init(&kbdev->gpu_mem_usage_lock);
 	kbdev->total_gpu_pages = 0;

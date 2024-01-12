@@ -417,6 +417,9 @@ static inline int kbase_as_has_page_fault(struct kbase_as *as,
 struct kbasep_mem_device {
 	atomic_t used_pages;
 	atomic_t ir_threshold;
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+	atomic_t cache_pool_pages;
+#endif
 };
 
 struct kbase_clk_rate_listener;
