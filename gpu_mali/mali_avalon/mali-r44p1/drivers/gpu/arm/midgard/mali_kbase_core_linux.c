@@ -745,7 +745,6 @@ static int kbase_file_create_kctx(struct kbase_file *const kfile,
 	if (kbdev->infinite_cache_active_default)
 		kbase_ctx_flag_set(kctx, KCTX_INFINITE_CACHE);
 
-#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	if (unlikely(!scnprintf(kctx_name, 64, "%d_%d", kctx->tgid, kctx->id)))
 		return -ENOMEM;
@@ -767,9 +766,10 @@ static int kbase_file_create_kctx(struct kbase_file *const kfile,
 		kbase_context_debugfs_init(kctx);
 	}
 #else
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
 	kbase_csf_cpu_queue_debugfs_init(kctx);
-#endif /* CONFIG_DEBUG_FS */
 #endif /* IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY) */
+#endif /* CONFIG_DEBUG_FS */
 
 	dev_dbg(kbdev->dev, "created base context\n");
 
