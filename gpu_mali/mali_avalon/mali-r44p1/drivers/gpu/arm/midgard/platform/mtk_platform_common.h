@@ -92,7 +92,7 @@ void mtk_common_csf_debugfs_init(struct kbase_device *kbdev);
 int mtk_platform_pm_init(struct kbase_device *kbdev);
 void mtk_platform_pm_term(struct kbase_device *kbdev);
 
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ) || IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ_LEGACY)
 #define REQ_DSU_POWER_ON (1)
 #define REQ_DSU_POWER_OFF (0)
 #define GPUACP_SMC_OP_CPUPM_PWR (1)
