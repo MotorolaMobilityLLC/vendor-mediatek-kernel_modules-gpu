@@ -10,6 +10,9 @@ define_mgk_ko(
     name = "gpu",
     srcs = glob(["**"]),
     outs = [
+        "mt6897/mali_valhall/mali-r38p1/drivers/base/arm/memory_group_manager/mali_mgm_mt6897.ko",
+        "mt6897/mali_valhall/mali-r38p1/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6897.ko",
+        "mt6897/mali_valhall/mali-r38p1/drivers/gpu/arm/midgard/mali_kbase_mt6897.ko",
         "mt6985/mali_valhall/mali-r38p1/drivers/base/arm/memory_group_manager/mali_mgm_mt6985.ko",
         "mt6985/mali_valhall/mali-r38p1/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6985.ko",
         "mt6985/mali_valhall/mali-r38p1/drivers/gpu/arm/midgard/mali_kbase_mt6985.ko",
