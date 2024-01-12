@@ -20,11 +20,14 @@
 
 KO_CODE_PATH := $(if $(filter /%,$(src)),,$(srctree)/)$(src)
 
-ccflags-y = -I$(KO_CODE_PATH)/../../../gpu/arm/midgard/include
+ccflags-y = -I$(KO_CODE_PATH)/../../../gpu/arm/midgard/include -I$(DEVICE_MODULES_PATH)/include/
 subdir-ccflags-y += $(ccflags-y)
 
 ifeq ($(CONFIG_MALI_MEMORY_GROUP_MANAGER), y)
 obj-m += mali_mgm_$(MTK_PLATFORM_VERSION).o
 mali_mgm_$(MTK_PLATFORM_VERSION)-y := memory_group_manager.o
 ccflags-y += -DCONFIG_MTK_MODIFY
+ifeq ($(MTK_PLATFORM_VERSION),mt6985)
+ccflags-y += -DCONFIG_MALI_MTK_MGMM
+endif
 endif
