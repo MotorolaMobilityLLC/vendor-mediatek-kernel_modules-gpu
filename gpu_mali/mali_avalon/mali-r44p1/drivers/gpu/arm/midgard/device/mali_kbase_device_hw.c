@@ -64,7 +64,9 @@ static int busy_wait_cache_operation(struct kbase_device *kbdev, u32 irq_bit)
 		unsigned int i;
 
 		for (i = 0; i < 1000; i++) {
-			if (kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_RAWSTAT)) & irq_bit) {
+			if (kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_RAWSTAT)) & irq_bit
+					|| unlikely(!kbase_reset_gpu_is_not_pending(kbdev)))
+			{
 				completed = true;
 				break;
 			}
