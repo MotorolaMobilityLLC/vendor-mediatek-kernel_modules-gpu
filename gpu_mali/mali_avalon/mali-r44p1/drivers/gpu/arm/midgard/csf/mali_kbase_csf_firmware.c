@@ -768,9 +768,6 @@ static int parse_memory_setup_entry(struct kbase_device *kbdev,
 		>> PAGE_SHIFT;
 
 retry_alloc:
-#if IS_ENABLED(CONFIG_MALI_MTK_FIX_COVERITY)
-	ret = 0;
-#endif /*CONFIG_MALI_MTK_FIX_COVERITY*/
 	reuse_pages = entry_find_large_page_to_reuse(kbdev, virtual_start, virtual_end, flags,
 						     &phys, &pma, num_pages, &num_pages_aligned,
 						     &is_small_page, force_small_page);
@@ -929,11 +926,7 @@ retry_alloc:
 	return ret;
 
 out:
-#if IS_ENABLED(CONFIG_MALI_MTK_FIX_COVERITY)
-	if (allocated_pages || pma) {
-#else
 	if (allocated_pages) {
-#endif /*CONFIG_MALI_MTK_FIX_COVERITY*/
 		if (!reuse_pages) {
 			if (protected_mode) {
 				kbase_csf_protected_memory_free(
