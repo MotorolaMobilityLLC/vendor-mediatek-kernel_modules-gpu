@@ -5377,6 +5377,9 @@ static bool can_skip_scheduling(struct kbase_device *kbdev)
 
 	lockdep_assert_held(&scheduler->lock);
 
+	if (unlikely(!kbase_reset_gpu_is_not_pending(kbdev)))
+		return true;
+
 	if (scheduler->state == SCHED_SUSPENDED)
 		return true;
 
