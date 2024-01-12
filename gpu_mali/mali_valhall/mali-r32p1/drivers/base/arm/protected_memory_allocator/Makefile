@@ -17,11 +17,14 @@
 # http://www.gnu.org/licenses/gpl-2.0.html.
 #
 #
-ccflags-y = -I$(src)/../../../gpu/arm/midgard/include
+
+KO_CODE_PATH := $(if $(filter /%,$(src)),,$(srctree)/)$(src)
+
+ccflags-y = -I$(KO_CODE_PATH)/../../../gpu/arm/midgard/include
 subdir-ccflags-y += $(ccflags-y)
 
-ifeq ($(CONFIG_MALI_MEMORY_GROUP_MANAGER), y)
-#obj-m := memory_group_manager.o
-obj-m += mali_mgm.o
-mali_mgm-y := memory_group_manager.o
+ifeq ($(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR), y)
+#obj-m := protected_memory_allocator.o
+obj-m += mali_prot_alloc.o
+mali_prot_alloc-y := protected_memory_allocator.o
 endif
