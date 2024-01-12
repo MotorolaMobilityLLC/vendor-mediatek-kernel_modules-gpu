@@ -5252,6 +5252,55 @@ static const struct file_operations
 };
 #endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+static int kbase_device_debugfs_pt_clustering_show(struct seq_file *sfile,
+						   void *data)
+{
+	void *const enable = sfile->private;
+	CSTD_UNUSED(data);
+
+	seq_printf(sfile, "%u\n", *(bool *) enable);
+
+	return 0;
+}
+
+static ssize_t kbase_device_debugfs_pt_clustering_write(struct file *file,
+							const char __user *ubuf,
+							size_t count, loff_t *ppos)
+{
+	const struct seq_file *const sfile = (struct seq_file *) file->private_data;
+	void *const enable = sfile->private;
+	unsigned long val = 0;
+	int err = 0;
+	CSTD_UNUSED(ppos);
+
+	err = kstrtoul_from_user(ubuf, count, 0, &val);
+	if (err)
+		return err;
+
+	*((bool *) enable) = val;
+
+	return count;
+}
+
+static int kbase_device_debugfs_pt_clustering_open(struct inode *in,
+						   struct file *file)
+{
+	return single_open(file, kbase_device_debugfs_pt_clustering_show,
+			   in->i_private);
+}
+
+static const struct file_operations
+	kbase_device_debugfs_pt_clustering_fops = {
+	.owner = THIS_MODULE,
+	.open = kbase_device_debugfs_pt_clustering_open,
+	.read = seq_read,
+	.write = kbase_device_debugfs_pt_clustering_write,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
+
 /**
  * debugfs_ctx_defaults_init - Create the default configuration of new contexts in debugfs
  * @kbdev: An instance of the GPU platform device, allocated from the probe method of the driver.
@@ -5402,6 +5451,13 @@ static struct dentry *init_debugfs(struct kbase_device *kbdev)
 			&kbdev->jit_reclaim_timeout_ms,
 			&kbase_device_debugfs_jit_reclaim_timeout_ms_fops);
 #endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+	debugfs_create_file("pt_clustering", 0644,
+			    kbdev->mali_debugfs_directory,
+			    &kbdev->pt_clustering_enable,
+			    &kbase_device_debugfs_pt_clustering_fops);
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 
 	kbase_ktrace_debugfs_init(kbdev);
 

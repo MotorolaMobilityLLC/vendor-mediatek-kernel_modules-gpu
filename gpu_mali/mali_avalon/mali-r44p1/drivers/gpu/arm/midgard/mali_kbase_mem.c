@@ -51,7 +51,8 @@
 #include <linux/memory_group_manager.h>
 #endif
 
-#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
+#if IS_ENABLED(CONFIG_MALI_MTK_MGMM) || \
+	IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
 #include <soc/mediatek/emi.h>
 #endif
 
@@ -231,6 +232,68 @@ static struct kbase_va_region *find_region_enclosing_range_rbtree(
 
 	return NULL;
 }
+
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+noinline int __is_rank_0(phys_addr_t p, struct alloc_pages_ctx *apc) {
+	return p <= apc->kbdev->rank_boundary;
+}
+
+noinline void mtk_mem_alloc_insert_page(struct tagged_addr *p,
+					struct tagged_addr np,
+					struct alloc_pages_ctx *apc,
+					struct alloc_pages_ctx *curr)
+{
+	int is_rank_0, to_head;
+
+	is_rank_0 = __is_rank_0(as_phys_addr_t(np), apc);
+	to_head = (!apc->pt_clustering_enable || is_rank_0);
+	p[(to_head) ? apc->head++ : apc->rear--] = np;
+}
+
+noinline void mtk_mem_prepare_dealloc_pages(struct alloc_pages_ctx *apc,
+					    struct alloc_pages_ctx *curr)
+{
+	size_t dpos, spos, mv_len;
+
+	spos = apc->rear + 1;
+	dpos = apc->head;
+	mv_len = curr->rear - apc->rear;
+
+	if (mv_len == 0)
+		return;
+
+	memmove(apc->pages + dpos,
+		apc->pages + spos,
+		sizeof (*apc->pages) * (mv_len));
+
+	apc->head += mv_len;
+	apc->rear = curr->rear;
+}
+
+noinline void mtk_alloc_req_stats(struct tagged_addr *pages,
+				  size_t nr_pages,
+				  struct alloc_pages_ctx *apc)
+{
+	size_t rank_0_cnt = 0, rank_1_cnt = 0, flip_cnt = 0;
+	int ii, is_rank_0, prev_is_rank_0 = -1;
+
+	for ( ii = 0; ii < nr_pages; ii++ ) {
+		is_rank_0 = __is_rank_0(as_phys_addr_t(pages[ii]),
+					apc);
+		if (prev_is_rank_0 != -1 &&
+		    is_rank_0 != prev_is_rank_0)
+			flip_cnt++;
+		if (is_rank_0)
+			rank_0_cnt++;
+		else
+			rank_1_cnt++;
+		prev_is_rank_0 = is_rank_0;
+	}
+	trace_mali_alloc_req_stats(nr_pages, flip_cnt,
+				   rank_0_cnt, rank_1_cnt,
+				   apc->head, apc->rear);
+}
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 
 struct kbase_va_region *kbase_find_region_enclosing_address(
 		struct rb_root *rbtree, u64 gpu_addr)
@@ -1510,6 +1573,16 @@ int kbase_mem_init(struct kbase_device *kbdev)
 	kbdev->jit_reclaim_timeout_ms = JIT_RECLAIM_DEFAULT_TIMEOUT_MS;
 #endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+	if (mtk_emicen_get_rk_cnt() == 2) {
+		kbdev->rank_boundary = MTK_EMI_DRAM_OFFSET + mtk_emicen_get_rk_size(0);
+		kbdev->pt_clustering_enable = true;
+	} else {
+		kbdev->rank_boundary = MTK_EMI_DRAM_OFFSET;
+		kbdev->pt_clustering_enable = false;
+	}
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
+
 	return err;
 }
 
@@ -2493,15 +2566,51 @@ int kbase_update_region_flags(struct kbase_context *kctx,
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+int __kbase_alloc_phy_pages_helper(struct kbase_mem_phy_alloc *alloc,
+				   size_t nr_pages_requested,
+				   struct alloc_pages_ctx *apc);
+
 int kbase_alloc_phy_pages_helper(struct kbase_mem_phy_alloc *alloc,
-		size_t nr_pages_requested)
+				 size_t nr_pages_requested) {
+	INIT_ALLOC_PAGES_CTX(apc, nr_pages_requested,
+			     alloc->pages + alloc->nents,
+			     alloc,
+			     alloc->imported.native.kctx->kbdev->pt_clustering_enable,
+			     alloc->imported.native.kctx->kbdev,
+			     alloc->imported.native.kctx);
+	int ret;
+
+	trace_mali_alloc_req_size(nr_pages_requested);
+	ret = __kbase_alloc_phy_pages_helper(alloc,
+					     nr_pages_requested, &apc);
+
+	if (trace_mali_alloc_req_stats_enabled())
+		mtk_alloc_req_stats(alloc->pages,
+				    nr_pages_requested, &apc);
+
+	return ret;
+}
+
+int __kbase_alloc_phy_pages_helper(struct kbase_mem_phy_alloc *alloc,
+				   size_t nr_pages_requested,
+				   struct alloc_pages_ctx *apc)
+#else
+int kbase_alloc_phy_pages_helper(struct kbase_mem_phy_alloc *alloc,
+				 size_t nr_pages_requested)
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 {
 	int new_page_count __maybe_unused;
 	size_t nr_left = nr_pages_requested;
 	int res;
 	struct kbase_context *kctx;
 	struct kbase_device *kbdev;
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+	struct tagged_addr tp;
+	INIT_ALLOC_PAGES_CTX(curr_apc, 0, NULL, NULL, 0, NULL, NULL);
+#else
 	struct tagged_addr *tp;
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 
 	if (WARN_ON(alloc->type != KBASE_MEM_TYPE_NATIVE) ||
 	    WARN_ON(alloc->imported.native.kctx == NULL) ||
@@ -2530,7 +2639,11 @@ int kbase_alloc_phy_pages_helper(struct kbase_mem_phy_alloc *alloc,
 	 */
 	kbase_process_page_usage_inc(kctx, nr_pages_requested);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+	curr_apc = *apc;
+#else
 	tp = alloc->pages + alloc->nents;
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 
 	/* Check if we have enough pages requested so we can allocate a large
 	 * page (512 * 4KB = 2MB )
@@ -2538,12 +2651,21 @@ int kbase_alloc_phy_pages_helper(struct kbase_mem_phy_alloc *alloc,
 	if (kbdev->pagesize_2mb && nr_left >= (SZ_2M / SZ_4K)) {
 		int nr_lp = nr_left / (SZ_2M / SZ_4K);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+		res = __kbase_mem_pool_alloc_pages(&kctx->mem_pools.large[alloc->group_id],
+						   nr_lp * (SZ_2M / SZ_4K),
+						   alloc->pages + alloc->nents, true,
+						   kctx->task, apc);
+#else
 		res = kbase_mem_pool_alloc_pages(&kctx->mem_pools.large[alloc->group_id],
 						 nr_lp * (SZ_2M / SZ_4K), tp, true, kctx->task);
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 
 		if (res > 0) {
 			nr_left -= res;
+#if !IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
 			tp += res;
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 		}
 
 		if (nr_left) {
@@ -2560,9 +2682,18 @@ int kbase_alloc_phy_pages_helper(struct kbase_mem_phy_alloc *alloc,
 								  SZ_2M / SZ_4K,
 								  pidx);
 					bitmap_set(sa->sub_pages, pidx, 1);
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+					tp = as_tagged_tag(page_to_phys(sa->page +
+									pidx),
+							   FROM_PARTIAL);
+					mtk_mem_alloc_insert_page(alloc->pages +
+								  alloc->nents, tp,
+								  apc, &curr_apc);
+#else
 					*tp++ = as_tagged_tag(page_to_phys(sa->page +
 									   pidx),
 							      FROM_PARTIAL);
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 					nr_left--;
 
 					if (bitmap_full(sa->sub_pages, SZ_2M / SZ_4K)) {
@@ -2621,8 +2752,18 @@ int kbase_alloc_phy_pages_helper(struct kbase_mem_phy_alloc *alloc,
 				bitmap_zero(sa->sub_pages, SZ_2M / SZ_4K);
 				sa->page = np;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+				for (i = 0; i < nr_left; i++) {
+					tp = as_tagged_tag(page_to_phys(np + i), FROM_PARTIAL);
+					mtk_mem_alloc_insert_page(alloc->pages +
+								  alloc->nents,
+								  tp, apc, &curr_apc);
+				}
+#else
 				for (i = 0; i < nr_left; i++)
 					*tp++ = as_tagged_tag(page_to_phys(np + i), FROM_PARTIAL);
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
+
 
 				bitmap_set(sa->sub_pages, 0, nr_left);
 				nr_left = 0;
@@ -2637,8 +2778,14 @@ int kbase_alloc_phy_pages_helper(struct kbase_mem_phy_alloc *alloc,
 
 no_new_partial:
 	if (nr_left) {
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+		res = __kbase_mem_pool_alloc_pages(&kctx->mem_pools.small[alloc->group_id],
+						   nr_left, alloc->pages + alloc->nents,
+						   false, kctx->task, apc);
+#else
 		res = kbase_mem_pool_alloc_pages(&kctx->mem_pools.small[alloc->group_id], nr_left,
 						 tp, false, kctx->task);
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 		if (res <= 0)
 			goto alloc_failed;
 	}
@@ -2667,7 +2814,14 @@ alloc_failed:
 		atomic_add(nr_pages_to_free,
 			&kctx->kbdev->memdev.used_pages);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+		mtk_mem_prepare_dealloc_pages(apc, &curr_apc);
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 		kbase_free_phy_pages_helper(alloc, nr_pages_to_free);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+		*apc = curr_apc;
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 	}
 
 	kbase_process_page_usage_dec(kctx, nr_pages_requested);
@@ -2679,17 +2833,57 @@ invalid_request:
 	return -ENOMEM;
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+struct tagged_addr *__kbase_alloc_phy_pages_helper_locked(
+		struct kbase_mem_phy_alloc *alloc, struct kbase_mem_pool *pool,
+		size_t nr_pages_requested,
+		struct kbase_sub_alloc **prealloc_sa, struct alloc_pages_ctx *apc);
+
 struct tagged_addr *kbase_alloc_phy_pages_helper_locked(
 		struct kbase_mem_phy_alloc *alloc, struct kbase_mem_pool *pool,
 		size_t nr_pages_requested,
 		struct kbase_sub_alloc **prealloc_sa)
+{
+	INIT_ALLOC_PAGES_CTX(apc, nr_pages_requested,
+			     alloc->pages + alloc->nents, alloc,
+			     alloc->imported.native.kctx->kbdev->pt_clustering_enable,
+			     alloc->imported.native.kctx->kbdev,
+			     alloc->imported.native.kctx);
+	struct tagged_addr *ret;
+
+	trace_mali_alloc_req_size(nr_pages_requested);
+	ret = __kbase_alloc_phy_pages_helper_locked(alloc, pool,
+						    nr_pages_requested,
+						    prealloc_sa, &apc);
+
+	if (trace_mali_alloc_req_stats_enabled())
+		mtk_alloc_req_stats(alloc->pages, nr_pages_requested, &apc);
+
+	return ret;
+}
+
+struct tagged_addr *__kbase_alloc_phy_pages_helper_locked(
+		struct kbase_mem_phy_alloc *alloc, struct kbase_mem_pool *pool,
+		size_t nr_pages_requested,
+		struct kbase_sub_alloc **prealloc_sa, struct alloc_pages_ctx *apc)
+#else
+struct tagged_addr *kbase_alloc_phy_pages_helper_locked(
+		struct kbase_mem_phy_alloc *alloc, struct kbase_mem_pool *pool,
+		size_t nr_pages_requested,
+		struct kbase_sub_alloc **prealloc_sa)
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 {
 	int new_page_count __maybe_unused;
 	size_t nr_left = nr_pages_requested;
 	int res;
 	struct kbase_context *kctx;
 	struct kbase_device *kbdev;
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+	struct tagged_addr tp;
+	INIT_ALLOC_PAGES_CTX(curr_apc, 0, NULL, NULL, 0, NULL, NULL);
+#else
 	struct tagged_addr *tp;
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 	struct tagged_addr *new_pages = NULL;
 
 	KBASE_DEBUG_ASSERT(alloc->type == KBASE_MEM_TYPE_NATIVE);
@@ -2723,19 +2917,32 @@ struct tagged_addr *kbase_alloc_phy_pages_helper_locked(
 	 */
 	kbase_process_page_usage_inc(kctx, nr_pages_requested);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+	curr_apc = *apc;
+	new_pages = alloc->pages + alloc->nents;
+#else
 	tp = alloc->pages + alloc->nents;
 	new_pages = tp;
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 
 	if (kbdev->pagesize_2mb && pool->order) {
 		int nr_lp = nr_left / (SZ_2M / SZ_4K);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+		res = __kbase_mem_pool_alloc_pages_locked(pool,
+							  nr_lp * (SZ_2M / SZ_4K),
+							  new_pages, apc);
+#else
 		res = kbase_mem_pool_alloc_pages_locked(pool,
 						 nr_lp * (SZ_2M / SZ_4K),
 						 tp);
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 
 		if (res > 0) {
 			nr_left -= res;
+#if !IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
 			tp += res;
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 		}
 
 		if (nr_left) {
@@ -2750,9 +2957,17 @@ struct tagged_addr *kbase_alloc_phy_pages_helper_locked(
 								  SZ_2M / SZ_4K,
 								  pidx);
 					bitmap_set(sa->sub_pages, pidx, 1);
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+					tp = as_tagged_tag(page_to_phys(sa->page + pidx),
+							   FROM_PARTIAL);
+					mtk_mem_alloc_insert_page(new_pages, tp,
+								  apc, &curr_apc);
+#else
 					*tp++ = as_tagged_tag(page_to_phys(
 							sa->page + pidx),
 							FROM_PARTIAL);
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
+
 					nr_left--;
 
 					if (bitmap_full(sa->sub_pages,
@@ -2791,10 +3006,19 @@ struct tagged_addr *kbase_alloc_phy_pages_helper_locked(
 				bitmap_zero(sa->sub_pages, SZ_2M / SZ_4K);
 				sa->page = np;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+				for (i = 0; i < nr_left; i++) {
+					tp = as_tagged_tag(page_to_phys(np + i),
+							   FROM_PARTIAL);
+					mtk_mem_alloc_insert_page(new_pages, tp,
+								  apc, &curr_apc);
+				}
+#else
 				for (i = 0; i < nr_left; i++)
 					*tp++ = as_tagged_tag(
 							page_to_phys(np + i),
 							FROM_PARTIAL);
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 
 				bitmap_set(sa->sub_pages, 0, nr_left);
 				nr_left = 0;
@@ -2810,9 +3034,14 @@ struct tagged_addr *kbase_alloc_phy_pages_helper_locked(
 		if (nr_left)
 			goto alloc_failed;
 	} else {
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+		res = __kbase_mem_pool_alloc_pages_locked(pool, nr_left,
+							  new_pages, apc);
+#else
 		res = kbase_mem_pool_alloc_pages_locked(pool,
 						 nr_left,
 						 tp);
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 		if (res <= 0)
 			goto alloc_failed;
 	}
@@ -2837,6 +3066,11 @@ alloc_failed:
 		struct tagged_addr *start_free = alloc->pages + alloc->nents;
 
 		if (kbdev->pagesize_2mb && pool->order) {
+
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+			mtk_mem_prepare_dealloc_pages(apc, &curr_apc);
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
+
 			while (nr_pages_to_free) {
 				if (is_huge_head(*start_free)) {
 					kbase_mem_pool_free_pages_locked(
@@ -2860,6 +3094,9 @@ alloc_failed:
 					false, /* not dirty */
 					true); /* return to pool */
 		}
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+		*apc = curr_apc;
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 	}
 
 	kbase_process_page_usage_dec(kctx, nr_pages_requested);

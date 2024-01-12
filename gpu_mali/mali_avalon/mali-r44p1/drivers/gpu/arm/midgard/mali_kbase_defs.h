@@ -1433,6 +1433,11 @@ struct kbase_device {
 #if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
 	u32 jit_reclaim_timeout_ms;
 #endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+	phys_addr_t rank_boundary;
+	bool pt_clustering_enable;
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 };
 
 /**
