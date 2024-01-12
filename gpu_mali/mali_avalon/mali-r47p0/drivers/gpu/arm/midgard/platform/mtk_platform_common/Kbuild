@@ -59,6 +59,10 @@ ifeq ($(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY),y)
     mali_kbase-y += $(curr)/mtk_platform_qinspect_recovery.o
 endif ## CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY ##
 
+ifeq ($(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET),y)
+    mali_kbase-y += $(curr)/mtk_platform_whitebox_force_hard_reset.o
+endif ## CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY ##
+
 ccflags-y += -I$(srctree)/drivers/devfreq/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/perf_common/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/tinysys_scmi/

@@ -70,6 +70,10 @@ static struct proc_dir_entry *proc_root;
 #include <platform/mtk_platform_common/mtk_platform_devfreq_governor.h>
 #endif /* CONFIG_MALI_MTK_DEVFREQ_GOVERNOR */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
+#include <platform/mtk_platform_common/mtk_platform_whitebox_force_hard_reset.h>
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
+
 static bool mfg_powered;
 static DEFINE_MUTEX(mfg_pm_lock);
 static DEFINE_MUTEX(common_debug_lock);
@@ -99,6 +103,13 @@ void mtk_common_pm_mfg_idle(void)
 	mfg_powered = false;
 	mutex_unlock(&mfg_pm_lock);
 }
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
+bool mtk_common_whitebox_force_hard_reset_enable(void)
+{
+	return mtk_whitebox_force_hard_reset_enable();
+}
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
 #if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
@@ -531,6 +542,9 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	mtk_debug_dump_enop_metadata_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
+	mtk_whitebox_force_hard_reset_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
 }
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
@@ -606,6 +620,11 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
 	MTK_GPU_Power_model_init();
 #endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
+	mtk_whitebox_force_hard_reset_init();
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
+
 	return 0;
 }
 

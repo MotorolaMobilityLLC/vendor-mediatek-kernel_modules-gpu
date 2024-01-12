@@ -2907,8 +2907,17 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 			return 0;
 	} else {
 		{
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
+			/* Only enabled when whitebox testing */
+			if (mtk_common_whitebox_force_hard_reset_enable()) {
+				pr_info("[WHITEBOX] forced hard reset enabled, trigger hard reset instead of soft reset");
+				kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_COMMAND), GPU_COMMAND_HARD_RESET);
+                        } else
+				kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_COMMAND), GPU_COMMAND_SOFT_RESET);
+#else /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
 			kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_COMMAND),
 					  GPU_COMMAND_SOFT_RESET);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
 		}
 	}
 
