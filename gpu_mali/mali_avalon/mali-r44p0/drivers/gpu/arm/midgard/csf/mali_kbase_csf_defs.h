@@ -59,6 +59,9 @@
 #define CSF_FIRMWARE_ENTRY_PROTECTED  (1ul << 5)
 #define CSF_FIRMWARE_ENTRY_SHARED     (1ul << 30)
 #define CSF_FIRMWARE_ENTRY_ZERO       (1ul << 31)
+#define CSHWIF1_IRQ_ACTIVE_IDX (54)
+#define COMPUTE_ACTIVE_IDX (22)
+#define L2_EXT_READ_IDX (29)
 
 /**
  * enum kbase_csf_queue_bind_state - bind state of the queue
@@ -1236,6 +1239,7 @@ struct kbase_ipa_control_prfcnt {
 	u64 latest_raw_value;
 	u64 scaling_factor;
 	u64 accumulated_diff;
+    u64 accumulated_raw_diff;
 	enum kbase_ipa_core_type type;
 	u8 select_idx;
 	bool gpu_norm;
