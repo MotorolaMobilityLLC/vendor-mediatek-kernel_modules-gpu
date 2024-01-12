@@ -57,6 +57,10 @@
 #include <platform/mtk_platform_common/mtk_platform_irq_trace.h>
 #endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
+#include <platform/mtk_platform_common/mtk_platform_pending_submission.h>
+#endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
+
 #include "csf/mali_kbase_csf_trace_buffer.h"
 
 #if IS_ENABLED(CONFIG_PROC_FS)
@@ -372,6 +376,9 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev)
 		return;
 
 	mtk_debug_sleep_mode_debugfs_init(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
+	mtk_debug_pending_submission_mode_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
 	mtk_debug_irq_trace_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_IRQ_TRACE */
