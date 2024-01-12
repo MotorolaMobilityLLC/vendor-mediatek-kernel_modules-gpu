@@ -98,8 +98,8 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 {
 	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
 #if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
-	u64 diagnosis_mode;
-	u64 diagnosis_dump_mask;
+	u64 diagnosis_mode = 0;
+	u64 diagnosis_dump_mask = 0;
 #endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
 
 	if (IS_ERR_OR_NULL(kbdev))
@@ -110,7 +110,7 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 		diagnosis_mode = mtk_diagnosis_mode_get_mode();
 		diagnosis_dump_mask = mtk_diagnosis_mode_get_dump_mask();
 
-		dev_info(kbdev->dev, "0x%08llx triggers diagnosis db dump, mode = %llu, dump mask = 0x%08llx", hook_point, diagnosis_mode, diagnosis_dump_mask);
+		dev_info(kbdev->dev, "diagnosis hook = 0x%08llx, mode = %llu, mask = 0x%08llx", hook_point, diagnosis_mode, diagnosis_dump_mask);
 		if (hook_point & diagnosis_dump_mask) {
 			if (diagnosis_mode == 0) {
 				return; //do no thing if diagnosis mode is not enabled
@@ -160,10 +160,14 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 #if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
 		dev_info(kbdev->dev, "trigger gpu full DB dump");
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
-		mtk_debug_csf_dump_groups_and_queues(kbdev, pid);
+		if (!(diagnosis_dump_mask & MTK_DBG_COMMON_DUMP_SKIP_GROUPS_QUEUES)) {
+			mtk_debug_csf_dump_groups_and_queues(kbdev, pid);
+		}
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 #if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
-		mtk_kbase_csf_firmware_ke_dump_fwlog(kbdev); /* dump fwlog, reserve 16k for fwlog*/
+		if (!(diagnosis_dump_mask & MTK_DBG_COMMON_DUMP_SKIP_FWLOG)) {
+			mtk_kbase_csf_firmware_ke_dump_fwlog(kbdev); /* dump fwlog, reserve 16k for fwlog*/
+		}
 #endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
 #if IS_ENABLED(CONFIG_MALI_MTK_CM7_TRACE)
 #if IS_ENABLED(CONFIG_MTK_GPU_DIAGNOSIS_DEBUG)
