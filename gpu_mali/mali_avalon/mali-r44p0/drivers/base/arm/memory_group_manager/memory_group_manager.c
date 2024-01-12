@@ -536,10 +536,9 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 	spin_lock(&data->free_4K_lst_lk);
 	if (nr_4Kfree_lst) {
 		p = list_first_entry(&data->free_4K_lst, struct page, lru);
-		list_del_init(&p->lru);
-		nr_4Kfree_lst--;
-
 		if (p) {
+			list_del_init(&p->lru);
+			nr_4Kfree_lst--;
 			spin_unlock(&data->free_4K_lst_lk);
 			return p;
 		}
@@ -616,7 +615,7 @@ void mtk_mgm_pool_flush(struct mgm_groups *data, int order, int rank, size_t tar
 	struct page* pp = NULL;
 	int o = 0;
 	size_t count = 0;
-	bool bFlip;
+	bool bFlip = false;
 	size_t nr_pages_in;
 	size_t w_count = 0;
 
