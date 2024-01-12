@@ -71,6 +71,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_SLEEP_MODE := n
         CONFIG_MALI_MTK_DIAGNOSIS_MODE := y
         CONFIG_MALI_MTK_CSFFWLOG := y
+        CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME := y
     endif ## mt6985 ##
 
     ifeq ($(MTK_PLATFORM_VERSION),mt6886)
