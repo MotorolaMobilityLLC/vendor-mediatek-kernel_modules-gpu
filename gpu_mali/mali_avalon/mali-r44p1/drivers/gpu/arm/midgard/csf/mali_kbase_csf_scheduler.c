@@ -43,7 +43,7 @@
 #include <linux/sched.h>
 #include <uapi/linux/sched/types.h>
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG) || IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG */
 #include <platform/mtk_platform_utils.h> /* MTK_INLINE */
@@ -7198,17 +7198,11 @@ int kbase_csf_scheduler_pm_suspend_no_lock(struct kbase_device *kbdev)
 	 */
 	if (scheduler->state == SCHED_SLEEPING) {
 		dev_info(kbdev->dev, "Activating MCU out of sleep on system suspend");
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
-		mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_ON);
-#endif
 		result = force_scheduler_to_exit_sleep(kbdev);
 		if (result) {
 			dev_warn(kbdev->dev, "Scheduler failed to exit from sleep");
 			goto exit;
 		}
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
-				mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_OFF);
-#endif
 	}
 #endif
 	if (scheduler->state != SCHED_SUSPENDED) {

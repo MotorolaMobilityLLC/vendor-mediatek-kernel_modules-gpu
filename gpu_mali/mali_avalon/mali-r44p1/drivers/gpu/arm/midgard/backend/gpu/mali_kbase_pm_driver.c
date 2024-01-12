@@ -71,7 +71,7 @@
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG) || IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG) || IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH) || IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
 #include <ged_dcs.h>
 #include <ged_log.h>
 #endif /* CONFIG_MALI_MTK_DEBUG || CONFIG_MALI_MTK_PROTECTED_PATCH */
@@ -1359,6 +1359,9 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)
 					mtk_common_ged_dvfs_write_sysram_last_commit_dual();
 #endif /* CONFIG_MALI_MTK_GPU_DVFS_ASYNC */
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+										mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_ON);
+#endif /* CONFIG_MALI_MTK_ACP_DSU_REQ */
 					kbase_pm_invoke(kbdev, KBASE_PM_CORE_L2, l2_present,
 							ACTION_PWRON);
 				}
@@ -1615,6 +1618,9 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 					 */
 					kbase_ipa_control_handle_gpu_sleep_enter(kbdev);
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+					mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_OFF);
+#endif /* CONFIG_MALI_MTK_ACP_DSU_REQ */
 					/* L2 is now powered off */
 					backend->l2_state = KBASE_L2_OFF;
 				}
@@ -1626,6 +1632,10 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 					 */
 					kbase_ipa_control_handle_gpu_sleep_enter(kbdev);
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+					mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_OFF);
+#endif /* CONFIG_MALI_MTK_ACP_DSU_REQ */
+
 					backend->l2_state = KBASE_L2_OFF;
 				}
 			}
@@ -3470,6 +3480,10 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 	KBASE_KTRACE_ADD(kbdev, CORE_GPU_SOFT_RESET, NULL, 0);
 
 	KBASE_TLSTREAM_JD_GPU_SOFT_RESET(kbdev, kbdev);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+	mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_ON);
+#endif /* CONFIG_MALI_MTK_ACP_DSU_REQ */
 
 #if defined(CONFIG_MTK_GPUFREQ_V2) && IS_ENABLED(CONFIG_MALI_MTK_MFG2_BACKDOOR)
 	/* only notify when L2 is power-on */
