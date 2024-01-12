@@ -101,7 +101,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY := y
         CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING := n
         CONFIG_MALI_MTK_PDCA_SVP_WA := y
-        CONFIG_MALI_MTK_MGMM := n
+        CONFIG_MALI_MTK_MGMM := y
     endif ## mt6985 ##
 endif
 
