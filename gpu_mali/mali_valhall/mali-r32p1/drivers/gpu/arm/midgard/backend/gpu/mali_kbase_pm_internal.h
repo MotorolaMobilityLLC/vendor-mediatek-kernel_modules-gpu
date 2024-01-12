@@ -788,6 +788,33 @@ static inline bool kbase_pm_no_mcu_core_pwroff(struct kbase_device *kbdev)
 	return kbdev->pm.backend.csf_pm_sched_flags &
 		CSF_DYNAMIC_PM_CORE_KEEP_ON;
 }
+
+/**
+ * kbase_pm_apply_pmode_entry_wa - Apply the WA, before protected mode entry, to
+ *                                 disable the power control of SC on FW side
+ *                                 and if needed power up all the required cores
+ *                                 and finally perform the PDCA switching.
+ *
+ * @kbdev: Device pointer
+ *
+ * This function must be called with Scheduler lock held.
+ *
+ * Return: 0 if the WA was applied successfully, otherwise an error code.
+ */
+int kbase_pm_apply_pmode_entry_wa(struct kbase_device *kbdev);
+/**
+ * kbase_pm_apply_pmode_exit_wa - Apply the WA, after protected mode exit, to
+ *                                perform the PDCA switching and then re-enable
+ *                                the power control of SC on FW side.
+ *                                Caller is supposed to invoke the state machine
+ *                                to send the request to FW for taking over
+ *                                power control of SC.
+ *
+ * @kbdev: Device pointer
+ *
+ * This function must be called with Scheduler lock held.
+ */
+void kbase_pm_apply_pmode_exit_wa(struct kbase_device *kbdev);
 #endif
 
 /**

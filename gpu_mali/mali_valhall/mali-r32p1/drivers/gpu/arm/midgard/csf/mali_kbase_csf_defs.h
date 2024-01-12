@@ -802,6 +802,14 @@ struct kbase_csf_csg_slot {
  * @active_protm_grp:       Indicates if firmware has been permitted to let GPU
  *                          enter protected mode with the given group. On exit
  *                          from protected mode the pointer is reset to NULL.
+ *                          This pointer is set and PROTM_ENTER request is sent
+ *                          atomically with @interrupt_lock held.
+ *                          This pointer being set doesn't necessarily indicates
+ *                          that GPU is in protected mode, kbdev->protected_mode
+ *                          needs to be checked for that.
+ * @apply_pmode_exit_wa:    Flag to indicate that exit from protected mode has
+ *                          happened and a platform specific workaround needs to
+ *                          be applied.
  * @gpu_idle_fw_timer_enabled: Whether the CSF scheduler has activiated the
  *                            firmware idle hysteresis timer for preparing a
  *                            GPU suspend on idle.
@@ -858,6 +866,7 @@ struct kbase_csf_scheduler {
 	struct kbase_queue_group *top_grp;
 	bool tock_pending_request;
 	struct kbase_queue_group *active_protm_grp;
+	bool apply_pmode_exit_wa;
 	bool gpu_idle_fw_timer_enabled;
 	struct work_struct gpu_idle_work;
 	atomic_t non_idle_offslot_grps;

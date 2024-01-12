@@ -505,11 +505,30 @@ static void scheduler_wakeup(struct kbase_device *kbdev, bool kick)
 	}
 }
 
+static void scheduler_apply_pmode_exit_wa(struct kbase_device *kbdev)
+{
+	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
+	bool apply_pmode_exit_wa;
+	unsigned long flags;
+
+	lockdep_assert_held(&scheduler->lock);
+
+	spin_lock_irqsave(&scheduler->interrupt_lock, flags);
+	apply_pmode_exit_wa = scheduler->apply_pmode_exit_wa;
+	scheduler->apply_pmode_exit_wa = false;
+	spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
+
+	if (unlikely(apply_pmode_exit_wa))
+		kbase_pm_apply_pmode_exit_wa(kbdev);
+}
+
 static void scheduler_suspend(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
 
 	lockdep_assert_held(&scheduler->lock);
+
+	scheduler_apply_pmode_exit_wa(kbdev);
 
 	if (!WARN_ON(scheduler->state == SCHED_SUSPENDED)) {
 		dev_dbg(kbdev->dev, "Suspending the Scheduler");
@@ -1516,6 +1535,7 @@ void remove_group_from_runnable(struct kbase_csf_scheduler *const scheduler,
 	struct kbase_queue_group *new_head_grp;
 	struct list_head *list =
 		&kctx->csf.sched.runnable_groups[group->priority];
+	unsigned long flags;
 
 	lockdep_assert_held(&scheduler->lock);
 
@@ -1523,6 +1543,31 @@ void remove_group_from_runnable(struct kbase_csf_scheduler *const scheduler,
 
 	group->run_state = run_state;
 	list_del_init(&group->link);
+
+	spin_lock_irqsave(&scheduler->interrupt_lock, flags);
+	/* The below condition will be true when the group running in protected
+	 * mode is being terminated but the protected mode exit interrupt was't
+	 * received. This can happen if the FW got stuck during protected mode
+	 * for some reason (like GPU page fault or some internal error).
+	 * In normal cases FW is expected to send the protected mode exit
+	 * interrupt before it handles the CSG termination request.
+	 */
+	if (unlikely(scheduler->active_protm_grp == group)) {
+		/* CSG slot cleanup should have happened for the pmode group */
+		WARN_ON(kbasep_csf_scheduler_group_is_on_slot_locked(group));
+		WARN_ON(group->run_state != KBASE_CSF_GROUP_INACTIVE);
+		/* Initiate a GPU reset, in case it wasn't initiated yet,
+		 * in order to rectify the anomaly.
+		 */
+		if (kbase_prepare_to_reset_gpu(kctx->kbdev, RESET_FLAGS_NONE))
+			kbase_reset_gpu(kctx->kbdev);
+
+		KBASE_KTRACE_ADD_CSF_GRP(kctx->kbdev, SCHEDULER_EXIT_PROTM,
+					 scheduler->active_protm_grp, 0u);
+		scheduler->apply_pmode_exit_wa = true;
+		scheduler->active_protm_grp = NULL;
+	}
+	spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 
 	if (scheduler->top_grp == group) {
 		/*
@@ -3090,7 +3135,11 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 
 	spin_lock_irqsave(&scheduler->interrupt_lock, flags);
 
-	protm_in_use = kbase_csf_scheduler_protected_mode_in_use(kbdev);
+	/* Check if the previous transition to enter & exit the protected
+	 * mode has completed or not.
+	 */
+	protm_in_use = kbase_csf_scheduler_protected_mode_in_use(kbdev) ||
+		       kbdev->protected_mode;
 	KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_CHECK_PROTM_ENTER, input_grp,
 				 protm_in_use);
 
@@ -3132,14 +3181,27 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 
 				/* Disable the idle timer */
 				disable_gpu_idle_fw_timer_locked(kbdev);
-
+				/* Apply the platform specific workaround at the
+				 * time of entry only if the corresponding WA for
+				 * exit was applied. The re-entry to protected mode
+				 * can happen soon after the exit.
+				 */
+				if (scheduler->apply_pmode_exit_wa) {
+					scheduler->apply_pmode_exit_wa = false;
+				} else {
+					spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
+					kbase_pm_apply_pmode_entry_wa(kbdev);
+					spin_lock_irqsave(&scheduler->interrupt_lock, flags);
+				}
 				/* Switch to protected mode */
 				scheduler->active_protm_grp = input_grp;
 				KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_ENTER_PROTM,
 							 input_grp, 0u);
 
-				spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 				kbase_csf_enter_protected_mode(kbdev);
+				spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
+
+				kbase_csf_wait_protected_mode_enter(kbdev);
 				return;
 			}
 		}
@@ -3893,12 +3955,15 @@ static void schedule_actions(struct kbase_device *kbdev, bool is_tick)
 	unsigned long flags;
 	struct kbase_queue_group *protm_grp;
 	int ret;
+	bool skip_scheduling_actions;
 	bool skip_idle_slots_update;
 	bool new_protm_top_grp = false;
 	int local_tock_slots = 0;
 
 	kbase_reset_gpu_assert_prevented(kbdev);
 	lockdep_assert_held(&scheduler->lock);
+
+	scheduler_apply_pmode_exit_wa(kbdev);
 
 	ret = kbase_pm_wait_for_desired_state(kbdev);
 	if (ret) {
@@ -3914,7 +3979,19 @@ static void schedule_actions(struct kbase_device *kbdev, bool is_tick)
 
 	spin_lock_irqsave(&scheduler->interrupt_lock, flags);
 	skip_idle_slots_update = kbase_csf_scheduler_protected_mode_in_use(kbdev);
+	skip_scheduling_actions =
+			!skip_idle_slots_update && kbdev->protected_mode;
 	spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
+
+	/* Skip scheduling actions as GPU reset hasn't been performed yet to
+	 * rectify the anomaly that happened when pmode exit interrupt wasn't
+	 * received before the termination of group running in pmode.
+	 */
+	if (unlikely(skip_scheduling_actions)) {
+		dev_info(kbdev->dev,
+			 "Scheduling actions skipped due to anomaly in pmode");
+		return;
+	}
 
 	if (!skip_idle_slots_update) {
 		/* Updating on-slot idle CSGs when not in protected mode. */
@@ -4270,7 +4347,8 @@ static bool scheduler_handle_reset_in_protected_mode(struct kbase_device *kbdev)
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 	u32 const num_groups = kbdev->csf.global_iface.group_num;
 	struct kbase_queue_group *protm_grp;
-	bool suspend_on_slot_groups;
+	bool suspend_on_slot_groups = true;
+	bool pmode_active;
 	unsigned long flags;
 	u32 csg_nr;
 
@@ -4278,20 +4356,51 @@ static bool scheduler_handle_reset_in_protected_mode(struct kbase_device *kbdev)
 
 	spin_lock_irqsave(&scheduler->interrupt_lock, flags);
 	protm_grp = scheduler->active_protm_grp;
+	pmode_active = kbdev->protected_mode;
 
-	/* If GPU wasn't in protected mode or had exited it before the GPU reset
-	 * then all the on-slot groups can be suspended in the regular way by
-	 * sending CSG SUSPEND requests to FW.
-	 * If there wasn't a fault for protected mode group, then it would
-	 * also need to be suspended in the regular way before the reset.
-	 */
-	suspend_on_slot_groups = !(protm_grp && protm_grp->faulted);
+	if (likely(!protm_grp && !pmode_active)) {
+		/* Case 1: GPU is not in protected mode or it successfully
+		 * exited protected mode. All on-slot groups can be suspended in
+		 * the regular way before reset.
+		 */
+		suspend_on_slot_groups = true;
+	} else if (protm_grp && pmode_active) {
+		/* Case 2: GPU went successfully into protected mode and hasn't
+		 * exited from it yet and the protected mode group is still
+		 * active. If there was no fault for the protected mode group
+		 * then it can be suspended in the regular way before reset.
+		 * The other normal mode on-slot groups were already implicitly
+		 * suspended on entry to protected mode so they can be marked as
+		 * suspended right away.
+		 */
+		suspend_on_slot_groups = !protm_grp->faulted;
+	} else if (!protm_grp && pmode_active) {
+		/* Case 3: GPU went successfully into protected mode and hasn't
+		 * exited from it yet but the protected mode group got deleted.
+		 * This would have happened if the FW got stuck during protected
+		 * mode for some reason (like GPU page fault or some internal
+		 * error). In normal cases FW is expected to send the pmode exit
+		 * interrupt before it handles the CSG termination request.
+		 * The other normal mode on-slot groups would already have been
+		 * implicitly suspended on entry to protected mode so they can be
+		 * marked as suspended right away.
+		 */
+		suspend_on_slot_groups = false;
+	} else if (protm_grp && !pmode_active) {
+		/* Case 4: GPU couldn't successfully enter protected mode, i.e.
+		 * PROTM_ENTER request had timed out.
+		 * All the on-slot groups need to be suspended in the regular
+		 * way before reset.
+		 */
+		suspend_on_slot_groups = true;
+	}
+
 	spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 
-	if (!protm_grp)
+	if (likely(!pmode_active))
 		goto unlock;
 
-	/* GPU is in protected mode, so all the on-slot groups barring the
+	/* GPU hasn't exited protected mode, so all the on-slot groups barring
 	 * the protected mode group can be marked as suspended right away.
 	 */
 	for (csg_nr = 0; csg_nr < num_groups; csg_nr++) {
@@ -4338,9 +4447,11 @@ static void scheduler_inner_reset(struct kbase_device *kbdev)
 
 	spin_lock_irqsave(&scheduler->interrupt_lock, flags);
 	bitmap_fill(scheduler->csgs_events_enable_mask, MAX_SUPPORTED_CSGS);
-	if (scheduler->active_protm_grp)
+	if (scheduler->active_protm_grp) {
 		KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_EXIT_PROTM,
 					 scheduler->active_protm_grp, 0u);
+		scheduler->apply_pmode_exit_wa = true;
+	}
 	scheduler->active_protm_grp = NULL;
 	memset(kbdev->csf.scheduler.csg_slots, 0,
 	       num_groups * sizeof(struct kbase_csf_csg_slot));
@@ -4997,6 +5108,7 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 	scheduler->last_schedule = 0;
 	scheduler->tock_pending_request = false;
 	scheduler->active_protm_grp = NULL;
+	scheduler->apply_pmode_exit_wa = false;
 	scheduler->gpu_idle_fw_timer_enabled = false;
 	scheduler->csg_scheduling_period_ms = CSF_SCHEDULER_TIME_TICK_MS;
 	scheduler_doorbell_init(kbdev);
