@@ -257,8 +257,15 @@ static void wait_for_firmware_boot(struct kbase_device *kbdev)
 	remaining = wait_event_timeout(kbdev->csf.event_wait,
 			kbdev->csf.interrupt_received == true, wait_timeout);
 
-	if (!remaining)
+	if (!remaining) {
 		dev_err(kbdev->dev, "Timed out waiting for fw boot completion");
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		if (!mtk_common_gpufreq_bringup()) {
+			gpufreq_dump_infra_status();
+			mtk_common_debug_dump();
+		}
+#endif
+	}
 
 	kbdev->csf.interrupt_received = false;
 }
