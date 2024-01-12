@@ -56,7 +56,7 @@ static int wait_for_global_request(struct kbase_device *const kbdev,
 				   u32 const req_mask)
 {
 	const long wait_timeout =
-		kbase_csf_timeout_in_jiffies(kbdev->csf.fw_timeout_ms);
+		kbase_csf_timeout_in_jiffies(kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT));
 	long remaining;
 	int err = 0;
 

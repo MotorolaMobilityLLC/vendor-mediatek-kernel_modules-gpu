@@ -1152,9 +1152,7 @@ static int scheduler_pm_active_handle_suspend(struct kbase_device *kbdev,
 	prev_count = kbdev->csf.scheduler.pm_active_count;
 	if (!WARN_ON(prev_count == U32_MAX))
 		kbdev->csf.scheduler.pm_active_count++;
-	
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-	kbdev->pm.backend.runtime_suspend_abort_reason = ABORT_REASON_NONE;
 
 	/* On 0 => 1, make a pm_ctx_active request */
 	if (!prev_count) {
@@ -1205,8 +1203,6 @@ static int scheduler_pm_active_after_sleep(struct kbase_device *kbdev, unsigned 
 	prev_count = kbdev->csf.scheduler.pm_active_count;
 	if (!WARN_ON(prev_count == U32_MAX))
 		kbdev->csf.scheduler.pm_active_count++;
-
-	kbdev->pm.backend.runtime_suspend_abort_reason = ABORT_REASON_NONE;
 
 	kbdev->pm.backend.runtime_suspend_abort_reason = ABORT_REASON_NONE;
 
@@ -2225,7 +2221,7 @@ static void halt_csg_slot(struct kbase_queue_group *group, bool suspend)
 			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 				 "slot %d timeout (%d ms) on up-running\n",
 				 slot,
-				 kbdev->csf.fw_timeout_ms);
+				 fw_timeout_ms);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
@@ -3307,7 +3303,7 @@ static int term_group_sync(struct kbase_queue_group *group)
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"term request timeout (%d ms) for group %d of context %d_%d on slot %d\n",
-			kbdev->csf.fw_timeout_ms, group->handle,
+			fw_timeout_ms, group->handle,
 			group->kctx->tgid, group->kctx->id, group->csg_nr);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		if (kbase_csf_firmware_ping_wait(kbdev, FW_PING_AFTER_ERROR_TIMEOUT_MS))
@@ -5040,7 +5036,7 @@ static int suspend_active_groups_on_powerdown(struct kbase_device *kbdev, bool s
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"Timeout (%d ms) waiting for CSG slots to suspend on power down, slot_mask: 0x%*pb\n",
-			kbdev->csf.fw_timeout_ms,
+			kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT),
 			kbdev->csf.global_iface.group_num, slot_mask);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		if (kbase_csf_firmware_ping_wait(kbdev, FW_PING_AFTER_ERROR_TIMEOUT_MS))
