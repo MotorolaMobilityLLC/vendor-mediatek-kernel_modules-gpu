@@ -2403,6 +2403,172 @@ void kbase_pm_reset_complete(struct kbase_device *kbdev)
 #define PM_TIMEOUT_MS (5000) /* 5s */
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+#include <csf/mali_kbase_csf_registers.h>
+#include <csf/mali_kbase_csf_firmware.h>
+#include <linux/of_irq.h>
+extern void mt_irq_dump_status(int irq);
+static void mtk_kbase_pm_timed_out_mcu_transition_check(struct kbase_device *kbdev)
+{
+	int i;
+	unsigned int irq;
+	struct kbase_csf_global_iface *global_iface = &kbdev->csf.global_iface;
+
+	/* dump GPU/JOB IRQ */
+	dev_err(kbdev->dev, "GPU_IRQ_RAWSTAT=0x%08x, GPU_IRQ_MASK=0x%08x, GPU_IRQ_STATUS=0x%08x",
+		kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_RAWSTAT)),
+		kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_MASK)),
+		kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_STATUS)));
+	dev_err(kbdev->dev, "JOB_IRQ_RAWSTAT=0x%08x, JOB_IRQ_MASK=0x%08x, JOB_IRQ_STATUS=0x%08x",
+		kbase_reg_read(kbdev, JOB_CONTROL_REG(JOB_IRQ_RAWSTAT)),
+		kbase_reg_read(kbdev, JOB_CONTROL_REG(JOB_IRQ_MASK)),
+		kbase_reg_read(kbdev, JOB_CONTROL_REG(JOB_IRQ_STATUS)));
+
+	/* dump gic information */
+	for (i = 0; i < 3; i++) {
+			// 0: GPU, 1: MMU, 2: JOB
+			irq = irq_of_parse_and_map(kbdev->dev->of_node, i);
+			if (irq)
+				mt_irq_dump_status(irq);
+	}
+
+	/* dump stack */
+	dump_stack();
+
+	switch (kbdev->pm.backend.mcu_state) {
+	case KBASE_MCU_OFF: /* 0 */
+		dev_err(kbdev->dev, "====stuck:KBASE_MCU_OFF============");
+		dev_err(kbdev->dev, "Please confirm whether the L2 state is equal to L2_ON.\n");
+		dev_err(kbdev->dev, "If the L2 state is not equal to L2_ON, \n");
+		dev_err(kbdev->dev, "usually the IRQ is occupied by other drivers.\n");
+		dev_err(kbdev->dev, "You can check mt gic dump to confirm\n");
+		dev_err(kbdev->dev, "======end:KBASE_MCU_OFF============");
+		return;
+	case KBASE_MCU_PEND_ON_RELOAD: /* 1 */
+		dev_err(kbdev->dev, "====stuck:KBASE_MCU_PEND_ON_RELOAD============");
+		dev_err(kbdev->dev, "Please confirm whether the MFG2 is power on.\n");
+		dev_err(kbdev->dev, "If the MFG2 is power on, then check whether MCU's status is execting.\n");
+		dev_err(kbdev->dev, "(0:non-executing, 1:executing, 2:halt, 3:fatal)\n");
+		dev_err(kbdev->dev, "If MCU's status = 1, then check below step:\n");
+		dev_err(kbdev->dev, "  a. Confirm whether the mcu occurs exception, oops will be in fwlog\n");
+		dev_err(kbdev->dev, "  b. Check JOB_IRQ_RAWSTA, make sure whether ISR occurs\n");
+		dev_err(kbdev->dev, "  c. To check IRQ is occupied by other drivers via mt gic dump\n");
+		dev_err(kbdev->dev, "MCU status = %d", kbase_reg_read(kbdev, GPU_CONTROL_REG(MCU_STATUS)));
+		dev_err(kbdev->dev, "======end:KBASE_MCU_PEND_ON_RELOAD============");
+		return;
+	case KBASE_MCU_ON_GLB_REINIT_PEND: /* 2 */
+		dev_err(kbdev->dev, "====stuck:KBASE_MCU_ON_GLB_REINIT_PEND============");
+		if (global_iface->output) {
+			dev_err(kbdev->dev,
+			"GLB_REQ = 0x%x, GLB_ACK = 0x%x, MCU GLB CFG mask = 0x%x",
+			(kbase_csf_firmware_global_input_read(global_iface, GLB_REQ) &
+			(GLB_REQ_CFG_ALLOC_EN_MASK | GLB_REQ_CFG_PROGRESS_TIMER_MASK |
+			GLB_REQ_CFG_PWROFF_TIMER_MASK | GLB_REQ_IDLE_ENABLE_MASK)),
+			(kbase_csf_firmware_global_output(global_iface, GLB_ACK) &
+			(GLB_REQ_CFG_ALLOC_EN_MASK | GLB_REQ_CFG_PROGRESS_TIMER_MASK |
+			GLB_REQ_CFG_PWROFF_TIMER_MASK | GLB_REQ_IDLE_ENABLE_MASK)),
+			(GLB_REQ_CFG_ALLOC_EN_MASK | GLB_REQ_CFG_PROGRESS_TIMER_MASK |
+			GLB_REQ_CFG_PWROFF_TIMER_MASK | GLB_REQ_IDLE_ENABLE_MASK));
+			dev_err(kbdev->dev,
+			"If GLB_REQ != GLB_ACK: indicate GLB CFG fail");
+		}
+		dev_err(kbdev->dev, "Please confirm whether the MFG2 is power on.\n");
+		dev_err(kbdev->dev, "If the MFG2 is power on, then check whether MCU's status is execting.\n");
+		dev_err(kbdev->dev, "(0:non-executing, 1:executing, 2:halt, 3:fatal)\n");
+		dev_err(kbdev->dev, "If MCU's status = 1, then check below step:\n");
+		dev_err(kbdev->dev, "  a. Confirm whether the mcu occurs exception, oops will be in fwlog\n");
+		dev_err(kbdev->dev, "  b. Check JOB_IRQ_RAWSTA, make sure whether ISR occurs\n");
+		dev_err(kbdev->dev, "  c. To check IRQ is occupied by other drivers via mt gic dump\n");
+		dev_err(kbdev->dev, "======end:KBASE_MCU_ON_GLB_REINIT_PEND============");
+		return;
+	case KBASE_MCU_ON: /* 4 */
+		dev_err(kbdev->dev, "====stuck:KBASE_MCU_ON============");
+		dev_err(kbdev->dev, "Please confirm whether scheduler.pm_active_count = 0\n"
+		"if scheduler.pm_active_count = 0, maybe racing issue\n");
+		dev_err(kbdev->dev, "======end:KBASE_MCU_ON============");
+		return;
+	case KBASE_MCU_ON_CORE_ATTR_UPDATE_PEND: /* 5 */
+		dev_err(kbdev->dev, "====stuck:KBASE_MCU_ON_CORE_ATTR_UPDATE_PEND============");
+		if (global_iface->output) {
+			dev_err(kbdev->dev,
+			"GLB_REQ = 0x%x, GLB_ACK = 0x%x, MCU GLB CFG mask = 0x%x",
+			(kbase_csf_firmware_global_input_read(global_iface, GLB_REQ) &
+			(GLB_REQ_CFG_ALLOC_EN_MASK | GLB_REQ_CFG_PWROFF_TIMER_MASK)),
+			(kbase_csf_firmware_global_output(global_iface, GLB_ACK) &
+			(GLB_REQ_CFG_ALLOC_EN_MASK | GLB_REQ_CFG_PWROFF_TIMER_MASK)),
+			(GLB_REQ_CFG_ALLOC_EN_MASK | GLB_REQ_CFG_PWROFF_TIMER_MASK));
+			dev_err(kbdev->dev,
+			"If GLB_REQ != GLB_ACK: indicate ATTR UPDATE fail");
+		}
+		dev_err(kbdev->dev, "Please confirm whether the MFG2 is power on.\n");
+		dev_err(kbdev->dev, "If the MFG2 is power on, then check whether MCU's status is execting.\n");
+		dev_err(kbdev->dev, "(0:non-executing, 1:executing, 2:halt, 3:fatal)\n");
+		dev_err(kbdev->dev, "If MCU's status = 1, then check below step:\n");
+		dev_err(kbdev->dev, "  a. Confirm whether the mcu occurs exception, oops will be in fwlog\n");
+		dev_err(kbdev->dev, "  b. Check JOB_IRQ_RAWSTA, make sure whether ISR occurs\n");
+		dev_err(kbdev->dev, "  c. To check IRQ is occupied by other drivers via mt gic dump\n");
+		dev_err(kbdev->dev, "If not above issue, suggest use DEBUG SCFFW to do DOE");
+		dev_err(kbdev->dev, "======end:KBASE_MCU_ON_CORE_ATTR_UPDATE_PEND============");
+		return;
+	case KBASE_MCU_ON_PEND_HALT: /* 8 */
+		dev_err(kbdev->dev, "====stuck:KBASE_MCU_ON_PEND_HALT============");
+		if (global_iface->output) {
+			dev_err(kbdev->dev,
+			"GLB_REQ = 0x%x, GLB_ACK = 0x%x, MCU halt mask = 0x%x",
+			(kbase_csf_firmware_global_input_read(global_iface, GLB_REQ) &
+			GLB_REQ_HALT_MASK),
+			(kbase_csf_firmware_global_output(global_iface, GLB_ACK) &
+			GLB_REQ_HALT_MASK),
+			GLB_REQ_HALT_MASK);
+			dev_err(kbdev->dev,
+			"GLB_REQ != GLB_ACK: indicate host irq trig CSF");
+		}
+		dev_err(kbdev->dev,
+			"MCU status(%d) can't be halted, suggest use DEBUG SCFFW to do DOE",
+			kbase_reg_read(kbdev, GPU_CONTROL_REG(MCU_STATUS)));
+		dev_err(kbdev->dev, "======end:KBASE_MCU_ON_PEND_HALT============");
+		return;
+	case KBASE_MCU_PEND_OFF: /* 10 */
+		dev_err(kbdev->dev, "====stuck:KBASE_MCU_PEND_OFF============");
+		dev_err(kbdev->dev,
+			"MCU status(%d) != 0, MCU can't be stop",
+			kbase_reg_read(kbdev, GPU_CONTROL_REG(MCU_STATUS)));
+		dev_err(kbdev->dev,
+			"ARM:This error shall go away once MIDJM-2371 is closed");
+		dev_err(kbdev->dev, "======end:KBASE_MCU_PEND_OFF============");
+		return;
+	case KBASE_MCU_ON_PEND_SLEEP: /* 21 */
+		dev_err(kbdev->dev, "====stuck:KBASE_MCU_ON_PEND_SLEEP============");
+		if (global_iface->output) {
+			dev_err(kbdev->dev,
+			"GLB_REQ = 0x%x, GLB_ACK = 0x%x, MCU sleep mask = 0x%x",
+			(kbase_csf_firmware_global_input_read(global_iface, GLB_REQ) &
+			GLB_REQ_SLEEP_MASK),
+			(kbase_csf_firmware_global_output(global_iface, GLB_ACK) &
+			GLB_REQ_SLEEP_MASK),
+			GLB_REQ_SLEEP_MASK);
+			dev_err(kbdev->dev,
+			"GLB_REQ != GLB_ACK: indicate host irq trig CSF");
+		}
+		dev_err(kbdev->dev,
+			"MCU status(%d) can't be halted, suggest use DEBUG SCFFW to do DOE",
+			kbase_reg_read(kbdev, GPU_CONTROL_REG(MCU_STATUS)));
+		dev_err(kbdev->dev, "======end:KBASE_MCU_ON_PEND_SLEEP============");
+		return;
+	case KBASE_MCU_IN_SLEEP: /* 22 */
+		dev_err(kbdev->dev, "====stuck:KBASE_MCU_IN_SLEEP============");
+		dev_err(kbdev->dev, "Please confirm whether the L2 state is equal to L2_ON.\n");
+		dev_err(kbdev->dev, "If the L2 state is not equal to L2_ON, \n");
+		dev_err(kbdev->dev, "usually the IRQ is occupied by other drivers.\n");
+		dev_err(kbdev->dev, "You can check mt gic dump to confirm\n");
+		dev_err(kbdev->dev, "======end:KBASE_MCU_IN_SLEEP============");
+		return;
+	default:
+		WARN(1, "Power transition:Invalid mcu_state\n");
+	}
+}
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
+
 static void kbase_pm_timed_out(struct kbase_device *kbdev, const char *timeout_msg)
 {
 	unsigned long flags;
@@ -2522,6 +2688,9 @@ static void kbase_pm_timed_out(struct kbase_device *kbdev, const char *timeout_m
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_PM_TIMEOUT);
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_PM_TIMEOUT);
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_PM_TIMEOUT);
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+	mtk_kbase_pm_timed_out_mcu_transition_check(kbdev);
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 #endif /* CONFIG_MALI_MTK_DEBUG */
 #if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)
 	if (kbdev->trans_timeout)
