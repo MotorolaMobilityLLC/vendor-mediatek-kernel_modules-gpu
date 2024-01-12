@@ -685,7 +685,10 @@ static int mali_get_gpu_pmu_swapnreset(struct GPU_PMU *pmus, int pmu_size)
 		return PMU_NG;
 	}
 	if (pmus) {
-		mutex_lock(&counter_info_lock);
+		if(!mutex_trylock(&counter_info_lock)){
+			pr_info("[PMU] counter_info_lock is locked.\n");
+			return PMU_NG;
+		}
 
 		/* update if gpu power on */
 		if (1) {
