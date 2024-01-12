@@ -3416,12 +3416,9 @@ void kbase_mem_kref_free(struct kref *kref)
 						   alloc);
 		}
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+		/* GPU only GID is controlled along with power flow */
 		gid = dma_buf_get_gid(alloc->imported.umm.dma_buf);
-		if(gid == GPU_ONLY_GID){
-			slbc_invalidate(ID_GPU,gid);
-			slbc_gid_release(ID_GPU,gid);
-		}
-		else if(gid == GPU_TO_OVL_GID){
+		if (gid == slbc_gid_val(ID_GPU_W)) {
 			slbc_invalidate(ID_GPU_W,gid);
 			slbc_gid_release(ID_GPU_W,gid);
 		}
