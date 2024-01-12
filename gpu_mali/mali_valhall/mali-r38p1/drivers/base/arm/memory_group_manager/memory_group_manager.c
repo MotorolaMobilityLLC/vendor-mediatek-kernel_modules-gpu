@@ -35,11 +35,13 @@
 #include <linux/shrinker.h>
 #include <linux/ktime.h>
 #include <soc/mediatek/emi.h>
-#define RANK_BOUNDARY (0x1c0000000)
+#define MTK_EMI_DRAM_OFFSET 0x40000000
 #define PREFILL_TARGET (SZ_256M >> PAGE_SHIFT)
 #define RANK_POOL_LIMIT (SZ_256M >> PAGE_SHIFT)
-#define REFILL_TARGET (SZ_64M >> PAGE_SHIFT)
-#define HALF_REFILL_TARGET (REFILL_TARGET >> 1)
+#define X_GUARD (SZ_16M >> PAGE_SHIFT)
+#define REFILL_TARGET (X_GUARD << 1)
+#define MP_MODE (3)
+#define BYPASS_MODE (4)
 #endif /* CONFIG_MALI_MTK_MGMM */
 
 #if (KERNEL_VERSION(4, 20, 0) > LINUX_VERSION_CODE)
@@ -932,26 +934,26 @@ static struct page *example_mgm_alloc_page(
 		
 		pbRank0 = data->bRank0 + o;
 		rank = (*pbRank0) ? 0 : 1;
-		
-		if (data->rank_mode == 0) {
+
+		if (data->rank_mode == 0) { /* rank-0 only */
 			p = mtk_fetch_page(data, order, 0);
 			if (!p)
 				p = mtk_fetch_page(data, order, 1);
-		} else if(data->rank_mode == 1) {
+		} else if(data->rank_mode == 1) { /* rank-1 only */
 			p = mtk_fetch_page(data, order, 1);
 			if (!p)
 				p = mtk_fetch_page(data, order, 0);
-		} else if (data->rank_mode == 2) {
+		} else if (data->rank_mode == 2) { /* per-4K flip */
 			p = mtk_fetch_page(data, order, rank);
 			*pbRank0 = !(*pbRank0);
-		} else if (data->rank_mode >= 512) {
+		} else if (data->rank_mode >= 512) { /* per-rank_mode size flip */
 			p = mtk_fetch_page(data, order, rank);
 			count++;
 			if (count == data->rank_mode) {
 				count = 0;
 				*pbRank0 = !(*pbRank0);
 			}
-		} else if(data->rank_mode >= 3) { /* production mode */
+		} else if(data->rank_mode == 3) { /* production mode */
 			p = mtk_fetch_page(data, order, rank);
 			if (!p) {
 				refill = 0;
@@ -967,14 +969,14 @@ static struct page *example_mgm_alloc_page(
 
 				spin_lock(&data->MGMFree_lst_lk);
 				if (*pbRank0) {// rank 0
-					if(data->nr_rank[o][0] < (data->szRefillTarget >> (order + 1)) ) {
+					if(data->nr_rank[o][0] < (X_GUARD >> (order + 1)) ) {
 						*pbRank0 = !(*pbRank0);
 						dev_dbg(data->dev, "Select rank0->1 (%d)\n", count);
 						count = 0;
 						data->count++;
 					}
 				} else {
-					if (data->nr_rank[o][1] < (data->szRefillTarget >> (order + 1)) ) {
+					if (data->nr_rank[o][1] < (X_GUARD >> (order + 1)) ) {
 						*pbRank0 = !(*pbRank0);
 						dev_dbg(data->dev, "Select rank1->0 (%d)\n", count);
 						count = 0;
@@ -1304,7 +1306,7 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 	nr_LP_rank = mgm_data->nr_rank[1];
 	nr_rank[0] = nr_rank[1] = 0;
 	nr_LP_rank[0] = nr_LP_rank[1] = 0;
-	mgm_data->rank_mode = 3;
+
 	mgm_data->bRank0[0] = mgm_data->bRank0[1] = true;
 	mgm_data->count = 0;
 	mgm_data->gfp_mask = GFP_HIGHUSER|__GFP_ZERO;
@@ -1317,19 +1319,28 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 #else
 	register_shrinker(&mgm_data->reclaim, "mali-mGMM");
 #endif
-	mgm_data->ui64RankBoundary = 0x40000000 + mtk_emicen_get_rk_size(0);
-	mgm_data->szPrefillTarget = PREFILL_TARGET;
-	mgm_data->szRefillTarget = REFILL_TARGET;
+	/*
+	 * Enable only in multiple rank env
+	 */
+	if (mtk_emicen_get_rk_cnt() == 2) {
+		mgm_data->ui64RankBoundary = MTK_EMI_DRAM_OFFSET + mtk_emicen_get_rk_size(0);
+		mgm_data->rank_mode = MP_MODE;
+		mgm_data->szPrefillTarget = PREFILL_TARGET;
+		mgm_data->szRefillTarget = REFILL_TARGET;
 
-	mtk_mgm_pool_fill(mgm_data, 9, 1, mgm_data->szPrefillTarget >> 9);
-	mtk_mgm_pool_fill(mgm_data, 9, 0, mgm_data->szPrefillTarget >> 9);
+		mtk_mgm_pool_fill(mgm_data, 9, 1, mgm_data->szPrefillTarget >> 9);
+		mtk_mgm_pool_fill(mgm_data, 9, 0, mgm_data->szPrefillTarget >> 9);
 
-	mtk_mgm_pool_trim(mgm_data, 9, 0, mgm_data->szPrefillTarget >> 9);
-	mtk_mgm_pool_trim(mgm_data, 9, 1, mgm_data->szPrefillTarget >> 9);
+		mtk_mgm_pool_trim(mgm_data, 9, 0, mgm_data->szPrefillTarget >> 9);
+		mtk_mgm_pool_trim(mgm_data, 9, 1, mgm_data->szPrefillTarget >> 9);
+	} else {
+		mgm_data->ui64RankBoundary = MTK_EMI_DRAM_OFFSET;
+		mgm_data->rank_mode = BYPASS_MODE;
+	}
 
 	dev_info(&pdev->dev,
-		"mGMM init completed: [0] {%zu, %zu}, [1] {%zu, %zu}\n",
-		nr_rank[0], nr_rank[1], nr_LP_rank[0], nr_LP_rank[1]);
+		"mGMM init completed(%d): [0] {%zu, %zu}, [1] {%zu, %zu}\n",
+		mgm_data->rank_mode, nr_rank[0], nr_rank[1], nr_LP_rank[0], nr_LP_rank[1]);
 
 #endif	/* CONFIG_MALI_MTK_MGMM */
 	return 0;
