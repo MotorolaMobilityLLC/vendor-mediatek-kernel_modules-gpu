@@ -78,6 +78,8 @@ struct mtk_debug_cs_queue_mem_data {
 	struct list_head node;
 
 	struct kbase_context *kctx;
+	pid_t tgid;
+	u32 id;
 	int group_type;		/* 0: active groups, 1: groups */
 	u8 handle;
 	s8 csi_index;
