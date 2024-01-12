@@ -346,17 +346,17 @@ static void *mtk_debug_cs_gpu_addr_node_allocate(void)
 static int mtk_debug_cs_queue_allocate_memory(void)
 {
 	cs_dump_queue_mem = kmalloc(sizeof(*cs_dump_queue_mem) * MAX_CS_DUMP_QUEUE_MEM, GFP_KERNEL);
-	if (!cs_dump_queue_mem)
+	if (unlikely(ZERO_OR_NULL_PTR(cs_dump_queue_mem)))
 		goto err_queue_mem_pre_allocate;
 	cs_dump_queue_mem_ptr = 0;
 
 	cs_dump_kctx_node = kmalloc(sizeof(*cs_dump_kctx_node) * MAX_CS_DUMP_NUM_KCTX, GFP_KERNEL);
-	if (!cs_dump_kctx_node)
+	if (unlikely(ZERO_OR_NULL_PTR(cs_dump_kctx_node)))
 		goto err_kctx_node_pre_allocate;
 	cs_dump_kctx_node_ptr = 0;
 
 	cs_dump_gpu_addr_node = kmalloc(sizeof(*cs_dump_gpu_addr_node) * MAX_CS_DUMP_NUM_GPU_PAGES, GFP_KERNEL);
-	if (!cs_dump_gpu_addr_node)
+	if (unlikely(ZERO_OR_NULL_PTR(cs_dump_gpu_addr_node)))
 		goto err_gpu_addr_node_pre_allocate;
 	cs_dump_gpu_addr_node_ptr = 0;
 
@@ -559,14 +559,14 @@ static int mtk_debug_cs_alloc_workspaces(struct kbase_device *kbdev)
 	int workspacesize = zlib_deflate_workspacesize(MAX_WBITS, MAX_MEM_LEVEL);
 
 	def_strm.workspace = vmalloc(workspacesize);
-	if (!def_strm.workspace) {
+	if (unlikely(ZERO_OR_NULL_PTR(def_strm.workspace))) {
 		mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
 			"Allocat %d bytes for deflate workspace failed!", workspacesize);
 		return -ENOMEM;
 	}
 
 	mtk_debug_cs_zlib_out = kmalloc(ZLIB_OUT_SIZE, GFP_KERNEL);
-	if (!mtk_debug_cs_zlib_out) {
+	if (unlikely(ZERO_OR_NULL_PTR(mtk_debug_cs_zlib_out))) {
 		mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
 			"Allocat %u bytes for deflate output buffer failed!", ZLIB_OUT_SIZE);
 		vfree(def_strm.workspace);
@@ -617,7 +617,7 @@ static int mtk_debug_cs_zlib_compress(unsigned char *data_in, unsigned char *cpa
 	if (ret != Z_STREAM_END)
 		return -1;
 
-	if (def_strm.total_out >= def_strm.total_in)
+	if (def_strm.total_out > def_strm.total_in)
 		return -1;
 
 	*dstlen = def_strm.total_out;

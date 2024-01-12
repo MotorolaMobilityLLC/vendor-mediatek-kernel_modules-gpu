@@ -739,10 +739,15 @@ static struct mtk_qinspect_cqs_wait_on *mtk_qinspect_query_internal_cqs_set_sear
 		case BASE_KCPU_COMMAND_TYPE_CQS_SET:
 		{
 			unsigned int nr;
-			struct kbase_kcpu_command_cqs_set_info *set = &cmd->info.cqs_set;
+			struct kbase_kcpu_command_cqs_set_info *set_info = &cmd->info.cqs_set;
 
-			for (nr = 0; nr < set->nr_objs; nr++) {
-				if (set->objs && set->objs[nr].addr == wait_it->cqs_addr) {
+			if (!set_info->objs) {
+				qinspect_err(wait_it->kctx->kbdev,
+					"[qinspect] warning: cmd_idx_%u set_info->objs = NULL", cmd_idx);
+				break;
+			}
+			for (nr = 0; nr < set_info->nr_objs; nr++) {
+				if (set_info->objs[nr].addr == wait_it->cqs_addr) {
 					qinspect_dbg(wait_it->kctx->kbdev,
 						"[qinspect] cqs_addr matched!");
 					wait_it->wait_on.queue_type = QINSPECT_KCPU_QUEUE;
@@ -755,10 +760,15 @@ static struct mtk_qinspect_cqs_wait_on *mtk_qinspect_query_internal_cqs_set_sear
 		case BASE_KCPU_COMMAND_TYPE_CQS_SET_OPERATION:
 		{
 			unsigned int nr;
-			struct kbase_kcpu_command_cqs_set_operation_info *set_op = &cmd->info.cqs_set_operation;
+			struct kbase_kcpu_command_cqs_set_operation_info *set_op_info = &cmd->info.cqs_set_operation;
 
-			for (nr = 0; nr < set_op->nr_objs; nr++) {
-				if (set_op->objs && set_op->objs[nr].addr == wait_it->cqs_addr) {
+			if (!set_op_info->objs) {
+				qinspect_err(wait_it->kctx->kbdev,
+					"[qinspect] warning: cmd_idx_%u set_operation_info->objs = NULL", cmd_idx);
+				break;
+			}
+			for (nr = 0; nr < set_op_info->nr_objs; nr++) {
+				if (set_op_info->objs[nr].addr == wait_it->cqs_addr) {
 					qinspect_dbg(wait_it->kctx->kbdev,
 						"[qinspect] cqs_addr matched!");
 					wait_it->wait_on.queue_type = QINSPECT_KCPU_QUEUE;
