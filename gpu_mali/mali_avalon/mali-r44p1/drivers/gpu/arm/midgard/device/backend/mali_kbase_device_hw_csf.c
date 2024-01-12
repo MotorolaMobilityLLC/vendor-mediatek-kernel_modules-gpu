@@ -87,10 +87,10 @@ static void kbase_gpu_fault_interrupt(struct kbase_device *kbdev)
 		kbase_report_gpu_fault(kbdev, status, as_nr, as_valid);
 
 #ifndef MALI_STRIP_KBASE_DEVELOPMENT
-#if IS_ENABLED(CONFIG_MALI_BUSLOG)
+#if IS_ENABLED(CONFIG_MALI_BUSLOG) && IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
 	queue_work(kbdev->buslog_callback_wq, &kbdev->buslog_callback_work);
-#endif
-#endif
+#endif /* CONFIG_MALI_BUSLOG && CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+#endif /* MALI_STRIP_KBASE_DEVELOPMENT */
 }
 
 void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
@@ -241,7 +241,7 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 #if !IS_ENABLED(CONFIG_MALI_NO_MALI)
 bool kbase_is_register_accessible(u32 offset)
 {
-#if 0//def CONFIG_MALI_DEBUG
+#ifdef CONFIG_MALI_DEBUG
 	if (((offset >= MCU_SUBSYSTEM_BASE) && (offset < IPA_CONTROL_BASE)) ||
 	    ((offset >= GPU_CONTROL_MCU_BASE) && (offset < USER_BASE))) {
 		WARN(1, "Invalid register offset 0x%x", offset);
@@ -262,8 +262,14 @@ void kbase_reg_write(struct kbase_device *kbdev, u32 offset, u32 value)
 	if (WARN_ON(kbdev->dev == NULL))
 		return;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	if (!kbdev->bypass_register_check)
+		if (!kbase_is_register_accessible(offset))
+			return;
+#else
 	if (!kbase_is_register_accessible(offset))
 		return;
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
 	writel(value, kbdev->reg + offset);
 

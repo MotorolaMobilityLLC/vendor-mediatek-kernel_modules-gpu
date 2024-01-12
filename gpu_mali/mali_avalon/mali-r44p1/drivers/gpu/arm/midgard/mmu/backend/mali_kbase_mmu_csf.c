@@ -159,10 +159,10 @@ void kbase_mmu_report_mcu_as_fault_and_reset(struct kbase_device *kbdev,
 		kbase_reset_gpu(kbdev);
 
 #ifndef MALI_STRIP_KBASE_DEVELOPMENT
-#if IS_ENABLED(CONFIG_MALI_BUSLOG)
+#if IS_ENABLED(CONFIG_MALI_BUSLOG) && IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
 	queue_work(kbdev->buslog_callback_wq, &kbdev->buslog_callback_work);
-#endif
-#endif
+#endif /* CONFIG_MALI_BUSLOG && CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+#endif /* MALI_STRIP_KBASE_DEVELOPMENT */
 }
 KBASE_EXPORT_TEST_API(kbase_mmu_report_mcu_as_fault_and_reset);
 
@@ -242,12 +242,13 @@ void kbase_gpu_report_bus_fault_and_kill(struct kbase_context *kctx,
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 #ifndef MALI_STRIP_KBASE_DEVELOPMENT
-#if IS_ENABLED(CONFIG_MALI_BUSLOG)
+#if IS_ENABLED(CONFIG_MALI_BUSLOG) && IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
 	queue_work(kbdev->buslog_callback_wq, &kbdev->buslog_callback_work);
-#endif
-#endif
+#endif /* CONFIG_MALI_BUSLOG && CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+#endif /* MALI_STRIP_KBASE_DEVELOPMENT */
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
 static void print_group_queues_data(struct kbase_queue_group *const group)
 {
 	u64 insert[5];
@@ -283,6 +284,16 @@ static void print_group_queues_data(struct kbase_queue_group *const group)
 		ringbuff[3], insert[3], extract[3],
 		ringbuff[4], insert[4], extract[4]);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(group->kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		"R0 %llx I0 %llx E0 %llx, R1 %llx I1 %llx E1 %llx, R2 %llx I2 %llx E2 %llx, R3 %llx I3 %llx E3 %llx, R4 %llx I4 %llx E4 %llx\n",
+		ringbuff[0], insert[0], extract[0],
+		ringbuff[1], insert[1], extract[1],
+		ringbuff[2], insert[2], extract[2],
+		ringbuff[3], insert[3], extract[3],
+		ringbuff[4], insert[4], extract[4]);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 	for (i = 0; i < 5; i++) {
 		struct kbase_queue *queue =
 				group->bound_queues[i];
@@ -309,6 +320,12 @@ static void print_group_queues_data(struct kbase_queue_group *const group)
 			stop = cs_insert;
 
 		pr_err("\nQueue %u: Instructions from Extract offset %llx\n", i, start);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(group->kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"\nQueue %u: Instructions from Extract offset %llx\n", i, start);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 		while (start != stop) {
 			u64 page_off = (start & size_mask) >> PAGE_SHIFT;
 			u64 offset = (start & size_mask) & ~PAGE_MASK;
@@ -318,6 +335,12 @@ static void print_group_queues_data(struct kbase_queue_group *const group)
 
 			pr_err("%016llx %016llx %016llx %016llx %016llx %016llx %016llx %016llx\n",
 					ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7]);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(group->kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"%016llx %016llx %016llx %016llx %016llx %016llx %016llx %016llx\n",
+				ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7]);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 			vunmap(ringbuffer);
 			start += (8 * instruction_size);
@@ -330,6 +353,12 @@ static void dump_cmd_ptr_instructions(struct kbase_context *kctx, u64 cmd_ptr)
 	u64 address;
 
 	dev_err(kctx->kbdev->dev, "Dumping instructions around the CMD_PTR");
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		"Dumping instructions around the CMD_PTR\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 	/* Start from 4 instructions back */
 	for (address = cmd_ptr - (4 * sizeof(u64));
 	     address < (cmd_ptr + (4 * sizeof(u64)));
@@ -341,6 +370,10 @@ static void dump_cmd_ptr_instructions(struct kbase_context *kctx, u64 cmd_ptr)
 			continue;
 
 		pr_err("0x%llx: %016llx\n", address, *ptr);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"0x%llx: %016llx\n", address, *ptr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		kbase_vunmap(kctx, &mapping);
 	}
 }
@@ -357,45 +390,54 @@ static void dump_cmd_ptr_instructions(struct kbase_context *kctx, u64 cmd_ptr)
 
 static void dump_iterator_registers(struct kbase_device *kbdev)
 {
+	unsigned int i;
+	u32 reg_offsets[8] = { 0x0, 0x4, 0x8, 0xD0, 0xDC, 0xA4, 0xA0, 0xE0 };
+	u32 cshw_it_comp_reg[8], cshw_it_frag_reg[8], cshw_it_tiler_reg[8];
+
 	if (kbdev->protected_mode)
 		return;
 
 	if (!kbdev->pm.backend.gpu_powered)
 		return;
 
+	for (i = 0; i < 8; i++) {
+		cshw_it_comp_reg[i] = kbase_reg_read(kbdev, CSHW_IT_COMP_REG(reg_offsets[i]));
+		cshw_it_frag_reg[i] = kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(reg_offsets[i]));
+		cshw_it_tiler_reg[i] = kbase_reg_read(kbdev, CSHW_IT_TILER_REG(reg_offsets[i]));
+	}
+
 	dev_err(kbdev->dev, "Compute  CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x",
-		kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x0)),
-		kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x4)),
-		kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x8)),
-		kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0xD0)),
-		kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0xDC)),
-		kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0xA4)),
-		kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0xA0)),
-		kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0xE0)));
+		cshw_it_comp_reg[0], cshw_it_comp_reg[1], cshw_it_comp_reg[2], cshw_it_comp_reg[3],
+		cshw_it_comp_reg[4], cshw_it_comp_reg[5], cshw_it_comp_reg[6], cshw_it_comp_reg[7]);
 	dev_err(kbdev->dev, "Fragment CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x",
-		kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x0)),
-		kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x4)),
-		kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x8)),
-		kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0xD0)),
-		kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0xDC)),
-		kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0xA4)),
-		kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0xA0)),
-		kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0xE0)));
+		cshw_it_frag_reg[0], cshw_it_frag_reg[1], cshw_it_frag_reg[2], cshw_it_frag_reg[3],
+		cshw_it_frag_reg[4], cshw_it_frag_reg[5], cshw_it_frag_reg[6], cshw_it_frag_reg[7]);
 	dev_err(kbdev->dev, "Tiler    CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x",
-		kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0x0)),
-		kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0x4)),
-		kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0x8)),
-		kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0xD0)),
-		kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0xDC)),
-		kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0xA4)),
-		kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0xA0)),
-		kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0xE0)));
+		cshw_it_tiler_reg[0], cshw_it_tiler_reg[1], cshw_it_tiler_reg[2], cshw_it_tiler_reg[3],
+		cshw_it_tiler_reg[4], cshw_it_tiler_reg[5], cshw_it_tiler_reg[6], cshw_it_tiler_reg[7]);
 	dev_err(kbdev->dev, "\n");
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Compute  CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x\n",
+			cshw_it_comp_reg[0], cshw_it_comp_reg[1], cshw_it_comp_reg[2], cshw_it_comp_reg[3],
+			cshw_it_comp_reg[4], cshw_it_comp_reg[5], cshw_it_comp_reg[6], cshw_it_comp_reg[7]);
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Fragment CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x\n",
+			cshw_it_frag_reg[0], cshw_it_frag_reg[1], cshw_it_frag_reg[2], cshw_it_frag_reg[3],
+			cshw_it_frag_reg[4], cshw_it_frag_reg[5], cshw_it_frag_reg[6], cshw_it_frag_reg[7]);
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Tiler    CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x\n",
+			cshw_it_tiler_reg[0], cshw_it_tiler_reg[1], cshw_it_tiler_reg[2], cshw_it_tiler_reg[3],
+			cshw_it_tiler_reg[4], cshw_it_tiler_reg[5], cshw_it_tiler_reg[6], cshw_it_tiler_reg[7]);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 }
 
 static void dump_hwif_registers(struct kbase_device *kbdev, int faulty_as)
 {
-	unsigned int i;
+	unsigned int i, j;
+	u32 reg_offsets[17] = { 0x24, 0x34, 0x60, 0x64, 0x74, 0x78, 0x7C, 0x80, 0x98, 0xA4, 0xAC, 0xB0, 0xB8, 0xBC, 0x28, 0x2C, 0x30 };
+	u32 cshwif_reg[17];
 
 	if (kbdev->protected_mode)
 		return;
@@ -410,28 +452,58 @@ static void dump_hwif_registers(struct kbase_device *kbdev, int faulty_as)
 		if (!cmd_ptr)
 			continue;
 
+		for (j = 0; j < 17; j++)
+			cshwif_reg[j] = kbase_reg_read(kbdev, CSHWIF_REG(i, reg_offsets[j]));
+
 		dev_err(kbdev->dev, "Register dump of CSHWIF %d", i);
 		dev_err(kbdev->dev, "CMD_PTR: %llx CMD_PTR_END: %llx STATUS: %x JASID: %x EMUL_INSTR: %llx WAIT_STATUS: %x SB_SET_SEL: %x SB_SEL: %x",
 			cmd_ptr,
 			cmd_ptr_end,
-			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x24)),
-			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x34)),
-			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x60)) | ((u64)kbase_reg_read(kbdev, CSHWIF_REG(i, 0x64)) << 32),
-			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x74)),
-			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x78)),
-			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x7C)));
+			cshwif_reg[0],
+			cshwif_reg[1],
+			cshwif_reg[2] | ((u64)cshwif_reg[3] << 32),
+			cshwif_reg[4],
+			cshwif_reg[5],
+			cshwif_reg[6]);
 		dev_err(kbdev->dev, "CMD_COUNTER: %x EVT_RAW: %x EVT_IRQ_STATUS: %x EVT_HALT_STATUS: %x FAULT_STATUS: %x FAULT_ADDR: %llx",
-			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x80)),
-			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x98)),
-			kbase_reg_read(kbdev, CSHWIF_REG(i, 0xA4)),
-			kbase_reg_read(kbdev, CSHWIF_REG(i, 0xAC)),
-			kbase_reg_read(kbdev, CSHWIF_REG(i, 0xB0)),
-			kbase_reg_read(kbdev, CSHWIF_REG(i, 0xB8)) | ((u64)kbase_reg_read(kbdev, CSHWIF_REG(i, 0xBC)) << 32));
+			cshwif_reg[7],
+			cshwif_reg[8],
+			cshwif_reg[9],
+			cshwif_reg[10],
+			cshwif_reg[11],
+			cshwif_reg[12] | ((u64)cshwif_reg[13] << 32));
 		dev_err(kbdev->dev, "ITER_COMPUTE: %x ITER_FRAGMENT: %x ITER_TILER: %x",
-			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x28)),
-			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x2C)),
-			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x30)));
+			cshwif_reg[14],
+			cshwif_reg[15],
+			cshwif_reg[16]);
 		dev_err(kbdev->dev, "\n");
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"CMD_PTR: %llx CMD_PTR_END: %llx STATUS: %x JASID: %x EMUL_INSTR: %llx WAIT_STATUS: %x SB_SET_SEL: %x SB_SEL: %x\n",
+			cmd_ptr,
+			cmd_ptr_end,
+			cshwif_reg[0],
+			cshwif_reg[1],
+			cshwif_reg[2] | ((u64)cshwif_reg[3] << 32),
+			cshwif_reg[4],
+			cshwif_reg[5],
+			cshwif_reg[6]);
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"CMD_COUNTER: %x EVT_RAW: %x EVT_IRQ_STATUS: %x EVT_HALT_STATUS: %x FAULT_STATUS: %x FAULT_ADDR: %llx\n",
+			cshwif_reg[7],
+			cshwif_reg[8],
+			cshwif_reg[9],
+			cshwif_reg[10],
+			cshwif_reg[11],
+			cshwif_reg[12] | ((u64)cshwif_reg[13] << 32));
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"ITER_COMPUTE: %x ITER_FRAGMENT: %x ITER_TILER: %x\n",
+			cshwif_reg[14],
+			cshwif_reg[15],
+			cshwif_reg[16]);
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 		if ((cmd_ptr != cmd_ptr_end) && (as_nr == faulty_as)) {
 			struct kbase_context *kctx = kbdev->as_to_kctx[as_nr];
@@ -440,6 +512,7 @@ static void dump_hwif_registers(struct kbase_device *kbdev, int faulty_as)
 		}
 	}
 }
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
 /*
  * The caller must ensure it's retained the ctx to prevent it from being
@@ -456,7 +529,9 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 	int as_no;
 	struct kbase_device *kbdev;
 	const u32 status = fault->status;
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
 	u32 csg_nr;
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
 	as_no = as->number;
 	kbdev = kctx->kbdev;
@@ -478,8 +553,7 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 		"exception type 0x%X: %s\n"
 		"access type 0x%X: %s\n"
 		"source id 0x%X\n"
-		"tgid: %d, pid: %d, comm: %s\n",
-		"ctx_id: %d_%d\n",
+		"ctx_id: %d_%d, pid: %d, comm: %s\n",
 		kbdev->protected_mode,
 		as_no, fault->addr,
 		reason_str,
@@ -487,8 +561,7 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 		exception_type, kbase_gpu_exception_name(exception_type),
 		access_type, kbase_gpu_access_type_name(status),
 		source_id,
-		kctx->tgid, kctx->pid, kctx->comm,
-		kctx->tgid, kctx->id);
+		kctx->tgid, kctx->id, kctx->pid, kctx->comm);
 #else
 	/* terminal fault, print info about the fault */
 	dev_err(kbdev->dev,
@@ -515,8 +588,7 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 		"exception type 0x%X: %s\n"
 		"access type 0x%X: %s\n"
 		"source id 0x%X\n"
-		"tgid: %d, pid: %d, comm: %s\n",
-		"ctx_id: %d_%d\n",
+		"ctx_id: %d_%d, pid: %d, comm: %s\n",
 		kbdev->protected_mode,
 		as_no, fault->addr,
 		reason_str,
@@ -524,9 +596,12 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 		exception_type, kbase_gpu_exception_name(exception_type),
 		access_type, kbase_gpu_access_type_name(status),
 		source_id,
-		kctx->tgid, kctx->pid, kctx->comm,
-		kctx->tgid, kctx->id);
+		kctx->tgid, kctx->id, kctx->pid, kctx->comm);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	mutex_lock(&kbdev->register_check_lock);
+	kbdev->bypass_register_check = true;
 
 	dump_hwif_registers(kbdev, as_no);
 	dump_iterator_registers(kbdev);
@@ -541,8 +616,17 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 
 		dev_err(kbdev->dev, "Dumping data of queues of group %d on slot %d in run_state %d",
 			group->handle, group->csg_nr, group->run_state);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Dumping data of queues of group %d on slot %d in run_state %d\n",
+			group->handle, group->csg_nr, group->run_state);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		print_group_queues_data(group);
 	}
+
+	kbdev->bypass_register_check = false;
+	mutex_unlock(&kbdev->register_check_lock);
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
@@ -580,10 +664,10 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 			KBASE_MMU_FAULT_TYPE_PAGE_UNEXPECTED);
 
 #ifndef MALI_STRIP_KBASE_DEVELOPMENT
-#if IS_ENABLED(CONFIG_MALI_BUSLOG)
+#if IS_ENABLED(CONFIG_MALI_BUSLOG) && IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
 	queue_work(kbdev->buslog_callback_wq, &kbdev->buslog_callback_work);
-#endif
-#endif
+#endif /* CONFIG_MALI_BUSLOG && CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+#endif /* MALI_STRIP_KBASE_DEVELOPMENT */
 }
 
 /**

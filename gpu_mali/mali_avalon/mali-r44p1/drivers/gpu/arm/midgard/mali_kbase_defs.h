@@ -1434,6 +1434,11 @@ struct kbase_device {
 	phys_addr_t rank_boundary;
 	bool pt_clustering_enable;
 #endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	bool bypass_register_check;
+	struct mutex register_check_lock;
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 };
 
 /**
