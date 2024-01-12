@@ -1952,43 +1952,16 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 		fence_wait->time_in_microseconds == 7000 || fence_wait->time_in_microseconds == 8000 ||
 		fence_wait->time_in_microseconds == 9000 || fence_wait->time_in_microseconds == 10000) &&
 		(fence_wait->queue != 0)) {
-		int i = 0;
-
 		mutex_lock(&recovery_lock);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
-		for (i = 0; i < 3; i++) {
-			if (!kbase_reset_gpu_try_prevent(kctx->kbdev))
-				break;
-		}
-#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
-
-		if (i != 3) {
-			dev_info(kctx->kbdev->dev,
-				"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Trigger cross queue sync recovery",
-				kctx->tgid, kctx->id, fence_wait->queue, fence_wait->time_in_microseconds);
+		dev_info(kctx->kbdev->dev,
+			"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Trigger cross queue sync recovery",
+			kctx->tgid, kctx->id, fence_wait->queue, fence_wait->time_in_microseconds);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-				"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Trigger cross queue sync recovery\n",
-				kctx->tgid, kctx->id, fence_wait->queue, fence_wait->time_in_microseconds);
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Trigger cross queue sync recovery\n",
+			kctx->tgid, kctx->id, fence_wait->queue, fence_wait->time_in_microseconds);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-
-			mtk_qinspect_recovery(kctx, QINSPECT_CPU_QUEUE, &fence_wait->queue);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
-			kbase_reset_gpu_allow(kctx->kbdev);
-		} else {
-			dev_info(kctx->kbdev->dev,
-				"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Prevent gpu reset fail, skip recovery",
-				kctx->tgid, kctx->id, fence_wait->queue, fence_wait->time_in_microseconds);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-				"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Prevent gpu reset fail, skip recovery\n",
-				kctx->tgid, kctx->id, fence_wait->queue, fence_wait->time_in_microseconds);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
-		}
-
+		mtk_qinspect_recovery(kctx, QINSPECT_CPU_QUEUE, &fence_wait->queue);
 		mutex_unlock(&recovery_lock);
 	}
 #endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */

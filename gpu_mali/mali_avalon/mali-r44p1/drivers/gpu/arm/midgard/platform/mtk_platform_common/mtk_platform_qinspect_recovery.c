@@ -11,6 +11,9 @@
 #include <csf/mali_kbase_csf_csg_debugfs.h>
 #include <csf/mali_kbase_csf.h>
 #endif /* CONFIG_MALI_CSF_SUPPORT */
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+#include <mali_kbase_reset_gpu.h>
+#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
@@ -25,7 +28,7 @@
 /********************************/
 #define TAG "[QINSPECT_RECOVERY]"
 
-#define MTK_QINSPECT_ARRYA_SIZE 100
+#define MTK_QINSPECT_ARRYA_SIZE 256
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #define mtk_qinspect_log(fmt, args...) \
@@ -39,7 +42,6 @@
 		dev_info(g_kctx->kbdev->dev, TAG fmt, ##args); \
 	} while (0)
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-
 
 /********************************/
 /*           structure          */
@@ -169,7 +171,6 @@ static int mtk_qinspect_unlock_cqs(struct mtk_qinspect_cqs_rootlocker *cqs_rl)
 
 	return 0;
 }
-
 
 static void mtk_qinspect_unlock_root_locker(void) {
 	unsigned int i;
@@ -486,38 +487,56 @@ static void mtk_qinspect_query_top_wait(enum mtk_qinspect_queue_type queue_type,
 	}
 }
 
+static void mtk_qinspect_acquire_lock(struct kbase_context *kctx) {
+	mutex_lock(&kctx->csf.kcpu_queues.lock);
+	mutex_lock(&kctx->csf.lock);
+	kbase_csf_scheduler_lock(kctx->kbdev);
+}
+
+static void mtk_qinspect_release_lock(struct kbase_context *kctx) {
+	kbase_csf_scheduler_unlock(kctx->kbdev);
+	mutex_unlock(&kctx->csf.lock);
+	mutex_unlock(&kctx->csf.kcpu_queues.lock);
+}
+
 void mtk_qinspect_recovery(struct kbase_context *kctx, enum mtk_qinspect_queue_type queue_type, void *queue) {
-	int i;
+	int i = 0;
 	g_kctx = kctx;
 
 	lockdep_assert_held(&recovery_lock);
 
-	mtk_qinspect_log("Preparing to recovery\n");
+	mtk_qinspect_log("Preparing to recovery");
 
-	/* get lock, load cpuq, update csf status */
-	mutex_lock(&kctx->csf.lock);
-	mutex_lock(&kctx->csf.kcpu_queues.lock);
-	kbase_csf_scheduler_lock(kctx->kbdev);
-	mutex_lock(&kctx->kbdev->kctx_list_lock);
+	/* preprocess: 1. acquired lock 2. prevent gpu reset 3. load cpu queue 4. update groups status */
+	mtk_qinspect_log("acquire lock");
+	mtk_qinspect_acquire_lock(kctx);
 
-	mtk_qinspect_log("load cpu queue\n");
-	if (mtk_qinspect_cpuq_internal_load_cpuq(kctx) < 0) {
-		mtk_qinspect_cpuq_internal_unload_cpuq(kctx);
-
-		mutex_unlock(&kctx->kbdev->kctx_list_lock);
-		kbase_csf_scheduler_unlock(kctx->kbdev);
-		mutex_unlock(&kctx->csf.kcpu_queues.lock);
-		mutex_unlock(&kctx->csf.lock);
-
-		mtk_qinspect_log("load cpu queue fail, skip this run\n");
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+	mtk_qinspect_log("prevent gpu reset");
+	for (i = 0; i < 10; i++) {
+		if (!kbase_reset_gpu_try_prevent(kctx->kbdev))
+			break;
+	}
+#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
+	if (i == 10) {
+		mtk_qinspect_log("prevent gpu reset fail, skip this run");
+		mtk_qinspect_release_lock(kctx);
 		return;
 	}
 
-	mtk_qinspect_log("update groups status\n");
+	mtk_qinspect_log("load cpu queue");
+	if (mtk_qinspect_cpuq_internal_load_cpuq(kctx) < 0) {
+		mtk_qinspect_log("load cpu queue fail, skip this run");
+		kbase_reset_gpu_allow(kctx->kbdev);
+		mtk_qinspect_release_lock(kctx);
+		return;
+	}
+
+	mtk_qinspect_log("update groups status");
 	kbase_csf_debugfs_update_active_groups_status(kctx->kbdev);
 
-	mtk_qinspect_log("recovery start\n");
 	/* find root locker algo start */
+	mtk_qinspect_log("recovery start");
 
 	// insert first query queue
 	switch (queue_type) {
@@ -542,22 +561,24 @@ void mtk_qinspect_recovery(struct kbase_context *kctx, enum mtk_qinspect_queue_t
 		g_wait_queue_extract++;
 	}
 
-	// unlock root locker
 	mtk_qinspect_unlock_root_locker();
 
-	// reset all global list
 	mtk_qinspect_reset_global_list();
 
-	/* release lock, unload cpuq */
-	mtk_qinspect_log("unload cpu queue\n");
+	/* find root locker algo end */
+	mtk_qinspect_log("recovery end");
+
+	/* postprocess: 1. unload cpu queue 2. allow gpu reset 3. release lock */
+	mtk_qinspect_log("unload cpu queue");
 	mtk_qinspect_cpuq_internal_unload_cpuq(kctx);
 
-	mutex_unlock(&kctx->kbdev->kctx_list_lock);
-	kbase_csf_scheduler_unlock(kctx->kbdev);
-	mutex_unlock(&kctx->csf.kcpu_queues.lock);
-	mutex_unlock(&kctx->csf.lock);
+	mtk_qinspect_log("allow gpu reset");
+	kbase_reset_gpu_allow(kctx->kbdev);
 
-	mtk_qinspect_log("recovery complete\n");
+	mtk_qinspect_log("release lock");
+	mtk_qinspect_release_lock(kctx);
+
+	mtk_qinspect_log("recovery complete");
 }
 
 #endif /* CONFIG_MALI_CSF_SUPPORT */
