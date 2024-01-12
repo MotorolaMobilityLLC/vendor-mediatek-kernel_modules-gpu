@@ -2132,6 +2132,8 @@ static void kcpu_queue_dump(struct kbase_kcpu_command_queue *queue)
 	size_t i;
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 	unsigned int fence_signal_command_timeout_ms;
+	const unsigned int sf_shift_ms = 300;
+	char sf_name[] = "surfaceflinger";
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	mutex_lock(&queue->lock);
@@ -2179,9 +2181,22 @@ static void kcpu_queue_dump(struct kbase_kcpu_command_queue *queue)
 	if (!strcmp(queue->fence_signal_command_timeout_fence, info.name)) {
 		queue->fence_signal_command_timeout_counter ++;
 	} else {
-		strncpy(queue->fence_signal_command_timeout_fence, info.name, 32);
-		queue->fence_signal_command_timeout_fence[31] = '\0';
-		queue->fence_signal_command_timeout_counter = 1;
+		/* Shift SF wiht sf_shift_ms to prevent timeout overlap and dump missing */
+		if (!memcmp(kctx->comm, sf_name, sizeof(sf_name))) {
+			strncpy(queue->fence_signal_command_timeout_fence, info.name, 32);
+			queue->fence_signal_command_timeout_fence[31] = '\0';
+			/* Set the counter to 0 and wait the sf_shift_ms timeout to be the first time timeout */
+			queue->fence_signal_command_timeout_counter = 0;
+			mod_timer(&queue->fence_signal_timeout, jiffies + msecs_to_jiffies(sf_shift_ms));
+
+			kbase_fence_put(fence);
+			mutex_unlock(&queue->lock);
+			return;
+		} else {
+			strncpy(queue->fence_signal_command_timeout_fence, info.name, 32);
+			queue->fence_signal_command_timeout_fence[31] = '\0';
+			queue->fence_signal_command_timeout_counter = 1;
+		}
 	}
 
 	fence_signal_command_timeout_ms =
