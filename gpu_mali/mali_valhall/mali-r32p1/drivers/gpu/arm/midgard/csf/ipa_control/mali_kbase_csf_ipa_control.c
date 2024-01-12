@@ -236,7 +236,7 @@ static inline void calc_prfcnt_delta(struct kbase_device *kbdev,
 
 	delta_value *= prfcnt->scaling_factor;
 
-	if (!WARN_ON_ONCE(kbdev->csf.ipa_control.cur_gpu_rate == 0))
+	if (kbdev->csf.ipa_control.cur_gpu_rate)
 		if (prfcnt->gpu_norm)
 			delta_value /= kbdev->csf.ipa_control.cur_gpu_rate;
 
