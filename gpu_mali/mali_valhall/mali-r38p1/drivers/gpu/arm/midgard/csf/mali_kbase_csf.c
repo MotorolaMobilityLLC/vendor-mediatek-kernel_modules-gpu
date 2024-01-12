@@ -822,8 +822,6 @@ static int check_trigger_submission(struct kbase_context *kctx)
 {
 	int trigger_submission;
 
-	down_write(&kctx->csf.trigger_submission_sem);
-
 	trigger_submission = atomic_read(&kctx->csf.trigger_submission);
 
 	if (trigger_submission > 0) {
@@ -831,8 +829,6 @@ static int check_trigger_submission(struct kbase_context *kctx)
 	} else if (trigger_submission < 0) {
 		dev_vdbg(kctx->kbdev->dev, "Invalid trigger_submission: %d\n", trigger_submission);
 	}
-
-	up_write(&kctx->csf.trigger_submission_sem);
 
 	return trigger_submission;
 }
@@ -848,11 +844,14 @@ static int pending_submission_worker_kthread(void* data)
 		wait_event_freezable_timeout(kctx->csf.pending_wait_queue,
 			((check_trigger_submission(kctx) > 0) || kthread_should_stop()), MAX_SCHEDULE_TIMEOUT);
 
+		if (kthread_should_stop())
+			return 0;
+
 		err = kbase_reset_gpu_prevent_and_wait(kbdev);
 
 		if (err) {
 			dev_err(kbdev->dev, "Unsuccessful GPU reset detected when kicking queue ");
-			return 0;
+			continue;
 		}
 
 		mutex_lock(&kctx->csf.lock);
@@ -1003,10 +1002,7 @@ static void enqueue_gpu_submission_work(struct kbase_context *const kctx)
 {
 #if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
 	if (kctx->csf.pending_submission_mode == GPU_PENDING_SUBMISSION_KTHREAD) {
-		down_write(&kctx->csf.trigger_submission_sem);
 		atomic_inc(&kctx->csf.trigger_submission);
-		up_write(&kctx->csf.trigger_submission_sem);
-
 		wake_up(&kctx->csf.pending_wait_queue);
 	} else
 		queue_work(system_highpri_wq, &kctx->csf.pending_submission_work);
@@ -1907,6 +1903,7 @@ int kbase_csf_ctx_init(struct kbase_context *kctx)
 	u32 pending_submission_mode = GPU_PENDING_SUBMISSION_KWORKER;
 	struct device_node *np;
 
+	kctx->csf.pending_submission_work_kthread = NULL;
 	kctx->csf.pending_submission_mode = pending_submission_mode;
 	np = kctx->kbdev->dev->of_node;
 
@@ -1953,11 +1950,8 @@ int kbase_csf_ctx_init(struct kbase_context *kctx)
 #if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
 					if (kctx->csf.pending_submission_mode == GPU_PENDING_SUBMISSION_KTHREAD) {
 						init_waitqueue_head(&kctx->csf.pending_wait_queue);
-						init_rwsem(&kctx->csf.trigger_submission_sem);
 
-						down_write(&kctx->csf.trigger_submission_sem);
 						atomic_set(&kctx->csf.trigger_submission, 0);
-						up_write(&kctx->csf.trigger_submission_sem);
 
 						kctx->csf.pending_submission_work_kthread = kthread_run(
 							pending_submission_worker_kthread,
@@ -2105,9 +2099,12 @@ void kbase_csf_ctx_term(struct kbase_context *kctx)
 		kbase_reset_gpu_allow(kbdev);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
-	if (kctx->csf.pending_submission_mode == GPU_PENDING_SUBMISSION_KTHREAD)
-		kthread_stop(kctx->csf.pending_submission_work_kthread);
-	else
+	if (kctx->csf.pending_submission_mode == GPU_PENDING_SUBMISSION_KTHREAD) {
+		if (!IS_ERR_OR_NULL(kctx->csf.pending_submission_work_kthread)) {
+			kthread_stop(kctx->csf.pending_submission_work_kthread);
+			kctx->csf.pending_submission_work_kthread = NULL;
+		}
+	} else
 		cancel_work_sync(&kctx->csf.pending_submission_work);
 #else
 		cancel_work_sync(&kctx->csf.pending_submission_work);
