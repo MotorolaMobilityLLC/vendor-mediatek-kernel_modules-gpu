@@ -828,8 +828,8 @@ static void pending_submission_worker(struct work_struct *work)
 
 			if (!group || queue->bind_state != KBASE_CSF_QUEUE_BOUND)
 				dev_vdbg(kbdev->dev, "queue is not bound to a group");
-			else
-				WARN_ON(kbase_csf_scheduler_queue_start(queue));
+			else if (kbase_csf_scheduler_queue_start(queue))
+				dev_vdbg(kbdev->dev, "Failed to start queue");
 		}
 	}
 
