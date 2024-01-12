@@ -15,6 +15,13 @@
 #include <mtk_gpu_utility.h>
 #include <platform/mtk_platform_common/mtk_platform_dvfs.h>
 
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY) && \
+	IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+#include <platform/mtk_platform_common/mtk_platform_dvfs_hint_26m_perf_cnting.h>
+#include "platform/mtk_platform_common/mtk_platform_dvfs_hint_26m_perf_cnting_ex.h"
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY && CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING*/
+
 #if IS_ENABLED(CONFIG_PROC_FS)
 /* name of the proc entry */
 #define	PROC_GPU_UTILIZATION "gpu_utilization"
@@ -178,8 +185,10 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 	util_ex->util_sc_comp_raw   = utilisation[UTIL_SC_COMP_ID + NUM_PERF_COUNTERS];
 	util_ex->util_l2ext_raw     = utilisation[UTIL_l2ext_ID + NUM_PERF_COUNTERS];
 #endif /* CONFIG_MALI_MTK_GPU_DVFS_ASYNC */
-
 	util_ex->delta_time     = delta_time << 8;   // 8 = KBASE_PM_TIME_SHIFT
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+	util_ex->util_iter_u_mcu = mtk_dvfs_hint_26m_cal_prfcnt_utilization(SELECT_UNION_ITER_MCU, gpu_power_status);
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING */
 #endif
 
 	if (pui32Loading)

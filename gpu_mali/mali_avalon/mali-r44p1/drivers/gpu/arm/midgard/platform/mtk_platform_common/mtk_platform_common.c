@@ -20,6 +20,9 @@
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 #include <platform/mtk_platform_common/mtk_platform_dvfs.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+#include <platform/mtk_platform_common/mtk_platform_dvfs_hint_26m_perf_cnting.h>
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING */
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
@@ -613,6 +616,9 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	mtk_dvfs_init(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+	mtk_dvfs_hint_26m_init(kbdev);
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING */
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
