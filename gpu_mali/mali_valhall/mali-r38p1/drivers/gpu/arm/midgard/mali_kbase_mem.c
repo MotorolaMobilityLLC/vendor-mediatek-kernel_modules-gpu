@@ -839,12 +839,6 @@ void kbase_region_tracker_term(struct kbase_context *kctx)
 	WARN_ON(!list_empty(&kctx->csf.event_pages_head));
 	kbase_region_tracker_erase_rbtree(&kctx->reg_rbtree_exec_fixed);
 	kbase_region_tracker_erase_rbtree(&kctx->reg_rbtree_fixed);
-
-#endif
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
-	if (kctx->coherent_region_nr != 0)
-		dev_warn(kctx->kbdev->dev, "kctx %p, tgid: %d, %u coherent region not freed!",
-			kctx, kctx->tgid, kctx->coherent_region_nr);
 #endif
 	kbase_gpu_vm_unlock(kctx);
 }
@@ -1015,9 +1009,6 @@ int kbase_region_tracker_init(struct kbase_context *kctx)
 	kctx->gpu_va_end = same_va_base + same_va_pages + custom_va_size;
 #endif
 	kctx->jit_va = false;
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
-	kctx->coherent_region_nr = 0;
-#endif
 	kbase_gpu_vm_unlock(kctx);
 	return 0;
 
@@ -1664,12 +1655,11 @@ void kbase_free_alloced_region(struct kbase_va_region *reg)
 #if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
 		if (kctx->kbdev->system_coherency != COHERENCY_NONE) {
 			mutex_lock(&kctx->coherenct_region_lock);
-			for (r_index = 0; r_index < MAX_COHERENT_REGION; r_index++) {
+			for (r_index = 0; r_index < kctx->coherent_region_nr; r_index++) {
 				if (kctx->coherenct_regions[r_index] == reg) {
 					dev_vdbg(kctx->kbdev->dev,
 					"Free alloced coherent region[%d]=0x%p, tgid: %d, reg_nr: %u",
 						r_index, reg , kctx->tgid, kctx->coherent_region_nr);
-					kctx->coherent_region_nr--;
 					kctx->coherenct_regions[r_index] = NULL;
 					break;
 				}
