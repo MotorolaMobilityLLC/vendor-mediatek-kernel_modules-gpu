@@ -18,6 +18,7 @@ struct mtk_logbuffer_info {
 	uint8_t tmp_entry[MTK_LOG_BUFFER_ENTRY_SIZE];
 	uint8_t *entries;
 	bool is_circular;
+	bool has_timestamp;
 	bool fallback;
 };
 
@@ -30,6 +31,6 @@ bool mtk_logbuffer_is_full(struct mtk_logbuffer_info *logbuf);
 void mtk_logbuffer_clear(struct mtk_logbuffer_info *logbuf);
 void mtk_logbuffer_print(struct mtk_logbuffer_info *logbuf, const char *fmt, ...);
 void mtk_logbuffer_dump(struct mtk_logbuffer_info *logbuf, struct seq_file *seq);
-u64 mtk_logbuffer_get_timestamp(struct kbase_device *kbdev);
+u64 mtk_logbuffer_get_timestamp(struct kbase_device *kbdev, struct mtk_logbuffer_info *logbuf);
 
 #endif /* __MTK_PLATFORM_LOGBUF_H__ */

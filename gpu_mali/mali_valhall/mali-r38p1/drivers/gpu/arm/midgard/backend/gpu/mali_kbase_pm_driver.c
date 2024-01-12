@@ -2333,7 +2333,7 @@ static void kbase_pm_timed_out(struct kbase_device *kbdev)
 #if MALI_USE_CSF
 	mtk_logbuffer_print(&kbdev->logbuf_exception,
 		"[%llxt] Power transition timed out (%d ms) unexpectedly\n",
-		mtk_logbuffer_get_timestamp(kbdev),
+		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
 		RESET_TIMEOUT);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	mtk_logbuffer_print(&kbdev->logbuf_exception,
@@ -3155,7 +3155,7 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"[%llxt] GPU soft reset completed\n",
-			mtk_logbuffer_get_timestamp(kbdev));
+			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return 0;
 	}
@@ -3172,7 +3172,7 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"[%llxt] Reset interrupt didn't reach CPU. Check interrupt assignments\n",
-			mtk_logbuffer_get_timestamp(kbdev));
+			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
@@ -3214,7 +3214,7 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"[%llxt] Failed to soft-reset GPU (timed out after %d ms), now attempting a hard reset\n",
-			mtk_logbuffer_get_timestamp(kbdev),
+			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
 			RESET_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		KBASE_KTRACE_ADD(kbdev, CORE_GPU_HARD_RESET, NULL, 0);
@@ -3237,7 +3237,7 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 			mtk_logbuffer_print(&kbdev->logbuf_exception,
 				"[%llxt] GPU hard reset completed\n",
-				mtk_logbuffer_get_timestamp(kbdev));
+				mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			return 0;
 		}
@@ -3249,7 +3249,7 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"[%llxt] Failed to hard-reset the GPU (timed out after %d ms)\n",
-			mtk_logbuffer_get_timestamp(kbdev),
+			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
 			RESET_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #ifdef CONFIG_MALI_ARBITER_SUPPORT

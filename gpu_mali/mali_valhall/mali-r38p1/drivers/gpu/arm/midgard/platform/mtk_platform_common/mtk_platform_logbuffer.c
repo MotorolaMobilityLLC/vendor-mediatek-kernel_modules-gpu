@@ -77,14 +77,14 @@ int mtk_logbuffer_procfs_term(struct kbase_device *kbdev, struct proc_dir_entry 
 }
 #endif
 
-u64 mtk_logbuffer_get_timestamp(struct kbase_device *kbdev)
+u64 mtk_logbuffer_get_timestamp(struct kbase_device *kbdev, struct mtk_logbuffer_info *logbuf)
 {
 	u64 val;
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
 	enum kbase_mcu_state mcu_state;
 #endif
 
-	if (IS_ERR_OR_NULL(kbdev))
+	if (IS_ERR_OR_NULL(kbdev) || !logbuf->has_timestamp)
 		return 0;
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
@@ -258,8 +258,8 @@ void mtk_logbuffer_dump(struct mtk_logbuffer_info *logbuf, struct seq_file *seq)
 }
 
 static void mtk_logbuffer_init_internal(struct kbase_device *kbdev, struct mtk_logbuffer_info *logbuf,
-                                        uint8_t *rmem_virt, size_t rmem_size, size_t offset,
-                                        size_t size, bool is_circular, const char *name)
+                                        uint8_t *rmem_virt, size_t rmem_size, size_t offset, size_t size,
+                                        bool is_circular, bool has_timestamp, const char *name)
 {
 	logbuf->fallback = (!rmem_virt || size > rmem_size) ? true : false;
 
@@ -269,6 +269,7 @@ static void mtk_logbuffer_init_internal(struct kbase_device *kbdev, struct mtk_l
 		logbuf->head = 0;
 		logbuf->name[0] = '\0';
 		logbuf->is_circular = is_circular;
+		logbuf->has_timestamp = has_timestamp;
 		logbuf->size = size;
 
 		if (!logbuf->fallback)
@@ -344,6 +345,7 @@ int mtk_logbuffer_init(struct kbase_device *kbdev)
 	                            0                            /* offset */,
 	                            (size_t)logbuf_size          /* size */,
 	                            true                         /* is_circular */,
+	                            true                         /* has_timestamp */,
 	                            "logbuf_regular"             /* name */);
 	rmem_remaining_size -= logbuf_size;
 
@@ -356,6 +358,7 @@ int mtk_logbuffer_init(struct kbase_device *kbdev)
 	                            1024 * 1536                  /* offset */,
 	                            (size_t)logbuf_size          /* size */,
 	                            false                        /* is_circular */,
+	                            false                        /* has_timestamp */,
 	                            "logbuf_exception"           /* name */);
 	rmem_remaining_size -= logbuf_size;
 

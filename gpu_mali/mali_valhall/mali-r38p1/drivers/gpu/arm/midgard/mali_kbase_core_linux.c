@@ -1739,7 +1739,7 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
 		"[%llxt] internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u\n",
-		mtk_logbuffer_get_timestamp(kctx->kbdev),
+		mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
 		fence_wait->time_in_microseconds,
 		fence_wait->flags,
 		fence_wait->pid);

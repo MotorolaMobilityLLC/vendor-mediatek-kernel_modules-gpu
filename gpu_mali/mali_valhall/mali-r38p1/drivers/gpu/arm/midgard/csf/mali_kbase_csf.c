@@ -687,7 +687,7 @@ void kbase_csf_queue_terminate(struct kbase_context *kctx,
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"[%llxt] Unsuccessful GPU reset detected when terminating queue (buffer_addr=0x%.16llx), attempting to terminate regardless\n",
-			mtk_logbuffer_get_timestamp(kbdev),
+			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
 			term->buffer_gpu_addr);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -1647,7 +1647,7 @@ void kbase_csf_queue_group_terminate(struct kbase_context *kctx,
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"[%llxt] Unsuccessful GPU reset detected when terminating group %d, attempting to terminate regardless\n",
-			mtk_logbuffer_get_timestamp(kbdev),
+			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
 			group_handle);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -2348,7 +2348,7 @@ handle_fault_event(struct kbase_queue *const queue,
 			"CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
 			"CS_FAULT.EXCEPTION_DATA: 0x%x\n"
 			"CS_FAULT_INFO.EXCEPTION_DATA: 0x%llx\n",
-			mtk_logbuffer_get_timestamp(kbdev),
+			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
 			queue->kctx->tgid, queue->kctx->id, queue->group->handle,
 			queue->group->csg_nr, queue->csi_index,
 			cs_fault_exception_type,
@@ -2427,7 +2427,7 @@ static void fatal_event_worker(struct work_struct *const data)
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"[%llxt] Unsuccessful GPU reset detected when terminating group to handle fatal event, attempting to terminate regardless\n",
-			mtk_logbuffer_get_timestamp(kbdev));
+			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
@@ -2444,7 +2444,7 @@ static void fatal_event_worker(struct work_struct *const data)
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"[%llxt] queue not bound when handling fatal event\n",
-			mtk_logbuffer_get_timestamp(kbdev));
+			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
@@ -2513,7 +2513,7 @@ handle_fatal_event(struct kbase_queue *const queue,
 		"CS_FATAL.EXCEPTION_TYPE: 0x%x (%s)\n"
 		"CS_FATAL.EXCEPTION_DATA: 0x%x\n"
 		"CS_FATAL_INFO.EXCEPTION_DATA: 0x%llx\n",
-		mtk_logbuffer_get_timestamp(kbdev),
+		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
 		queue->kctx->tgid, queue->kctx->id, queue->group->handle,
 		queue->group->csg_nr, queue->csi_index,
 		cs_fatal_exception_type,
@@ -2670,7 +2670,7 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 					mtk_logbuffer_print(&kbdev->logbuf_exception,
 						"[%llxt]%s %d:OoM event have been already queued",
-						mtk_logbuffer_get_timestamp(kbdev), __func__, __LINE__);
+						mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception), __func__, __LINE__);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 					release_queue(queue);
@@ -2845,7 +2845,7 @@ static void process_csg_interrupts(struct kbase_device *const kbdev, int const c
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"[%llxt] Iterator PROGRESS_TIMER timeout notification received for group %u of ctx %d_%d on slot %d\n",
-			mtk_logbuffer_get_timestamp(kbdev),
+			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
 			group->handle, group->kctx->tgid, group->kctx->id, csg_nr);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -3280,7 +3280,7 @@ void kbase_process_csg_retry_job_irq(struct kbase_context *kctx, unsigned long t
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 			mtk_logbuffer_print(&kbdev->logbuf_exception,
 				"[%llxt] try to recover csg %d (tgid %d) redo job irq handler after waiting fence %lu(ms)\n",
-				mtk_logbuffer_get_timestamp(kbdev),
+				mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
 				csg_nr, kctx->tgid, time_in_ms);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 

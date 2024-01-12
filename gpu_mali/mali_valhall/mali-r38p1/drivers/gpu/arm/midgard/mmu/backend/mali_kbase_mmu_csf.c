@@ -138,7 +138,7 @@ void kbase_mmu_report_mcu_as_fault_and_reset(struct kbase_device *kbdev,
 		"exception type 0x%X: %s\n"
 		"access type 0x%X: %s\n"
 		"source id 0x%X\n",
-		mtk_logbuffer_get_timestamp(kbdev),
+		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
 		fault->addr,
 		fault->status,
 		exception_type, kbase_gpu_exception_name(exception_type),
@@ -204,7 +204,7 @@ void kbase_gpu_report_bus_fault_and_kill(struct kbase_context *kctx,
 		"access type 0x%X: %s\n"
 		"source id 0x%X\n"
 		"pid: %d\n",
-		mtk_logbuffer_get_timestamp(kbdev),
+		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
 		as_no, fault->addr,
 		addr_valid,
 		status,
@@ -300,7 +300,7 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 		"access type 0x%X: %s\n"
 		"source id 0x%X\n"
 		"pid: %d\n",
-		mtk_logbuffer_get_timestamp(kbdev),
+		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
 		as_no, fault->addr,
 		reason_str,
 		status,
