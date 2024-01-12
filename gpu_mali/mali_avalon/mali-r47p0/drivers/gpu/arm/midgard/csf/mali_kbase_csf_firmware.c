@@ -2317,7 +2317,7 @@ int kbase_csf_firmware_early_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_GLB_PWROFF_TIMEOUT)
 	struct device_node *node;
 	int gpu_glb_time = DEFAULT_GLB_PWROFF_TIMEOUT_NS;
-	u32 modifier = 0;
+	u32 no_modifier = 0;
 #endif
 
 	init_waitqueue_head(&kbdev->csf.event_wait);
@@ -2339,12 +2339,12 @@ int kbase_csf_firmware_early_init(struct kbase_device *kbdev)
 			kbdev->csf.mcu_core_pwroff_dur_ns = gpu_glb_time * 1000;
 
 		kbdev->csf.mcu_core_pwroff_dur_count = convert_dur_to_core_pwroff_count(
-				kbdev, gpu_glb_time * 1000, &modifier);
-		kbdev->csf.mcu_core_pwroff_dur_count_modifier = modifier;
+				kbdev, gpu_glb_time * 1000, &no_modifier);
+		kbdev->csf.mcu_core_pwroff_dur_count_no_modifier = no_modifier;
 	}
 	dev_info(
 			kbdev->dev,
-			"Core Off: %dns\n", kbdev->csf.mcu_core_pwroff_dur_ns);
+			"Core Off: %lluns\n", kbdev->csf.mcu_core_pwroff_dur_ns);
 #endif
 
 	INIT_LIST_HEAD(&kbdev->csf.firmware_interfaces);
