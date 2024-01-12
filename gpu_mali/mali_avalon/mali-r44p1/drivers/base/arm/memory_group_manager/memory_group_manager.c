@@ -1042,6 +1042,7 @@ static void example_mgm_free_page(
 		spin_lock(&data->MGMFree_lst_lk);
 		if (order == 0) {
 			if (data->nr_rank[0][i] < data->max_pool[0]) {
+				clear_highpage(page);
 				list_add(&page->lru, &data->free_list_r[0][i]);
 				data->nr_rank[0][i]++;
 			} else  {
@@ -1050,6 +1051,7 @@ static void example_mgm_free_page(
 			}
 		} else if (order == 9) {
 			if (data->nr_rank[1][i] < (data->max_pool[1] >> 9)) {
+				clear_highpage(page);
 				list_add(&page->lru, &data->free_list_r[1][i]);
 				data->nr_rank[1][i]++;
 			} else {
