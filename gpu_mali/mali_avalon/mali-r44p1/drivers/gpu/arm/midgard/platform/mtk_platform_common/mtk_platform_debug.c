@@ -2338,8 +2338,6 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 		dump_iterator_registers(kbdev);
 
 		kbase_csf_firmware_ping_wait(kbdev, 10);  //ping FW
-
-		aee_kernel_warning("GPU_RECOVERY", "\nCRDISPATCH_KEY:GPU_RECOVERY\nresource to reset");
 	}
 #endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG */
 
