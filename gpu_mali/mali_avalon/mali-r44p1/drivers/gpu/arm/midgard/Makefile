@@ -52,7 +52,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_KE_DUMP_FWLOG := y
         CONFIG_MALI_MTK_CM7_TRACE := y
         CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG := y
-        CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME := y
+        CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME := n
         CONFIG_MALI_MTK_IRQ_TRACE := n
         CONFIG_MALI_MTK_GPU_IDLE_TEST := n
         CONFIG_MALI_MTK_ACP_DSU_REQ := n
@@ -106,11 +106,11 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_KE_DUMP_FWLOG := y
         CONFIG_MALI_MTK_CM7_TRACE := y
         CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG := y
-        CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME := y
+        CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME := n
         CONFIG_MALI_MTK_IRQ_TRACE := n
         CONFIG_MALI_MTK_GPU_IDLE_TEST := n
         CONFIG_MALI_MTK_ACP_DSU_REQ := y
-        CONFIG_MALI_MTK_GLB_PWROFF_TIMEOUT:= y
+        CONFIG_MALI_MTK_GLB_PWROFF_TIMEOUT:= n
         CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING := y
         CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING := y
         CONFIG_MALI_MTK_MGMM := y
@@ -193,7 +193,7 @@ ccflags-y += -I$(KO_CODE_PATH)/include
 subdir-ccflags-y += -I$(KO_CODE_PATH)/include
 
 # Driver version string which is returned to userspace via an ioctl
-MALI_RELEASE_NAME ?= '"r44p1-00dev2"'
+MALI_RELEASE_NAME ?= '"r44p1-01eac0"'
 # Set up defaults if not defined by build system
 ifeq ($(CONFIG_MALI_DEBUG), y)
     MALI_UNIT_TEST = 1

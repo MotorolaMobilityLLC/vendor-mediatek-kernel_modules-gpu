@@ -3234,7 +3234,6 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 	do {
 		unsigned long flags;
 		u32 csg_interrupts = val & ~JOB_IRQ_GLOBAL_IF;
-		struct irq_idle_and_protm_track track = { .protm_grp = NULL, .idle_seq = U32_MAX };
 		bool glb_idle_irq_received = false;
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
 		ktime_t spin_start;
@@ -3256,6 +3255,9 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 		mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 2);
 #endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 		if (csg_interrupts != 0) {
+			struct irq_idle_and_protm_track track = { .protm_grp = NULL,
+								  .idle_seq = U32_MAX,
+								  .idle_slot = S8_MAX };
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
 			spin_start = ktime_get();
 			kbase_csf_scheduler_spin_lock(kbdev, &flags);

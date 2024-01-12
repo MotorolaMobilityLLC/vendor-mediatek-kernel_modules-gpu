@@ -943,10 +943,14 @@ struct kbase_mmu_debug_info {
  *                         to the GPU device. This points to an internal memory
  *                         group manager if no platform-specific memory group
  *                         manager was retrieved through device tree.
+ * @mmu_unresponsive:      Flag to indicate MMU is not responding.
+ *                         Set if a MMU command isn't completed within
+ *                         &kbase_device:mmu_or_gpu_cache_op_wait_time_ms.
+ *                         Clear by kbase_ctx_sched_restore_all_as() after GPU reset completes.
  * @as:                    Array of objects representing address spaces of GPU.
- * @as_free:               Bitpattern of free/available GPU address spaces.
  * @as_to_kctx:            Array of pointers to struct kbase_context, having
  *                         GPU adrress spaces assigned to them.
+ * @as_free:               Bitpattern of free/available GPU address spaces.
  * @mmu_mask_change:       Lock to serialize the access to MMU interrupt mask
  *                         register used in the handling of Bus & Page faults.
  * @pagesize_2mb:          Boolean to determine whether 2MiB page sizes are
@@ -1246,9 +1250,10 @@ struct kbase_device {
 
 	struct memory_group_manager_device *mgm_dev;
 
+	bool mmu_unresponsive;
 	struct kbase_as as[BASE_MAX_NR_AS];
-	u16 as_free;
 	struct kbase_context *as_to_kctx[BASE_MAX_NR_AS];
+	u16 as_free;
 
 	spinlock_t mmu_mask_change;
 

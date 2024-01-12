@@ -779,7 +779,7 @@ void kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev)
 			 * updated whilst gpu_idle_worker() is executing.
 			 */
 			scheduler->fast_gpu_idle_handling =
-				(kbdev->csf.gpu_idle_hysteresis_us == 0) ||
+				(kbdev->csf.gpu_idle_hysteresis_ns == 0) ||
 				!kbase_csf_scheduler_all_csgs_idle(kbdev);
 
 			/* The GPU idle worker relies on update_on_slot_queues_offsets() to have

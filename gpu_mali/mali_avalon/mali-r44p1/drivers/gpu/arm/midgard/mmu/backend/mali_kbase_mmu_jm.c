@@ -438,7 +438,6 @@ int kbase_mmu_as_init(struct kbase_device *kbdev, unsigned int i)
 	kbdev->as[i].number = i;
 	kbdev->as[i].bf_data.addr = 0ULL;
 	kbdev->as[i].pf_data.addr = 0ULL;
-	kbdev->as[i].is_unresponsive = false;
 
 	kbdev->as[i].pf_wq = alloc_workqueue("mali_mmu%u", 0, 0, i);
 	if (!kbdev->as[i].pf_wq)
