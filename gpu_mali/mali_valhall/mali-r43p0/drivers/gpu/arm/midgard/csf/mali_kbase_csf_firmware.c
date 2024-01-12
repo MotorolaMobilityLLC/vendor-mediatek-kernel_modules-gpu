@@ -2065,6 +2065,26 @@ u32 kbase_csf_firmware_set_gpu_idle_hysteresis_time(struct kbase_device *kbdev, 
 	unsigned long flags;
 	const u32 hysteresis_val = convert_dur_to_idle_count(kbdev, dur);
 
+#if MALI_USE_CSF && IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_TEST)
+	/* skip idle set if dur is no change */
+	if(kbdev->csf.gpu_idle_hysteresis_us == dur) {
+		dev_vdbg(kbdev->dev,
+			"no need to set because dur is no change");
+		return kbdev->csf.gpu_idle_dur_count;
+	}
+	/* check CSF ready, avoid gpu hang on other boot flow */
+	if (IS_ERR_OR_NULL(kbdev->csf.global_iface.input)) {
+		dev_vdbg(kbdev->dev,
+			"Unable to set gpu_idle_hysteresis_time, no csf input");
+		return kbdev->csf.gpu_idle_dur_count;
+	}
+	if (IS_ERR_OR_NULL(kbdev->csf.global_iface.output)) {
+		dev_vdbg(kbdev->dev,
+			"Unable to set gpu_idle_hysteresis_time, no csf output");
+		return kbdev->csf.gpu_idle_dur_count;
+	}
+#endif
+
 	/* The 'fw_load_lock' is taken to synchronize against the deferred
 	 * loading of FW, where the idle timer will be enabled.
 	 */
