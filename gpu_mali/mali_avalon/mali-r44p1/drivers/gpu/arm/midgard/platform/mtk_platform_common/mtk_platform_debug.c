@@ -957,13 +957,13 @@ static int mtk_debug_cs_mem_dump_linear(struct kbase_device *kbdev,
 			if (buffer_end & ~PAGE_MASK) {
 				mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
 						"%016llx: size of linear buffer > 1 pages, dump from 0x%016llx",
-						buffer, buffer_end & PAGE_SIZE);
+						buffer, buffer_end & PAGE_MASK);
 				ret = mtk_debug_cs_mem_dump(kbdev, queue_mem, rf,
-					depth, buffer_end & PAGE_SIZE, buffer_end, skippable);
+					depth, buffer_end & PAGE_MASK, buffer_end, skippable);
 				if (ret != 0) {
 					mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
 						"%016llx: mtk_debug_cs_mem_dump failed (%d,%llx,%llx,%d)!",
-						buffer, depth, buffer_end & PAGE_SIZE, buffer_end, skippable);
+						buffer, depth, buffer_end & PAGE_MASK, buffer_end, skippable);
 					return ret;
 				}
 			} else {
@@ -990,11 +990,11 @@ static int mtk_debug_cs_mem_dump_linear(struct kbase_device *kbdev,
 			}
 		}
 	} else {
-		if (size > 16 * PAGE_SIZE) {
-			/* dump first 16 pages */
+		if (size > 32 * PAGE_SIZE) {
+			/* dump first 32 pages */
 			mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
-					"%016llx: size of linear buffer > 16 pages", buffer);
-			size = 16 * PAGE_SIZE;
+					"%016llx: size of linear buffer > 32 pages", buffer);
+			size = 32 * PAGE_SIZE;
 			ret = mtk_debug_cs_mem_dump(kbdev, queue_mem, rf,
 				depth, buffer, (buffer + size) & PAGE_MASK, skippable);
 			memset(rf, 0, sizeof(*rf));
@@ -1479,6 +1479,11 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 		struct kbase_csf_cmd_stream_info const *const stream = &ginfo->streams[queue->csi_index];
 		u64 cmd_ptr;
 		u32 req_res;
+
+		if (!stream) {
+			mtk_log_all(queue->kctx->kbdev, true, "[%d_%d] stream is NULL!", tgid, id);
+			return;
+		}
 
 		cmd_ptr = kbase_csf_firmware_cs_output(stream, CS_STATUS_CMD_PTR_LO);
 		cmd_ptr |= (u64)kbase_csf_firmware_cs_output(stream, CS_STATUS_CMD_PTR_HI) << 32;
