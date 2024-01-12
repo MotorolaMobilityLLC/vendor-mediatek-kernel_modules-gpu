@@ -158,7 +158,7 @@ static int mtk_common_gpu_memory_show(struct seq_file *m, void *v)
 		seq_printf(m, "%-16s  %10u\n",
 				kbdev->devname,
 				atomic_read(&(kbdev->memdev.used_pages)));
-		mutex_lock(&kbdev->kctx_list_lock);
+
 		list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
 			/* output the memory usage and cap for each kctx
 			* opened on this device
@@ -169,7 +169,6 @@ static int mtk_common_gpu_memory_show(struct seq_file *m, void *v)
 				atomic_read(&(kctx->used_pages)),
 				kctx->tgid);
 		}
-		mutex_unlock(&kbdev->kctx_list_lock);
 	}
 	kbase_device_put_list(kbdev_list);
 #else
