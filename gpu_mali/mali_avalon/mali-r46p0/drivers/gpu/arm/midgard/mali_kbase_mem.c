@@ -1276,7 +1276,14 @@ int kbase_alloc_phy_pages_helper(struct kbase_mem_phy_alloc *alloc, size_t nr_pa
 	kbdev = kctx->kbdev;
 
 	if (nr_pages_requested == 0)
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	{
+		kbase_trace_alloc_pages(kbdev->id, kctx, nr_pages_requested, (size_t)alloc->pages);
 		goto done; /*nothing to do*/
+	}
+#else
+		goto done; /*nothing to do*/
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 	/* Increase mm counters before we allocate pages so that this
 	 * allocation is visible to the OOM killer. The actual count
@@ -1285,6 +1292,11 @@ int kbase_alloc_phy_pages_helper(struct kbase_mem_phy_alloc *alloc, size_t nr_pa
 	 * requested.
 	 */
 	new_page_count = mem_account_inc(kctx, nr_pages_requested);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kbase_trace_alloc_pages(kbdev->id, kctx, nr_pages_requested, (size_t)alloc->pages);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
 	curr_apc = *apc;
 #else /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
@@ -1444,6 +1456,11 @@ no_new_partial:
 	else if (nr_pages_to_account < nr_pages_requested)
 		new_page_count = mem_account_dec(kctx, nr_pages_requested - nr_pages_to_account);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	if (nr_pages_to_account != nr_pages_requested)
+		kbase_trace_update_pages(kbdev->id, kctx, nr_pages_requested, nr_pages_to_account, (size_t)alloc->pages);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
+
 	KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
 
 done:
@@ -1480,6 +1497,10 @@ alloc_failed:
 	 * because memory allocation was rolled back.
 	 */
 	mem_account_dec(kctx, nr_left);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kbase_trace_free_pages(kbdev->id, kctx, nr_left, (size_t)alloc->pages);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 invalid_request:
 	return -ENOMEM;
@@ -1593,7 +1614,14 @@ struct tagged_addr *kbase_alloc_phy_pages_helper_locked(struct kbase_mem_phy_all
 	lockdep_assert_held(&kctx->mem_partials_lock);
 
 	if (nr_pages_requested == 0)
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	{
+		kbase_trace_alloc_pages(kbdev->id, kctx, nr_pages_requested, (size_t)alloc->pages);
 		goto done; /*nothing to do*/
+	}
+#else
+		goto done; /*nothing to do*/
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 	/* Increase mm counters before we allocate pages so that this
 	 * allocation is visible to the OOM killer. The actual count
@@ -1602,6 +1630,11 @@ struct tagged_addr *kbase_alloc_phy_pages_helper_locked(struct kbase_mem_phy_all
 	 * requested.
 	 */
 	new_page_count = mem_account_inc(kctx, nr_pages_requested);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kbase_trace_alloc_pages(kbdev->id, kctx, nr_pages_requested, (size_t)alloc->pages);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
 	curr_apc = *apc;
 	new_pages = alloc->pages + alloc->nents;
@@ -1735,6 +1768,11 @@ struct tagged_addr *kbase_alloc_phy_pages_helper_locked(struct kbase_mem_phy_all
 	else if (nr_pages_to_account < nr_pages_requested)
 		new_page_count = mem_account_dec(kctx, nr_pages_requested - nr_pages_to_account);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	if (nr_pages_to_account != nr_pages_requested)
+		kbase_trace_update_pages(kbdev->id, kctx, nr_pages_requested, nr_pages_to_account, (size_t)alloc->pages);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
+
 	KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
 
 	alloc->nents += nr_pages_requested;
@@ -1790,6 +1828,10 @@ alloc_failed:
 	 * of the pages accounted for at the top of the function.
 	 */
 	mem_account_dec(kctx, nr_pages_requested);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kbase_trace_free_pages(kbdev->id, kctx, nr_pages_requested, (size_t)alloc->pages);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 invalid_request:
 	return NULL;
@@ -1900,6 +1942,11 @@ int kbase_free_phy_pages_helper(struct kbase_mem_phy_alloc *alloc, size_t nr_pag
 		 * need to be accounted.
 		 */
 		new_page_count = mem_account_dec(kctx, nr_pages_to_account);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+		kbase_trace_free_pages(kbdev->id, kctx, nr_pages_to_account, (size_t)alloc->pages);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
+
 		KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
 	} else if (freed != nr_pages_to_account) {
 		/* If the allocation was reclaimed then alloc->nents pages
@@ -1913,6 +1960,11 @@ int kbase_free_phy_pages_helper(struct kbase_mem_phy_alloc *alloc, size_t nr_pag
 			new_page_count = mem_account_inc(kctx, freed - nr_pages_to_account);
 		else
 			new_page_count = mem_account_dec(kctx, nr_pages_to_account - freed);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+		kbase_trace_update_pages(kbdev->id, kctx, freed, nr_pages_to_account, (size_t)alloc->pages);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
+
 		KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
 	}
 
@@ -2002,6 +2054,11 @@ void kbase_free_phy_pages_helper_locked(struct kbase_mem_phy_alloc *alloc,
 	alloc->nents -= freed;
 
 	new_page_count = mem_account_dec(kctx, nr_pages_to_account);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kbase_trace_free_pages(kbdev->id, kctx, nr_pages_to_account, (size_t)alloc->pages);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
+
 	KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
 }
 KBASE_EXPORT_TEST_API(kbase_free_phy_pages_helper_locked);
