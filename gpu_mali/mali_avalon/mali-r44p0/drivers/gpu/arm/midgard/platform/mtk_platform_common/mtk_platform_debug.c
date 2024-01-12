@@ -1941,10 +1941,6 @@ static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int tim
 
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
 	if (timeouts > 3000) {
-		spin_lock(&kbdev->reset_force_change);
-		kbdev->reset_force_evict_group_work = true;
-		spin_unlock(&kbdev->reset_force_change);
-
 #if !MALI_USE_CSF
 		/*
 		 * While holding the struct kbase_jd_context lock clean up jobs which are known to kbase but are
