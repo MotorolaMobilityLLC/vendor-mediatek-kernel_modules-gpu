@@ -19,6 +19,7 @@
  *
  */
 
+#include <linux/version.h>
 #include <tl/mali_kbase_tracepoints.h>
 
 #include "mali_kbase_csf_tiler_heap.h"
@@ -1375,7 +1376,11 @@ void kbase_csf_tiler_heap_register_shrinker(struct kbase_device *kbdev)
 	reclaim->seeks = HEAP_SHRINKER_SEEKS;
 	reclaim->batch = HEAP_SHRINKER_BATCH;
 
+#if (KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE)
+	register_shrinker(reclaim, "");
+#else
 	register_shrinker(reclaim);
+#endif
 }
 
 void kbase_csf_tiler_heap_unregister_shrinker(struct kbase_device *kbdev)

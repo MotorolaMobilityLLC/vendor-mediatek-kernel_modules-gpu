@@ -16,11 +16,11 @@ static u64 g_diagnosis_mode = 0;
 static u64 g_diagnosis_dump_mask = 0x0000000000000000;
 static int g_enable_diagnosis_node = 0;
 
-u64 mtk_diagnosis_mode_get_mode() {
+u64 mtk_diagnosis_mode_get_mode(void) {
 	return g_diagnosis_mode;
 }
 
-u64 mtk_diagnosis_mode_get_dump_mask() {
+u64 mtk_diagnosis_mode_get_dump_mask(void) {
 	return g_diagnosis_dump_mask;
 }
 

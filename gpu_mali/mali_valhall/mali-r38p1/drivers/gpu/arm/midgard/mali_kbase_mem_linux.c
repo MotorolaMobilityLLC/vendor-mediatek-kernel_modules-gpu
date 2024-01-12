@@ -809,7 +809,11 @@ int kbase_mem_evictable_init(struct kbase_context *kctx)
 	 * struct shrinker does not define batch
 	 */
 	kctx->reclaim.batch = 0;
+#if (KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE)
+	register_shrinker(&kctx->reclaim,"");
+#else
 	register_shrinker(&kctx->reclaim);
+#endif
 	return 0;
 }
 

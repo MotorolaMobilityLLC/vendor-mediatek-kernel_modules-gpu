@@ -455,6 +455,22 @@ int assign_irqs(struct kbase_device *kbdev)
 		return -ENODEV;
 
 	pdev = to_platform_device(kbdev->dev);
+
+#if (KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE)
+	/* 3 IRQ resources */
+	for (i = 0; i < 3; i++) {
+		int irqtag;
+		int irq;
+		irq = platform_get_irq(pdev, i);
+		if (irq < 0) {
+			dev_err(kbdev->dev, "No IRQ resource at index %d\n", i);
+			return -ENOENT;
+		}
+		irqtag = i;
+		kbdev->irqs[irqtag].irq = irq;
+		kbdev->irqs[irqtag].flags = IORESOURCE_IRQ & IRQF_TRIGGER_MASK;
+	}
+#else
 	/* 3 IRQ resources */
 	for (i = 0; i < 3; i++) {
 		struct resource *irq_res;
@@ -484,6 +500,7 @@ int assign_irqs(struct kbase_device *kbdev)
 		kbdev->irqs[irqtag].irq = irq_res->start;
 		kbdev->irqs[irqtag].flags = irq_res->flags & IRQF_TRIGGER_MASK;
 	}
+#endif /* KERNEL_VERSION(6, 0, 0) */
 
 	return 0;
 }
@@ -4786,7 +4803,16 @@ int power_control_init(struct kbase_device *kbdev)
 	 * from completing its initialization.
 	 */
 #if defined(CONFIG_PM_OPP)
-#if ((KERNEL_VERSION(4, 10, 0) <= LINUX_VERSION_CODE) && \
+#if (KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE)
+	if (kbdev->nr_regulators > 0) {
+		err = dev_pm_opp_set_regulators(kbdev->dev,
+			regulator_names);
+
+		if (err < 0) {
+			goto regulators_probe_defer;
+		}
+	}
+#elif ((KERNEL_VERSION(4, 10, 0) <= LINUX_VERSION_CODE) && \
 	defined(CONFIG_REGULATOR))
 	if (kbdev->nr_regulators > 0) {
 		kbdev->opp_table = dev_pm_opp_set_regulators(kbdev->dev,
@@ -4832,7 +4858,10 @@ void power_control_term(struct kbase_device *kbdev)
 
 #if defined(CONFIG_PM_OPP)
 	dev_pm_opp_of_remove_table(kbdev->dev);
-#if ((KERNEL_VERSION(4, 10, 0) <= LINUX_VERSION_CODE) && \
+#if (KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE)
+	if (kbdev->nr_regulators > 0)
+		dev_pm_opp_put_regulators(kbdev->nr_regulators);
+#elif ((KERNEL_VERSION(4, 10, 0) <= LINUX_VERSION_CODE) && \
 	defined(CONFIG_REGULATOR))
 	if (!IS_ERR_OR_NULL(kbdev->opp_table))
 		dev_pm_opp_put_regulators(kbdev->opp_table);
