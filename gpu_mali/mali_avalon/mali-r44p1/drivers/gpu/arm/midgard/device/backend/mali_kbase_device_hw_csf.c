@@ -33,6 +33,10 @@
 #endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 #include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 /**
  * kbase_report_gpu_fault - Report a GPU fault of the device.
  *
@@ -74,14 +78,23 @@ static void kbase_gpu_fault_interrupt(struct kbase_device *kbdev)
 			kbase_report_gpu_fault(kbdev, status, as_nr, as_valid);
 
 			dev_err(kbdev->dev, "GPU bus fault triggering gpu-reset ...\n");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"GPU bus fault triggering gpu-reset ...\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			if (kbase_prepare_to_reset_gpu(
 				    kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
 				kbase_reset_gpu(kbdev);
 		} else {
 			/* Handle Bus fault */
-			if (kbase_mmu_bus_fault_interrupt(kbdev, status, as_nr))
+			if (kbase_mmu_bus_fault_interrupt(kbdev, status, as_nr)) {
 				dev_warn(kbdev->dev,
 					 "fail to handle GPU bus fault ...\n");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+				mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+					"fail to handle GPU bus fault ...\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+			}
 		}
 	} else
 		kbase_report_gpu_fault(kbdev, status, as_nr, as_valid);
@@ -114,6 +127,10 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 		unsigned long flags;
 
 		dev_err_ratelimited(kbdev->dev, "GPU fault in protected mode");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			 "GPU fault in protected mode\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 		/* Mask the protected fault interrupt to avoid the potential
 		 * deluge of such interrupts. It will be unmasked on GPU reset.
