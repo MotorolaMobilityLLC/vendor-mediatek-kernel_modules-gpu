@@ -867,7 +867,6 @@ int kbase_ipa_control_query(struct kbase_device *kbdev, const void *client,
 		/* Return all the accumulated difference */
 		values[i] = prfcnt->accumulated_diff;
 		prfcnt->accumulated_diff = 0;
-		values[i + session->num_prfcnts] = prfcnt->accumulated_raw_diff;
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 		values[i + session->num_prfcnts] = prfcnt->accumulated_raw_diff;
