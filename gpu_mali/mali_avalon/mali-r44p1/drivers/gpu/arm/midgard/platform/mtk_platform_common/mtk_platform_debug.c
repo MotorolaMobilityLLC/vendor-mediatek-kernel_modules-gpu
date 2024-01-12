@@ -227,6 +227,37 @@ void mtk_debug_dump_pm_status(struct kbase_device *kbdev)
 			 kbdev->pm.backend.poweroff_wait_in_progress,
 			 kbdev->pm.backend.invoke_poweroff_wait_wq_when_l2_off,
 			 kbdev->pm.backend.poweron_required);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		"[CSF] firmware_inited=%d firmware_reloaded=%d firmware_reload_needed=%d interrupt_received=%d",
+			 kbdev->csf.firmware_inited,
+			 kbdev->csf.firmware_reloaded,
+			 kbdev->csf.firmware_reload_needed,
+			 kbdev->csf.interrupt_received);
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		"[CSF] firmware_hctl_core_pwr=%d glb_init_request_pending=%d scheduler.pm_active_count=%d",
+			 kbdev->csf.firmware_hctl_core_pwr,
+			 kbdev->csf.glb_init_request_pending,
+			 kbdev->csf.scheduler.pm_active_count);
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		"[PM] in_reset=%d reset_done=%d gpu_powered=%d gpu_ready=%d mcu_state=%s l2_state=%s mcu_desired=%d l2_desired=%d l2_always_on=%d",
+			 kbdev->pm.backend.in_reset,
+			 kbdev->pm.backend.reset_done,
+			 kbdev->pm.backend.gpu_powered,
+			 kbdev->pm.backend.gpu_ready,
+			 mtk_debug_mcu_state_to_string(kbdev->pm.backend.mcu_state),
+			 mtk_debug_l2_core_state_to_string(kbdev->pm.backend.l2_state),
+			 kbdev->pm.backend.mcu_desired,
+			 kbdev->pm.backend.l2_desired,
+			 kbdev->pm.backend.l2_always_on);
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		"[PM] hwcnt_desired=%d hwcnt_disabled=%d poweroff_wait_in_progress=%d invoke_poweroff_wait_wq_when_l2_off=%d poweron_required=%d",
+			 kbdev->pm.backend.hwcnt_desired,
+			 kbdev->pm.backend.hwcnt_disabled,
+			 kbdev->pm.backend.poweroff_wait_in_progress,
+			 kbdev->pm.backend.invoke_poweroff_wait_wq_when_l2_off,
+			 kbdev->pm.backend.poweron_required);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #else
 	dev_info(kbdev->dev, "[PM] in_reset=%d reset_done=%d gpu_powered=%d gpu_ready=%d shaders_state=%s l2_state=%s shaders_desired=%d l2_desired=%d l2_always_on=%d",
 			 kbdev->pm.backend.in_reset,
