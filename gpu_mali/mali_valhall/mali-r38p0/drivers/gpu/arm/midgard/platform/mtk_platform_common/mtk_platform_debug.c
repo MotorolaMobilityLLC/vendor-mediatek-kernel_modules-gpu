@@ -954,6 +954,7 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 	mutex_lock(&kbdev->kctx_list_lock);
 	{
 		struct kbase_context *kctx;
+		int ret;
 
 		list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
 			if (kctx->tgid == pid) {
@@ -1211,8 +1212,12 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 				dev_info(kbdev->dev, "[cpu_queue] CPU Queues table (version:v%u):", MALI_CSF_CPU_QUEUE_DEBUGFS_VERSION);
 				dev_info(kbdev->dev, "[cpu_queue] ##### Ctx %d_%d #####", kctx->tgid, kctx->id);
 
-				wait_for_completion_timeout(&kctx->csf.cpu_queue.dump_cmp,
-						msecs_to_jiffies(3000));
+				ret = wait_for_completion_timeout(&kctx->csf.cpu_queue.dump_cmp, msecs_to_jiffies(3000));
+				if (!ret) {
+					dev_info(kbdev->dev, "[%d_%d] Timeout waiting for dump completion", kctx->tgid, kctx->id);
+					mutex_unlock(&kbdev->kctx_list_lock);
+					return;
+				}
 
 				mutex_lock(&kctx->csf.lock);
 				kbase_csf_scheduler_lock(kbdev);
