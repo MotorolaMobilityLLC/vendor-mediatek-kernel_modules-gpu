@@ -857,6 +857,8 @@ static inline bool kbase_pm_mcu_is_in_desired_state(struct kbase_device *kbdev)
 {
 	bool in_desired_state = true;
 
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
 	if (kbase_pm_is_mcu_desired(kbdev) && kbdev->pm.backend.mcu_state != KBASE_MCU_ON)
 		in_desired_state = false;
 	else if (!kbase_pm_is_mcu_desired(kbdev) &&
