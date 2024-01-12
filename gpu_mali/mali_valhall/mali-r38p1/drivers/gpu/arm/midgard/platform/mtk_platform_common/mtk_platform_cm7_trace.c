@@ -40,12 +40,12 @@ static ssize_t etm_store(struct device * const dev,
 	if (kstrtouint(buf, 10, &g_etm) == 0) {
 		dev_info(kbdev->dev, "[ETB] etm set to %d\n\r", g_etm);
 	}
-
+#if IS_ENABLED(CONFIG_MTK_GPU_DIAGNOSIS_DEBUG)
 	if (g_etm)
 		enable_etb_for_gpu_mcu();
 	else
 		disable_etb_capture();
-
+#endif /*CONFIG_MTK_GPU_DIAGNOSIS_DEBUG*/
 	return count;
 }
 
