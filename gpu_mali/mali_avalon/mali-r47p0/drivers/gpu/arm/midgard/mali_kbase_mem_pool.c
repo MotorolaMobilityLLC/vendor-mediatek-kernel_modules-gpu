@@ -706,26 +706,26 @@ void kbase_mem_pool_free_locked(struct kbase_mem_pool *pool, struct page *p, boo
 }
 
 #if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
-int kbase_mem_pool_alloc_pages(struct kbase_mem_pool *pool, size_t nr_4k_pages,
+int kbase_mem_pool_alloc_pages(struct kbase_mem_pool *pool, size_t nr_small_pages,
 			       struct tagged_addr *pages, bool partial_allowed,
 			       struct task_struct *page_owner) {
-	INIT_ALLOC_PAGES_CTX(apc, nr_4k_pages, pages, NULL,
+	INIT_ALLOC_PAGES_CTX(apc, nr_small_pages, pages, NULL,
 			     pool->kbdev ? pool->kbdev->pt_clustering_enable : 0,
 			     pool->kbdev, NULL);
 	int ret;
 
-	trace_mali_alloc_req_size(nr_4k_pages);
-	ret = __kbase_mem_pool_alloc_pages(pool, nr_4k_pages,
+	trace_mali_alloc_req_size(nr_small_pages);
+	ret = __kbase_mem_pool_alloc_pages(pool, nr_small_pages,
 					   pages, partial_allowed,
 					   page_owner, &apc);
 
 	if (trace_mali_alloc_req_stats_enabled())
-		mtk_alloc_req_stats(pages, nr_4k_pages, &apc);
+		mtk_alloc_req_stats(pages, nr_small_pages, &apc);
 
 	return ret;
 }
 
-int __kbase_mem_pool_alloc_pages(struct kbase_mem_pool *pool, size_t nr_4k_pages,
+int __kbase_mem_pool_alloc_pages(struct kbase_mem_pool *pool, size_t nr_small_pages,
 				 struct tagged_addr *pages, bool partial_allowed,
 				 struct task_struct *page_owner,
 				 struct alloc_pages_ctx *apc)
@@ -801,7 +801,7 @@ int kbase_mem_pool_alloc_pages(struct kbase_mem_pool *pool, size_t nr_small_page
 	if (i != nr_small_pages && pool->next_pool) {
 		/* Allocate via next pool */
 #if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
-		err = __kbase_mem_pool_alloc_pages(pool->next_pool, nr_4k_pages - i, pages,
+		err = __kbase_mem_pool_alloc_pages(pool->next_pool, nr_small_pages - i, pages,
 						   partial_allowed, page_owner, apc);
 #else /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 		err = kbase_mem_pool_alloc_pages(pool->next_pool, nr_small_pages - i, pages + i,
@@ -883,25 +883,25 @@ err_rollback:
 
 #if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
 int kbase_mem_pool_alloc_pages_locked(struct kbase_mem_pool *pool,
-				      size_t nr_4k_pages,
+				      size_t nr_small_pages,
 				      struct tagged_addr *pages) {
-	INIT_ALLOC_PAGES_CTX(apc, nr_4k_pages, pages, NULL,
+	INIT_ALLOC_PAGES_CTX(apc, nr_small_pages, pages, NULL,
 			     pool->kbdev ? pool->kbdev->pt_clustering_enable : 0,
 			     pool->kbdev, NULL);
 	int ret;
 
-	trace_mali_alloc_req_size(nr_4k_pages);
-	ret = __kbase_mem_pool_alloc_pages_locked(pool, nr_4k_pages,
+	trace_mali_alloc_req_size(nr_small_pages);
+	ret = __kbase_mem_pool_alloc_pages_locked(pool, nr_small_pages,
 						  pages, &apc);
 
 	if (trace_mali_alloc_req_stats_enabled())
-		mtk_alloc_req_stats(pages, nr_4k_pages, &apc);
+		mtk_alloc_req_stats(pages, nr_small_pages, &apc);
 
 	return ret;
 }
 
 int __kbase_mem_pool_alloc_pages_locked(struct kbase_mem_pool *pool,
-					size_t nr_4k_pages,
+					size_t nr_small_pages,
 					struct tagged_addr *pages,
 					struct alloc_pages_ctx *apc)
 #else /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */

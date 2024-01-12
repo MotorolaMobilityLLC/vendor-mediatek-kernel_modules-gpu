@@ -1178,7 +1178,7 @@ int kbase_mem_pool_alloc_pages(struct kbase_mem_pool *pool, size_t nr_small_page
 			       struct tagged_addr *pages, bool partial_allowed,
 			       struct task_struct *page_owner);
 #if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
-int __kbase_mem_pool_alloc_pages(struct kbase_mem_pool *pool, size_t nr_4k_pages,
+int __kbase_mem_pool_alloc_pages(struct kbase_mem_pool *pool, size_t nr_small_pages,
 				 struct tagged_addr *pages, bool partial_allowed,
 				 struct task_struct *page_owner,
 				 struct alloc_pages_ctx *apc);
@@ -1225,7 +1225,7 @@ int kbase_mem_pool_alloc_pages_locked(struct kbase_mem_pool *pool, size_t nr_sma
 				      struct tagged_addr *pages);
 #if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
 int __kbase_mem_pool_alloc_pages_locked(struct kbase_mem_pool *pool,
-					size_t nr_4k_pages, struct tagged_addr *pages,
+					size_t nr_small_pages, struct tagged_addr *pages,
 					struct alloc_pages_ctx *apc);
 #endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 
