@@ -36,7 +36,7 @@
 #include <linux/ktime.h>
 #include <soc/mediatek/emi.h>
 #define MTK_EMI_DRAM_OFFSET 0x40000000
-#define PREFILL_TARGET (SZ_256M >> PAGE_SHIFT)
+#define PREFILL_TARGET (0)
 #define RANK_POOL_LIMIT (SZ_256M >> PAGE_SHIFT)
 #define X_GUARD (SZ_16M >> PAGE_SHIFT)
 #define REFILL_TARGET (X_GUARD << 1)
