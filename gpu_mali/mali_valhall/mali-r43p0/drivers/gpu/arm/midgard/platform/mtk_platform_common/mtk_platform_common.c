@@ -143,6 +143,81 @@ static void mtk_common_procfs_term(struct kbase_device *kbdev)
 }
 #endif /* CONFIG_PROC_FS */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SYSFS)
+void mtk_common_sysfs_init(struct kbase_device *kbdev)
+{
+	if (IS_ERR_OR_NULL(kbdev))
+		return;
+}
+
+void mtk_common_sysfs_term(struct kbase_device *kbdev)
+{
+	if (IS_ERR_OR_NULL(kbdev))
+		return;
+}
+#endif /* CONFIG_MALI_MTK_SYSFS */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS)
+static int mtk_debug_sleep_mode(struct seq_file *file, void *data)
+{
+	struct kbase_device *kbdev = file->private;
+	struct device_node *np;
+	u32 sleep_mode_enable = 0;
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return -1;
+
+	np = kbdev->dev->of_node;
+
+	if (!of_property_read_u32(np, "sleep-mode-enable", &sleep_mode_enable))
+		seq_printf(file, "Sleep mode: %s\n", (sleep_mode_enable) ? "enabled": "disabled");
+	else
+		seq_printf(file, "Sleep mode: No dts property setting, default disabled\n");
+
+	return 0;
+}
+
+static int mtk_sleep_mode_debugfs_open(struct inode *in, struct file *file)
+{
+	return single_open(file, mtk_debug_sleep_mode,
+	                   in->i_private);
+}
+
+static const struct file_operations mtk_sleep_mode_debugfs_fops = {
+	.open = mtk_sleep_mode_debugfs_open,
+	.read    = seq_read,
+	.llseek  = seq_lseek,
+	.release = single_release
+};
+
+int mtk_debug_sleep_mode_debugfs_init(struct kbase_device *kbdev)
+{
+	if (IS_ERR_OR_NULL(kbdev))
+		return -1;
+
+	debugfs_create_file("sleep_mode", 0440,
+		kbdev->mali_debugfs_directory, kbdev,
+		&mtk_sleep_mode_debugfs_fops);
+
+	return 0;
+}
+
+void mtk_common_debugfs_init(struct kbase_device *kbdev)
+{
+	if (IS_ERR_OR_NULL(kbdev))
+		return;
+
+	mtk_debug_sleep_mode_debugfs_init(kbdev);
+}
+
+#if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
+void mtk_common_csf_debugfs_init(struct kbase_device *kbdev)
+{
+	if (IS_ERR_OR_NULL(kbdev))
+		return;
+}
+#endif /* CONFIG_MALI_CSF_SUPPORT */
+#endif /* CONFIG_MALI_MTK_DEBUG_FS */
 
 int mtk_common_device_init(struct kbase_device *kbdev)
 {
