@@ -1375,14 +1375,18 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 			u64 offset = (start & size_mask) & ~PAGE_MASK;
 			struct page *page =
 				as_page(queue->queue_reg->gpu_alloc->pages[page_off]);
-			u64 *ringbuffer = kmap_atomic(page);
+			u64 *ringbuffer = vmap(&page, 1, VM_MAP, pgprot_noncached(PAGE_KERNEL));
 			u64 *ptr = &ringbuffer[offset/8];
 
-			mtk_log_critical_exception(queue->kctx->kbdev, true,
-				"%016llx %016llx %016llx %016llx %016llx %016llx %016llx %016llx",
-				ptr[0], ptr[1], ptr[2], ptr[3],	ptr[4], ptr[5], ptr[6], ptr[7]);
-
-			kunmap_atomic(ringbuffer);
+			if (!ringbuffer) {
+				mtk_log_critical_exception(queue->kctx->kbdev, true, "%s failed to map the buffer page for read a command!",
+					__func__);
+			} else {
+				mtk_log_critical_exception(queue->kctx->kbdev, true,
+					"%016llx %016llx %016llx %016llx %016llx %016llx %016llx %016llx",
+					ptr[0], ptr[1], ptr[2], ptr[3],	ptr[4], ptr[5], ptr[6], ptr[7]);
+				vunmap(ringbuffer);
+			}
 			start += (8 * instruction_size);
 		}
 	}
