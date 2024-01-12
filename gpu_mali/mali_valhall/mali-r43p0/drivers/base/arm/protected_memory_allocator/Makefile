@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 #
-# (C) COPYRIGHT 2021-2022 ARM Limited. All rights reserved.
+# (C) COPYRIGHT 2019-2021 ARM Limited. All rights reserved.
 #
 # This program is free software and is provided to you under the terms of the
 # GNU General Public License version 2 as published by the Free Software
@@ -18,17 +18,14 @@
 #
 #
 
-#
-# ccflags
-#
-ccflags-y += -I$(srctree)/$(src)/../../../include
+KO_CODE_PATH := $(if $(filter /%,$(src)),,$(srctree)/)$(src)
 
+ccflags-y = -I$(KO_CODE_PATH)/../../../gpu/arm/midgard/include \
+            -I$(srctree)/drivers/dma-buf/heaps \
+            -I$(srctree)/drivers/misc/mediatek/trusted_mem/public
 subdir-ccflags-y += $(ccflags-y)
 
-#
-# Kernel modules
-#
-obj-$(CONFIG_DMA_SHARED_BUFFER_TEST_EXPORTER) += dma_buf_test_exporter/
-obj-$(CONFIG_MALI_MEMORY_GROUP_MANAGER) += memory_group_manager/
-obj-$(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR) += protected_memory_allocator/
-
+ifeq ($(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR), y)
+obj-m += mali_prot_alloc_$(MTK_PLATFORM_VERSION).o
+mali_prot_alloc_$(MTK_PLATFORM_VERSION)-y := protected_memory_allocator.o
+endif
