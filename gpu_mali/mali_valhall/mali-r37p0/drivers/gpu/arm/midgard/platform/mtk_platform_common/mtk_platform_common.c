@@ -200,12 +200,14 @@ void mtk_common_procfs_init(void)
   		return;
   	}
 	proc_create("utilization", 0444, mtk_mali_root, &mtk_common_gpu_utilization_proc_ops);
+	proc_create("gpu_memory", 0444, mtk_mali_root, &mtk_common_gpu_memory_proc_ops);
 }
 
 void mtk_common_procfs_exit(void)
 {
 	mtk_mali_root = NULL;
 	remove_proc_entry("utilization", mtk_mali_root);
+	remove_proc_entry("gpu_memory", mtk_mali_root);
 	remove_proc_entry("mtk_mali", NULL);
 }
 #endif
