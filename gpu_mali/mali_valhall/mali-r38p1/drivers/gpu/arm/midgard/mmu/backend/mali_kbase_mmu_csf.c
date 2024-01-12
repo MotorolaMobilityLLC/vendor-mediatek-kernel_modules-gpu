@@ -35,6 +35,7 @@
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <mali_kbase_hwaccess_time.h>
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -132,11 +133,12 @@ void kbase_mmu_report_mcu_as_fault_and_reset(struct kbase_device *kbdev,
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_exception,
-		"Unexpected Page fault in firmware address space at VA 0x%016llX\n"
+		"[%llxt] Unexpected Page fault in firmware address space at VA 0x%016llX\n"
 		"raw fault status: 0x%X\n"
 		"exception type 0x%X: %s\n"
 		"access type 0x%X: %s\n"
 		"source id 0x%X\n",
+		kbase_backend_get_timestamp(kbdev),
 		fault->addr,
 		fault->status,
 		exception_type, kbase_gpu_exception_name(exception_type),
@@ -195,13 +197,14 @@ void kbase_gpu_report_bus_fault_and_kill(struct kbase_context *kctx,
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_exception,
-		"GPU bus fault in AS%d at PA 0x%016llX\n"
+		"[%llxt] GPU bus fault in AS%d at PA 0x%016llX\n"
 		"PA_VALID: %s\n"
 		"raw fault status: 0x%X\n"
 		"exception type 0x%X: %s\n"
 		"access type 0x%X: %s\n"
 		"source id 0x%X\n"
 		"pid: %d\n",
+		kbase_backend_get_timestamp(kbdev),
 		as_no, fault->addr,
 		addr_valid,
 		status,
@@ -290,13 +293,14 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_exception,
-		"Unhandled Page fault in AS%d at VA 0x%016llX\n"
+		"[%llxt] Unhandled Page fault in AS%d at VA 0x%016llX\n"
 		"Reason: %s\n"
 		"raw fault status: 0x%X\n"
 		"exception type 0x%X: %s\n"
 		"access type 0x%X: %s\n"
 		"source id 0x%X\n"
 		"pid: %d\n",
+		kbase_backend_get_timestamp(kbdev),
 		as_no, fault->addr,
 		reason_str,
 		status,

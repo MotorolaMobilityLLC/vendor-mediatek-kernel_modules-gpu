@@ -192,6 +192,9 @@ u64 kbase_backend_get_cycle_cnt(struct kbase_device *kbdev)
 {
 	u32 hi1, hi2, lo;
 
+	if (!kbdev->pm.backend.gpu_powered)
+		return 0;
+
 	/* Read hi, lo, hi to ensure a coherent u64 */
 	do {
 		hi1 = kbase_reg_read(kbdev,
@@ -200,6 +203,26 @@ u64 kbase_backend_get_cycle_cnt(struct kbase_device *kbdev)
 					GPU_CONTROL_REG(CYCLE_COUNT_LO));
 		hi2 = kbase_reg_read(kbdev,
 					GPU_CONTROL_REG(CYCLE_COUNT_HI));
+	} while (hi1 != hi2);
+
+	return lo | (((u64) hi1) << 32);
+}
+
+u64 kbase_backend_get_timestamp(struct kbase_device *kbdev)
+{
+	u32 hi1, hi2, lo;
+
+	if (!kbdev->pm.backend.gpu_powered)
+		return 0;
+
+	/* Read hi, lo, hi to ensure a coherent u64 */
+	do {
+		hi1 = kbase_reg_read(kbdev,
+					GPU_CONTROL_REG(TIMESTAMP_HI));
+		lo = kbase_reg_read(kbdev,
+					GPU_CONTROL_REG(TIMESTAMP_LO));
+		hi2 = kbase_reg_read(kbdev,
+					GPU_CONTROL_REG(TIMESTAMP_HI));
 	} while (hi1 != hi2);
 
 	return lo | (((u64) hi1) << 32);

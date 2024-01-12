@@ -673,7 +673,8 @@ void kbase_csf_queue_terminate(struct kbase_context *kctx,
 			term->buffer_gpu_addr);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
-			"Unsuccessful GPU reset detected when terminating queue (buffer_addr=0x%.16llx), attempting to terminate regardless\n",
+			"[%llxt] Unsuccessful GPU reset detected when terminating queue (buffer_addr=0x%.16llx), attempting to terminate regardless\n",
+			kbase_backend_get_timestamp(kbdev),
 			term->buffer_gpu_addr);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -1632,7 +1633,8 @@ void kbase_csf_queue_group_terminate(struct kbase_context *kctx,
 			group_handle);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
-			"Unsuccessful GPU reset detected when terminating group %d, attempting to terminate regardless\n",
+			"[%llxt] Unsuccessful GPU reset detected when terminating group %d, attempting to terminate regardless\n",
+			kbase_backend_get_timestamp(kbdev),
 			group_handle);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -1791,7 +1793,8 @@ int kbase_csf_ctx_init(struct kbase_context *kctx)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_regular,
-		"[%d_%d] Created CSF context for process '%s'\n",
+		"[%llxt] [%d_%d] Created CSF context for process '%s'\n",
+		kbase_backend_get_timestamp(kbdev),
 		kctx->tgid, kctx->id, current->comm);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -1891,7 +1894,8 @@ void kbase_csf_ctx_term(struct kbase_context *kctx)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_regular,
-		"[%d_%d] Destroying CSF context for process '%s'\n",
+		"[%llxt] [%d_%d] Destroying CSF context for process '%s'\n",
+		kbase_backend_get_timestamp(kbdev),
 		kctx->tgid, kctx->id, current->comm);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -2333,10 +2337,11 @@ handle_fault_event(struct kbase_queue *const queue,
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_exception,
-		"Ctx %d_%d Group %d CSG %d CSI: %d\n"
+		"[%llxt] Ctx %d_%d Group %d CSG %d CSI: %d\n"
 		"CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
 		"CS_FAULT.EXCEPTION_DATA: 0x%x\n"
 		"CS_FAULT_INFO.EXCEPTION_DATA: 0x%llx\n",
+		kbase_backend_get_timestamp(kbdev),
 		queue->kctx->tgid, queue->kctx->id, queue->group->handle,
 		queue->group->csg_nr, queue->csi_index,
 		cs_fault_exception_type,
@@ -2411,7 +2416,8 @@ static void fatal_event_worker(struct work_struct *const data)
 			"Unsuccessful GPU reset detected when terminating group to handle fatal event, attempting to terminate regardless");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
-			"Unsuccessful GPU reset detected when terminating group to handle fatal event, attempting to terminate regardless\n");
+			"[%llxt] Unsuccessful GPU reset detected when terminating group to handle fatal event, attempting to terminate regardless\n",
+			kbase_backend_get_timestamp(kbdev));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
@@ -2427,7 +2433,8 @@ static void fatal_event_worker(struct work_struct *const data)
 		dev_warn(kbdev->dev, "queue not bound when handling fatal event");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
-			"queue not bound when handling fatal event\n");
+			"[%llxt] queue not bound when handling fatal event\n",
+			kbase_backend_get_timestamp(kbdev));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
@@ -2492,10 +2499,11 @@ handle_fatal_event(struct kbase_queue *const queue,
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_exception,
-		"Ctx %d_%d Group %d CSG %d CSI: %d\n"
+		"[%llxt] Ctx %d_%d Group %d CSG %d CSI: %d\n"
 		"CS_FATAL.EXCEPTION_TYPE: 0x%x (%s)\n"
 		"CS_FATAL.EXCEPTION_DATA: 0x%x\n"
 		"CS_FATAL_INFO.EXCEPTION_DATA: 0x%llx\n",
+		kbase_backend_get_timestamp(kbdev),
 		queue->kctx->tgid, queue->kctx->id, queue->group->handle,
 		queue->group->csg_nr, queue->csi_index,
 		cs_fatal_exception_type,
@@ -2808,6 +2816,12 @@ static void process_csg_interrupts(struct kbase_device *const kbdev, int const c
 			"[%llu] Iterator PROGRESS_TIMER timeout notification received for group %u of ctx %d_%d on slot %d\n",
 			kbase_backend_get_cycle_cnt(kbdev),
 			group->handle, group->kctx->tgid, group->kctx->id, csg_nr);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_exception,
+			"[%llxt] Iterator PROGRESS_TIMER timeout notification received for group %u of ctx %d_%d on slot %d\n",
+			kbase_backend_get_timestamp(kbdev),
+			group->handle, group->kctx->tgid, group->kctx->id, csg_nr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 		handle_progress_timer_event(group);
 	}
@@ -2935,7 +2949,8 @@ static inline void check_protm_enter_req_complete(struct kbase_device *kbdev,
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_regular,
-		"Protected mode entry interrupt received\n");
+		"[%llxt] Protected mode entry interrupt received\n",
+		kbase_backend_get_timestamp(kbdev));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	kbdev->protected_mode = true;
@@ -2966,7 +2981,8 @@ static inline void process_protm_exit(struct kbase_device *kbdev, u32 glb_ack)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_regular,
-		"Protected mode exit interrupt received\n");
+		"[%llxt] Protected mode exit interrupt received\n",
+		kbase_backend_get_timestamp(kbdev));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	kbase_csf_firmware_global_input_mask(global_iface, GLB_REQ, glb_ack,

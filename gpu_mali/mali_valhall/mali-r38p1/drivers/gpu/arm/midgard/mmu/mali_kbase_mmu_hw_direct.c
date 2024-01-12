@@ -33,6 +33,7 @@
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <mali_kbase_hwaccess_time.h>
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -156,7 +157,8 @@ static int wait_ready(struct kbase_device *kbdev,
 			as_nr);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
-			"AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n",
+			"[%llxt] AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n",
+			kbase_backend_get_timestamp(kbdev),
 			as_nr);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_NA);
@@ -170,7 +172,8 @@ static int wait_ready(struct kbase_device *kbdev,
 			as_nr);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
-			"AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n",
+			"[%llxt] AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n",
+			kbase_backend_get_timestamp(kbdev),
 			as_nr);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return -1;
@@ -194,7 +197,8 @@ static int write_cmd(struct kbase_device *kbdev, int as_nr, u32 cmd)
 			as_nr, cmd);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
-			"Wait for AS_ACTIVE bit failed for as %u, before sending MMU command %u\n",
+			"[%llxt] Wait for AS_ACTIVE bit failed for as %u, before sending MMU command %u\n",
+			kbase_backend_get_timestamp(kbdev),
 			as_nr, cmd);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}

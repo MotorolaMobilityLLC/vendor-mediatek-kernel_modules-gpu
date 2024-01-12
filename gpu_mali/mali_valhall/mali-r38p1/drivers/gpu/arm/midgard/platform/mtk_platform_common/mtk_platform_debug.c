@@ -2015,8 +2015,8 @@ static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int tim
 
 	mutex_lock(&fence_debug_lock);
 
-	dev_info(kbdev->dev, "@%s: %s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d",
-	         __func__,
+	dev_info(kbdev->dev, "[%llu] %s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d",
+	         kbase_backend_get_cycle_cnt(kbdev),
 	         fence_timeout_type_to_string(type),
 	         timeouts,
 	         fd,
@@ -2024,8 +2024,8 @@ static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int tim
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_exception,
-		"@%s: %s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d\n",
-		__func__,
+		"[%llxt] %s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d\n",
+		kbase_backend_get_timestamp(kbdev),
 		fence_timeout_type_to_string(type),
 		timeouts,
 		fd,
