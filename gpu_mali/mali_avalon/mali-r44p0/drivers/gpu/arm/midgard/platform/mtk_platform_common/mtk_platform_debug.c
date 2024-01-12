@@ -596,6 +596,7 @@ void mtk_debug_dump_pm_status(struct kbase_device *kbdev)
 #define MAX_CS_DUMP_NUM_CSI_PER_CSG	5
 #define MAX_CS_DUMP_QUEUE_MEM		(MAX_CS_DUMP_NUM_CSG * MAX_CS_DUMP_NUM_CSI_PER_CSG)
 #define MAX_CS_DUMP_NUM_GPU_PAGES	512
+#define MAX_CS_DUMP_COUNT_PER_CSI	128
 
 static struct mtk_debug_cs_queue_mem_data *cs_dump_queue_mem;
 static int cs_dump_queue_mem_ptr;
@@ -891,6 +892,8 @@ static void *mtk_debug_cs_queue_mem_map_and_dump_once(struct kbase_device *kbdev
 	return gpu_addr_node->cpu_addr;
 }
 
+static unsigned int mtk_debug_cs_mem_dump_countdown;
+
 static int mtk_debug_cs_mem_dump(struct kbase_device *kbdev,
 				struct mtk_debug_cs_queue_mem_data *queue_mem,
 				union mtk_debug_csf_register_file *rf,
@@ -1045,10 +1048,17 @@ static int mtk_debug_cs_mem_dump(struct kbase_device *kbdev,
 	u64 offset, size, chunk_size;
 	int ret;
 
+	if (!mtk_debug_cs_mem_dump_countdown) {
+		mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+				"%s: Hit maximal dump count!", __func__);
+		return -1;
+	}
+	mtk_debug_cs_mem_dump_countdown--;
+
 	if (depth >= MAXIMUM_CALL_STACK_DEPTH) {
 		mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
 				"%s: Hit MAXIMUM_CALL_STACK_DEPTH (%d)!", __func__, MAXIMUM_CALL_STACK_DEPTH);
-		return -1;
+		return -2;
 	}
 
 	/* dump buffers, using page as the dump unit */
@@ -1067,7 +1077,7 @@ static int mtk_debug_cs_mem_dump(struct kbase_device *kbdev,
 			cpu_addr = (u64)mtk_debug_cs_queue_mem_map_and_dump_once(kbdev, queue_mem,
 				(queue_mem->base_addr + (page_addr % queue_mem->size)), offset, chunk_size);
 		if (!cpu_addr)
-			return -2;
+			return -3;
 
 		ret = mtk_debug_cs_decode_inst(kbdev, queue_mem, rf, depth,
 			cpu_addr + offset, cpu_addr + offset + chunk_size, skippable);
@@ -1105,15 +1115,12 @@ static void mtk_debug_cs_queue_dump(struct kbase_device *kbdev, struct mtk_debug
 			queue_mem->handle, queue_mem->csi_index);
 	}
 
-	/* adjust cs_extract/cs_insert */
+	/* adjust cs_extract and cs_insert to avoid overflow case */
 	if (queue_mem->cs_extract >= (queue_mem->size * 2)) {
-		/* keep one extra virtual queue_mem->size for dump extra cache lines */
-		u64 diff = ((queue_mem->cs_extract / queue_mem->size) - 1) * queue_mem->size;
-
-		queue_mem->cs_extract -= diff;
-		queue_mem->cs_insert -= diff;
+		queue_mem->cs_extract -= queue_mem->size;
+		queue_mem->cs_insert -= queue_mem->size;
 	}
-	/* check cs_extract/cs_insert */
+	/* check cs_extract and cs_insert */
 	if (queue_mem->cs_extract > queue_mem->cs_insert ||
 		(queue_mem->cs_insert - queue_mem->cs_extract) > queue_mem->size ||
 		queue_mem->cs_extract & (8 - 1) || queue_mem->cs_insert & (8 - 1) ||
@@ -1125,6 +1132,7 @@ static void mtk_debug_cs_queue_dump(struct kbase_device *kbdev, struct mtk_debug
 	else
 		addr_start = 0;
 
+	mtk_debug_cs_mem_dump_countdown = MAX_CS_DUMP_COUNT_PER_CSI;
 	memset(&rf, 0, sizeof(rf));
 	if (addr_start < queue_mem->cs_extract) {
 		rc = mtk_debug_cs_mem_dump(kbdev, queue_mem, &rf,
@@ -1294,7 +1302,7 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 	if (cs_queue_data) {
 		struct mtk_debug_cs_queue_mem_data *queue_mem = mtk_debug_cs_queue_mem_allocate();
 
-		if (queue_mem) {
+		if (queue_mem && queue->size) {
 			queue_mem->kctx = cs_queue_data->kctx;
 			queue_mem->group_type = cs_queue_data->group_type;
 			queue_mem->handle = cs_queue_data->handle;
@@ -1327,6 +1335,7 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 		size_t size_mask = (queue->queue_reg->nr_pages << PAGE_SHIFT) - 1;
 		const unsigned int instruction_size = sizeof(u64);
 		u64 start, stop, aligned_cs_extract;
+		int dump_countdown = 4;		/* 4 * 8 = 32, maximal dump instructions */
 
 		mtk_log_all(queue->kctx->kbdev, 1, "Dumping instructions around the last Extract offset");
 
@@ -1339,13 +1348,13 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 			start = 0;
 
 		/* Print upto 32 instructions */
-		stop = start + (32 * instruction_size);
+		stop = start + (dump_countdown * 8 * instruction_size);
 		if (stop > cs_insert)
 			stop = cs_insert;
 
 		mtk_log_all(queue->kctx->kbdev, 1, "Instructions from Extract offset %llx", start);
 
-		while (start != stop) {
+		while (start != stop && dump_countdown--) {
 			u64 page_off = (start & size_mask) >> PAGE_SHIFT;
 			u64 offset = (start & size_mask) & ~PAGE_MASK;
 			struct page *page =
