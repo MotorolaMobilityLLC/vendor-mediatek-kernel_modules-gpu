@@ -718,7 +718,7 @@ static int parse_memory_setup_entry(struct kbase_device *kbdev,
 	unsigned int name_len;
 	struct tagged_addr *phys = NULL;
 	struct kbase_csf_firmware_interface *interface = NULL;
-	bool allocated_pages = false, protected_mode = false;
+	bool protected_mode = false;
 	unsigned long mem_flags = 0;
 	u32 cache_mode = 0;
 	struct protected_memory_allocation **pma = NULL;
@@ -768,6 +768,7 @@ static int parse_memory_setup_entry(struct kbase_device *kbdev,
 		>> PAGE_SHIFT;
 
 retry_alloc:
+	ret = 0;
 	reuse_pages = entry_find_large_page_to_reuse(kbdev, virtual_start, virtual_end, flags,
 						     &phys, &pma, num_pages, &num_pages_aligned,
 						     &is_small_page, force_small_page);
@@ -812,7 +813,6 @@ retry_alloc:
 		goto out;
 	}
 
-	allocated_pages = true;
 	load_fw_image_section(kbdev, fw->data, phys, num_pages, flags,
 			data_start, data_end);
 
@@ -926,22 +926,19 @@ retry_alloc:
 	return ret;
 
 out:
-	if (allocated_pages) {
-		if (!reuse_pages) {
-			if (protected_mode) {
-				kbase_csf_protected_memory_free(
-					kbdev, pma, num_pages_aligned, is_small_page);
-			} else {
-				kbase_mem_pool_free_pages(
-					kbase_mem_pool_group_select(
-						kbdev, KBASE_MEM_GROUP_CSF_FW, is_small_page),
-					num_pages_aligned, phys, false, false);
-			}
+	if (!reuse_pages && phys) {
+		if (pma) {
+			kbase_csf_protected_memory_free(kbdev, pma, num_pages_aligned,
+							is_small_page);
+		} else {
+			kbase_mem_pool_free_pages(
+				kbase_mem_pool_group_select(kbdev, KBASE_MEM_GROUP_CSF_FW,
+							    is_small_page),
+				num_pages_aligned, phys, false, false);
 		}
-	}
 
-	if (!reuse_pages)
 		kfree(phys);
+	}
 
 	kfree(interface);
 	return ret;
