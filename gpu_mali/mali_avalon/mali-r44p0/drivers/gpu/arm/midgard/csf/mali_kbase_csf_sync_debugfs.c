@@ -95,7 +95,12 @@ kbasep_print(struct kbase_context *kctx, struct seq_file *file, const char *fmt,
 	if (file)
 		seq_printf(file, buffer);
 	else
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+		// MTK have special macro
+		dev_warn(kctx->kbdev->dev, "%s\n", buffer);
+#else
 		dev_warn(kctx->kbdev->dev, buffer);
+#endif /* CONFIG_MALI_MTK_COMMON */
 
 exit:
 	va_end(arglist);
