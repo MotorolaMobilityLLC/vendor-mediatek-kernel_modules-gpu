@@ -133,30 +133,6 @@ static int mtk_common_devfreq_get_cur_freq(struct device *dev, unsigned long *fr
 static int
 mtk_common_devfreq_status(struct device *dev, struct devfreq_dev_status *stat)
 {
-	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
-	struct kbasep_pm_metrics diff;
-
-	kbase_pm_get_dvfs_metrics(kbdev, &kbdev->last_devfreq_metrics, &diff);
-
-#if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
-#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
-	stat->busy_time = diff.time_busy[0];
-	stat->total_time = diff.time_busy[0] + diff.time_idle[0];
-#else
-	stat->busy_time = diff.time_busy;
-	stat->total_time = diff.time_busy + diff.time_idle;
-#endif
-#else
-	stat->busy_time = diff.time_busy;
-	stat->total_time = diff.time_busy + diff.time_idle;
-#endif
-	stat->current_frequency = kbdev->current_nominal_freq;
-	stat->private_data = NULL;
-
-#if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT) && IS_ENABLED(CONFIG_DEVFREQ_THERMAL)
-	kbase_ipa_reset_data(kbdev);
-#endif
-
 	return 0;
 }
 
