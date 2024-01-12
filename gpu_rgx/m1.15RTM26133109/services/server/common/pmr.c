@@ -323,6 +323,18 @@ struct _PMR_PAGELIST_
 	struct _PMR_ *psReferencePMR;
 };
 
+void
+PMRLockPMR(PMR *psPMR)
+{
+	OSLockAcquire(psPMR->hLock);
+}
+
+void
+PMRUnlockPMR(PMR *psPMR)
+{
+	OSLockRelease(psPMR->hLock);
+}
+
 PPVRSRV_DEVICE_NODE PMRGetExportDeviceNode(PMR_EXPORT *psExportPMR)
 {
 	PPVRSRV_DEVICE_NODE psReturnedDeviceNode = NULL;
@@ -2143,6 +2155,16 @@ PVRSRV_ERROR PMR_ChangeSparseMem(PMR *psPMR,
 {
 	PVRSRV_ERROR eError;
 
+	PMRLockPMR(psPMR);
+
+	if (!PMR_IsSparse(psPMR))
+	{
+		PVR_DPF((PVR_DBG_ERROR,
+		        "%s: Invalid non-sparse PMR", __func__));
+		PMRUnlockPMR(psPMR);
+		return PVRSRV_ERROR_PMR_NOT_PERMITTED;
+	}
+
 	if (PMR_IsMemLayoutFixed(psPMR) || PMR_IsCpuMapped(psPMR))
 	{
 		PVR_DPF((PVR_DBG_ERROR,
@@ -2150,6 +2172,7 @@ PVRSRV_ERROR PMR_ChangeSparseMem(PMR *psPMR,
 				__func__,
 				psPMR->bNoLayoutChange ? 'Y' : 'n',
 				PMR_IsCpuMapped(psPMR) ? 'Y' : 'n'));
+		PMRUnlockPMR(psPMR);
 		return PVRSRV_ERROR_PMR_NOT_PERMITTED;
 	}
 
@@ -2158,6 +2181,7 @@ PVRSRV_ERROR PMR_ChangeSparseMem(PMR *psPMR,
 		PVR_DPF((PVR_DBG_ERROR,
 				"%s: This type of sparse PMR cannot be changed.",
 				__func__));
+		PMRUnlockPMR(psPMR);
 		return PVRSRV_ERROR_NOT_IMPLEMENTED;
 	}
 
@@ -2209,6 +2233,7 @@ PVRSRV_ERROR PMR_ChangeSparseMem(PMR *psPMR,
 #endif
 
 e0:
+	PMRUnlockPMR(psPMR);
 	return eError;
 }
 
@@ -2222,12 +2247,14 @@ PVRSRV_ERROR PMR_ChangeSparseMemCPUMap(PMR *psPMR,
 {
 	PVRSRV_ERROR eError;
 
+	PMRLockPMR(psPMR);
 	if ((NULL == psPMR->psFuncTab) ||
 			(NULL == psPMR->psFuncTab->pfnChangeSparseMemCPUMap))
 	{
 		PVR_DPF((PVR_DBG_ERROR,
 				"%s: This type of sparse PMR cannot be changed.",
 				__func__));
+		PMRUnlockPMR(psPMR);
 		return PVRSRV_ERROR_NOT_IMPLEMENTED;
 	}
 
@@ -2236,6 +2263,7 @@ PVRSRV_ERROR PMR_ChangeSparseMemCPUMap(PMR *psPMR,
 		PVR_DPF((PVR_DBG_ERROR,
 				"%s: This PMR layout cannot be changed",
 				__func__));
+		PMRUnlockPMR(psPMR);
 		return PVRSRV_ERROR_PMR_NOT_PERMITTED;
 	}
 
@@ -2247,6 +2275,7 @@ PVRSRV_ERROR PMR_ChangeSparseMemCPUMap(PMR *psPMR,
 	                                                    ui32FreePageCount,
 	                                                    pai32FreeIndices);
 
+	PMRUnlockPMR(psPMR);
 	return eError;
 }
 
@@ -3275,6 +3304,20 @@ PMRWritePMPageList(/* Target PMR, offset, and length */
 		         (PMR_FLAGS_T)(uiFlags & (PVRSRV_MEMALLOCFLAG_CPU_READABLE | PVRSRV_MEMALLOCFLAG_CPU_WRITEABLE))));
 		PVR_DPF((PVR_DBG_ERROR,
 		         "Page list PMR allows CPU mapping (0x%" PVRSRV_MEMALLOCFLAGS_FMTSPEC ")",
+		         uiFlags));
+		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_DEVICEMEM_INVALID_PMR_FLAGS, return_error);
+	}
+
+	/* the PMR into which we are writing must not be user CPU cacheable: */
+	if (PVRSRV_CHECK_CPU_CACHE_INCOHERENT(uiFlags) ||
+		PVRSRV_CHECK_CPU_CACHE_COHERENT(uiFlags) ||
+		PVRSRV_CHECK_CPU_CACHED(uiFlags))
+	{
+		PVR_DPF((PVR_DBG_ERROR,
+		         "Masked flags = 0x%" PVRSRV_MEMALLOCFLAGS_FMTSPEC,
+		         (PMR_FLAGS_T)(uiFlags &  PVRSRV_MEMALLOCFLAG_CPU_CACHE_MODE_MASK)));
+		PVR_DPF((PVR_DBG_ERROR,
+		         "Page list PMR allows CPU caching (0x%" PVRSRV_MEMALLOCFLAGS_FMTSPEC ")",
 		         uiFlags));
 		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_DEVICEMEM_INVALID_PMR_FLAGS, return_error);
 	}
