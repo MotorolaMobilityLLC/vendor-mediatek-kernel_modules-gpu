@@ -493,6 +493,17 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
+	/* set the fw timeout back to orignal */
+	kbdev->csf.fw_timeout_ms =
+                kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT);
+
+	/* set the csg suspend timeout back to orignal */
+	kbdev->csf.csg_suspend_timeout_ms =
+                kbase_get_timeout_ms(kbdev, CSF_CSG_SUSPEND_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
+
+
 	return 0;
 err:
 
@@ -512,6 +523,16 @@ static void kbase_csf_reset_gpu_worker(struct work_struct *data)
 		atomic_read(&kbdev->csf.reset.state);
 	const bool silent =
 		kbase_csf_reset_state_is_silent(initial_reset_state);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
+	/* set fw timeout to 0.5s after GPU reset */
+	kbdev->csf.fw_timeout_ms =
+		kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT_AFTER_ABNORMAL_TIMEOUT);
+	/* set fw timeout to 1.0s after GPU reset */
+	kbdev->csf.csg_suspend_timeout_ms =
+		kbase_get_timeout_ms(kbdev, CSF_CSG_SUSPEND_TIMEOUT_AFTER_ABNORMAL_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
+
 
 	/* Ensure any threads (e.g. executing the CSF scheduler) have finished
 	 * using the HW

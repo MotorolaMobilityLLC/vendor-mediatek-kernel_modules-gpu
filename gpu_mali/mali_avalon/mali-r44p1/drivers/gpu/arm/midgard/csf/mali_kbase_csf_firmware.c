@@ -2413,6 +2413,11 @@ int kbase_csf_firmware_early_init(struct kbase_device *kbdev)
 	kbdev->csf.fw_timeout_ms =
 		kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
+	kbdev->csf.csg_suspend_timeout_ms =
+		kbase_get_timeout_ms(kbdev, CSF_CSG_SUSPEND_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
+
 	kbase_csf_firmware_reset_mcu_core_pwroff_time(kbdev);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GLB_PWROFF_TIMEOUT)

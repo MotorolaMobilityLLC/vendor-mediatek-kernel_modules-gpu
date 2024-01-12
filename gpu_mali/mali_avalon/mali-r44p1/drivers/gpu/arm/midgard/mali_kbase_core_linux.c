@@ -1893,7 +1893,11 @@ static int kbasep_ioctl_set_limited_core_count(struct kbase_context *kctx,
 static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 			struct kbase_ioctl_internal_fence_wait *fence_wait)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
+	if (fence_wait->time_in_microseconds == 2000 || fence_wait->time_in_microseconds == 3000) {
+#else
 	if (fence_wait->time_in_microseconds == 3000 || fence_wait->time_in_microseconds == 4000) {
+#endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
 		dev_info(kctx->kbdev->dev, "Internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u queue=%llx",
 	         fence_wait->time_in_microseconds,
 	         fence_wait->flags,
@@ -1925,7 +1929,11 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 #endif
 	}
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
+	if (fence_wait->time_in_microseconds == 3000) {
+#else
 	if (fence_wait->time_in_microseconds == 4000) {
+#endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
 		if (kbase_prepare_to_reset_gpu(kctx->kbdev, RESET_FLAGS_NONE)) {
 			dev_info(kctx->kbdev->dev, "Internal fence timeouts(%llu ms)! Trigger GPU reset",
 					 fence_wait->time_in_microseconds);

@@ -2207,8 +2207,13 @@ static void kcpu_queue_dump(struct kbase_kcpu_command_queue *queue)
 	fence_signal_command_timeout_ms =
 		queue->fence_signal_command_timeout_counter * kbase_get_timeout_ms(kctx->kbdev, KCPU_FENCE_SIGNAL_TIMEOUT);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
+	/* Dump when timeout 2s, 3s */
+	if ((queue->fence_signal_command_timeout_counter == 2) || (queue->fence_signal_command_timeout_counter == 3)) {
+#else
 	/* Dump when timeout 3s, 4s */
 	if ((queue->fence_signal_command_timeout_counter == 3) || (queue->fence_signal_command_timeout_counter == 4)) {
+#endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
 		dev_info(kctx->kbdev->dev,
 			"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms) on fence[%pK] context#seqno:%s (driver=%s, timeline=%s)",
 			kctx->tgid, kctx->id, queue->id,
@@ -2241,7 +2246,11 @@ static void kcpu_queue_dump(struct kbase_kcpu_command_queue *queue)
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
+		if (queue->fence_signal_command_timeout_counter == 3) {
+#else
 		if (queue->fence_signal_command_timeout_counter == 4) {
+#endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
 			if (kbase_prepare_to_reset_gpu(kctx->kbdev, RESET_FLAGS_NONE)) {
 				dev_info(kctx->kbdev->dev, "KCPU queue command timeouts(%d ms)! Trigger GPU reset",
 					fence_signal_command_timeout_ms);

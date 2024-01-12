@@ -1511,7 +1511,11 @@ static int sched_halt_stream(struct kbase_queue *queue)
 	long remaining;
 	int slot;
 	int err = 0;
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
+	const u32 group_schedule_timeout = kbdev->csf.csg_suspend_timeout_ms;
+#else
 	const u32 group_schedule_timeout = kbase_get_timeout_ms(kbdev, CSF_CSG_SUSPEND_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
 
 	if (WARN_ON(!group))
 		return -EINVAL;
@@ -3280,6 +3284,15 @@ static int term_group_sync(struct kbase_queue_group *group)
 
 
 		err = -ETIMEDOUT;
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
+	} else {
+		/* if teriminate didn't timeout there might be no reset happen
+		 * iterator timeout might be called and no reset is going
+		 * restore the origial value of fw_timeout_ms
+		 * */
+		if (kbase_reset_gpu_is_not_pending(kbdev))
+			kbdev->csf.fw_timeout_ms = kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
 	}
 
 	return err;
@@ -3733,7 +3746,11 @@ static void program_suspending_csg_slots(struct kbase_device *kbdev)
 
 	while (!bitmap_empty(slot_mask, MAX_SUPPORTED_CSGS)) {
 		DECLARE_BITMAP(changed, MAX_SUPPORTED_CSGS);
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
+		long remaining = kbase_csf_timeout_in_jiffies(kbdev->csf.csg_suspend_timeout_ms);
+#else
 		long remaining = kbase_csf_timeout_in_jiffies(kbase_get_timeout_ms(kbdev, CSF_CSG_SUSPEND_TIMEOUT));
+#endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
 
 		bitmap_copy(changed, slot_mask, MAX_SUPPORTED_CSGS);
 
@@ -5452,7 +5469,11 @@ static int wait_csg_slots_suspend(struct kbase_device *kbdev, unsigned long *slo
 	bitmap_copy(slot_mask_local, slot_mask, MAX_SUPPORTED_CSGS);
 
 	while (!bitmap_empty(slot_mask_local, MAX_SUPPORTED_CSGS)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
+		long remaining = kbase_csf_timeout_in_jiffies(kbdev->csf.csg_suspend_timeout_ms);
+#else
 		long remaining = kbase_csf_timeout_in_jiffies(kbase_get_timeout_ms(kbdev, CSF_CSG_SUSPEND_TIMEOUT));
+#endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
 		DECLARE_BITMAP(changed, MAX_SUPPORTED_CSGS);
 
 		bitmap_copy(changed, slot_mask_local, MAX_SUPPORTED_CSGS);

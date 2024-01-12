@@ -280,9 +280,15 @@ enum kbase_queue_group_priority {
  */
 enum kbase_timeout_selector {
 	CSF_FIRMWARE_TIMEOUT,
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
+	CSF_FIRMWARE_TIMEOUT_AFTER_ABNORMAL_TIMEOUT,
+#endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
 	CSF_PM_TIMEOUT,
 	CSF_GPU_RESET_TIMEOUT,
 	CSF_CSG_SUSPEND_TIMEOUT,
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
+	CSF_CSG_SUSPEND_TIMEOUT_AFTER_ABNORMAL_TIMEOUT,
+#endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
 	CSF_FIRMWARE_BOOT_TIMEOUT,
 	CSF_FIRMWARE_PING_TIMEOUT,
 	CSF_SCHED_PROTM_PROGRESS_TIMEOUT,
@@ -1678,6 +1684,9 @@ struct kbase_csf_device {
 	u32 gpu_idle_dur_count;
 	u32 gpu_idle_dur_count_modifier;
 	unsigned int fw_timeout_ms;
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
+	unsigned int csg_suspend_timeout_ms;
+#endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
 	struct kbase_csf_hwcnt hwcnt;
 	struct kbase_csf_mcu_fw fw;
 	struct kbase_csf_firmware_log fw_log;
