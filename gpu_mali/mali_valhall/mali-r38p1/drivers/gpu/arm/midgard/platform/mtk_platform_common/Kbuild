@@ -28,5 +28,9 @@ ifeq ($(CONFIG_MALI_MTK_DIAGNOSIS_MODE),y)
     mali_kbase-y += $(curr)/mtk_platform_diagnosis_mode.o
 endif ## CONFIG_MALI_MTK_DIAGNOSIS_MODE ##
 
+ifeq ($(CONFIG_MALI_MTK_CM7_TRACE),y)
+    mali_kbase-y += $(curr)/mtk_platform_cm7_trace.o
+endif ## CONFIG_MALI_MTK_CM7_TRACE ##
+
 ccflags-y += -I$(srctree)/drivers/devfreq/
 ccflags-y += -Wno-unused-variable
