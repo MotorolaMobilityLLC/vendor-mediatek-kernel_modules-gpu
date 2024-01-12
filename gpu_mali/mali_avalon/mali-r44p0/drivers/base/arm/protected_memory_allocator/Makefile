@@ -26,6 +26,6 @@ ccflags-y = -I$(KO_CODE_PATH)/../../../gpu/arm/midgard/include \
 subdir-ccflags-y += $(ccflags-y)
 
 ifeq ($(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR), y)
-obj-m += mali_prot_alloc_$(MTK_PLATFORM_VERSION).o
-mali_prot_alloc_$(MTK_PLATFORM_VERSION)-y := protected_memory_allocator.o
+obj-m += mali_prot_alloc_$(MTK_PLATFORM_VERSION)_r44.o
+mali_prot_alloc_$(MTK_PLATFORM_VERSION)_r44-y := protected_memory_allocator.o
 endif

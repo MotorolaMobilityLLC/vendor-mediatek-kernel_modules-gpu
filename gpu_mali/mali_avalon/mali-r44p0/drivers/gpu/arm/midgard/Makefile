@@ -211,8 +211,8 @@ ifneq ($(UNQUOTE_CONFIG_MTK_GPU_VERSION),)
     obj-$(CONFIG_MALI_MIDGARD) += mali_kbase.o
 else ifneq ($(wildcard $(KO_CODE_PATH)/platform/$(MTK_PLATFORM)),)
     # LD2.0
-    obj-$(CONFIG_MALI_MIDGARD) += mali_kbase_$(MTK_PLATFORM).o
-    mali_kbase_$(MTK_PLATFORM)-y += $(mali_kbase-y) $(mali_kbase-m)
+    obj-$(CONFIG_MALI_MIDGARD) += mali_kbase_$(MTK_PLATFORM)_r44.o
+    mali_kbase_$(MTK_PLATFORM)_r44-y += $(mali_kbase-y) $(mali_kbase-m)
 endif
 
 ifeq ($(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM), y)
