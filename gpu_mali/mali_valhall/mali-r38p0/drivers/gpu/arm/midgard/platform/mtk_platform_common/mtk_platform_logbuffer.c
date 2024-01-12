@@ -309,7 +309,7 @@ int mtk_logbuffer_init(struct kbase_device *kbdev)
 		}
 	}
 
-	dev_info(kbdev->dev, "@%s: Reserved memory region: phys=0x%llx size=0x%llu virt=0x%llx",
+	dev_info(kbdev->dev, "@%s: Reserved memory region: phys=0x%llx size=0x%llx virt=0x%llx",
 	         __func__, reserved_mem_phys, reserved_mem_size, reserved_mem_virt);
 
 	/* Create a circular buffer for regular logs */
