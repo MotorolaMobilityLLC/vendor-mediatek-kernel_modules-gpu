@@ -31,6 +31,10 @@
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
+#include <platform/mtk_platform_common/mtk_platform_memtrack.h>
+#endif /* CONFIG_MALI_MTK_MEMTRACK */
+
 #if IS_ENABLED(CONFIG_PROC_FS)
 /* name of the proc root dir */
 #define	PROC_ROOT "mtk_mali"
@@ -185,6 +189,10 @@ static void mtk_common_procfs_init(struct kbase_device *kbdev)
 	mtk_logbuffer_procfs_init(kbdev, proc_root);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
+	mtk_memtrack_procfs_init(kbdev, proc_root);
+#endif /* CONFIG_MALI_MTK_MEMTRACK */
+
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	mtk_dvfs_procfs_init(kbdev, proc_root);
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
@@ -198,6 +206,10 @@ static void mtk_common_procfs_term(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	mtk_dvfs_procfs_term(kbdev, proc_root);
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
+	mtk_memtrack_procfs_term(kbdev, proc_root);
+#endif /* CONFIG_MALI_MTK_MEMTRACK */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_procfs_term(kbdev, proc_root);
@@ -254,6 +266,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	mtk_logbuffer_init(kbdev);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
+	mtk_memtrack_init(kbdev);
+#endif /* CONFIG_MALI_MTK_MEMTRACK */
+
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	mtk_dvfs_init(kbdev);
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
@@ -283,6 +299,10 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_term(kbdev);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
+	mtk_memtrack_term(kbdev);
+#endif /* CONFIG_MALI_MTK_MEMTRACK */
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	mtk_dvfs_term(kbdev);
