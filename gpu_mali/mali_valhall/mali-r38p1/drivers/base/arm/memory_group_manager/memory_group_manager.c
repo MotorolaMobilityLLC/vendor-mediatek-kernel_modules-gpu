@@ -1238,8 +1238,8 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 	mgm_data->szPrefillTarget = PREFILL_TARGET;
 	mgm_data->szRefillTarget = REFILL_TARGET;
 
-	mtk_mgm_pool_fill(mgm_data, 9, 1, (SZ_2G >> ((PAGE_SHIFT - 1) + 9)));
-	mtk_mgm_pool_fill(mgm_data, 9, 0, (SZ_2G >> ((PAGE_SHIFT - 1) + 9)));
+	mtk_mgm_pool_fill(mgm_data, 9, 1, mgm_data->szPrefillTarget >> 9);
+	mtk_mgm_pool_fill(mgm_data, 9, 0, mgm_data->szPrefillTarget >> 9);
 
 	mtk_mgm_pool_trim(mgm_data, 9, mgm_data->szPrefillTarget >> 9, 0);
 	mtk_mgm_pool_trim(mgm_data, 9, mgm_data->szPrefillTarget >> 9, 1);
