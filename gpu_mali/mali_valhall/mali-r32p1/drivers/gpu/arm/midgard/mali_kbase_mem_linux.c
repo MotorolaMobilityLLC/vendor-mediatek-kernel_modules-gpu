@@ -1235,13 +1235,20 @@ retry:
 
 #if defined(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && defined(CONFIG_MTK_GZ_KREE)
 		if (reg->flags & KBASE_REG_PROTECTED) {
+			enum TRUSTED_MEM_REQ_TYPE sec_mem_type = TRUSTED_MEM_REQ_SVP;
 			struct dma_buf *dma_buf = reg->gpu_alloc->imported.umm.dma_buf;
 			u32 sec_handle = dmabuf_to_secure_handle(dmabuf);
-			enum TRUSTED_MEM_REQ_TYPE sec_mem_type =
-				ion_get_trust_mem_type(dma_buf);
 
-			trusted_mem_api_query_pa(
-				sec_mem_type, 0, 0, NULL, &sec_handle, NULL, 0, 0, &phy_addr);
+			if (sec_handle) {
+				sec_mem_type = ion_get_trust_mem_type(dma_buf);
+				trusted_mem_api_query_pa(
+					sec_mem_type, 0, 0, NULL, &sec_handle, NULL, 0, 0, &phy_addr);
+			} else {
+				/* page_base heap have no sec_handle.
+				 * use sg_phys to get PA
+				 */
+				phy_addr = sg_phys(s);
+			}
 
 			if (phy_addr == 0) {
 				dev_warn(kctx->kbdev->dev,
