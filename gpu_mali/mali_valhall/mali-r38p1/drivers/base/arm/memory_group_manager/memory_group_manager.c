@@ -34,6 +34,7 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
 #include <linux/shrinker.h>
 #include <linux/ktime.h>
+#include <soc/mediatek/emi.h>
 #define RANK_BOUNDARY (0x1c0000000)
 #define PREFILL_TARGET (SZ_256M >> PAGE_SHIFT)
 #define REFILL_TARGET (SZ_64M >> PAGE_SHIFT)
@@ -701,7 +702,7 @@ void mtk_mgm_pool_flush(struct mgm_groups *data, int order, int rank, size_t tar
 }
 
 
-void mtk_mgm_pool_trim(struct mgm_groups *data, int order, size_t nr_pages, int rank)
+void mtk_mgm_pool_trim(struct mgm_groups *data, int order, int rank, size_t nr_pages)
 {
 	int o = 0;
 
@@ -1207,7 +1208,7 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
 	si_meminfo(&info);
-	dev_info(&pdev->dev,"Total memory: %zu (pages)\n", info.totalram);
+	dev_info(&pdev->dev,"Total kmem: %zu (pages) [%d] %llx \n", info.totalram,  mtk_emicen_get_rk_cnt(), mtk_emicen_get_rk_size(0));
 	spin_lock_init(&mgm_data->MGMFree_lst_lk);
 	spin_lock_init(&mgm_data->free_4K_lst_lk);
 	mgm_data->free_4K_lst.next = mgm_data->free_4K_lst.prev = &mgm_data->free_4K_lst;
@@ -1234,15 +1235,15 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 #else
 	register_shrinker(&mgm_data->reclaim, "mali-mGMM");
 #endif
-	mgm_data->ui64RankBoundary = RANK_BOUNDARY;
+	mgm_data->ui64RankBoundary = 0x40000000 + mtk_emicen_get_rk_size(0);
 	mgm_data->szPrefillTarget = PREFILL_TARGET;
 	mgm_data->szRefillTarget = REFILL_TARGET;
 
 	mtk_mgm_pool_fill(mgm_data, 9, 1, mgm_data->szPrefillTarget >> 9);
 	mtk_mgm_pool_fill(mgm_data, 9, 0, mgm_data->szPrefillTarget >> 9);
 
-	mtk_mgm_pool_trim(mgm_data, 9, mgm_data->szPrefillTarget >> 9, 0);
-	mtk_mgm_pool_trim(mgm_data, 9, mgm_data->szPrefillTarget >> 9, 1);
+	mtk_mgm_pool_trim(mgm_data, 9, 0, mgm_data->szPrefillTarget >> 9);
+	mtk_mgm_pool_trim(mgm_data, 9, 1, mgm_data->szPrefillTarget >> 9);
 
 	dev_info(&pdev->dev,
 		"mGMM init completed: [0] {%zu, %zu}, [1] {%zu, %zu}\n",
