@@ -770,49 +770,6 @@ static int check_trigger_submission(struct kbase_context *kctx)
 
 	return trigger_submission;
 }
-
-static int pending_submission_worker_kthread(void* data)
-{
-	struct kbase_context *kctx = (struct kbase_context *)data;
-	struct kbase_device *kbdev = kctx->kbdev;
-	struct kbase_queue *queue;
-	int err;
-
-	while (!kthread_should_stop()) {
-		wait_event_freezable_timeout(kctx->csf.pending_wait_queue,
-			((check_trigger_submission(kctx) > 0) || kthread_should_stop()), MAX_SCHEDULE_TIMEOUT);
-
-		if (kthread_should_stop())
-			return 0;
-
-		err = kbase_reset_gpu_prevent_and_wait(kbdev);
-
-		if (err) {
-			dev_err(kbdev->dev, "Unsuccessful GPU reset detected when kicking queue ");
-			continue;
-		}
-
-		mutex_lock(&kctx->csf.lock);
-
-		/* Iterate through the queue list and schedule the pending ones for submission. */
-		list_for_each_entry(queue, &kctx->csf.queue_list, link) {
-			if (atomic_cmpxchg(&queue->pending, 1, 0) == 1) {
-				struct kbase_queue_group *group = get_bound_queue_group(queue);
-
-				if (!group || queue->bind_state != KBASE_CSF_QUEUE_BOUND)
-					dev_vdbg(kbdev->dev, "queue is not bound to a group");
-				else if (kbase_csf_scheduler_queue_start(queue))
-					dev_vdbg(kbdev->dev, "Failed to start queue");
-			}
-		}
-
-		mutex_unlock(&kctx->csf.lock);
-
-		kbase_reset_gpu_allow(kbdev);
-	}
-
-	return 0;
-}
 #endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
 
 static void enqueue_gpu_submission_work(struct kbase_context *const kctx)
@@ -1737,6 +1694,25 @@ void kbase_csf_active_queue_groups_reset(struct kbase_device *kbdev,
 int kbase_csf_ctx_init(struct kbase_context *kctx)
 {
 	int err = -ENOMEM;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
+	struct sched_param param = { .sched_priority = 0 /*MAX_RT_PRIO - 1*/ };
+	u32 pending_submission_mode = GPU_PENDING_SUBMISSION_KWORKER;
+	struct device_node *np;
+
+	kctx->csf.pending_submission_work_kthread = NULL;
+	kctx->csf.pending_submission_mode = pending_submission_mode;
+	np = kctx->kbdev->dev->of_node;
+
+	if (!of_property_read_u32(np, "pending-submission-mode", &pending_submission_mode)) {
+		dev_info(kctx->kbdev->dev, "Pending submission mode: %s",
+			(pending_submission_mode == GPU_PENDING_SUBMISSION_KWORKER)? "Kworker":
+			((pending_submission_mode == GPU_PENDING_SUBMISSION_KTHREAD)? "Kthread": "Undefined"));
+
+		kctx->csf.pending_submission_mode = pending_submission_mode;
+	} else
+		dev_info(kctx->kbdev->dev, "Pending submission mode: No dts property setting, undefined");
+#endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
 
 	INIT_LIST_HEAD(&kctx->csf.queue_list);
 	INIT_LIST_HEAD(&kctx->csf.link);
