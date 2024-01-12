@@ -1349,6 +1349,9 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 						ged_check_power_duration();
 					}
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)
+					mtk_common_ged_dvfs_write_sysram_last_commit_dual();
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_ASYNC */
 					kbase_pm_invoke(kbdev, KBASE_PM_CORE_L2, l2_present,
 							ACTION_PWRON);
 				}
@@ -1567,6 +1570,9 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 #if defined(CONFIG_MTK_GPUFREQ_V2) && IS_ENABLED(CONFIG_MALI_MTK_MFG2_BACKDOOR)
 					gpufreq_set_mfgsys_config(CONFIG_MFG2_BEFORE_OFF, CONFIG_VAL_IGNORE);
 #endif /* CONFIG_MTK_GPUFREQ_V2 && CONFIG_MALI_MTK_MFG2_BACKDOOR */
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)
+					mtk_common_ged_dvfs_write_sysram_last_commit_dual();
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_ASYNC */
 					kbase_pm_invoke(kbdev, KBASE_PM_CORE_L2,
 							l2_present,
 							ACTION_PWROFF);
