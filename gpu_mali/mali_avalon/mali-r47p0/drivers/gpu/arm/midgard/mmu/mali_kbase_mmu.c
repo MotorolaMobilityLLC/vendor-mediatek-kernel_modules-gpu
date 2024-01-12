@@ -418,6 +418,9 @@ static void kbase_mmu_free_pgd(struct kbase_device *kbdev, struct kbase_mmu_tabl
 		kbase_mem_pool_free(&kbdev->mem_pools.small[mmut->group_id], p, true);
 		kbase_mmu_account_freed_pgd(kbdev, mmut);
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kbase_trace_free_pages(kbdev->id, mmut->kctx, 1, (size_t)pgd);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 }
 
 /**
@@ -1401,6 +1404,10 @@ static phys_addr_t kbase_mmu_alloc_pgd(struct kbase_device *kbdev, struct kbase_
 	atomic_add(1, &kbdev->memdev.used_pages);
 
 	kbase_trace_gpu_mem_usage_inc(kbdev, mmut->kctx, 1);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kbase_trace_alloc_pages(kbdev->id, mmut->kctx, 1, (size_t)pgd);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 	kbdev->mmu_mode->entries_invalidate(page, KBASE_MMU_PAGE_ENTRIES);
 

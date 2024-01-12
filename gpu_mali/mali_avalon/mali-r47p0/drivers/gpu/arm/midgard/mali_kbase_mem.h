@@ -2638,4 +2638,13 @@ static inline base_mem_alloc_flags kbase_mem_group_id_set(int id)
 {
 	return BASE_MEM_GROUP_ID_SET(id);
 }
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+#define kbase_trace_alloc_pages(gpu_id, kctx, size, gpu_addr) \
+	trace_mali_mem_alloc(gpu_id, (kctx != NULL) ? kctx->kprcs->tgid : 0, size << PAGE_SHIFT, gpu_addr);
+#define kbase_trace_free_pages(gpu_id, kctx, size, gpu_addr) \
+	trace_mali_mem_free(gpu_id, (kctx != NULL) ? kctx->kprcs->tgid : 0, size << PAGE_SHIFT, gpu_addr);
+#define kbase_trace_update_pages(gpu_id, kctx, size_a, size_b, gpu_addr) \
+	trace_mali_mem_update(gpu_id, (kctx != NULL) ? kctx->kprcs->tgid : 0, size_a << PAGE_SHIFT, size_b << PAGE_SHIFT, gpu_addr);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 #endif /* _KBASE_MEM_H_ */

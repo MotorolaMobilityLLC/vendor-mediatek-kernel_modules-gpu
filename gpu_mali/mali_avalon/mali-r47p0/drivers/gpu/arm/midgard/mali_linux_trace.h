@@ -421,6 +421,78 @@ TRACE_EVENT(mali_jit_trim, TP_PROTO(size_t freed_pages), TP_ARGS(freed_pages),
 	    TP_fast_assign(__entry->freed_pages = freed_pages;),
 	    TP_printk("freed_pages=%zu", __entry->freed_pages));
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+TRACE_EVENT(mali_mem_alloc,
+	TP_PROTO(uint32_t gpu_id, uint32_t pid, uint64_t size, uint64_t gpu_addr),
+	TP_ARGS(gpu_id, pid, size, gpu_addr),
+	TP_STRUCT__entry(
+		__field(uint32_t, gpu_id)
+		__field(uint32_t, pid)
+		__field(uint64_t, size)
+		__field(uint64_t, gpu_addr)
+	),
+	TP_fast_assign(
+		__entry->gpu_id = gpu_id;
+		__entry->pid = pid;
+		__entry->size = size;
+		__entry->gpu_addr = gpu_addr;
+	),
+	TP_printk("gpu_id=%u pid=%u size=%llu gpu_addr=%llu",
+		__entry->gpu_id,
+		__entry->pid,
+		__entry->size,
+		__entry->gpu_addr)
+);
+
+TRACE_EVENT(mali_mem_free,
+	TP_PROTO(uint32_t gpu_id, uint32_t pid, uint64_t size, uint64_t gpu_addr),
+	TP_ARGS(gpu_id, pid, size, gpu_addr),
+	TP_STRUCT__entry(
+		__field(uint32_t, gpu_id)
+		__field(uint32_t, pid)
+		__field(uint64_t, size)
+		__field(uint64_t, gpu_addr)
+	),
+	TP_fast_assign(
+		__entry->gpu_id = gpu_id;
+		__entry->pid = pid;
+		__entry->size = size;
+		__entry->gpu_addr = gpu_addr;
+	),
+	TP_printk("gpu_id=%u pid=%u size=%llu gpu_addr=%llu",
+		__entry->gpu_id,
+		__entry->pid,
+		__entry->size,
+		__entry->gpu_addr)
+);
+
+TRACE_EVENT(mali_mem_update,
+	TP_PROTO(uint32_t gpu_id, uint32_t pid, uint64_t size_a, uint64_t size_b, uint64_t gpu_addr),
+	TP_ARGS(gpu_id, pid, size_a, size_b, gpu_addr),
+	TP_STRUCT__entry(
+		__field(uint32_t, gpu_id)
+		__field(uint32_t, pid)
+		__field(uint64_t, size_a)
+		__field(uint64_t, size_b)
+		__field(uint64_t, gpu_addr)
+	),
+	TP_fast_assign(
+		__entry->gpu_id = gpu_id;
+		__entry->pid = pid;
+		__entry->size_a = size_a;
+		__entry->size_b = size_b;
+		__entry->gpu_addr = gpu_addr;
+	),
+	TP_printk("gpu_id=%u pid=%u size_a=%llu size_b=%llu gpu_addr=%llu",
+		__entry->gpu_id,
+		__entry->pid,
+		__entry->size_a,
+		__entry->size_b,
+		__entry->gpu_addr)
+);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
+
+
 #if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
 TRACE_EVENT(mali_alloc_req_size,
 	    TP_PROTO(size_t req_size),
