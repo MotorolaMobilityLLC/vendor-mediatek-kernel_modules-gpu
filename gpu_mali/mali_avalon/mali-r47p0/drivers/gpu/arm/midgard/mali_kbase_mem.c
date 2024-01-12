@@ -1266,7 +1266,7 @@ int kbase_alloc_phy_pages_helper(struct kbase_mem_phy_alloc *alloc, size_t nr_pa
 	if (nr_pages_requested == 0)
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
 	{
-		kbase_trace_alloc_pages(kbdev->id, kctx, nr_pages_requested, (size_t)alloc->pages);
+		kbase_trace_alloc_pages(kbdev->id, kctx, nr_pages_requested, (size_t)alloc->pages, alloc->category);
 		goto done; /*nothing to do*/
 	}
 #else
@@ -1282,7 +1282,7 @@ int kbase_alloc_phy_pages_helper(struct kbase_mem_phy_alloc *alloc, size_t nr_pa
 	new_page_count = mem_account_inc(kctx, nr_pages_requested);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
-	kbase_trace_alloc_pages(kbdev->id, kctx, nr_pages_requested, (size_t)alloc->pages);
+	kbase_trace_alloc_pages(kbdev->id, kctx, nr_pages_requested, (size_t)alloc->pages, alloc->category);
 #endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
@@ -1447,7 +1447,7 @@ no_new_partial:
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
 	if (nr_pages_to_account != nr_pages_requested)
-		kbase_trace_update_pages(kbdev->id, kctx, nr_pages_requested, nr_pages_to_account, (size_t)alloc->pages);
+		kbase_trace_update_pages(kbdev->id, kctx, nr_pages_requested, nr_pages_to_account, (size_t)alloc->pages, alloc->category);
 #endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 	KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
@@ -1488,7 +1488,7 @@ alloc_failed:
 	mem_account_dec(kctx, nr_left);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
-	kbase_trace_free_pages(kbdev->id, kctx, nr_left, (size_t)alloc->pages);
+	kbase_trace_free_pages(kbdev->id, kctx, nr_left, (size_t)alloc->pages, alloc->category);
 #endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 invalid_request:
@@ -1605,7 +1605,7 @@ struct tagged_addr *kbase_alloc_phy_pages_helper_locked(struct kbase_mem_phy_all
 	if (nr_pages_requested == 0)
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
 	{
-		kbase_trace_alloc_pages(kbdev->id, kctx, nr_pages_requested, (size_t)alloc->pages);
+		kbase_trace_alloc_pages(kbdev->id, kctx, nr_pages_requested, (size_t)alloc->pages, alloc->category);
 		goto done; /*nothing to do*/
 	}
 #else
@@ -1621,7 +1621,7 @@ struct tagged_addr *kbase_alloc_phy_pages_helper_locked(struct kbase_mem_phy_all
 	new_page_count = mem_account_inc(kctx, nr_pages_requested);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
-	kbase_trace_alloc_pages(kbdev->id, kctx, nr_pages_requested, (size_t)alloc->pages);
+	kbase_trace_alloc_pages(kbdev->id, kctx, nr_pages_requested, (size_t)alloc->pages, alloc->category);
 #endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
@@ -1761,7 +1761,7 @@ struct tagged_addr *kbase_alloc_phy_pages_helper_locked(struct kbase_mem_phy_all
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
 	if (nr_pages_to_account != nr_pages_requested)
-		kbase_trace_update_pages(kbdev->id, kctx, nr_pages_requested, nr_pages_to_account, (size_t)alloc->pages);
+		kbase_trace_update_pages(kbdev->id, kctx, nr_pages_requested, nr_pages_to_account, (size_t)alloc->pages, alloc->category);
 #endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 	KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
@@ -1820,7 +1820,7 @@ alloc_failed:
 	mem_account_dec(kctx, nr_pages_requested);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
-	kbase_trace_free_pages(kbdev->id, kctx, nr_pages_requested, (size_t)alloc->pages);
+	kbase_trace_free_pages(kbdev->id, kctx, nr_pages_requested, (size_t)alloc->pages, alloc->category);
 #endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 invalid_request:
@@ -1934,7 +1934,7 @@ int kbase_free_phy_pages_helper(struct kbase_mem_phy_alloc *alloc, size_t nr_pag
 		new_page_count = mem_account_dec(kctx, nr_pages_to_account);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
-		kbase_trace_free_pages(kbdev->id, kctx, nr_pages_to_account, (size_t)alloc->pages);
+		kbase_trace_free_pages(kbdev->id, kctx, nr_pages_to_account, (size_t)alloc->pages, alloc->category);
 #endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 		KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
@@ -1952,7 +1952,7 @@ int kbase_free_phy_pages_helper(struct kbase_mem_phy_alloc *alloc, size_t nr_pag
 			new_page_count = mem_account_dec(kctx, nr_pages_to_account - freed);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
-		kbase_trace_update_pages(kbdev->id, kctx, freed, nr_pages_to_account, (size_t)alloc->pages);
+		kbase_trace_update_pages(kbdev->id, kctx, freed, nr_pages_to_account, (size_t)alloc->pages, alloc->category);
 #endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 		KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
@@ -2047,7 +2047,7 @@ void kbase_free_phy_pages_helper_locked(struct kbase_mem_phy_alloc *alloc,
 	new_page_count = mem_account_dec(kctx, nr_pages_to_account);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
-	kbase_trace_free_pages(kbdev->id, kctx, nr_pages_to_account, (size_t)alloc->pages);
+	kbase_trace_free_pages(kbdev->id, kctx, nr_pages_to_account, (size_t)alloc->pages, alloc->category);
 #endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 	KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
@@ -3352,8 +3352,13 @@ struct kbase_va_region *kbase_jit_allocate(struct kbase_context *kctx,
 		mutex_unlock(&kctx->jit_evict_lock);
 		kbase_gpu_vm_unlock(kctx);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+		reg = kbase_mem_alloc(kctx, info->va_pages, info->commit_pages, info->extension,
+				      &flags, &gpu_addr, mmu_sync_info, KBASE_MEM_JIT);
+#else
 		reg = kbase_mem_alloc(kctx, info->va_pages, info->commit_pages, info->extension,
 				      &flags, &gpu_addr, mmu_sync_info);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 		if (!reg) {
 			/* Most likely not enough GPU virtual space left for
 			 * the new JIT allocation.

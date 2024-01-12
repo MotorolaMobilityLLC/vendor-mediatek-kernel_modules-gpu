@@ -69,8 +69,13 @@ static void mali_kutf_GPUCORE27226_test_function(struct kutf_context *context)
 		return;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	region =
+		kbase_mem_alloc(kctx, NR_PAGES, NR_PAGES, NR_PAGES, &flags, &gpu_va, mmu_sync_info, KBASE_MEM_UNKNOWN);
+#else
 	region =
 		kbase_mem_alloc(kctx, NR_PAGES, NR_PAGES, NR_PAGES, &flags, &gpu_va, mmu_sync_info);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 	if (!region) {
 		pr_warn("unable to allocate region");

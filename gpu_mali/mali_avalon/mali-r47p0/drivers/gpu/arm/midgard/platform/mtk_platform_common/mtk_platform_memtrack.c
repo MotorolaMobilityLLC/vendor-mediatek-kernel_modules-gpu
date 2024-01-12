@@ -21,6 +21,24 @@ extern unsigned int (*mtk_get_gpu_memory_usage_fp)(void);
 
 static DEFINE_MUTEX(memtrack_lock);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+#define MAX_GPU_MEMORY_STR_LEN        256
+static inline const char *get_gpu_memory_str(struct kbase_context *kctx) {
+	static char gpu_memory_str[MAX_GPU_MEMORY_STR_LEN];
+	int offset = 0, i;
+	if (unlikely(kctx->target_mem_profiling)) {
+		offset += snprintf(gpu_memory_str, MAX_GPU_MEMORY_STR_LEN, "%10u (", atomic_read(&(kctx->used_pages)));
+		for (i = 0; i < KBASE_MEM_LABEL_COUNT;i++) {
+			offset += snprintf(gpu_memory_str + offset, MAX_GPU_MEMORY_STR_LEN - offset, "%s%10u", i ? ", " : "", atomic_read(&(kctx->used_pages_categories[i])));
+		}
+		offset += snprintf(gpu_memory_str + offset, MAX_GPU_MEMORY_STR_LEN - offset, ") %10u %s", kctx->tgid, kctx->process_name);
+	}
+	else
+		snprintf(gpu_memory_str, MAX_GPU_MEMORY_STR_LEN, "%10u %10u", atomic_read(&(kctx->used_pages)), kctx->tgid);
+	return gpu_memory_str;
+}
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
+
 static int mtk_gpu_memory_show(struct seq_file *m, void *v)
 {
 	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
@@ -51,11 +69,17 @@ static int mtk_gpu_memory_show(struct seq_file *m, void *v)
 
 	list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
 		/* output the memory usage and cap for each kctx */
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+		seq_printf(m, "  %s-0x%p %s\n",
+		           "kctx",
+		           kctx, get_gpu_memory_str(kctx));
+#else
 		seq_printf(m, "  %s-0x%p %10u %10u\n",
 		           "kctx",
 		           kctx,
 		           atomic_read(&(kctx->used_pages)),
 		           kctx->tgid);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 	}
 	mutex_unlock(&kbdev->kctx_list_lock);
 
