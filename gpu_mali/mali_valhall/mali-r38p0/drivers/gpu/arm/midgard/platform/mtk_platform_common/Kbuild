@@ -25,3 +25,4 @@ ifeq ($(CONFIG_MALI_MTK_DEVFREQ_GOVERNOR),y)
 endif ## CONFIG_MALI_MTK_DEVFREQ_GOVERNOR ##
 
 ccflags-y += -I$(srctree)/drivers/devfreq/
+ccflags-y += -Wno-unused-variable
