@@ -1307,7 +1307,7 @@ static void fence_timeout_callback(struct timer_list *timer)
 		dev_warn(kctx->kbdev->dev,
 			 "ctx:%d_%d kcpu queue:%u still waiting for fence[%pK] context#seqno:%s",
 			 kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name);
-		queue_work(kcpu_queue->timeout_wq, &kcpu_queue->timeout_work);
+		queue_work(kctx->csf.kcpu_queues.timeout_wq, &kcpu_queue->timeout_work);
 	} else {
 		dev_warn(kctx->kbdev->dev, "fence has got error");
 		dev_warn(kctx->kbdev->dev,
@@ -1620,10 +1620,8 @@ static int delete_queue(struct kbase_context *kctx, u32 id)
 		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 
 		cancel_work_sync(&queue->work);
-
 #ifdef CONFIG_MALI_FENCE_DEBUG
 		cancel_work_sync(&queue->timeout_work);
-		destroy_workqueue(queue->timeout_wq);
 #endif
 
 		kfree(queue);
@@ -2267,6 +2265,13 @@ int kbase_csf_kcpu_queue_context_init(struct kbase_context *kctx)
 	if (!kctx->csf.kcpu_queues.wq)
 		return -ENOMEM;
 
+#ifdef CONFIG_MALI_FENCE_DEBUG
+	kctx->csf.kcpu_queues.timeout_wq = alloc_workqueue("mali_kbase_csf_kcpu_timeout",
+					WQ_UNBOUND | WQ_HIGHPRI, 0);
+	if (!kctx->csf.kcpu_queues.timeout_wq)
+		return -ENOMEM;
+#endif
+
 	mutex_init(&kctx->csf.kcpu_queues.lock);
 
 	kctx->csf.kcpu_queues.num_cmds = 0;
@@ -2287,6 +2292,9 @@ void kbase_csf_kcpu_queue_context_term(struct kbase_context *kctx)
 			(void)delete_queue(kctx, id);
 	}
 
+#ifdef CONFIG_MALI_FENCE_DEBUG
+	destroy_workqueue(kctx->csf.kcpu_queues.timeout_wq);
+#endif
 	destroy_workqueue(kctx->csf.kcpu_queues.wq);
 	mutex_destroy(&kctx->csf.kcpu_queues.lock);
 }
@@ -2330,16 +2338,6 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx,
 		ret = -ENOMEM;
 		goto out;
 	}
-
-#ifdef CONFIG_MALI_FENCE_DEBUG
-	queue->timeout_wq = alloc_workqueue("mali_kbase_csf_kcpu_timeout_wq_%i", WQ_UNBOUND | WQ_HIGHPRI, 0, idx);
-	if (queue->timeout_wq == NULL) {
-		kfree(queue);
-		ret = -ENOMEM;
-
-		goto out;
-	}
-#endif
 
 	bitmap_set(kctx->csf.kcpu_queues.in_use, idx, 1);
 	kctx->csf.kcpu_queues.array[idx] = queue;
