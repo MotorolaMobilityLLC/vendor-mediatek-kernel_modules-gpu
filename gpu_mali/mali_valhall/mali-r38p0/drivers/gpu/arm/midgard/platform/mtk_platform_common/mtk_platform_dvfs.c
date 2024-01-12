@@ -3,15 +3,23 @@
  * Copyright (c) 2021 MediaTek Inc.
  */
 
+#if IS_ENABLED(CONFIG_PROC_FS)
+#include <linux/proc_fs.h>
+#endif
 #include <mali_kbase.h>
 #include <platform/mtk_platform_common.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
 #include <backend/gpu/mali_kbase_pm_defs.h>
 #include <csf/ipa_control/mali_kbase_csf_ipa_control_ex.h>
-
-#include "mtk_gpu_dvfs.h"
+#include <mtk_gpufreq.h>
 #include <mtk_gpu_utility.h>
+#include "mtk_platform_dvfs.h"
 
+#if IS_ENABLED(CONFIG_PROC_FS)
+/* name of the proc entry */
+#define	PROC_GPU_UTILIZATION "gpu_utilization"
+static DEFINE_MUTEX(gpu_utilization_lock);
+#endif
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 static unsigned int current_util_active;
@@ -221,3 +229,98 @@ int mtk_set_core_mask(u64 core_mask)
 	return ret;
 }
 #endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+static int mtk_dvfs_gpu_utilization_show(struct seq_file *m, void *v)
+{
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	unsigned int cur_opp_idx;
+
+	mutex_lock(&gpu_utilization_lock);
+
+	mtk_common_update_gpu_utilization();
+
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+	cur_opp_idx = mtk_common_gpufreq_bringup() ?
+		0 : gpufreq_get_cur_oppidx(TARGET_DEFAULT);
+#else
+	cur_opp_idx = mtk_common_gpufreq_bringup() ?
+		0 : mt_gpufreq_get_cur_freq_index();
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+
+	seq_printf(m, "ACTIVE=%u 3D/TA/COMPUTE=%u/%u/%u OPP_IDX=%u MFG_PWR=%d\n",
+	           current_util_active, current_util_3d, current_util_ta,
+	           current_util_compute, cur_opp_idx, mtk_common_pm_is_mfg_active());
+
+	mutex_unlock(&gpu_utilization_lock);
+#else
+	seq_puts(m, "GPU DVFS doesn't be enabled\n");
+#endif
+
+	return 0;
+}
+DEFINE_PROC_SHOW_ATTRIBUTE(mtk_dvfs_gpu_utilization);
+
+int mtk_dvfs_procfs_init(struct kbase_device *kbdev, struct proc_dir_entry *parent)
+{
+	if (IS_ERR_OR_NULL(kbdev))
+		return -1;
+
+	proc_create(PROC_GPU_UTILIZATION, 0444, parent, &mtk_dvfs_gpu_utilization_proc_ops);
+
+	return 0;
+}
+
+int mtk_dvfs_procfs_term(struct kbase_device *kbdev, struct proc_dir_entry *parent)
+{
+	if (IS_ERR_OR_NULL(kbdev))
+		return -1;
+
+	remove_proc_entry(PROC_GPU_UTILIZATION, parent);
+
+	return 0;
+}
+#else
+int mtk_dvfs_procfs_init(struct kbase_device *kbdev, struct proc_dir_entry *parent)
+{
+	return 0;
+}
+
+int mtk_dvfs_procfs_term(struct kbase_device *kbdev, struct proc_dir_entry *parent)
+{
+	return 0;
+}
+#endif /* CONFIG_PROC_FS */
+
+int mtk_dvfs_init(struct kbase_device *kbdev)
+{
+	if (IS_ERR_OR_NULL(kbdev))
+		return -1;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE)
+	ged_dvfs_cal_gpu_utilization_ex_fp = mtk_common_cal_gpu_utilization_ex;
+	mtk_notify_gpu_freq_change_fp = MTKGPUFreq_change_notify;
+#else
+	ged_dvfs_cal_gpu_utilization_fp = mtk_common_cal_gpu_utilization;
+#endif /* CONFIG_MALI_MTK_DVFS_LOADING_MODE */
+	ged_dvfs_gpu_freq_commit_fp = mtk_common_ged_dvfs_commit;
+	ged_dvfs_set_gpu_core_mask_fp = mtk_set_core_mask;
+
+	return 0;
+}
+
+int mtk_dvfs_term(struct kbase_device *kbdev)
+{
+	if (IS_ERR_OR_NULL(kbdev))
+		return -1;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE)
+	ged_dvfs_cal_gpu_utilization_ex_fp = NULL;
+	mtk_notify_gpu_freq_change_fp = NULL;
+#else
+	ged_dvfs_cal_gpu_utilization_fp = NULL;
+#endif /* CONFIG_MALI_MTK_DVFS_LOADING_MODE */
+	ged_dvfs_gpu_freq_commit_fp = NULL;
+
+	return 0;
+}

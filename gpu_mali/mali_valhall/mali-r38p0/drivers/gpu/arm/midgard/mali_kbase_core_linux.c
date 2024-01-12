@@ -5083,6 +5083,9 @@ int kbase_device_debugfs_init(struct kbase_device *kbdev)
 #endif
 	kbase_dvfs_status_debugfs_init(kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS)
+	mtk_common_debugfs_init(kbdev);
+#endif
 
 	return 0;
 
@@ -5563,11 +5566,18 @@ int kbase_sysfs_init(struct kbase_device *kbdev)
 			&kbase_attr_group);
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SYSFS)
+	mtk_common_sysfs_init(kbdev);
+#endif
+
 	return err;
 }
 
 void kbase_sysfs_term(struct kbase_device *kbdev)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_SYSFS)
+	mtk_common_sysfs_term(kbdev);
+#endif
 	sysfs_remove_group(&kbdev->dev->kobj, &kbase_mempool_attr_group);
 	sysfs_remove_group(&kbdev->dev->kobj, &kbase_scheduling_attr_group);
 	sysfs_remove_group(&kbdev->dev->kobj, &kbase_attr_group);
@@ -5581,9 +5591,6 @@ static int kbase_platform_device_remove(struct platform_device *pdev)
 	if (!kbdev)
 		return -ENODEV;
 
-#if IS_ENABLED(CONFIG_PROC_FS)
-	mtk_common_procfs_exit();
-#endif
 	kbase_device_term(kbdev);
 	dev_set_drvdata(kbdev->dev, NULL);
 	kbase_device_free(kbdev);
@@ -5639,9 +5646,6 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		dev_set_drvdata(kbdev->dev, NULL);
 		kbase_device_free(kbdev);
 	} else {
-#if IS_ENABLED(CONFIG_PROC_FS)
-		mtk_common_procfs_init();
-#endif
 		dev_info(kbdev->dev,
 			"Probed as %s\n", dev_name(kbdev->mdev.this_device));
 		kbase_increment_device_id();
