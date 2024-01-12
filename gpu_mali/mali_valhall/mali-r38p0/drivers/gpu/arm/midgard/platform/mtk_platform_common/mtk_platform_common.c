@@ -11,7 +11,7 @@
 #include <ged_dvfs.h>
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
-#include "mtk_platform_dvfs.h"
+#include <platform/mtk_platform_common/mtk_platform_dvfs.h>
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 #if IS_ENABLED(CONFIG_PROC_FS)
@@ -19,19 +19,19 @@
 #endif /* CONFIG_PROC_FS */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_GOVERNOR)
-#include "mtk_platform_devfreq_governor.h"
+#include <platform/mtk_platform_common/mtk_platform_devfreq_governor.h>
 #endif /* CONFIG_MALI_MTK_DEVFREQ_GOVERNOR */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-#include "mtk_platform_debug.h"
+#include <platform/mtk_platform_common/mtk_platform_debug.h>
 #endif /* CONFIG_MALI_MTK_DEBUG*/
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-#include "mtk_platform_logbuffer.h"
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
-#include "mtk_platform_memtrack.h"
+#include <platform/mtk_platform_common/mtk_platform_memtrack.h>
 #endif /* CONFIG_MALI_MTK_MEMTRACK */
 
 #if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
@@ -184,7 +184,7 @@ static void mtk_common_procfs_init(struct kbase_device *kbdev)
   	}
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_log_buffer_procfs_init(kbdev, proc_root);
+	mtk_logbuffer_procfs_init(kbdev, proc_root);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
@@ -210,7 +210,7 @@ static void mtk_common_procfs_term(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_MEMTRACK */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_log_buffer_procfs_term(kbdev, proc_root);
+	mtk_logbuffer_procfs_term(kbdev, proc_root);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	proc_root = NULL;
@@ -261,20 +261,21 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 
 	mali_kbdev = kbdev;
 
+	if (mtk_platform_pm_init(kbdev)) {
+		dev_info(kbdev->dev, "@%s: Failed to init Platform PM", __func__);
+		return -1;
+	}
+
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	mtk_debug_init(kbdev);
 #endif /* CONFIG_MALI_MTK_DEBUG */
-
-#if IS_ENABLED(CONFIG_MALI_MTK_PROC_FS)
-	mtk_common_procfs_init(kbdev);
-#endif /* CONFIG_MALI_MTK_PROC_FS */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_GOVERNOR)
 	mtk_devfreq_governor_init(kbdev);
 #endif /* CONFIG_MALI_MTK_DEVFREQ_GOVERNOR */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_log_buffer_init(kbdev);
+	mtk_logbuffer_init(kbdev);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
@@ -284,6 +285,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	mtk_dvfs_init(kbdev);
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_PROC_FS)
+	mtk_common_procfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_PROC_FS */
 
 	return 0;
 }
@@ -299,16 +304,12 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 	mtk_debug_term(kbdev);
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_PROC_FS)
-	mtk_common_procfs_term(kbdev);
-#endif /* CONFIG_MALI_MTK_PROC_FS */
-
 #if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_GOVERNOR)
 	mtk_devfreq_governor_term(kbdev);
 #endif /* CONFIG_MALI_MTK_DEVFREQ_GOVERNOR */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_log_buffer_term(kbdev);
+	mtk_logbuffer_term(kbdev);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
@@ -318,4 +319,10 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	mtk_dvfs_term(kbdev);
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_PROC_FS)
+	mtk_common_procfs_term(kbdev);
+#endif /* CONFIG_MALI_MTK_PROC_FS */
+
+	mtk_platform_pm_term(kbdev);
 }

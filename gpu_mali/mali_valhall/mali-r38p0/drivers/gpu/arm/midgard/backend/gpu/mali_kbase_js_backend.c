@@ -30,7 +30,7 @@
 #include <backend/gpu/mali_kbase_js_internal.h>
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG) || IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DFD)
 #include <mtk_gpufreq.h>
-#include "platform/mtk_platform_common.h"
+#include <platform/mtk_platform_common.h>
 #endif
 
 #if !MALI_USE_CSF

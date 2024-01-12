@@ -122,8 +122,12 @@
 
 #include <mali_kbase_caps.h>
 
-#include "platform/mtk_platform_common.h"
+#include <platform/mtk_platform_common.h>
 #include <mtk_gpufreq.h>
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 /* GPU IRQ Tags */
 #define	JOB_IRQ_TAG	0
@@ -1727,6 +1731,15 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 	         fence_wait->time_in_microseconds,
 	         fence_wait->flags,
 	         fence_wait->pid);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
+		"@%s: fence wait timeouts(%llu ms)! flags=0x%x pid=%u\n",
+		__func__,
+		fence_wait->time_in_microseconds,
+		fence_wait->flags,
+		fence_wait->pid);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 	if (fence_wait->flags & BASE_INTERNAL_FENCE_WAIT_DUMP_FLAG) {
@@ -5654,6 +5667,11 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		kbase_arbiter_pm_vm_event(kbdev, KBASE_VM_GPU_INITIALIZED_EVT);
 		mutex_unlock(&kbdev->pm.lock);
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_regular,
+			"Probed as %s\n",
+			dev_name(kbdev->mdev.this_device));
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 
 	return err;
