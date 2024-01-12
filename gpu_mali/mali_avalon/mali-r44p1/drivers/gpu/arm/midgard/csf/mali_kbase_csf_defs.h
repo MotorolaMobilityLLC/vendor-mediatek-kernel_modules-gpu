@@ -1112,6 +1112,10 @@ struct kbase_csf_scheduler {
 	unsigned long last_schedule;
 	atomic_t timer_enabled;
 	struct hrtimer tick_timer;
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+	unsigned int apo_support;
+	struct hrtimer apo_idle_timer;
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 	atomic_t pending_tick_work;
 	atomic_t pending_tock_work;
 	struct delayed_work ping_work;

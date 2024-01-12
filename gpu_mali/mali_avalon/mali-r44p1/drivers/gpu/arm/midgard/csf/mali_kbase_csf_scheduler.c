@@ -97,6 +97,10 @@ static int suspend_active_groups_on_powerdown(struct kbase_device *kbdev,
 static void schedule_in_cycle(struct kbase_queue_group *group, bool force);
 static bool queue_group_scheduled_locked(struct kbase_queue_group *group);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+static void enqueue_gpu_idle_work(struct kbase_csf_scheduler *const scheduler);
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
+
 #define kctx_as_enabled(kctx) (!kbase_ctx_flag(kctx, KCTX_AS_DISABLED_ON_FAULT))
 
 
@@ -346,6 +350,22 @@ static enum hrtimer_restart tick_timer_callback(struct hrtimer *timer)
 	return HRTIMER_NORESTART;
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+static enum hrtimer_restart apo_idle_timer_callback(struct hrtimer *timer)
+{
+	struct kbase_device *kbdev =
+		container_of(timer, struct kbase_device, csf.scheduler.apo_idle_timer);
+
+	ged_gpu_adaptive_power_reset();
+	ged_gpu_predict_adaptive_power_reset();
+
+	kbase_pm_disable_db_mirror_interrupt(kbdev);
+	enqueue_gpu_idle_work(&kbdev->csf.scheduler);
+
+	return HRTIMER_NORESTART;
+}
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
+
 static void release_doorbell(struct kbase_device *kbdev, int doorbell_nr)
 {
 	WARN_ON(doorbell_nr >= CSF_NUM_DOORBELL);
@@ -513,6 +533,9 @@ void kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev)
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 	int non_idle_offslot_grps;
 	bool can_suspend_on_idle;
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+	ktime_t expiry_time;
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 	lockdep_assert_held(&scheduler->interrupt_lock);
@@ -538,11 +561,19 @@ void kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev)
 			 */
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 			/* Bypass enqueue */
-			if (ged_gpu_adaptive_power_notify()) {
+			if (kbdev->csf.scheduler.apo_support && ged_gpu_adaptive_power_notify()) {
 				kbase_pm_enable_db_mirror_interrupt(kbdev);
 				if (!ged_gpu_predict_adaptive_power_notify()) {
 					kbase_pm_disable_db_mirror_interrupt(kbdev);
 					enqueue_gpu_idle_work(scheduler);
+				} else {
+					if (!hrtimer_active(&scheduler->apo_idle_timer)) {
+						expiry_time = HR_TIMER_DELAY_NSEC(
+							ged_get_power_duration_ns() + 1000000);
+						hrtimer_start(&scheduler->apo_idle_timer,
+							expiry_time,
+							HRTIMER_MODE_REL);
+					}
 				}
 			/* Handle enqueue */
 			} else
@@ -6739,6 +6770,11 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 	atomic_set(&scheduler->non_idle_offslot_grps, 0);
 	hrtimer_init(&scheduler->tick_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	scheduler->tick_timer.function = tick_timer_callback;
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+	scheduler->apo_support = ged_gpu_adaptive_power_support();
+	hrtimer_init(&scheduler->apo_idle_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	scheduler->apo_idle_timer.function = apo_idle_timer_callback;
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 
 	kbase_csf_tiler_heap_reclaim_mgr_init(kbdev);
 
