@@ -364,9 +364,9 @@ static u64 example_mgm_update_gpu_pte(
 	const u32 pbha_bit_mask = 0xf; /* 4-bit */
 	int default_group_id = data->default_group_id != 0?data->default_group_id:6;
 
-	dev_dbg(data->dev,
-		"%s(mgm_dev=%p, group_id=%d, mmu_level=%d, pte=0x%llx)\n",
-		__func__, (void *)mgm_dev, default_group_id, mmu_level, pte);
+//	dev_dbg(data->dev,
+//		"%s(mgm_dev=%p, group_id=%d, mmu_level=%d, pte=0x%llx)\n",
+//		__func__, (void *)mgm_dev, default_group_id, mmu_level, pte);
 
 	if (WARN_ON(default_group_id < 0) ||
 		WARN_ON(default_group_id >= MEMORY_GROUP_MANAGER_NR_GROUPS))
