@@ -3364,9 +3364,9 @@ int kbase_pm_apply_pmode_entry_wa(struct kbase_device *kbdev)
 	/* Can switch to ARM backup PDCA here */
 #if IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
 	/* 2. fake pwr on mfg2~18 */
-	gpufreq_fake_spm_mtcmos_control(1);
+	gpufreq_fake_mtcmos_control(1);
 	/* 3. disable pdcv2 */
-	gpufreq_pdc_control(0);
+	gpufreq_pdca_config(0);
 #endif /* CONFIG_MALI_MTK_PROTECTED_PATCH */
 
 	kbase_pm_unlock(kbdev);
@@ -3385,7 +3385,7 @@ void kbase_pm_apply_pmode_exit_wa(struct kbase_device *kbdev)
 	/* Can switch back to MTK PDCA here */
 #if IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
 	/* 1. enable pdcv2 */
-	gpufreq_pdc_control(1);
+	gpufreq_pdca_config(1);
 	/* 2. enable dcs */
 	dcs_enable(1);
 #endif /* CONFIG_MALI_MTK_PROTECTED_PATCH */
