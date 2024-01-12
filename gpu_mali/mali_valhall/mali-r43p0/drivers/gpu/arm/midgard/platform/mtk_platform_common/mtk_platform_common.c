@@ -37,6 +37,10 @@
 #include <platform/mtk_platform_common/mtk_platform_adaptive_power_policy.h>
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+#include "csf/mali_kbase_csf_trace_buffer.h"
+#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
+
 #if IS_ENABLED(CONFIG_PROC_FS)
 /* name of the proc root dir */
 #define	PROC_ROOT "mtk_mali"
@@ -118,6 +122,11 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 		break;
 #endif /* CONFIG_MALI_CSF_SUPPORT */
 	case MTK_COMMON_DBG_DUMP_FULL_DB:
+#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+		if (!(diagnosis_dump_mask & MTK_DBG_COMMON_DUMP_SKIP_FWLOG)) {
+			mtk_kbase_csf_firmware_ke_dump_fwlog(kbdev); /* dump fwlog, reserve 1MB for fwlog*/
+		}
+#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
 		break;
 	case MTK_COMMON_DBG_TRIGGER_KERNEL_EXCEPTION:
 #if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
