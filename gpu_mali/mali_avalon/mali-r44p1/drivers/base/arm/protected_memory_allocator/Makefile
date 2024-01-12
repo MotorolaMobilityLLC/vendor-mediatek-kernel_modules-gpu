@@ -26,6 +26,17 @@ ccflags-y = -I$(KO_CODE_PATH)/../../../gpu/arm/midgard/include \
 subdir-ccflags-y += $(ccflags-y)
 
 ifeq ($(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR), y)
+ifeq ($(MTK_PLATFORM_VERSION), mt6989)
+CONFIG_MALI_MTK_GPU_IOMMU := n
+else
+CONFIG_MALI_MTK_GPU_IOMMU := n
+endif
+
+ifeq ($(CONFIG_MALI_MTK_GPU_IOMMU), y)
+ccflags-y += -DCONFIG_MALI_MTK_GPU_IOMMU
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpufreq
+endif
+
 obj-m += mali_prot_alloc_$(MTK_PLATFORM_VERSION)_r44.o
 mali_prot_alloc_$(MTK_PLATFORM_VERSION)_r44-y := protected_memory_allocator.o
 endif
