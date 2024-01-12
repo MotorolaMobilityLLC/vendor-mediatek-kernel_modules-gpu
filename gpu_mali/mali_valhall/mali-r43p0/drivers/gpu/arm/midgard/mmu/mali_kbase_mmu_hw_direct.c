@@ -33,6 +33,11 @@
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <mali_kbase_hwaccess_time.h>
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 
 /* Max loop is 100000000 which roughly equals to 50s.
@@ -209,6 +214,11 @@ static int wait_ready(struct kbase_device *kbdev, unsigned int as_nr)
 		as_nr);
 	kbdev->as[as_nr].is_unresponsive = true;
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_print(&kbdev->logbuf_exception,
+		"[%llxt] AS_ACTIVE bit stuck for as %u. Might be caused by unstable GPU clk/pwr or faulty system",
+		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception), as_nr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_NA);
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
 #endif /* CONFIG_MALI_MTK_DEBUG */
@@ -233,6 +243,12 @@ static int write_cmd(struct kbase_device *kbdev, int as_nr, u32 cmd)
 		dev_err(kbdev->dev,
 			"Wait for AS_ACTIVE bit failed for as %u, before sending MMU command %u",
 			as_nr, cmd);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_exception,
+			"[%llxt] Wait for AS_ACTIVE bit failed for as %u, before sending MMU command %u\n",
+			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
+			as_nr, cmd);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 
 	return status;
@@ -312,6 +328,10 @@ static int apply_hw_issue_GPU2019_3901_wa(struct kbase_device *kbdev, u32 *mmu_c
 
 		ret = wait_cores_power_trans_complete(kbdev);
 		if (unlikely(ret)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_print(&kbdev->logbuf_exception,
+				"wait_cores_power_trans_complete fail, try to do reset\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			if (kbase_prepare_to_reset_gpu_locked(kbdev,
 							      RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
 				kbase_reset_gpu_locked(kbdev);

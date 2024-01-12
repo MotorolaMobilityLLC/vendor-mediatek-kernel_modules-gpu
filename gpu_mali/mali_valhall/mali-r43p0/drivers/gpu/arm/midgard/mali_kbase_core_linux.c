@@ -124,6 +124,10 @@
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #define KERNEL_SIDE_DDK_VERSION_STRING "K:" MALI_RELEASE_NAME "(GPL)"
 
 /**
@@ -1696,6 +1700,15 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 	         fence_wait->time_in_microseconds,
 	         fence_wait->flags,
 	         fence_wait->pid);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		"[%llxt] Internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u\n",
+		mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
+		fence_wait->time_in_microseconds,
+		fence_wait->flags,
+		fence_wait->pid);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	if (fence_wait->flags & BASE_INTERNAL_FENCE_WAIT_DUMP_FLAG) {
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
@@ -5684,6 +5697,12 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		kbase_arbiter_pm_vm_event(kbdev, KBASE_VM_GPU_INITIALIZED_EVT);
 		mutex_unlock(&kbdev->pm.lock);
 #endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_regular,
+			"Probed as %s\n",
+			dev_name(kbdev->mdev.this_device));
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 
 	return err;

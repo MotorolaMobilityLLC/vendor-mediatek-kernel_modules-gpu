@@ -50,6 +50,11 @@
 #include <mali_kbase_trace_gpu_mem.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <mali_kbase_hwaccess_time.h>
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 /* Threshold used to decide whether to flush full caches or just a physical range */
 #define KBASE_PA_RANGE_THRESHOLD_NR_PAGES 20
 #define MGM_DEFAULT_PTE_GROUP (0)
@@ -1374,6 +1379,12 @@ page_fault_retry:
 			dev_err(kbdev->dev,
 				"Flush for GPU page table update did not complete on handling page fault @ 0x%llx",
 				fault->addr);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_print(&kbdev->logbuf_exception,
+				"[%llxt] Flush for GPU page table update did not complete on handling page fault @ 0x%llx\n",
+				mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
+				fault->addr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		}
 
 		mutex_unlock(&kbdev->mmu_hw_mutex);
