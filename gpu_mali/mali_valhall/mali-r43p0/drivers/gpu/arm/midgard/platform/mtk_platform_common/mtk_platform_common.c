@@ -51,6 +51,10 @@ static struct proc_dir_entry *proc_root;
 #include <platform/mtk_platform_common/mtk_platform_devfreq_governor.h>
 #endif /* CONFIG_MALI_MTK_DEVFREQ_GOVERNOR */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+#include <platform/mtk_platform_common/mtk_platform_irq_trace.h>
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
+
 static bool mfg_powered;
 static DEFINE_MUTEX(mfg_pm_lock);
 static DEFINE_MUTEX(common_debug_lock);
@@ -333,6 +337,9 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	mtk_dvfs_init(kbdev);
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_init(kbdev);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 	return 0;
 }
@@ -355,6 +362,9 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 	mtk_dvfs_term(kbdev);
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_term(kbdev);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 	mtk_platform_pm_term(kbdev);
 }

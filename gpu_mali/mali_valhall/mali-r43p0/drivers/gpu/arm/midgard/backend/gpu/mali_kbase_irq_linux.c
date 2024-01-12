@@ -25,6 +25,10 @@
 
 #include <linux/interrupt.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+#include <platform/mtk_platform_common/mtk_platform_irq_trace.h>
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
+
 #if IS_ENABLED(CONFIG_MALI_REAL_HW)
 
 /* GPU IRQ Tags */
@@ -48,15 +52,26 @@ static irqreturn_t kbase_job_irq_handler(int irq, void *data)
 	struct kbase_device *kbdev = kbase_untag(data);
 	u32 val;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 0);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
+
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 	if (!kbdev->pm.backend.gpu_powered) {
 		/* GPU is turned off - IRQ is not for us */
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+		mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 0);
+		mtk_debug_irq_trace_check_timeout(kbdev, KBASE_IRQ_JOB, 0);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 		return IRQ_NONE;
 	}
 
 	val = kbase_reg_read(kbdev, JOB_CONTROL_REG(JOB_IRQ_STATUS));
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_data(IRQ_DATA_IDX_JOB_IRQ_STATUS, (unsigned long long)val);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 #ifdef CONFIG_MALI_DEBUG
 	if (!kbdev->pm.backend.driver_ready_for_irqs)
@@ -66,6 +81,10 @@ static irqreturn_t kbase_job_irq_handler(int irq, void *data)
 
 	if (!val) {
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+		mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 0);
+		mtk_debug_irq_trace_check_timeout(kbdev, KBASE_IRQ_JOB, 0);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 		return IRQ_NONE;
 	}
 
@@ -80,6 +99,11 @@ static irqreturn_t kbase_job_irq_handler(int irq, void *data)
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+		mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 0);
+		mtk_debug_irq_trace_check_timeout(kbdev, KBASE_IRQ_JOB, 0);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
+
 	return IRQ_HANDLED;
 }
 
@@ -89,17 +113,28 @@ static irqreturn_t kbase_mmu_irq_handler(int irq, void *data)
 	struct kbase_device *kbdev = kbase_untag(data);
 	u32 val;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_start(KBASE_IRQ_MMU, 0);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
+
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 	if (!kbdev->pm.backend.gpu_powered) {
 		/* GPU is turned off - IRQ is not for us */
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+		mtk_debug_irq_trace_record_end(KBASE_IRQ_MMU, 0);
+		mtk_debug_irq_trace_check_timeout(kbdev, KBASE_IRQ_MMU, 0);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 		return IRQ_NONE;
 	}
 
 	atomic_inc(&kbdev->faults_pending);
 
 	val = kbase_reg_read(kbdev, MMU_REG(MMU_IRQ_STATUS));
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_data(IRQ_DATA_IDX_MMU_IRQ_STATUS, (unsigned long long)val);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 #ifdef CONFIG_MALI_DEBUG
 	if (!kbdev->pm.backend.driver_ready_for_irqs)
@@ -110,6 +145,10 @@ static irqreturn_t kbase_mmu_irq_handler(int irq, void *data)
 
 	if (!val) {
 		atomic_dec(&kbdev->faults_pending);
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+		mtk_debug_irq_trace_record_end(KBASE_IRQ_MMU, 0);
+		mtk_debug_irq_trace_check_timeout(kbdev, KBASE_IRQ_MMU, 0);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 		return IRQ_NONE;
 	}
 
@@ -118,6 +157,11 @@ static irqreturn_t kbase_mmu_irq_handler(int irq, void *data)
 	kbase_mmu_interrupt(kbdev, val);
 
 	atomic_dec(&kbdev->faults_pending);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_end(KBASE_IRQ_MMU, 0);
+	mtk_debug_irq_trace_check_timeout(kbdev, KBASE_IRQ_MMU, 0);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 	return IRQ_HANDLED;
 }
@@ -128,15 +172,26 @@ static irqreturn_t kbase_gpu_irq_handler(int irq, void *data)
 	struct kbase_device *kbdev = kbase_untag(data);
 	u32 val;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_start(KBASE_IRQ_GPU, 0);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
+
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 	if (!kbdev->pm.backend.gpu_powered) {
 		/* GPU is turned off - IRQ is not for us */
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+		mtk_debug_irq_trace_record_end(KBASE_IRQ_GPU, 0);
+		mtk_debug_irq_trace_check_timeout(kbdev, KBASE_IRQ_GPU, 0);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 		return IRQ_NONE;
 	}
 
 	val = kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_STATUS));
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_data(IRQ_DATA_IDX_GPU_IRQ_STATUS, (unsigned long long)val);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 #ifdef CONFIG_MALI_DEBUG
 	if (!kbdev->pm.backend.driver_ready_for_irqs)
@@ -145,12 +200,22 @@ static irqreturn_t kbase_gpu_irq_handler(int irq, void *data)
 #endif /* CONFIG_MALI_DEBUG */
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
-	if (!val)
+	if (!val) {
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+		mtk_debug_irq_trace_record_end(KBASE_IRQ_GPU, 0);
+		mtk_debug_irq_trace_check_timeout(kbdev, KBASE_IRQ_GPU, 0);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 		return IRQ_NONE;
+	}
 
 	dev_vdbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
 
 	kbase_gpu_interrupt(kbdev, val);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_end(KBASE_IRQ_GPU, 0);
+	mtk_debug_irq_trace_check_timeout(kbdev, KBASE_IRQ_GPU, 0);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 	return IRQ_HANDLED;
 }

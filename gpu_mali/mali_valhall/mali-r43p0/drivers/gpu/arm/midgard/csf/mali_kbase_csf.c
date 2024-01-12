@@ -45,6 +45,10 @@
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+#include <platform/mtk_platform_common/mtk_platform_irq_trace.h>
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
+
 #define CS_REQ_EXCEPTION_MASK (CS_REQ_FAULT_MASK | CS_REQ_FATAL_MASK)
 #define CS_ACK_EXCEPTION_MASK (CS_ACK_FAULT_MASK | CS_ACK_FATAL_MASK)
 
@@ -3244,9 +3248,18 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 		struct irq_idle_and_protm_track track = { .protm_grp = NULL, .idle_seq = U32_MAX };
 		bool glb_idle_irq_received = false;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+		mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 1);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 		kbase_reg_write(kbdev, JOB_CONTROL_REG(JOB_IRQ_CLEAR), val);
 		order_job_irq_clear_with_iface_mem_read();
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+		mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 1);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+		mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 2);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 		if (csg_interrupts != 0) {
 			kbase_csf_scheduler_spin_lock(kbdev, &flags);
 			/* Looping through and track the highest idle and protm groups */
@@ -3261,7 +3274,13 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 			process_tracked_info_for_protm(kbdev, &track);
 			kbase_csf_scheduler_spin_unlock(kbdev, flags);
 		}
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+		mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 2);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+		mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 3);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 		if (val & JOB_IRQ_GLOBAL_IF) {
 			const struct kbase_csf_global_iface *const global_iface =
 				&kbdev->csf.global_iface;
@@ -3311,6 +3330,9 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 				kbase_pm_update_state(kbdev);
 			}
 		}
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+		mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 3);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 		if (!glb_idle_irq_received)
 			break;
@@ -3323,6 +3345,9 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 		val = kbase_reg_read(kbdev, JOB_CONTROL_REG(JOB_IRQ_STATUS));
 	} while (val);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+		mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 4);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 	if (deferred_handling_glb_idle_irq) {
 		unsigned long flags;
 
@@ -3330,8 +3355,17 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 		kbase_csf_scheduler_process_gpu_idle_event(kbdev);
 		kbase_csf_scheduler_spin_unlock(kbdev, flags);
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+		mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 4);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+		mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 5);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 	wake_up_all(&kbdev->csf.event_wait);
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+		mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 5);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 	KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT_END, NULL, val);
 }

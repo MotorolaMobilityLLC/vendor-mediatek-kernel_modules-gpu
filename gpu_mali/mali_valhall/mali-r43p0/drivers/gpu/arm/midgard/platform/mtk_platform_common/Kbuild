@@ -24,5 +24,9 @@ ifeq ($(CONFIG_MALI_MTK_DEBUG),y)
     mali_kbase-y += $(curr)/mtk_platform_debug.o
 endif ## CONFIG_MALI_MTK_DEBUG ##
 
+ifeq ($(CONFIG_MALI_MTK_IRQ_TRACE),y)
+    mali_kbase-y += $(curr)/mtk_platform_irq_trace.o
+endif ## CONFIG_MALI_MTK_IRQ_TRACE ##
+
 ccflags-y += -I$(srctree)/drivers/devfreq/
 ccflags-y += -Wno-unused-variable
