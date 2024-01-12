@@ -1248,6 +1248,8 @@ struct kbase_device {
 	struct mtk_debug_logbuf logbuf_kbase;
 	struct mtk_debug_logbuf logbuf_exception;
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+	spinlock_t trace_buffer_lock;
 };
 
 /**
