@@ -41,6 +41,7 @@
 #include <backend/gpu/mali_kbase_devfreq.h>
 #include <mali_kbase_dummy_job_wa.h>
 #include <backend/gpu/mali_kbase_irq_internal.h>
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 static void kbase_pm_gpu_poweroff_wait_wq(struct work_struct *data);
 static void kbase_pm_hwcnt_disable_worker(struct work_struct *data);
@@ -947,7 +948,7 @@ void kbase_hwaccess_pm_resume(struct kbase_device *kbdev)
 	kbdev->pm.suspending = false;
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 	if (kbase_pm_is_gpu_lost(kbdev)) {
-		dev_vdbg(kbdev->dev, "%s: GPU lost in progress\n", __func__);
+		dev_dbg(kbdev->dev, "%s: GPU lost in progress\n", __func__);
 		kbase_pm_unlock(kbdev);
 		return;
 	}
@@ -1067,7 +1068,7 @@ static int pm_handle_mcu_sleep_on_runtime_suspend(struct kbase_device *kbdev)
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	if (kbdev->pm.backend.gpu_sleep_mode_active &&
 	    kbdev->pm.backend.exit_gpu_sleep_mode) {
-		dev_vdbg(kbdev->dev, "DB mirror interrupt occurred during runtime suspend after L2 power up");
+		dev_dbg(kbdev->dev, "DB mirror interrupt occurred during runtime suspend after L2 power up");
 		kbdev->pm.backend.gpu_wakeup_override = false;
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 		return -EBUSY;
@@ -1092,7 +1093,7 @@ static int pm_handle_mcu_sleep_on_runtime_suspend(struct kbase_device *kbdev)
 	 */
 	if (kbdev->pm.active_count ||
 	    kbdev->pm.backend.poweroff_wait_in_progress) {
-		dev_vdbg(kbdev->dev,
+		dev_dbg(kbdev->dev,
 			"Device became active on runtime suspend after suspending Scheduler");
 		ret = -EBUSY;
 	}
@@ -1119,7 +1120,7 @@ int kbase_pm_handle_runtime_suspend(struct kbase_device *kbdev)
 	 * @power_off_callback directly.
 	 */
 	if (!kbdev->pm.backend.gpu_powered) {
-		dev_vdbg(kbdev->dev, "GPU already powered down on runtime suspend");
+		dev_dbg(kbdev->dev, "GPU already powered down on runtime suspend");
 		exit_early = true;
 	}
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
@@ -1129,13 +1130,13 @@ int kbase_pm_handle_runtime_suspend(struct kbase_device *kbdev)
 
 	ret = kbase_reset_gpu_try_prevent(kbdev);
 	if (ret == -ENOMEM) {
-		dev_vdbg(kbdev->dev, "Quit runtime suspend as GPU is in bad state");
+		dev_dbg(kbdev->dev, "Quit runtime suspend as GPU is in bad state");
 		/* Finish the runtime suspend, no point in trying again as GPU is
 		 * in irrecoverable bad state.
 		 */
 		goto out;
 	} else if (ret) {
-		dev_vdbg(kbdev->dev, "Quit runtime suspend for failing to prevent gpu reset");
+		dev_dbg(kbdev->dev, "Quit runtime suspend for failing to prevent gpu reset");
 		ret = -EBUSY;
 		goto out;
 	}
@@ -1168,7 +1169,7 @@ int kbase_pm_handle_runtime_suspend(struct kbase_device *kbdev)
 	 */
 	if (kbdev->pm.active_count ||
 	    kbdev->pm.backend.poweroff_wait_in_progress) {
-		dev_vdbg(kbdev->dev, "Device became active on runtime suspend");
+		dev_dbg(kbdev->dev, "Device became active on runtime suspend");
 		ret = -EBUSY;
 		goto unlock;
 	}
@@ -1176,7 +1177,7 @@ int kbase_pm_handle_runtime_suspend(struct kbase_device *kbdev)
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	if (kbdev->pm.backend.gpu_sleep_mode_active &&
 	    kbdev->pm.backend.exit_gpu_sleep_mode) {
-		dev_vdbg(kbdev->dev, "DB mirror interrupt occurred during runtime suspend before L2 power up");
+		dev_dbg(kbdev->dev, "DB mirror interrupt occurred during runtime suspend before L2 power up");
 		ret = -EBUSY;
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 		goto unlock;
@@ -1212,7 +1213,7 @@ int kbase_pm_handle_runtime_suspend(struct kbase_device *kbdev)
 
 	wake_up(&kbdev->pm.backend.poweroff_wait);
 	WARN_ON(kbdev->pm.backend.gpu_powered);
-	dev_vdbg(kbdev->dev, "GPU power down complete");
+	dev_dbg(kbdev->dev, "GPU power down complete");
 
 unlock:
 	kbase_pm_unlock(kbdev);

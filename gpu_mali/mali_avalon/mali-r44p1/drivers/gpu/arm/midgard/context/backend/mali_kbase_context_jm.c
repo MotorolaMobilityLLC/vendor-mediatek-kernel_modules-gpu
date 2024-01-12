@@ -32,6 +32,7 @@
 #include <mali_kbase_mem_pool_group.h>
 #include <mmu/mali_kbase_mmu.h>
 #include <tl/mali_kbase_timeline.h>
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 #include <mali_kbase_debug_mem_view.h>
@@ -253,7 +254,7 @@ void kbase_destroy_context(struct kbase_context *kctx)
 #endif /* CONFIG_MALI_ARBITER_SUPPORT */
 	while (kbase_pm_context_active_handle_suspend(
 		kbdev, KBASE_PM_SUSPEND_HANDLER_DONT_INCREASE)) {
-		dev_vdbg(kbdev->dev,
+		dev_dbg(kbdev->dev,
 			 "Suspend in progress when destroying context");
 		wait_event(kbdev->pm.resume_wait,
 			   !kbase_pm_is_suspending(kbdev));

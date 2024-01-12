@@ -35,6 +35,7 @@
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 #include <arbiter/mali_kbase_arbiter_pm.h>
 #endif /* CONFIG_MALI_ARBITER_SUPPORT */
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 #include <backend/gpu/mali_kbase_clk_rate_trace_mgr.h>
 
@@ -60,7 +61,7 @@ int kbase_pm_context_active_handle_suspend(struct kbase_device *kbdev,
 	int c;
 
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
-	dev_vdbg(kbdev->dev, "%s - reason = %d, pid = %d\n", __func__,
+	dev_dbg(kbdev->dev, "%s - reason = %d, pid = %d\n", __func__,
 		suspend_handler, current->pid);
 	kbase_pm_lock(kbdev);
 
@@ -104,7 +105,7 @@ int kbase_pm_context_active_handle_suspend(struct kbase_device *kbdev,
 	}
 
 	kbase_pm_unlock(kbdev);
-	dev_vdbg(kbdev->dev, "%s %d\n", __func__, kbdev->pm.active_count);
+	dev_dbg(kbdev->dev, "%s %d\n", __func__, kbdev->pm.active_count);
 
 	return 0;
 }
@@ -138,7 +139,7 @@ void kbase_pm_context_idle(struct kbase_device *kbdev)
 	}
 
 	kbase_pm_unlock(kbdev);
-	dev_vdbg(kbdev->dev, "%s %d (pid = %d)\n", __func__,
+	dev_dbg(kbdev->dev, "%s %d (pid = %d)\n", __func__,
 		kbdev->pm.active_count, current->pid);
 }
 
@@ -205,11 +206,11 @@ int kbase_pm_driver_suspend(struct kbase_device *kbdev)
 	 * waiting for a power down, since not all policies power down when this
 	 * reaches zero.
 	 */
-	dev_vdbg(kbdev->dev, ">wait_event - waiting for active_count == 0 (pid = %d)\n",
+	dev_dbg(kbdev->dev, ">wait_event - waiting for active_count == 0 (pid = %d)\n",
 		current->pid);
 	wait_event(kbdev->pm.zero_active_count_wait,
 		kbdev->pm.active_count == 0);
-	dev_vdbg(kbdev->dev, ">wait_event - waiting done\n");
+	dev_dbg(kbdev->dev, ">wait_event - waiting done\n");
 
 #if MALI_USE_CSF
 	/* At this point, any kbase context termination should either have run to

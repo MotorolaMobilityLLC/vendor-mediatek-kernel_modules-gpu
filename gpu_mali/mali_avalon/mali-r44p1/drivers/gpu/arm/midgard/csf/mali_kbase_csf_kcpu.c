@@ -42,6 +42,7 @@ static DEFINE_SPINLOCK(kbase_csf_fence_lock);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
 #include <mali_kbase_reset_gpu.h>
@@ -264,7 +265,7 @@ static int kbase_kcpu_jit_allocate_process(
 	for (i = 0; i < count; i++, info++) {
 		/* The JIT ID is still in use so fail the allocation */
 		if (kctx->jit_alloc[info->id]) {
-			dev_vdbg(kctx->kbdev->dev, "JIT ID still in use");
+			dev_dbg(kctx->kbdev->dev, "JIT ID still in use");
 			ret = -EINVAL;
 			goto fail;
 		}
@@ -520,7 +521,7 @@ static int kbase_kcpu_jit_free_process(struct kbase_kcpu_command_queue *queue,
 		int item_err = 0;
 
 		if (!kctx->jit_alloc[ids[i]]) {
-			dev_vdbg(kctx->kbdev->dev, "invalid JIT free ID");
+			dev_dbg(kctx->kbdev->dev, "invalid JIT free ID");
 			rc = -EINVAL;
 			item_err = rc;
 		} else {
@@ -1096,7 +1097,7 @@ static int kbase_kcpu_cqs_wait_operation_process(struct kbase_device *kbdev,
 				sig_set = val > cqs_wait_operation->objs[i].val;
 				break;
 			default:
-				dev_vdbg(kbdev->dev,
+				dev_dbg(kbdev->dev,
 					"Unsupported CQS wait operation %d", cqs_wait_operation->objs[i].operation);
 
 				kbase_phy_alloc_mapping_put(queue->kctx, mapping);
@@ -1212,7 +1213,7 @@ static void kbasep_kcpu_cqs_do_set_operation_32(struct kbase_kcpu_command_queue 
 		*(u32 *)evt = val;
 		break;
 	default:
-		dev_vdbg(kbdev->dev, "Unsupported CQS set operation %d", operation);
+		dev_dbg(kbdev->dev, "Unsupported CQS set operation %d", operation);
 		queue->has_error = true;
 		break;
 	}
@@ -1231,7 +1232,7 @@ static void kbasep_kcpu_cqs_do_set_operation_64(struct kbase_kcpu_command_queue 
 		*(u64 *)evt = val;
 		break;
 	default:
-		dev_vdbg(kbdev->dev, "Unsupported CQS set operation %d", operation);
+		dev_dbg(kbdev->dev, "Unsupported CQS set operation %d", operation);
 		queue->has_error = true;
 		break;
 	}
@@ -1849,7 +1850,7 @@ static void fence_signal_timeout_cb(struct timer_list *timer)
 	struct kbase_context *const kctx = kcpu_queue->kctx;
 #ifdef CONFIG_MALI_FENCE_DEBUG
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
-	dev_vdbg(kctx->kbdev->dev, "kbase KCPU fence signal timeout callback triggered");
+	dev_dbg(kctx->kbdev->dev, "kbase KCPU fence signal timeout callback triggered");
 #else /* CONFIG_MALI_MTK_FENCE_DEBUG */
 	dev_warn(kctx->kbdev->dev, "kbase KCPU fence signal timeout callback triggered");
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
@@ -1900,25 +1901,15 @@ static int kbasep_kcpu_fence_signal_process(struct kbase_kcpu_command_queue *kcp
 	if (atomic_dec_return(&kcpu_queue->fence_signal_pending_cnt) > 0) {
 		fence_signal_timeout_start(kcpu_queue);
 #ifdef CONFIG_MALI_FENCE_DEBUG
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		dev_vdbg(kctx->kbdev->dev,
-			"kbase re-arm KCPU fence signal timeout timer for next signal command");
-#else /* CONFIG_MALI_MTK_DEBUG */
 		dev_dbg(kctx->kbdev->dev,
 			"kbase re-arm KCPU fence signal timeout timer for next signal command");
-#endif /* CONFIG_MALI_MTK_DEBUG */
 #endif
 	} else {
 #ifdef CONFIG_MALI_FENCE_DEBUG
 		int del = del_timer_sync(&kcpu_queue->fence_signal_timeout);
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		dev_vdbg(kctx->kbdev->dev, "kbase KCPU delete fence signal timeout timer ret: %d",
-			del);
-#else /* CONFIG_MALI_MTK_DEBUG */
 		dev_dbg(kctx->kbdev->dev, "kbase KCPU delete fence signal timeout timer ret: %d",
 			del);
-#endif /* CONFIG_MALI_MTK_DEBUG */
 		CSTD_UNUSED(del);
 #else
 		del_timer_sync(&kcpu_queue->fence_signal_timeout);
@@ -2347,7 +2338,7 @@ static int delete_queue(struct kbase_context *kctx, u32 id)
 
 		kfree(queue);
 	} else {
-		dev_vdbg(kctx->kbdev->dev,
+		dev_dbg(kctx->kbdev->dev,
 			"Attempt to delete a non-existent KCPU queue");
 		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 		err = -EINVAL;
@@ -2542,7 +2533,7 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 
 				if (meta == NULL) {
 					queue->has_error = true;
-					dev_vdbg(
+					dev_dbg(
 						kbdev->dev,
 						"failed to map an external resource");
 				}
@@ -2564,7 +2555,7 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 
 			if (!ret) {
 				queue->has_error = true;
-				dev_vdbg(kbdev->dev,
+				dev_dbg(kbdev->dev,
 						"failed to release the reference. resource not found");
 			}
 
@@ -2585,7 +2576,7 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 
 			if (!ret) {
 				queue->has_error = true;
-				dev_vdbg(kbdev->dev,
+				dev_dbg(kbdev->dev,
 						"failed to release the reference. resource not found");
 			}
 
@@ -2672,7 +2663,7 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 		}
 #endif
 		default:
-			dev_vdbg(kbdev->dev,
+			dev_dbg(kbdev->dev,
 				"Unrecognized command type");
 			break;
 		} /* switch */
@@ -2862,7 +2853,7 @@ static void KBASE_TLSTREAM_TL_KBASE_KCPUQUEUE_ENQUEUE_COMMAND(
 		break;
 #endif
 	default:
-		dev_vdbg(kbdev->dev, "Unknown command type %u", cmd->type);
+		dev_dbg(kbdev->dev, "Unknown command type %u", cmd->type);
 		break;
 	}
 }
@@ -2891,7 +2882,7 @@ int kbase_csf_kcpu_queue_enqueue(struct kbase_context *kctx,
 	 * in the set.
 	 */
 	if (enq->nr_commands != 1) {
-		dev_vdbg(kctx->kbdev->dev,
+		dev_dbg(kctx->kbdev->dev,
 			"More than one commands enqueued");
 		return -EINVAL;
 	}
@@ -2914,7 +2905,7 @@ int kbase_csf_kcpu_queue_enqueue(struct kbase_context *kctx,
 	mutex_lock(&kctx->csf.kcpu_queues.lock);
 	queue = kctx->csf.kcpu_queues.array[enq->id];
 	if (queue == NULL) {
-		dev_vdbg(kctx->kbdev->dev, "Invalid KCPU queue (id:%u)", enq->id);
+		dev_dbg(kctx->kbdev->dev, "Invalid KCPU queue (id:%u)", enq->id);
 		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 		return -EINVAL;
 	}
@@ -2950,7 +2941,7 @@ int kbase_csf_kcpu_queue_enqueue(struct kbase_context *kctx,
 
 		for (j = 0; j < sizeof(command.padding); j++) {
 			if (command.padding[j] != 0) {
-				dev_vdbg(kctx->kbdev->dev,
+				dev_dbg(kctx->kbdev->dev,
 					"base_kcpu_command padding not 0\n");
 				ret = -EINVAL;
 				goto out;
@@ -3025,7 +3016,7 @@ int kbase_csf_kcpu_queue_enqueue(struct kbase_context *kctx,
 			break;
 #endif
 		default:
-			dev_vdbg(queue->kctx->kbdev->dev,
+			dev_dbg(queue->kctx->kbdev->dev,
 				"Unknown command type %u", command.type);
 			ret = -EINVAL;
 			break;
@@ -3245,33 +3236,19 @@ int kbase_csf_kcpu_queue_halt_timers(struct kbase_device *kbdev)
 
 			if (atomic_read(&kcpu_queue->fence_signal_pending_cnt)) {
 				int ret = del_timer_sync(&kcpu_queue->fence_signal_timeout);
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-				dev_vdbg(kbdev->dev,
-					"Fence signal timeout on KCPU queue(%lu), kctx (%d_%d) was %s on suspend",
-					queue_idx, kctx->tgid, kctx->id,
-					ret ? "pending" : "not pending");
-#else
 				dev_dbg(kbdev->dev,
 					"Fence signal timeout on KCPU queue(%lu), kctx (%d_%d) was %s on suspend",
 					queue_idx, kctx->tgid, kctx->id,
 					ret ? "pending" : "not pending");
-#endif /* CONFIG_MALI_MTK_DEBUG */
 			}
 
 #ifdef CONFIG_MALI_FENCE_DEBUG
 			if (kcpu_queue->fence_wait_processed) {
 				int ret = del_timer_sync(&kcpu_queue->fence_timeout);
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-				dev_vdbg(kbdev->dev,
-					"Fence wait timeout on KCPU queue(%lu), kctx (%d_%d) was %s on suspend",
-					queue_idx, kctx->tgid, kctx->id,
-					ret ? "pending" : "not pending");
-#else
 				dev_dbg(kbdev->dev,
 					"Fence wait timeout on KCPU queue(%lu), kctx (%d_%d) was %s on suspend",
 					queue_idx, kctx->tgid, kctx->id,
 					ret ? "pending" : "not pending");
-#endif /* CONFIG_MALI_MTK_DEBUG */
 			}
 #endif
 			mutex_unlock(&kcpu_queue->lock);
@@ -3301,29 +3278,17 @@ void kbase_csf_kcpu_queue_resume_timers(struct kbase_device *kbdev)
 #ifdef CONFIG_MALI_FENCE_DEBUG
 			if (kcpu_queue->fence_wait_processed) {
 				fence_wait_timeout_start(kcpu_queue);
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-				dev_vdbg(kbdev->dev,
-					"Fence wait timeout on KCPU queue(%lu), kctx (%d_%d) has been resumed on system resume",
-					queue_idx, kctx->tgid, kctx->id);
-#else
 				dev_dbg(kbdev->dev,
 					"Fence wait timeout on KCPU queue(%lu), kctx (%d_%d) has been resumed on system resume",
 					queue_idx, kctx->tgid, kctx->id);
-#endif /* CONFIG_MALI_MTK_DEBUG */
 			}
 #endif
 			if (atomic_read(&kbdev->fence_signal_timeout_enabled) &&
 			    atomic_read(&kcpu_queue->fence_signal_pending_cnt)) {
 				fence_signal_timeout_start(kcpu_queue);
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-				dev_vdbg(kbdev->dev,
-					"Fence signal timeout on KCPU queue(%lu), kctx (%d_%d) has been resumed on system resume",
-					queue_idx, kctx->tgid, kctx->id);
-#else
 				dev_dbg(kbdev->dev,
 					"Fence signal timeout on KCPU queue(%lu), kctx (%d_%d) has been resumed on system resume",
 					queue_idx, kctx->tgid, kctx->id);
-#endif /* CONFIG_MALI_MTK_DEBUG */
 			}
 			mutex_unlock(&kcpu_queue->lock);
 		}

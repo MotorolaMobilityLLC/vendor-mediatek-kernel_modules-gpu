@@ -26,6 +26,7 @@
 #include <mali_kbase.h>
 #include "mali_kbase_hwaccess_jm.h"
 #include "mali_kbase_jm.h"
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 #if !MALI_USE_CSF
 /**
@@ -43,7 +44,7 @@ static bool kbase_jm_next_job(struct kbase_device *kbdev, unsigned int js, int n
 	int i;
 
 	kctx = kbdev->hwaccess.active_kctx[js];
-	dev_vdbg(kbdev->dev, "Trying to run the next %d jobs in kctx %pK (s:%u)\n",
+	dev_dbg(kbdev->dev, "Trying to run the next %d jobs in kctx %pK (s:%u)\n",
 		nr_jobs_to_submit, (void *)kctx, js);
 
 	if (!kctx)
@@ -58,7 +59,7 @@ static bool kbase_jm_next_job(struct kbase_device *kbdev, unsigned int js, int n
 		kbase_backend_run_atom(kbdev, katom);
 	}
 
-	dev_vdbg(kbdev->dev, "Slot ringbuffer should now be full (s:%u)\n", js);
+	dev_dbg(kbdev->dev, "Slot ringbuffer should now be full (s:%u)\n", js);
 	return false;
 }
 
@@ -67,7 +68,7 @@ u32 kbase_jm_kick(struct kbase_device *kbdev, u32 js_mask)
 	u32 ret_mask = 0;
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
-	dev_vdbg(kbdev->dev, "JM kick slot mask 0x%x\n", js_mask);
+	dev_dbg(kbdev->dev, "JM kick slot mask 0x%x\n", js_mask);
 
 	while (js_mask) {
 		unsigned int js = ffs(js_mask) - 1;
@@ -79,7 +80,7 @@ u32 kbase_jm_kick(struct kbase_device *kbdev, u32 js_mask)
 		js_mask &= ~(1 << js);
 	}
 
-	dev_vdbg(kbdev->dev, "Can still submit to mask 0x%x\n", ret_mask);
+	dev_dbg(kbdev->dev, "Can still submit to mask 0x%x\n", ret_mask);
 	return ret_mask;
 }
 
@@ -115,7 +116,7 @@ void kbase_jm_idle_ctx(struct kbase_device *kbdev, struct kbase_context *kctx)
 
 	for (js = 0; js < BASE_JM_MAX_NR_SLOTS; js++) {
 		if (kbdev->hwaccess.active_kctx[js] == kctx) {
-			dev_vdbg(kbdev->dev, "Marking kctx %pK as inactive (s:%u)\n", (void *)kctx,
+			dev_dbg(kbdev->dev, "Marking kctx %pK as inactive (s:%u)\n", (void *)kctx,
 				js);
 			kbdev->hwaccess.active_kctx[js] = NULL;
 		}
@@ -127,7 +128,7 @@ struct kbase_jd_atom *kbase_jm_return_atom_to_js(struct kbase_device *kbdev,
 {
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
-	dev_vdbg(kbdev->dev, "Atom %pK is returning with event code 0x%x\n",
+	dev_dbg(kbdev->dev, "Atom %pK is returning with event code 0x%x\n",
 		(void *)katom, katom->event_code);
 
 	KBASE_KTRACE_ADD_JM(kbdev, JM_RETURN_ATOM_TO_JS, katom->kctx, katom,

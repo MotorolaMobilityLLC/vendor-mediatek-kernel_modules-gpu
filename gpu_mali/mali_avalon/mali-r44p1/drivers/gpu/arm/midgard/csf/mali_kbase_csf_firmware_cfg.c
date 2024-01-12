@@ -25,6 +25,7 @@
 
 #include "mali_kbase_csf_firmware_cfg.h"
 #include "mali_kbase_csf_firmware_log.h"
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 #if CONFIG_SYSFS
 #define CSF_FIRMWARE_CFG_SYSFS_DIR_NAME "firmware_config"
@@ -341,7 +342,7 @@ int kbase_csf_firmware_cfg_option_entry_parse(struct kbase_device *kbdev,
 
 	list_add(&config->node, &kbdev->csf.firmware_config);
 
-	dev_vdbg(kbdev->dev, "Configuration option '%s' at 0x%x range %u-%u",
+	dev_dbg(kbdev->dev, "Configuration option '%s' at 0x%x range %u-%u",
 			config->name, config->address,
 			config->min, config->max);
 

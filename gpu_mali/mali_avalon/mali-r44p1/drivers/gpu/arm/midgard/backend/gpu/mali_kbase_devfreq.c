@@ -33,7 +33,7 @@
 #include <linux/version.h>
 #include <linux/pm_opp.h>
 #include "mali_kbase_devfreq.h"
-
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 #if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_GOVERNOR)
 #include <platform/mtk_platform_common/mtk_platform_devfreq_governor.h>
 #endif /* CONFIG_MALI_MTK_DEVFREQ_GOVERNOR */
@@ -579,7 +579,7 @@ static void kbase_devfreq_suspend_resume_worker(struct work_struct *work)
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	acted_type = kbdev->devfreq_queue.acted_type;
-	dev_vdbg(kbdev->dev, "Worker handles queued req: %s (acted: %s)\n",
+	dev_dbg(kbdev->dev, "Worker handles queued req: %s (acted: %s)\n",
 		kbase_devfreq_req_type_name(type),
 		kbase_devfreq_req_type_name(acted_type));
 	switch (type) {
@@ -590,7 +590,7 @@ static void kbase_devfreq_suspend_resume_worker(struct work_struct *work)
 				devfreq_resume_device(kbdev->devfreq);
 			else
 				devfreq_suspend_device(kbdev->devfreq);
-			dev_vdbg(kbdev->dev, "Devfreq transition occured: %s => %s\n",
+			dev_dbg(kbdev->dev, "Devfreq transition occured: %s => %s\n",
 				kbase_devfreq_req_type_name(acted_type),
 				kbase_devfreq_req_type_name(type));
 			kbdev->devfreq_queue.acted_type = type;
@@ -615,7 +615,7 @@ void kbase_devfreq_enqueue_work(struct kbase_device *kbdev,
 			   &kbdev->devfreq_queue.work);
 	}
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-	dev_vdbg(kbdev->dev, "Enqueuing devfreq req: %s\n",
+	dev_dbg(kbdev->dev, "Enqueuing devfreq req: %s\n",
 		kbase_devfreq_req_type_name(work_type));
 }
 
@@ -794,7 +794,7 @@ void kbase_devfreq_term(struct kbase_device *kbdev)
 {
 	int err;
 
-	dev_vdbg(kbdev->dev, "Term Mali devfreq\n");
+	dev_dbg(kbdev->dev, "Term Mali devfreq\n");
 
 #if IS_ENABLED(CONFIG_DEVFREQ_THERMAL)
 	if (kbdev->devfreq_cooling)

@@ -24,6 +24,7 @@
 #include "mali_kbase_csf.h"
 #include "mali_kbase_csf_mcu_shared_reg.h"
 #include <mali_kbase_mem_migrate.h>
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 /* Scaling factor in pre-allocating shared regions for suspend bufs and userios */
 #define MCU_SHARED_REGS_PREALLOCATE_SCALE (8)
@@ -263,12 +264,12 @@ static int group_bind_csg_reg(struct kbase_device *kbdev, struct kbase_queue_gro
 
 	/* The csg_reg is expected still on the unused list so its link is not empty */
 	if (WARN_ON_ONCE(list_empty(&csg_reg->link))) {
-		dev_vdbg(kbdev->dev, "csg_reg is marked in active use");
+		dev_dbg(kbdev->dev, "csg_reg is marked in active use");
 		return -EINVAL;
 	}
 
 	if (WARN_ON_ONCE(prev_grp && prev_grp->csg_reg != csg_reg)) {
-		dev_vdbg(kbdev->dev, "Unexpected bound lost on prev_group");
+		dev_dbg(kbdev->dev, "Unexpected bound lost on prev_group");
 		prev_grp->csg_reg = NULL;
 		return -EINVAL;
 	}
@@ -418,7 +419,7 @@ int kbase_csf_mcu_shared_add_queue(struct kbase_device *kbdev, struct kbase_queu
 	} else {
 		/* Mark the queue has no mapping on its phys[] */
 		queue->user_io_gpu_va = 0;
-		dev_vdbg(kbdev->dev,
+		dev_dbg(kbdev->dev,
 			"%s: Error in mapping userio pages for queue-%d of csg_%d_%d_%d", __func__,
 			queue->csi_index, group->kctx->tgid, group->kctx->id, group->handle);
 

@@ -28,6 +28,7 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS)
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG_FS */
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 #include "mali_kbase_csf_tl_reader.h"
@@ -724,7 +725,7 @@ static ssize_t kbase_csf_debugfs_scheduler_state_set(struct file *file,
 	else if (sysfs_streq(buf, "INACTIVE"))
 		kbase_csf_scheduler_force_wakeup(kbdev);
 	else {
-		dev_vdbg(kbdev->dev, "Bad scheduler state %s", buf);
+		dev_dbg(kbdev->dev, "Bad scheduler state %s", buf);
 		ret = -EINVAL;
 	}
 

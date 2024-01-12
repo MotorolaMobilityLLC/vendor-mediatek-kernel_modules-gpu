@@ -37,6 +37,7 @@
 #include <tl/mali_kbase_timeline.h>
 #include <mmu/mali_kbase_mmu.h>
 #include <context/mali_kbase_context_internal.h>
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 /**
  * find_process_node - Used to traverse the process rb_tree to find if
@@ -374,7 +375,7 @@ void kbase_context_sticky_resource_term(struct kbase_context *kctx)
 				BITS_PER_LONG);
 
 		if (!WARN_ON(!kctx->pending_regions[cookie])) {
-			dev_vdbg(kctx->kbdev->dev, "Freeing pending unmapped region\n");
+			dev_dbg(kctx->kbdev->dev, "Freeing pending unmapped region\n");
 			kbase_mem_phy_alloc_put(
 				kctx->pending_regions[cookie]->cpu_alloc);
 			kbase_mem_phy_alloc_put(

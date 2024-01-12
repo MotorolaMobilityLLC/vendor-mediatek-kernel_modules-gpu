@@ -29,6 +29,7 @@
 #include <linux/of.h>
 #include <linux/of_platform.h>
 #include "linux/mali_arbiter_interface.h"
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 /* Arbiter interface version against which was implemented this module */
 #define MALI_REQUIRED_KBASE_ARBITER_INTERFACE_VERSION 5
@@ -54,7 +55,7 @@ static void on_max_config(struct device *dev, uint32_t max_l2_slices,
 	}
 
 	if (!max_l2_slices || !max_core_mask) {
-		dev_vdbg(dev,
+		dev_dbg(dev,
 			"%s(): max_config ignored as one of the fields is zero",
 			__func__);
 		return;
@@ -185,12 +186,12 @@ int kbase_arbif_init(struct kbase_device *kbdev)
 	struct platform_device *pdev;
 	int err;
 
-	dev_vdbg(kbdev->dev, "%s\n", __func__);
+	dev_dbg(kbdev->dev, "%s\n", __func__);
 
 	arbiter_if_node = of_parse_phandle(kbdev->dev->of_node,
 		"arbiter_if", 0);
 	if (!arbiter_if_node) {
-		dev_vdbg(kbdev->dev, "No arbiter_if in Device Tree\n");
+		dev_dbg(kbdev->dev, "No arbiter_if in Device Tree\n");
 		/* no arbiter interface defined in device tree */
 		kbdev->arb.arb_dev = NULL;
 		kbdev->arb.arb_if = NULL;
@@ -243,7 +244,7 @@ int kbase_arbif_init(struct kbase_device *kbdev)
 	}
 
 #else /* CONFIG_OF */
-	dev_vdbg(kbdev->dev, "No arbiter without Device Tree support\n");
+	dev_dbg(kbdev->dev, "No arbiter without Device Tree support\n");
 	kbdev->arb.arb_dev = NULL;
 	kbdev->arb.arb_if = NULL;
 #endif
@@ -261,7 +262,7 @@ void kbase_arbif_destroy(struct kbase_device *kbdev)
 	struct arbiter_if_dev *arb_if = kbdev->arb.arb_if;
 
 	if (arb_if && arb_if->vm_ops.vm_arb_unregister_dev) {
-		dev_vdbg(kbdev->dev, "%s\n", __func__);
+		dev_dbg(kbdev->dev, "%s\n", __func__);
 		arb_if->vm_ops.vm_arb_unregister_dev(kbdev->arb.arb_if);
 	}
 	kbdev->arb.arb_if = NULL;
@@ -283,7 +284,7 @@ void kbase_arbif_get_max_config(struct kbase_device *kbdev)
 	struct arbiter_if_dev *arb_if = kbdev->arb.arb_if;
 
 	if (arb_if && arb_if->vm_ops.vm_arb_get_max_config) {
-		dev_vdbg(kbdev->dev, "%s\n", __func__);
+		dev_dbg(kbdev->dev, "%s\n", __func__);
 		arb_if->vm_ops.vm_arb_get_max_config(arb_if);
 	}
 }
@@ -299,7 +300,7 @@ void kbase_arbif_gpu_request(struct kbase_device *kbdev)
 	struct arbiter_if_dev *arb_if = kbdev->arb.arb_if;
 
 	if (arb_if && arb_if->vm_ops.vm_arb_gpu_request) {
-		dev_vdbg(kbdev->dev, "%s\n", __func__);
+		dev_dbg(kbdev->dev, "%s\n", __func__);
 		KBASE_TLSTREAM_TL_ARBITER_REQUESTED(kbdev, kbdev);
 		arb_if->vm_ops.vm_arb_gpu_request(arb_if);
 	}
@@ -316,7 +317,7 @@ void kbase_arbif_gpu_stopped(struct kbase_device *kbdev, u8 gpu_required)
 	struct arbiter_if_dev *arb_if = kbdev->arb.arb_if;
 
 	if (arb_if && arb_if->vm_ops.vm_arb_gpu_stopped) {
-		dev_vdbg(kbdev->dev, "%s\n", __func__);
+		dev_dbg(kbdev->dev, "%s\n", __func__);
 		KBASE_TLSTREAM_TL_ARBITER_STOPPED(kbdev, kbdev);
 		if (gpu_required)
 			KBASE_TLSTREAM_TL_ARBITER_REQUESTED(kbdev, kbdev);
@@ -335,7 +336,7 @@ void kbase_arbif_gpu_active(struct kbase_device *kbdev)
 	struct arbiter_if_dev *arb_if = kbdev->arb.arb_if;
 
 	if (arb_if && arb_if->vm_ops.vm_arb_gpu_active) {
-		dev_vdbg(kbdev->dev, "%s\n", __func__);
+		dev_dbg(kbdev->dev, "%s\n", __func__);
 		arb_if->vm_ops.vm_arb_gpu_active(arb_if);
 	}
 }
@@ -351,7 +352,7 @@ void kbase_arbif_gpu_idle(struct kbase_device *kbdev)
 	struct arbiter_if_dev *arb_if = kbdev->arb.arb_if;
 
 	if (arb_if && arb_if->vm_ops.vm_arb_gpu_idle) {
-		dev_vdbg(kbdev->dev, "vm_arb_gpu_idle\n");
+		dev_dbg(kbdev->dev, "vm_arb_gpu_idle\n");
 		arb_if->vm_ops.vm_arb_gpu_idle(arb_if);
 	}
 }

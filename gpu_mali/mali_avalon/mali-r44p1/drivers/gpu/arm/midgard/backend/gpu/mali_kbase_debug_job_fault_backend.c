@@ -22,7 +22,7 @@
 #include <mali_kbase.h>
 #include <device/mali_kbase_device.h>
 #include "mali_kbase_debug_job_fault.h"
-
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 
 /*GPU_CONTROL_REG(r)*/
@@ -136,7 +136,7 @@ bool kbase_debug_job_fault_reg_snapshot_init(struct kbase_context *kctx,
 	kctx->reg_dump[offset] = REGISTER_DUMP_TERMINATION_FLAG;
 	kctx->reg_dump[offset + 1] = REGISTER_DUMP_TERMINATION_FLAG;
 
-	dev_vdbg(kctx->kbdev->dev, "kbase_job_fault_reg_snapshot_init:%d\n",
+	dev_dbg(kctx->kbdev->dev, "kbase_job_fault_reg_snapshot_init:%d\n",
 			offset);
 
 	return true;

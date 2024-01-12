@@ -56,6 +56,7 @@
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 #include "arbiter/mali_kbase_arbiter_pm.h"
 #endif /* CONFIG_MALI_ARBITER_SUPPORT */
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 #if defined(CONFIG_DEBUG_FS) && !IS_ENABLED(CONFIG_MALI_NO_MALI)
 
@@ -314,7 +315,7 @@ int kbase_device_misc_init(struct kbase_device * const kbdev)
 	mutex_init(&kbdev->kctx_list_lock);
 	INIT_LIST_HEAD(&kbdev->kctx_list);
 
-	dev_vdbg(kbdev->dev, "Registering mali_oom_notifier_handlern");
+	dev_dbg(kbdev->dev, "Registering mali_oom_notifier_handlern");
 	kbdev->oom_notifier_block.notifier_call = mali_oom_notifier_handler;
 	err = register_oom_notifier(&kbdev->oom_notifier_block);
 

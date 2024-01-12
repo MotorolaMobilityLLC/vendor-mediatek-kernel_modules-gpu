@@ -50,6 +50,7 @@
 
 #include <mali_kbase_trace_gpu_mem.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
@@ -1026,7 +1027,7 @@ void kbase_mmu_page_fault_worker(struct work_struct *data)
 	as_no = faulting_as->number;
 
 	kbdev = container_of(faulting_as, struct kbase_device, as[as_no]);
-	dev_vdbg(kbdev->dev, "Entering %s %pK, fault_pfn %lld, as_no %d", __func__, (void *)data,
+	dev_dbg(kbdev->dev, "Entering %s %pK, fault_pfn %lld, as_no %d", __func__, (void *)data,
 		fault_pfn, as_no);
 
 	/* Grab the context that was already refcounted in kbase_mmu_interrupt()
@@ -1050,7 +1051,7 @@ void kbase_mmu_page_fault_worker(struct work_struct *data)
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 	/* check if we still have GPU */
 	if (unlikely(kbase_is_gpu_removed(kbdev))) {
-		dev_vdbg(kbdev->dev, "%s: GPU has been removed", __func__);
+		dev_dbg(kbdev->dev, "%s: GPU has been removed", __func__);
 		goto fault_done;
 	}
 #endif
@@ -1190,7 +1191,7 @@ page_fault_retry:
 	if (fault_rel_pfn < current_backed_size) {
 		struct kbase_mmu_hw_op_param op_param;
 
-		dev_vdbg(kbdev->dev,
+		dev_dbg(kbdev->dev,
 			"Page fault @ 0x%llx in allocated region 0x%llx-0x%llx of growable TMEM: Ignoring",
 				fault->addr, region->start_pfn,
 				region->start_pfn +
@@ -1245,7 +1246,7 @@ page_fault_retry:
 
 	/* cap to max vsize */
 	new_pages = min(new_pages, region->nr_pages - current_backed_size);
-	dev_vdbg(kctx->kbdev->dev, "Allocate %zu pages on page fault", new_pages);
+	dev_dbg(kctx->kbdev->dev, "Allocate %zu pages on page fault", new_pages);
 
 	if (new_pages == 0) {
 		struct kbase_mmu_hw_op_param op_param;
@@ -1352,11 +1353,11 @@ page_fault_retry:
 		if (region->threshold_pages &&
 			kbase_reg_current_backed_size(region) >
 				region->threshold_pages) {
-			dev_vdbg(kctx->kbdev->dev, "%zu pages exceeded IR threshold %zu",
+			dev_dbg(kctx->kbdev->dev, "%zu pages exceeded IR threshold %zu",
 				new_pages + current_backed_size, region->threshold_pages);
 
 			if (kbase_mmu_switch_to_ir(kctx, region) >= 0) {
-				dev_vdbg(kctx->kbdev->dev, "Get region %pK for IR", (void *)region);
+				dev_dbg(kctx->kbdev->dev, "Get region %pK for IR", (void *)region);
 				kbase_va_region_alloc_get(kctx, region);
 			}
 		}
@@ -1470,7 +1471,7 @@ page_fault_retry:
 			kbase_mmu_report_fault_and_kill(kctx, faulting_as,
 					"Page allocation failure", fault);
 		} else {
-			dev_vdbg(kbdev->dev, "Try again after pool_grow");
+			dev_dbg(kbdev->dev, "Try again after pool_grow");
 			goto page_fault_retry;
 		}
 	}
@@ -1497,7 +1498,7 @@ fault_done:
 	release_ctx(kbdev, kctx);
 
 	atomic_dec(&kbdev->faults_pending);
-	dev_vdbg(kbdev->dev, "Leaving page_fault_worker %pK", (void *)data);
+	dev_dbg(kbdev->dev, "Leaving page_fault_worker %pK", (void *)data);
 }
 
 static phys_addr_t kbase_mmu_alloc_pgd(struct kbase_device *kbdev,
@@ -1592,7 +1593,7 @@ static int mmu_get_next_pgd(struct kbase_device *kbdev, struct kbase_mmu_table *
 	}
 
 	if (!kbdev->mmu_mode->pte_is_valid(page[vpfn], level)) {
-		dev_vdbg(kbdev->dev, "%s: invalid PTE at level %d vpfn 0x%llx", __func__, level,
+		dev_dbg(kbdev->dev, "%s: invalid PTE at level %d vpfn 0x%llx", __func__, level,
 			vpfn);
 		kbase_kunmap(p, page);
 		return -EFAULT;
@@ -1646,7 +1647,7 @@ static int mmu_get_lowest_valid_pgd(struct kbase_device *kbdev, struct kbase_mmu
 
 		/* Handle failure condition */
 		if (err) {
-			dev_vdbg(kbdev->dev,
+			dev_dbg(kbdev->dev,
 				"%s: mmu_get_next_pgd() failed to find a valid pgd at level %d",
 				__func__, l + 1);
 			break;
@@ -3421,20 +3422,20 @@ int kbase_mmu_migrate_page(struct tagged_addr old_phys, struct tagged_addr new_p
 
 	if (level == MIDGARD_MMU_BOTTOMLEVEL) {
 		if (check_state != ALLOCATED_MAPPED) {
-			dev_vdbg(kbdev->dev,
+			dev_dbg(kbdev->dev,
 				"%s: state changed to %d (was %d), abort page migration", __func__,
 				check_state, ALLOCATED_MAPPED);
 			ret = -EAGAIN;
 			goto page_state_change_out;
 		} else if (vmap_count > 0) {
-			dev_vdbg(kbdev->dev, "%s: page was multi-mapped, abort page migration",
+			dev_dbg(kbdev->dev, "%s: page was multi-mapped, abort page migration",
 				__func__);
 			ret = -EAGAIN;
 			goto page_state_change_out;
 		}
 	} else {
 		if (check_state != PT_MAPPED) {
-			dev_vdbg(kbdev->dev,
+			dev_dbg(kbdev->dev,
 				"%s: state changed to %d (was %d), abort PGD page migration",
 				__func__, check_state, PT_MAPPED);
 			WARN_ON_ONCE(check_state != FREE_PT_ISOLATED_IN_PROGRESS);
@@ -3466,7 +3467,7 @@ int kbase_mmu_migrate_page(struct tagged_addr old_phys, struct tagged_addr new_p
 		/* Defer the migration as L2 is in a transitional phase */
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, hwaccess_flags);
 		mutex_unlock(&kbdev->mmu_hw_mutex);
-		dev_vdbg(kbdev->dev, "%s: L2 in transtion, abort PGD page migration", __func__);
+		dev_dbg(kbdev->dev, "%s: L2 in transtion, abort PGD page migration", __func__);
 		ret = -EAGAIN;
 		goto l2_state_defer_out;
 	}
@@ -3955,7 +3956,7 @@ void kbase_mmu_bus_fault_worker(struct work_struct *data)
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 	/* check if we still have GPU */
 	if (unlikely(kbase_is_gpu_removed(kbdev))) {
-		dev_vdbg(kbdev->dev, "%s: GPU has been removed", __func__);
+		dev_dbg(kbdev->dev, "%s: GPU has been removed", __func__);
 		release_ctx(kbdev, kctx);
 		atomic_dec(&kbdev->faults_pending);
 		return;

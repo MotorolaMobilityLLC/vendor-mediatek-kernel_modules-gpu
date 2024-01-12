@@ -45,6 +45,7 @@
 #include <linux/set_memory.h>
 #endif
 #include <asm/arch_timer.h>
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 #ifdef CONFIG_MALI_DEBUG
 /* Makes Driver wait indefinitely for an acknowledgment for the different
@@ -291,7 +292,7 @@ void kbase_csf_firmware_cs_input(
 {
 	const struct kbase_device * const kbdev = info->kbdev;
 
-	dev_vdbg(kbdev->dev, "cs input w: reg %08x val %08x\n", offset, value);
+	dev_dbg(kbdev->dev, "cs input w: reg %08x val %08x\n", offset, value);
 	input_page_write(info->input, offset, value);
 
 	if (offset == CS_REQ) {
@@ -307,7 +308,7 @@ u32 kbase_csf_firmware_cs_input_read(
 	const struct kbase_device * const kbdev = info->kbdev;
 	u32 const val = input_page_read(info->input, offset);
 
-	dev_vdbg(kbdev->dev, "cs input r: reg %08x val %08x\n", offset, val);
+	dev_dbg(kbdev->dev, "cs input r: reg %08x val %08x\n", offset, val);
 	return val;
 }
 
@@ -317,7 +318,7 @@ void kbase_csf_firmware_cs_input_mask(
 {
 	const struct kbase_device * const kbdev = info->kbdev;
 
-	dev_vdbg(kbdev->dev, "cs input w: reg %08x val %08x mask %08x\n",
+	dev_dbg(kbdev->dev, "cs input w: reg %08x val %08x mask %08x\n",
 			offset, value, mask);
 
 	/* NO_MALI: Go through kbase_csf_firmware_cs_input to capture writes */
@@ -330,7 +331,7 @@ u32 kbase_csf_firmware_cs_output(
 	const struct kbase_device * const kbdev = info->kbdev;
 	u32 const val = output_page_read(info->output, offset);
 
-	dev_vdbg(kbdev->dev, "cs output r: reg %08x val %08x\n", offset, val);
+	dev_dbg(kbdev->dev, "cs output r: reg %08x val %08x\n", offset, val);
 	return val;
 }
 
@@ -340,7 +341,7 @@ void kbase_csf_firmware_csg_input(
 {
 	const struct kbase_device * const kbdev = info->kbdev;
 
-	dev_vdbg(kbdev->dev, "csg input w: reg %08x val %08x\n",
+	dev_dbg(kbdev->dev, "csg input w: reg %08x val %08x\n",
 			offset, value);
 	input_page_write(info->input, offset, value);
 
@@ -357,7 +358,7 @@ u32 kbase_csf_firmware_csg_input_read(
 	const struct kbase_device * const kbdev = info->kbdev;
 	u32 const val = input_page_read(info->input, offset);
 
-	dev_vdbg(kbdev->dev, "csg input r: reg %08x val %08x\n", offset, val);
+	dev_dbg(kbdev->dev, "csg input r: reg %08x val %08x\n", offset, val);
 	return val;
 }
 
@@ -367,7 +368,7 @@ void kbase_csf_firmware_csg_input_mask(
 {
 	const struct kbase_device * const kbdev = info->kbdev;
 
-	dev_vdbg(kbdev->dev, "csg input w: reg %08x val %08x mask %08x\n",
+	dev_dbg(kbdev->dev, "csg input w: reg %08x val %08x mask %08x\n",
 			offset, value, mask);
 
 	/* NO_MALI: Go through kbase_csf_firmware_csg_input to capture writes */
@@ -381,7 +382,7 @@ u32 kbase_csf_firmware_csg_output(
 	const struct kbase_device * const kbdev = info->kbdev;
 	u32 const val = output_page_read(info->output, offset);
 
-	dev_vdbg(kbdev->dev, "csg output r: reg %08x val %08x\n", offset, val);
+	dev_dbg(kbdev->dev, "csg output r: reg %08x val %08x\n", offset, val);
 	return val;
 }
 KBASE_EXPORT_TEST_API(kbase_csf_firmware_csg_output);
@@ -392,7 +393,7 @@ void kbase_csf_firmware_global_input(
 {
 	const struct kbase_device * const kbdev = iface->kbdev;
 
-	dev_vdbg(kbdev->dev, "glob input w: reg %08x val %08x\n", offset, value);
+	dev_dbg(kbdev->dev, "glob input w: reg %08x val %08x\n", offset, value);
 	input_page_write(iface->input, offset, value);
 
 	if (offset == GLB_REQ) {
@@ -417,7 +418,7 @@ void kbase_csf_firmware_global_input_mask(
 {
 	const struct kbase_device * const kbdev = iface->kbdev;
 
-	dev_vdbg(kbdev->dev, "glob input w: reg %08x val %08x mask %08x\n",
+	dev_dbg(kbdev->dev, "glob input w: reg %08x val %08x mask %08x\n",
 			offset, value, mask);
 
 	/* NO_MALI: Go through kbase_csf_firmware_global_input to capture writes */
@@ -431,7 +432,7 @@ u32 kbase_csf_firmware_global_input_read(
 	const struct kbase_device * const kbdev = iface->kbdev;
 	u32 const val = input_page_read(iface->input, offset);
 
-	dev_vdbg(kbdev->dev, "glob input r: reg %08x val %08x\n", offset, val);
+	dev_dbg(kbdev->dev, "glob input r: reg %08x val %08x\n", offset, val);
 	return val;
 }
 
@@ -441,7 +442,7 @@ u32 kbase_csf_firmware_global_output(
 	const struct kbase_device * const kbdev = iface->kbdev;
 	u32 const val = output_page_read(iface->output, offset);
 
-	dev_vdbg(kbdev->dev, "glob output r: reg %08x val %08x\n", offset, val);
+	dev_dbg(kbdev->dev, "glob output r: reg %08x val %08x\n", offset, val);
 	return val;
 }
 KBASE_EXPORT_TEST_API(kbase_csf_firmware_global_output);
@@ -712,7 +713,7 @@ static void enable_gpu_idle_timer(struct kbase_device *const kbdev)
 					kbdev->csf.gpu_idle_dur_count);
 	kbase_csf_firmware_global_input_mask(global_iface, GLB_REQ, GLB_REQ_REQ_IDLE_ENABLE,
 					     GLB_REQ_IDLE_ENABLE_MASK);
-	dev_vdbg(kbdev->dev, "Enabling GPU idle timer with count-value: 0x%.8x",
+	dev_dbg(kbdev->dev, "Enabling GPU idle timer with count-value: 0x%.8x",
 		kbdev->csf.gpu_idle_dur_count);
 }
 
@@ -1047,7 +1048,7 @@ u32 kbase_csf_firmware_set_gpu_idle_hysteresis_time(struct kbase_device *kbdev, 
 	kbase_csf_scheduler_pm_idle(kbdev);
 	kbase_reset_gpu_allow(kbdev);
 end:
-	dev_vdbg(kbdev->dev, "CSF set firmware idle hysteresis count-value: 0x%.8x",
+	dev_dbg(kbdev->dev, "CSF set firmware idle hysteresis count-value: 0x%.8x",
 		hysteresis_val);
 
 	return hysteresis_val;
@@ -1116,7 +1117,7 @@ u32 kbase_csf_firmware_set_mcu_core_pwroff_time(struct kbase_device *kbdev, u32 
 	kbdev->csf.mcu_core_pwroff_dur_count = pwroff;
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
-	dev_vdbg(kbdev->dev, "MCU shader Core Poweroff input update: 0x%.8x", pwroff);
+	dev_dbg(kbdev->dev, "MCU shader Core Poweroff input update: 0x%.8x", pwroff);
 
 	return pwroff;
 }
@@ -1305,7 +1306,7 @@ void kbase_csf_firmware_disable_gpu_idle_timer(struct kbase_device *kbdev)
 					GLB_REQ_REQ_IDLE_DISABLE,
 					GLB_REQ_IDLE_DISABLE_MASK);
 
-	dev_vdbg(kbdev->dev, "Sending request to disable gpu idle timer");
+	dev_dbg(kbdev->dev, "Sending request to disable gpu idle timer");
 
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
 }
@@ -1359,7 +1360,7 @@ void kbase_csf_enter_protected_mode(struct kbase_device *kbdev)
 
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 	set_global_request(global_iface, GLB_REQ_PROTM_ENTER_MASK);
-	dev_vdbg(kbdev->dev, "Sending request to enter protected mode");
+	dev_dbg(kbdev->dev, "Sending request to enter protected mode");
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
 }
 
@@ -1386,7 +1387,7 @@ void kbase_csf_firmware_trigger_mcu_halt(struct kbase_device *kbdev)
 	 */
 	WARN_ON(kbase_csf_scheduler_get_nr_active_csgs_locked(kbdev));
 	set_global_request(global_iface, GLB_REQ_HALT_MASK);
-	dev_vdbg(kbdev->dev, "Sending request to HALT MCU");
+	dev_dbg(kbdev->dev, "Sending request to HALT MCU");
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 }
@@ -1408,7 +1409,7 @@ void kbase_csf_firmware_trigger_mcu_sleep(struct kbase_device *kbdev)
 
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 	set_global_request(global_iface, GLB_REQ_SLEEP_MASK);
-	dev_vdbg(kbdev->dev, "Sending sleep request to MCU");
+	dev_dbg(kbdev->dev, "Sending sleep request to MCU");
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 }
@@ -1435,7 +1436,7 @@ int kbase_csf_trigger_firmware_config_update(struct kbase_device *kbdev)
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 
 	set_global_request(global_iface, GLB_REQ_FIRMWARE_CONFIG_UPDATE_MASK);
-	dev_vdbg(kbdev->dev, "Sending request for FIRMWARE_CONFIG_UPDATE");
+	dev_dbg(kbdev->dev, "Sending request for FIRMWARE_CONFIG_UPDATE");
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 

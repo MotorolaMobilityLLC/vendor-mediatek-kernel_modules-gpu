@@ -24,6 +24,7 @@
 #include "mali_kbase_csf_tiler_heap.h"
 #include "mali_kbase_csf_tiler_heap_def.h"
 #include "mali_kbase_csf_heap_context_alloc.h"
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 /* Tiler heap shrink stop limit for maintaining a minimum number of chunks */
 #define HEAP_SHRINK_STOP_LIMIT (1)
@@ -119,7 +120,7 @@ static void remove_external_chunk_mappings(struct kbase_context *const kctx,
 	chunk->region->flags |= KBASE_REG_DONT_NEED;
 #endif
 
-	dev_vdbg(kctx->kbdev->dev, "Removed external mappings from chunk 0x%llX", chunk->gpu_va);
+	dev_dbg(kctx->kbdev->dev, "Removed external mappings from chunk 0x%llX", chunk->gpu_va);
 }
 
 /**
@@ -149,7 +150,7 @@ static int link_chunk(struct kbase_csf_tiler_heap *const heap,
 
 		*prev_hdr = encode_chunk_ptr(heap->chunk_size, chunk->gpu_va);
 
-		dev_vdbg(kctx->kbdev->dev,
+		dev_dbg(kctx->kbdev->dev,
 			"Linked tiler heap chunks, 0x%llX -> 0x%llX\n",
 			prev->gpu_va, chunk->gpu_va);
 	}
@@ -411,7 +412,7 @@ static int create_chunk(struct kbase_csf_tiler_heap *const heap)
 	if (unlikely(err))
 		goto initialization_failure;
 
-	dev_vdbg(heap->kctx->kbdev->dev, "Created tiler heap chunk 0x%llX\n", chunk->gpu_va);
+	dev_dbg(heap->kctx->kbdev->dev, "Created tiler heap chunk 0x%llX\n", chunk->gpu_va);
 
 	return 0;
 initialization_failure:
@@ -498,7 +499,7 @@ static void delete_heap(struct kbase_csf_tiler_heap *heap)
 {
 	struct kbase_context *const kctx = heap->kctx;
 
-	dev_vdbg(kctx->kbdev->dev, "Deleting tiler heap 0x%llX\n", heap->gpu_va);
+	dev_dbg(kctx->kbdev->dev, "Deleting tiler heap 0x%llX\n", heap->gpu_va);
 
 	WARN(!list_empty(&heap->link),
 	     "Deleting a heap that is still linked requires the tiler_heaps lock, which cannot be held by the caller");
@@ -564,7 +565,7 @@ static struct kbase_csf_tiler_heap *find_tiler_heap(
 			return heap;
 	}
 
-	dev_vdbg(kctx->kbdev->dev, "Tiler heap 0x%llX was not found\n",
+	dev_dbg(kctx->kbdev->dev, "Tiler heap 0x%llX was not found\n",
 		heap_gpu_va);
 
 	return NULL;
@@ -582,7 +583,7 @@ static struct kbase_csf_tiler_heap_chunk *find_chunk(struct kbase_csf_tiler_heap
 			return chunk;
 	}
 
-	dev_vdbg(heap->kctx->kbdev->dev, "Tiler heap chunk 0x%llX was not found\n", chunk_gpu_va);
+	dev_dbg(heap->kctx->kbdev->dev, "Tiler heap chunk 0x%llX was not found\n", chunk_gpu_va);
 
 	return NULL;
 }
@@ -598,7 +599,7 @@ int kbase_csf_tiler_heap_context_init(struct kbase_context *const kctx)
 	INIT_LIST_HEAD(&kctx->csf.tiler_heaps.list);
 	mutex_init(&kctx->csf.tiler_heaps.lock);
 
-	dev_vdbg(kctx->kbdev->dev, "Initialized a context for tiler heaps\n");
+	dev_dbg(kctx->kbdev->dev, "Initialized a context for tiler heaps\n");
 
 	return 0;
 }
@@ -608,7 +609,7 @@ void kbase_csf_tiler_heap_context_term(struct kbase_context *const kctx)
 	LIST_HEAD(local_heaps_list);
 	struct list_head *entry = NULL, *tmp = NULL;
 
-	dev_vdbg(kctx->kbdev->dev, "Terminating a context for tiler heaps\n");
+	dev_dbg(kctx->kbdev->dev, "Terminating a context for tiler heaps\n");
 
 	mutex_lock(&kctx->csf.tiler_heaps.lock);
 	list_splice_init(&kctx->csf.tiler_heaps.list, &local_heaps_list);
@@ -684,7 +685,7 @@ int kbase_csf_tiler_heap_init(struct kbase_context *const kctx, u32 const chunk_
 	struct kbase_va_region *gpu_va_reg = NULL;
 	void *vmap_ptr = NULL;
 
-	dev_vdbg(kctx->kbdev->dev,
+	dev_dbg(kctx->kbdev->dev,
 		"Creating a tiler heap with %u chunks (limit: %u) of size %u, buf_desc_va: 0x%llx\n",
 		initial_chunks, max_chunks, chunk_size, buf_desc_va);
 
@@ -764,7 +765,7 @@ int kbase_csf_tiler_heap_init(struct kbase_context *const kctx, u32 const chunk_
 
 	heap->gpu_va = kbase_csf_heap_context_allocator_alloc(ctx_alloc);
 	if (unlikely(!heap->gpu_va)) {
-		dev_vdbg(kctx->kbdev->dev, "Failed to allocate a tiler heap context\n");
+		dev_dbg(kctx->kbdev->dev, "Failed to allocate a tiler heap context\n");
 		err = -ENOMEM;
 		goto heap_context_alloc_failed;
 	}
@@ -781,14 +782,14 @@ int kbase_csf_tiler_heap_init(struct kbase_context *const kctx, u32 const chunk_
 				  KBASE_VMAP_FLAG_PERMANENT_MAP_ACCOUNTING);
 	kbase_gpu_vm_unlock(kctx);
 	if (unlikely(!vmap_ptr)) {
-		dev_vdbg(kctx->kbdev->dev, "Failed to vmap the correct heap GPU VA address\n");
+		dev_dbg(kctx->kbdev->dev, "Failed to vmap the correct heap GPU VA address\n");
 		err = -ENOMEM;
 		goto heap_context_vmap_failed;
 	}
 
 	err = create_initial_chunks(heap, initial_chunks);
 	if (unlikely(err)) {
-		dev_vdbg(kctx->kbdev->dev, "Failed to create the initial tiler heap chunks\n");
+		dev_dbg(kctx->kbdev->dev, "Failed to create the initial tiler heap chunks\n");
 		goto create_chunks_failed;
 	}
 	chunk = list_first_entry(&heap->chunks_list, struct kbase_csf_tiler_heap_chunk, link);
@@ -818,7 +819,7 @@ int kbase_csf_tiler_heap_init(struct kbase_context *const kctx, u32 const chunk_
 	if (kctx->running_total_tiler_heap_memory > kctx->peak_total_tiler_heap_memory)
 		kctx->peak_total_tiler_heap_memory = kctx->running_total_tiler_heap_memory;
 
-	dev_vdbg(kctx->kbdev->dev,
+	dev_dbg(kctx->kbdev->dev,
 		"Created tiler heap 0x%llX, buffer descriptor 0x%llX, ctx_%d_%d\n", heap->gpu_va,
 		buf_desc_va, kctx->tgid, kctx->id);
 	mutex_unlock(&kctx->csf.tiler_heaps.lock);
@@ -876,7 +877,7 @@ int kbase_csf_tiler_heap_term(struct kbase_context *const kctx,
 		dev_warn(kctx->kbdev->dev,
 			 "Running total tiler chunk count lower than expected!");
 	if (!err)
-		dev_vdbg(kctx->kbdev->dev,
+		dev_dbg(kctx->kbdev->dev,
 			"Terminated tiler heap 0x%llX, buffer descriptor 0x%llX, ctx_%d_%d\n",
 			heap->gpu_va, heap->buf_desc_va, kctx->tgid, kctx->id);
 	mutex_unlock(&kctx->csf.tiler_heaps.lock);
@@ -973,7 +974,7 @@ int kbase_csf_tiler_heap_alloc_new_chunk(struct kbase_context *kctx,
 		 * is useful debug information, but should not be treated as an error,
 		 * since the request will be re-sent at a later point.
 		 */
-		dev_vdbg(kctx->kbdev->dev,
+		dev_dbg(kctx->kbdev->dev,
 			"Not allocating new chunk for heap 0x%llX due to current heap state (err %d)",
 			gpu_heap_va, err);
 		mutex_unlock(&kctx->csf.tiler_heaps.lock);
@@ -1086,7 +1087,7 @@ static bool delete_chunk_physical_pages(struct kbase_csf_tiler_heap *heap, u64 c
 	chunk_hdr = chunk->map.addr;
 	*hdr_val = *chunk_hdr;
 
-	dev_vdbg(kctx->kbdev->dev,
+	dev_dbg(kctx->kbdev->dev,
 		"Reclaim: delete chunk(0x%llx) in heap(0x%llx), header value(0x%llX)\n",
 		chunk_gpu_va, heap->gpu_va, *hdr_val);
 
@@ -1123,7 +1124,7 @@ static bool delete_chunk_physical_pages(struct kbase_csf_tiler_heap *heap, u64 c
 		 */
 	}
 
-	dev_vdbg(kctx->kbdev->dev,
+	dev_dbg(kctx->kbdev->dev,
 		"Reclaim: delete chunk(0x%llx) in heap(0x%llx), header value(0x%llX)\n",
 		chunk_gpu_va, heap->gpu_va, *hdr_val);
 
@@ -1150,7 +1151,7 @@ static void sanity_check_gpu_buffer_heap(struct kbase_csf_tiler_heap *heap,
 			find_chunk(heap, first_hoarded_chunk_gpu_va);
 
 		if (likely(chunk)) {
-			dev_vdbg(heap->kctx->kbdev->dev,
+			dev_dbg(heap->kctx->kbdev->dev,
 				"Buffer descriptor 0x%llX sanity check ok, HW reclaim allowed\n",
 				heap->buf_desc_va);
 
@@ -1159,7 +1160,7 @@ static void sanity_check_gpu_buffer_heap(struct kbase_csf_tiler_heap *heap,
 		}
 	}
 	/* If there is no match, defer the check to next time */
-	dev_vdbg(heap->kctx->kbdev->dev, "Buffer descriptor 0x%llX runtime sanity check deferred\n",
+	dev_dbg(heap->kctx->kbdev->dev, "Buffer descriptor 0x%llX runtime sanity check deferred\n",
 		heap->buf_desc_va);
 }
 
@@ -1211,7 +1212,7 @@ static u32 delete_hoarded_chunks(struct kbase_csf_tiler_heap *heap)
 			chunk_gpu_va = desc->pointer & CHUNK_ADDR_MASK;
 
 			if (!chunk_gpu_va) {
-				dev_vdbg(kctx->kbdev->dev,
+				dev_dbg(kctx->kbdev->dev,
 					"Buffer descriptor 0x%llX has no chunks (NULL) for reclaim scan\n",
 					heap->buf_desc_va);
 				goto out;
@@ -1245,11 +1246,11 @@ static u32 delete_hoarded_chunks(struct kbase_csf_tiler_heap *heap)
 		/* Update the existing hardware chunk header, after reclaim deletion of chunks */
 		*hw_hdr = chunk_hdr_val;
 
-		dev_vdbg(heap->kctx->kbdev->dev,
+		dev_dbg(heap->kctx->kbdev->dev,
 			"HW reclaim scan freed chunks: %u, set hw_hdr[0]: 0x%llX\n", freed,
 			chunk_hdr_val);
 	} else {
-		dev_vdbg(kctx->kbdev->dev,
+		dev_dbg(kctx->kbdev->dev,
 			"Skip HW reclaim scan, (disabled: buffer descriptor 0x%llX)\n",
 			heap->buf_desc_va);
 	}
@@ -1296,7 +1297,7 @@ static u64 delete_unused_chunk_pages(struct kbase_csf_tiler_heap *heap)
 	/* Try to scan the HW hoarded list of unused chunks */
 	freed_chunks += delete_hoarded_chunks(heap);
 	freed_pages = freed_chunks * PFN_UP(heap->chunk_size);
-	dev_vdbg(heap->kctx->kbdev->dev,
+	dev_dbg(heap->kctx->kbdev->dev,
 		"Scan reclaim freed chunks/pages %u/%llu, set heap-ctx_u64[0]: 0x%llX\n",
 		freed_chunks, freed_pages, chunk_hdr_val);
 
@@ -1345,7 +1346,7 @@ static u64 count_unused_heap_pages(struct kbase_csf_tiler_heap *heap)
 		page_cnt = chunk_cnt * PFN_UP(heap->chunk_size);
 	}
 
-	dev_vdbg(heap->kctx->kbdev->dev,
+	dev_dbg(heap->kctx->kbdev->dev,
 		"Reclaim count chunks/pages %u/%llu (estimated), heap_va: 0x%llX\n", chunk_cnt,
 		page_cnt, heap->gpu_va);
 
