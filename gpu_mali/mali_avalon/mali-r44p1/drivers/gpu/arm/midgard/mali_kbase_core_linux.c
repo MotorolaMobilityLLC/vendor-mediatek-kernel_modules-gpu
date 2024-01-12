@@ -3607,7 +3607,7 @@ static ssize_t gpuinfo_show(struct device *dev,
 		{ .id = GPU_ID2_PRODUCT_TVAX >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT,
 		  .name = "Mali-G310" },
 		{ .id = GPU_ID2_PRODUCT_LTIX >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT,
-		  .name = "Mali-LTIX" },
+		  .name = "Mali-G620" },
 	};
 	const char *product_name = "(Unknown Mali GPU)";
 	struct kbase_device *kbdev;
@@ -3667,9 +3667,9 @@ static ssize_t gpuinfo_show(struct device *dev,
 		const u8 nr_cores = gpu_props->num_cores;
 
 		if ((nr_cores > 10) && rt_supported)
-			product_name = "Mali-TTIX-Immortalis";
+			product_name = "Mali-G720-Immortalis";
 		else
-			product_name = (nr_cores >= 6) ? "Mali-TTIX" : "Mali-LTIX";
+			product_name = (nr_cores >= 6) ? "Mali-G720" : "Mali-G620";
 
 		dev_dbg(kbdev->dev, "GPU ID_Name: %s (ID: 0x%x), nr_cores(%u)\n", product_name,
 			nr_cores, product_id & product_id_mask);
@@ -3933,6 +3933,7 @@ static ssize_t reset_timeout_store(struct device *dev,
 
 	kbdev->reset_timeout_ms = reset_timeout;
 	dev_dbg(kbdev->dev, "Reset timeout: %ums\n", reset_timeout);
+
 	return count;
 }
 
