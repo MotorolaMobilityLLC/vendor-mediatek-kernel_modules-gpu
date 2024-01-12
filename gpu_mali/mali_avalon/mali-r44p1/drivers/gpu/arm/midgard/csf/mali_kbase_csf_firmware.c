@@ -2223,7 +2223,7 @@ u32 kbase_csf_firmware_set_gpu_idle_hysteresis_time(struct kbase_device *kbdev, 
 	}
 
 	kbase_csf_scheduler_pm_active(kbdev);
-	if (kbase_csf_scheduler_wait_mcu_active(kbdev)) {
+	if (kbase_csf_scheduler_killable_wait_mcu_active(kbdev)) {
 		dev_err(kbdev->dev,
 			"Unable to activate the MCU, the idle hysteresis value shall remain unchanged");
 		kbase_csf_scheduler_pm_idle(kbdev);
@@ -3146,7 +3146,9 @@ int kbase_csf_trigger_firmware_config_update(struct kbase_device *kbdev)
 
 	/* Ensure GPU is powered-up until we complete config update.*/
 	kbase_csf_scheduler_pm_active(kbdev);
-	kbase_csf_scheduler_wait_mcu_active(kbdev);
+	err = kbase_csf_scheduler_killable_wait_mcu_active(kbdev);
+	if (err)
+		goto exit;
 
 	/* The 'reg_lock' is also taken and is held till the update is
 	 * complete, to ensure the config update gets serialized.
@@ -3163,6 +3165,7 @@ int kbase_csf_trigger_firmware_config_update(struct kbase_device *kbdev)
 				      GLB_REQ_FIRMWARE_CONFIG_UPDATE_MASK);
 	mutex_unlock(&kbdev->csf.reg_lock);
 
+exit:
 	kbase_csf_scheduler_pm_idle(kbdev);
 	return err;
 }

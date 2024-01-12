@@ -1014,7 +1014,7 @@ u32 kbase_csf_firmware_set_gpu_idle_hysteresis_time(struct kbase_device *kbdev, 
 	}
 
 	kbase_csf_scheduler_pm_active(kbdev);
-	if (kbase_csf_scheduler_wait_mcu_active(kbdev)) {
+	if (kbase_csf_scheduler_killable_wait_mcu_active(kbdev)) {
 		dev_err(kbdev->dev,
 			"Unable to activate the MCU, the idle hysteresis value shall remain unchanged");
 		kbase_csf_scheduler_pm_idle(kbdev);

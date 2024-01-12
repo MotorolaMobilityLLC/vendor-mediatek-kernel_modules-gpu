@@ -7302,7 +7302,7 @@ void kbase_csf_scheduler_pm_idle(struct kbase_device *kbdev)
 }
 KBASE_EXPORT_TEST_API(kbase_csf_scheduler_pm_idle);
 
-int kbase_csf_scheduler_wait_mcu_active(struct kbase_device *kbdev)
+static int scheduler_wait_mcu_active(struct kbase_device *kbdev, bool killable_wait)
 {
 	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
 	unsigned long flags;
@@ -7315,11 +7315,17 @@ int kbase_csf_scheduler_wait_mcu_active(struct kbase_device *kbdev)
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	kbase_pm_unlock(kbdev);
 
-	err = kbase_pm_wait_for_poweroff_work_complete(kbdev);
+	if (killable_wait)
+		err = kbase_pm_killable_wait_for_poweroff_work_complete(kbdev);
+	else
+		err = kbase_pm_wait_for_poweroff_work_complete(kbdev);
 	if (err)
 		return err;
 
-	err = kbase_pm_wait_for_desired_state(kbdev);
+	if (killable_wait)
+		err = kbase_pm_killable_wait_for_desired_state(kbdev);
+	else
+		err = kbase_pm_wait_for_desired_state(kbdev);
 	if (!err) {
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 #ifdef CONFIG_MALI_MTK_DEBUG
@@ -7333,6 +7339,17 @@ int kbase_csf_scheduler_wait_mcu_active(struct kbase_device *kbdev)
 
 	return err;
 }
+
+int kbase_csf_scheduler_killable_wait_mcu_active(struct kbase_device *kbdev)
+{
+	return scheduler_wait_mcu_active(kbdev, true);
+}
+
+int kbase_csf_scheduler_wait_mcu_active(struct kbase_device *kbdev)
+{
+	return scheduler_wait_mcu_active(kbdev, false);
+}
+
 KBASE_EXPORT_TEST_API(kbase_csf_scheduler_wait_mcu_active);
 
 #ifdef KBASE_PM_RUNTIME
