@@ -1350,7 +1350,8 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 	/*
 	 * Enable only in multiple rank env
 	 */
-	if (mtk_emicen_get_rk_cnt() == 2) {
+	if (mtk_emicen_get_rk_cnt() == 2 &&
+		(info.totalram << PAGE_SHIFT) > mtk_emicen_get_rk_size(0)) {
 		mgm_data->ui64RankBoundary = MTK_EMI_DRAM_OFFSET + mtk_emicen_get_rk_size(0);
 		mgm_data->rank_mode = NORMAL_MODE;
 		mgm_data->szRefillTarget = REFILL_TARGET;
