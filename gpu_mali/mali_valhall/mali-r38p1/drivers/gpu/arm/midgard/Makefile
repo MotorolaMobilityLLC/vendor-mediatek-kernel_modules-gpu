@@ -81,6 +81,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_IRQ_TRACE := y
         CONFIG_MALI_MTK_GPU_IDLE_TEST := y
         CONFIG_MALI_MTK_ACP_SVP_WA := y
+        CONFIG_MALI_MTK_ACP_DSU_REQ := y
     endif ## mt6985 ##
 
     ifeq ($(MTK_PLATFORM_VERSION),mt6886)

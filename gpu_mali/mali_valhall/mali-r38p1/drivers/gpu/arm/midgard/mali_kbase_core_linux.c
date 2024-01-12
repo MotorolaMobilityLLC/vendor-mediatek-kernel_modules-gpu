@@ -122,7 +122,7 @@
 
 #include <mali_kbase_caps.h>
 
-#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG) || IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
@@ -5807,7 +5807,13 @@ static int kbase_device_runtime_suspend(struct device *dev)
 	KBASE_KTRACE_ADD(kbdev, PM_RUNTIME_SUSPEND_CALLBACK, NULL, 0);
 
 #if MALI_USE_CSF
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+	mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_ON);
+#endif
 	ret = kbase_pm_handle_runtime_suspend(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+	mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_OFF);
+#endif
 	if (ret)
 		return ret;
 #endif
