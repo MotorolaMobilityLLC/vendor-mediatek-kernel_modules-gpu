@@ -374,11 +374,12 @@ static enum kbasep_soft_reset_status kbase_csf_reset_gpu_once(struct kbase_devic
 	mutex_unlock(&kbdev->pm.lock);
 
 	if (err) {
+		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 		if (!kbase_pm_l2_is_in_desired_state(kbdev))
 			ret = L2_ON_FAILED;
 		else if (!kbase_pm_mcu_is_in_desired_state(kbdev))
 			ret = MCU_REINIT_FAILED;
-
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_FWRELOAD_FAIL);
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_FWRELOAD_FAIL);
