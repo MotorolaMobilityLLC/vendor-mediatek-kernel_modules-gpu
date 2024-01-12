@@ -55,6 +55,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_ACP_DSU_REQ := y
         CONFIG_MALI_MTK_GLB_PWROFF_TIMEOUT:= y
         CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING := y
+        CONFIG_MALI_MTK_MGMM := y
     endif ## mt6985 ##
 endif
 
