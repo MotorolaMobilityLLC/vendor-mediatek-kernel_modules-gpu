@@ -77,6 +77,10 @@
 
 #include "debug/mali_kbase_debug_ktrace_defs.h"
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
 #define MAX_COHERENT_REGION 1024
 #define DEFAULT_COHERENT_REGION_SIZE 64
@@ -1389,6 +1393,10 @@ struct kbase_device {
 
 	struct notifier_block oom_notifier_block;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	struct mtk_logbuffer_info logbuf_regular;
+	struct mtk_logbuffer_info logbuf_exception;
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	struct kbase_mem_migrate mem_migrate;
 

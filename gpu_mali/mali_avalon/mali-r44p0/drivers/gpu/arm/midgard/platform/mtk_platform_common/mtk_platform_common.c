@@ -25,6 +25,10 @@
 #include <platform/mtk_platform_common/mtk_platform_debug.h>
 #endif /* CONFIG_MALI_MTK_DEBUG*/
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
 #include "mtk_platform_diagnosis_mode.h"
 
@@ -258,6 +262,10 @@ static void mtk_common_procfs_init(struct kbase_device *kbdev)
   		return;
   	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_procfs_init(kbdev, proc_root);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
 	mtk_memtrack_procfs_init(kbdev, proc_root);
 #endif /* CONFIG_MALI_MTK_MEMTRACK */
@@ -280,6 +288,10 @@ static void mtk_common_procfs_term(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
 	mtk_memtrack_procfs_term(kbdev, proc_root);
 #endif /* CONFIG_MALI_MTK_MEMTRACK */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_procfs_term(kbdev, proc_root);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	proc_root = NULL;
 	remove_proc_entry(PROC_ROOT, NULL);
@@ -399,6 +411,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	mtk_devfreq_governor_init(kbdev);
 #endif /* CONFIG_MALI_MTK_DEVFREQ_GOVERNOR */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_init(kbdev);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
 	mtk_memtrack_init(kbdev);
 #endif /* CONFIG_MALI_MTK_MEMTRACK */
@@ -424,7 +440,11 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 		dev_info(kbdev->dev, "@%s: invalid kbdev", __func__);
 		return;
 	}
-	
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_term(kbdev);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
 	mtk_memtrack_term(kbdev);
 #endif /* CONFIG_MALI_MTK_MEMTRACK */
