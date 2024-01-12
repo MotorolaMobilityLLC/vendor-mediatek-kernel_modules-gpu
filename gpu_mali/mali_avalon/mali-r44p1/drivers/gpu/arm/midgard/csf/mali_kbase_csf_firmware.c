@@ -128,7 +128,6 @@ MODULE_PARM_DESC(fw_debug,
 #define BUILD_INFO_GIT_SHA_PATTERN "git_sha: "
 
 #define CSF_MAX_FW_STOP_LOOPS            (100000)
-#define CSF_MAX_GPU_INACTIVE_LOOPS	 (1000)
 
 #define CSF_GLB_REQ_CFG_MASK                                                                       \
 	(GLB_REQ_CFG_ALLOC_EN_MASK | GLB_REQ_CFG_PROGRESS_TIMER_MASK |                             \
@@ -245,13 +244,7 @@ void kbase_csf_firmware_disable_mcu(struct kbase_device *kbdev)
 {
 	KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_DISABLING(kbdev, kbase_backend_get_cycle_cnt(kbdev));
 
-	if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_TITANHW_2922)) {
-		kbase_reg_write(kbdev, GPU_CONTROL_REG(MCU_CONTROL), MCU_CNTRL_ENABLE);
-		kbase_reg_write(kbdev, GPU_CONTROL_MCU_REG(GPU_CTRL_MCU_GPU_COMMAND),
-				  GPU_COMMAND_FAST_RESET);
-	} else {
-		kbase_reg_write(kbdev, GPU_CONTROL_REG(MCU_CONTROL), MCU_CNTRL_DISABLE);
-	}
+	kbase_reg_write(kbdev, GPU_CONTROL_REG(MCU_CONTROL), MCU_CNTRL_DISABLE);
 }
 
 static void wait_for_firmware_stop(struct kbase_device *kbdev)
@@ -264,26 +257,9 @@ static void wait_for_firmware_stop(struct kbase_device *kbdev)
 	KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_OFF(kbdev, kbase_backend_get_cycle_cnt(kbdev));
 }
 
-static void wait_for_gpu_inactive(struct kbase_device *kbdev)
-{
-	u32 max_loops = CSF_MAX_GPU_INACTIVE_LOOPS;
-
-	while (--max_loops &&
-	       (GPU_STATUS_GPU_ACTIVE & kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_STATUS))))
-		;
-
-	if (!max_loops)
-		dev_err(kbdev->dev, "Wait for GPU inactive failed post Fast Reset.");
-}
-
 void kbase_csf_firmware_disable_mcu_wait(struct kbase_device *kbdev)
 {
-	if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_TITANHW_2922))
-		wait_for_gpu_inactive(kbdev);
-	else
-		wait_for_firmware_stop(kbdev);
-
-	KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_OFF(kbdev, kbase_backend_get_cycle_cnt(kbdev));
+	wait_for_firmware_stop(kbdev);
 }
 
 static void stop_csf_firmware(struct kbase_device *kbdev)
@@ -291,7 +267,7 @@ static void stop_csf_firmware(struct kbase_device *kbdev)
 	/* Stop the MCU firmware */
 	kbase_csf_firmware_disable_mcu(kbdev);
 
-	kbase_csf_firmware_disable_mcu_wait(kbdev);
+	wait_for_firmware_stop(kbdev);
 }
 
 static void wait_for_firmware_boot(struct kbase_device *kbdev)
