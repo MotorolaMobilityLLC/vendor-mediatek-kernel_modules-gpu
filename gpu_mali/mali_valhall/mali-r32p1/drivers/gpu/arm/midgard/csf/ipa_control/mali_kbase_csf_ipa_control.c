@@ -301,9 +301,15 @@ kbase_ipa_control_rate_change_notify(struct kbase_clk_rate_listener *listener,
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 		if (!kbdev->pm.backend.gpu_ready) {
-			dev_err(kbdev->dev,
-				"%s: GPU frequency cannot change while GPU is off",
-				__func__);
+			dev_dbg(kbdev->dev,
+				"%s: backup clk rate:%u change while gpu power off", __func__,
+				clk_rate_hz);
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+			/* Backup clk rate value and update timer at next power on */
+			spin_lock(&ipa_ctrl->lock);
+			ipa_ctrl->cur_gpu_rate = clk_rate_hz;
+			spin_unlock(&ipa_ctrl->lock);
+#endif
 			spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 			return;
 		}
