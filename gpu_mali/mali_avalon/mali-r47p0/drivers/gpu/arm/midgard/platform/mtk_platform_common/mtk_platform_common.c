@@ -74,6 +74,10 @@ static struct proc_dir_entry *proc_root;
 #include <platform/mtk_platform_common/mtk_platform_whitebox_force_hard_reset.h>
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER)
+#include <platform/mtk_platform_common/mtk_platform_whitebox_fault_worker.h>
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER */
+
 static bool mfg_powered;
 static DEFINE_MUTEX(mfg_pm_lock);
 static DEFINE_MUTEX(common_debug_lock);
@@ -545,6 +549,9 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
 	mtk_whitebox_force_hard_reset_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER)
+	mtk_whitebox_fault_worker_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER */
 }
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
