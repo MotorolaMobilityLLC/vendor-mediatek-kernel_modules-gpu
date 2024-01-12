@@ -83,7 +83,11 @@ static inline vm_fault_t vmf_insert_pfn_prot(struct vm_area_struct *vma,
  * debugfs. Display is organized per group with small and large sized pages.
  */
 struct mgm_group {
+#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_MGM_KE)
+	atomic_t size;
+#else
 	size_t size;
+#endif /* CONFIG_MALI_MTK_PREVENT_MGM_KE */
 	size_t lp_size;
 	size_t insert_pfn;
 	size_t update_gpu_pte;
@@ -129,8 +133,11 @@ struct mgm_groups {
 static int mgm_size_get(void *data, u64 *val)
 {
 	struct mgm_group *group = data;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_MGM_KE)
+	*val = atomic_read(&group->size);
+#else
 	*val = group->size;
+#endif /* CONFIG_MALI_MTK_PREVENT_MGM_KE */
 
 	return 0;
 }
@@ -555,6 +562,16 @@ static void update_size(struct memory_group_manager_device *mgm_dev, int
 	struct mgm_groups *data = mgm_dev->data;
 
 	switch (order) {
+#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_MGM_KE)
+	case ORDER_SMALL_PAGE:
+		if (alloc)
+			atomic_inc(&data->groups[group_id].size);
+		else {
+			WARN_ON(atomic_read(&data->groups[group_id].size) == 0);
+			atomic_dec(&data->groups[group_id].size);
+		}
+	break;
+#else
 	case ORDER_SMALL_PAGE:
 		if (alloc)
 			data->groups[group_id].size++;
@@ -563,6 +580,7 @@ static void update_size(struct memory_group_manager_device *mgm_dev, int
 			data->groups[group_id].size--;
 		}
 	break;
+#endif /* CONFIG_MALI_MTK_PREVENT_MGM_KE */
 
 	case ORDER_LARGE_PAGE:
 		if (alloc)
@@ -688,7 +706,7 @@ FALLBACK:
 	p = alloc_pages(gfp_mask, order);
 	/* This page would insert into high order rank pool */
 	if (p)
-	mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, (1 << order));
+		mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, (1 << order));
 	return p;
 }
 
@@ -782,7 +800,7 @@ static unsigned long mtk_mgm_pool_reclaim_count_objects_local(size_t nr_rank, si
 
 	if (ret >= (SZ_64M >> PAGE_SHIFT))
 		 ret = (SZ_64M >> PAGE_SHIFT);
-	 
+
 	 return ret;
 }
 
@@ -931,7 +949,7 @@ static struct page *example_mgm_alloc_page(
 #if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
 	p = NULL;
 	if (order == 0 || order == 9) { /* not support LP mode */
-		
+
 		if (data->gfp_mask != gfp_mask && ((data->gfp_mask | __GFP_NOWARN) != gfp_mask)) {
 			dev_info(data->dev, "Change gfp_mask, drop all cached pool\n");
 			mtk_mgm_pool_flush(data, 0, 0, 0, 0);
@@ -1035,7 +1053,7 @@ static struct page *example_mgm_alloc_page(
 				count++;
 		}
 		data->count = count;
-		spin_unlock(&data->MGMFree_lst_lk);		
+		spin_unlock(&data->MGMFree_lst_lk);
 	}
 #endif /* CONFIG_MTK_GMM_STAT_OVERRIDE */
 #endif /* CONFIG_MALI_MTK_MGMM */
@@ -1213,7 +1231,11 @@ static int mgm_initialize_data(struct mgm_groups *mgm_data)
 	int i;
 
 	for (i = 0; i < MEMORY_GROUP_MANAGER_NR_GROUPS; i++) {
+#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_MGM_KE)
+		atomic_set(&mgm_data->groups[i].size,0);
+#else
 		mgm_data->groups[i].size = 0;
+#endif /* CONFIG_MALI_MTK_PREVENT_MGM_KE */
 		mgm_data->groups[i].lp_size = 0;
 		mgm_data->groups[i].insert_pfn = 0;
 		mgm_data->groups[i].update_gpu_pte = 0;
@@ -1227,10 +1249,17 @@ static void mgm_term_data(struct mgm_groups *data)
 	int i;
 
 	for (i = 0; i < MEMORY_GROUP_MANAGER_NR_GROUPS; i++) {
+#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_MGM_KE)
+		if (atomic_read(&data->groups[i].size) != 0)
+			dev_warn(data->dev,
+				"%d 0-order pages in group(%d) leaked\n",
+				atomic_read(&data->groups[i].size), i);
+#else
 		if (data->groups[i].size != 0)
 			dev_warn(data->dev,
 				"%zu 0-order pages in group(%d) leaked\n",
 				data->groups[i].size, i);
+#endif /* CONFIG_MALI_MTK_PREVENT_MGM_KE */
 		if (data->groups[i].lp_size != 0)
 			dev_warn(data->dev,
 				"%zu 9 order pages in group(%d) leaked\n",
@@ -1325,7 +1354,6 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 		mgm_data->ui64RankBoundary = MTK_EMI_DRAM_OFFSET + mtk_emicen_get_rk_size(0);
 		mgm_data->rank_mode = NORMAL_MODE;
 		mgm_data->szRefillTarget = REFILL_TARGET;
-
 
 		mtk_mgm_pool_fill(mgm_data, 9, 1, PREFILL_TARGET >> 9);
 		mtk_mgm_pool_fill(mgm_data, 9, 0, PREFILL_TARGET >> 9);
