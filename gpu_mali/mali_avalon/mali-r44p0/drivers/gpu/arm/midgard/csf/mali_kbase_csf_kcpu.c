@@ -1944,7 +1944,11 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 	struct kbase_kcpu_command_queue *queue =
 		container_of(data, struct kbase_kcpu_command_queue, dump_work);
 	struct kbase_context *kctx = queue->kctx;
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	struct kbase_kcpu_command *cmd;
+#else
 	struct kbase_kcpu_command *cmd = &queue->commands[queue->start_offset];
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 	struct kbase_kcpu_command_fence_info *fence_info;
 	struct kbase_kcpu_dma_fence *kcpu_fence;
 #if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
@@ -1956,6 +1960,10 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 	size_t i;
 
 	mutex_lock(&kctx->csf.kcpu_queues.lock);
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	mutex_lock(&queue->lock);
+	cmd = &queue->commands[queue->start_offset];
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 	/* Find the next fence signal command in the queue */
 	for (i = 0; i < queue->num_pending_cmds - 1; i++) {
@@ -1968,6 +1976,9 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 		dev_err(kctx->kbdev->dev,
 			"%s: No fence signal command found in ctx:%d_%d kcpu queue:%u", __func__,
 			kctx->tgid, kctx->id, queue->id);
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+		mutex_unlock(&queue->lock);
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 		return;
 	}
@@ -1978,6 +1989,9 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 	if (!fence) {
 		dev_err(kctx->kbdev->dev, "no fence found in ctx:%d_%d kcpu queue:%u", kctx->tgid,
 			kctx->id, queue->id);
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+		mutex_unlock(&queue->lock);
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 		return;
 	}
@@ -1987,6 +2001,9 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 		dev_err(kctx->kbdev->dev, "no fence metadata found in ctx:%d_%d kcpu queue:%u",
 			kctx->tgid, kctx->id, queue->id);
 		kbase_fence_put(fence);
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+		mutex_unlock(&queue->lock);
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 		return;
 	}
@@ -2022,6 +2039,7 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 			fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+		mutex_unlock(&queue->lock);
 		kbasep_csf_sync_kcpu_dump_locked(kctx, NULL);
 		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 
@@ -2053,6 +2071,7 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 		}
 #endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
 	} else {
+		mutex_unlock(&queue->lock);
 		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 	}
 #else /* CONFIG_MALI_MTK_FENCE_DEBUG */
