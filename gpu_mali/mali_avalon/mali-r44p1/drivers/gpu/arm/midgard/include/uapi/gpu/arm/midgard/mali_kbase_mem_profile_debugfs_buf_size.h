@@ -30,6 +30,10 @@
  * KBASE_MEM_PROFILE_MAX_BUF_SIZE - The size of the buffer to accumulate the histogram report text
  *                                  in @see @ref CCTXP_HIST_BUF_SIZE_MAX_LENGTH_REPORT
  */
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)  // Note: this config needs to be synchronized with hardware/gpu_mali/
+#define KBASE_MEM_PROFILE_MAX_BUF_SIZE ((size_t)(64 + ((80 + (56 * 64)) * 54 + 150 * 2) + 56))
+#else
 #define KBASE_MEM_PROFILE_MAX_BUF_SIZE ((size_t)(64 + ((80 + (56 * 64)) * 54) + 56))
+#endif
 
 #endif /*_UAPI_KBASE_MEM_PROFILE_DEBUGFS_BUF_SIZE_H_*/
