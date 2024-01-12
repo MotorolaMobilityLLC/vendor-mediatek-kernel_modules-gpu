@@ -46,7 +46,7 @@
 #define MAX_CSG_SLOT_PRIORITY ((u8)15)
 
 /* CSF scheduler time slice value */
-#define CSF_SCHEDULER_TIME_TICK_MS (100) /* 100 milliseconds */
+#define CSF_SCHEDULER_TIME_TICK_MS (5) /* 100 milliseconds */
 
 /*
  * CSF scheduler time threshold for converting "tock" requests into "tick" if
