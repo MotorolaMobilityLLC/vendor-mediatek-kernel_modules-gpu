@@ -37,6 +37,11 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ)
 #include <platform/mtk_platform_common/mtk_gpu_devfreq_governor.h>
 #endif /* CONFIG_MALI_MTK_DEVFREQ */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_THERMAL)
+#include <platform/mtk_platform_common/mtk_gpu_devfreq_thermal.h>
+#endif /* CONFIG_MALI_MTK_DEVFREQ_THERMAL*/
+
 /**
  * get_voltage() - Get the voltage value corresponding to the nominal frequency
  *                 used by devfreq.
@@ -685,20 +690,23 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 	}
 
 #if IS_ENABLED(CONFIG_DEVFREQ_THERMAL)
+#if !IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_THERMAL)
 	err = kbase_ipa_init(kbdev);
 	if (err) {
 		dev_err(kbdev->dev, "IPA initialization failed");
 		goto ipa_init_failed;
 	}
+#endif /* CONFIG_MALI_MTK_DEVFREQ_THERMAL */
 #endif
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ)
-	mtk_common_devfreq_update_profile(dp);
-#endif /* CONFIG_MALI_MTK_DEVFREQ */
 
 	err = kbase_devfreq_init_core_mask_table(kbdev);
 	if (err)
 		goto init_core_mask_table_failed;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ)
+	mtk_common_devfreq_update_profile(dp);
+#endif /* CONFIG_MALI_MTK_DEVFREQ */
 
 	kbdev->devfreq = devfreq_add_device(kbdev->dev, dp,
 #if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ)
@@ -739,7 +747,12 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 	kbdev->devfreq_cooling = of_devfreq_cooling_register_power(
 			kbdev->dev->of_node,
 			kbdev->devfreq,
+#if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_THERMAL)
+			&mtk_common_cooling_power_ops);
+#else
 			&kbase_ipa_power_model_ops);
+#endif  /* CONFIG_MALI_MTK_DEVFREQ_THERMAL */
+
 	if (IS_ERR_OR_NULL(kbdev->devfreq_cooling)) {
 		err = PTR_ERR_OR_ZERO(kbdev->devfreq_cooling);
 		dev_err(kbdev->dev,
@@ -770,8 +783,10 @@ devfreq_add_dev_failed:
 
 init_core_mask_table_failed:
 #if IS_ENABLED(CONFIG_DEVFREQ_THERMAL)
+#if !IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_THERMAL)
 	kbase_ipa_term(kbdev);
 ipa_init_failed:
+#endif /* CONFIG_MALI_MTK_DEVFREQ_THERMAL */
 #endif
 	if (free_devfreq_freq_table)
 		kbase_devfreq_term_freq_table(kbdev);
@@ -803,6 +818,8 @@ void kbase_devfreq_term(struct kbase_device *kbdev)
 	kbase_devfreq_term_core_mask_table(kbdev);
 
 #if IS_ENABLED(CONFIG_DEVFREQ_THERMAL)
+#if !IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_THERMAL)
 	kbase_ipa_term(kbdev);
+#endif /* CONFIG_MALI_MTK_DEVFREQ_THERMAL */
 #endif
 }
