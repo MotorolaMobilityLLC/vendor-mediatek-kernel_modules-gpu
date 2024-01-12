@@ -228,7 +228,8 @@ void kbase_csf_firmware_trace_buffers_term(struct kbase_device *kbdev)
 {
 	if (list_empty(&kbdev->csf.firmware_trace_buffers.list))
 		return;
-
+	/* Hold mutex to avoid it is cat by debugfs or dumped. */
+	mutex_lock(&kbdev->trace_buffer_mutex);
 	while (!list_empty(&kbdev->csf.firmware_trace_buffers.list)) {
 		struct firmware_trace_buffer *trace_buffer;
 
@@ -239,6 +240,7 @@ void kbase_csf_firmware_trace_buffers_term(struct kbase_device *kbdev)
 
 		kfree(trace_buffer);
 	}
+	mutex_unlock(&kbdev->trace_buffer_mutex);
 
 	kbase_csf_firmware_mcu_shared_mapping_term(
 			kbdev, &kbdev->csf.firmware_trace_buffers.mcu_rw);
@@ -308,6 +310,7 @@ void kbase_csf_firmware_reload_trace_buffers_data(struct kbase_device *kbdev)
 	u32 mcu_rw_offset = 0, mcu_write_offset = 0;
 	const u32 cache_line_alignment = kbase_get_cache_line_alignment(kbdev);
 
+	mutex_lock(&kbdev->trace_buffer_mutex);
 	list_for_each_entry(trace_buffer, &kbdev->csf.firmware_trace_buffers.list, node) {
 		u32 extract_gpu_va, insert_gpu_va, data_buffer_gpu_va,
 			trace_enable_size_dwords;
@@ -369,6 +372,7 @@ void kbase_csf_firmware_reload_trace_buffers_data(struct kbase_device *kbdev)
 		mcu_write_offset += cache_line_alignment;
 		mcu_rw_offset += cache_line_alignment;
 	}
+	mutex_unlock(&kbdev->trace_buffer_mutex);
 }
 
 struct firmware_trace_buffer *kbase_csf_firmware_get_trace_buffer(
@@ -563,28 +567,35 @@ static int set_trace_buffer_active_mask64(struct firmware_trace_buffer *tb,
 static int kbase_csf_firmware_trace_enable_mask_read(void *data, u64 *val)
 {
 	struct kbase_device *kbdev = (struct kbase_device *)data;
-	struct firmware_trace_buffer *tb =
-		kbase_csf_firmware_get_trace_buffer(kbdev, FW_TRACE_BUF_NAME);
+	struct firmware_trace_buffer *tb;
+
+	mutex_lock(&kbdev->trace_buffer_mutex);
+	tb = kbase_csf_firmware_get_trace_buffer(kbdev, FW_TRACE_BUF_NAME);
 
 	if (tb == NULL) {
+		mutex_unlock(&kbdev->trace_buffer_mutex);
 		dev_err(kbdev->dev, "Couldn't get the firmware trace buffer");
 		return -EIO;
 	}
 	/* The enabled traces limited to u64 here, regarded practical */
 	*val = get_trace_buffer_active_mask64(tb);
+	mutex_unlock(&kbdev->trace_buffer_mutex);
 	return 0;
 }
 
 static int kbase_csf_firmware_trace_enable_mask_write(void *data, u64 val)
 {
 	struct kbase_device *kbdev = (struct kbase_device *)data;
-	struct firmware_trace_buffer *tb =
-		kbase_csf_firmware_get_trace_buffer(kbdev, FW_TRACE_BUF_NAME);
+	struct firmware_trace_buffer *tb;
 	u64 new_mask;
 	unsigned int enable_bits_count;
 
+	mutex_lock(&kbdev->trace_buffer_mutex);
+	tb = kbase_csf_firmware_get_trace_buffer(kbdev, FW_TRACE_BUF_NAME);
+
 	if (tb == NULL) {
 		dev_err(kbdev->dev, "Couldn't get the firmware trace buffer");
+		mutex_unlock(&kbdev->trace_buffer_mutex);
 		return -EIO;
 	}
 
@@ -598,10 +609,13 @@ static int kbase_csf_firmware_trace_enable_mask_write(void *data, u64 val)
 	}
 	new_mask = val & ((1 << enable_bits_count) - 1);
 
-	if (new_mask != get_trace_buffer_active_mask64(tb))
+	if (new_mask != get_trace_buffer_active_mask64(tb)) {
+		mutex_unlock(&kbdev->trace_buffer_mutex);
 		return set_trace_buffer_active_mask64(tb, new_mask);
-	else
+	} else {
+		mutex_unlock(&kbdev->trace_buffer_mutex);
 		return 0;
+	}
 }
 
 static int kbasep_csf_firmware_trace_debugfs_open(struct inode *in,
@@ -625,18 +639,22 @@ static ssize_t kbasep_csf_firmware_trace_debugfs_read(struct file *file,
 	/* Limit the kernel buffer to no more than two pages */
 	size_t mem = MIN(size, 2 * PAGE_SIZE);
 	unsigned long flags;
+	struct firmware_trace_buffer *tb;
 
-	struct firmware_trace_buffer *tb =
-		kbase_csf_firmware_get_trace_buffer(kbdev, FW_TRACE_BUF_NAME);
+	mutex_lock(&kbdev->trace_buffer_mutex);
+
+	tb = kbase_csf_firmware_get_trace_buffer(kbdev, FW_TRACE_BUF_NAME);
 
 	if (tb == NULL) {
 		dev_err(kbdev->dev, "Couldn't get the firmware trace buffer");
+		mutex_unlock(&kbdev->trace_buffer_mutex);
 		return -EIO;
 	}
 
 	pbyte = kmalloc(mem, GFP_KERNEL);
 	if (pbyte == NULL) {
 		dev_err(kbdev->dev, "Couldn't allocate memory for trace buffer dump");
+		mutex_unlock(&kbdev->trace_buffer_mutex);
 		return -ENOMEM;
 	}
 
@@ -650,9 +668,10 @@ static ssize_t kbasep_csf_firmware_trace_debugfs_read(struct file *file,
 
 	if (!not_copied) {
 		*ppos += n_read;
+		mutex_unlock(&kbdev->trace_buffer_mutex);
 		return n_read;
 	}
-
+	mutex_unlock(&kbdev->trace_buffer_mutex);
 	dev_err(kbdev->dev, "Couldn't copy trace buffer data to user space buffer");
 	return -EFAULT;
 }
