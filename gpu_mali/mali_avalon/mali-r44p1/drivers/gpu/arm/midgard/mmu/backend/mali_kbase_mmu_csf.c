@@ -1055,7 +1055,7 @@ int kbase_mmu_as_init(struct kbase_device *kbdev, unsigned int i)
 	kbdev->as[i].gf_data.addr = 0ULL;
 	kbdev->as[i].is_unresponsive = false;
 
-	kbdev->as[i].pf_wq = alloc_workqueue("mali_mmu%d", WQ_UNBOUND, 1, i);
+	kbdev->as[i].pf_wq = alloc_workqueue("mali_mmu%d", WQ_UNBOUND, 0, i);
 	if (!kbdev->as[i].pf_wq)
 		return -ENOMEM;
 
