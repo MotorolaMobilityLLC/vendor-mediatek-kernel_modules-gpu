@@ -27,7 +27,7 @@ subdir-ccflags-y += $(ccflags-y)
 
 ifeq ($(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR), y)
 ifeq ($(MTK_PLATFORM_VERSION), mt6989)
-CONFIG_MALI_MTK_GPU_IOMMU := n
+CONFIG_MALI_MTK_GPU_IOMMU := y
 else
 CONFIG_MALI_MTK_GPU_IOMMU := n
 endif
