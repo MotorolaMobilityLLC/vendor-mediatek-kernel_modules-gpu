@@ -157,6 +157,8 @@ static int mtk_common_gpu_memory_show(struct seq_file *m, void *v)
 	struct list_head *entry;
 	const struct list_head *kbdev_list;
 
+	lockdep_off();
+
 	kbdev_list = kbase_device_get_list();
 	list_for_each(entry, kbdev_list) {
 		struct kbase_device *kbdev = NULL;
@@ -167,7 +169,7 @@ static int mtk_common_gpu_memory_show(struct seq_file *m, void *v)
 		seq_printf(m, "%-16s  %10u\n",
 				kbdev->devname,
 				atomic_read(&(kbdev->memdev.used_pages)));
-
+		mutex_lock(&kbdev->kctx_list_lock);
 		list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
 			/* output the memory usage and cap for each kctx
 			* opened on this device
@@ -178,8 +180,11 @@ static int mtk_common_gpu_memory_show(struct seq_file *m, void *v)
 				atomic_read(&(kctx->used_pages)),
 				kctx->tgid);
 		}
+		mutex_unlock(&kbdev->kctx_list_lock);
 	}
 	kbase_device_put_list(kbdev_list);
+
+	lockdep_on();
 #else
 	seq_puts(m, "GPU mem_profile doesn't be enabled\n");
 #endif
