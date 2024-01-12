@@ -140,7 +140,11 @@ static phys_addr_t alloc_sec_dma_heap(struct simple_pma_device *const epma_dev, 
 	} else {
 		// For page base sec mem
 		// use sg_dma_address to get PA
+#if (KERNEL_VERSION(6, 1, 55) <= LINUX_VERSION_CODE)
+		sgt = dma_buf_map_attachment_unlocked(buf_attachment, DMA_BIDIRECTIONAL);
+#else
 		sgt = dma_buf_map_attachment(buf_attachment, DMA_BIDIRECTIONAL);
+#endif
 		if (IS_ERR_OR_NULL(sgt)) {
 			dev_err(epma_dev->dev, "failed to get sg table\n");
 			return 0;
@@ -160,7 +164,11 @@ static phys_addr_t alloc_sec_dma_heap(struct simple_pma_device *const epma_dev, 
 	dev_vdbg(epma_dev->dev, "pma:base=%llx,size=%zu,heap=%s\n",
 			(unsigned long long) pma_base, pma_size, heap_name);
 #else
+#if (KERNEL_VERSION(6, 1, 55) <= LINUX_VERSION_CODE)
+	sgt = dma_buf_map_attachment_unlocked(buf_attachment, DMA_BIDIRECTIONAL);
+#else
 	sgt = dma_buf_map_attachment(buf_attachment, DMA_BIDIRECTIONAL);
+#endif
 	if (sgt == NULL) {
 		dev_err(epma_dev->dev, "failed to get sg table\n");
 		return 0;
