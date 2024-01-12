@@ -815,6 +815,19 @@ static int pending_submission_worker_kthread(void* data)
 }
 #endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
 
+static void enqueue_gpu_submission_work(struct kbase_context *const kctx)
+{
+#if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
+	if (kctx->csf.pending_submission_mode == GPU_PENDING_SUBMISSION_KTHREAD) {
+		atomic_inc(&kctx->csf.trigger_submission);
+		wake_up(&kctx->csf.pending_wait_queue);
+	} else
+		queue_work(system_highpri_wq, &kctx->csf.pending_submission_work);
+#else
+		queue_work(system_highpri_wq, &kctx->csf.pending_submission_work);
+#endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
+}
+
 /**
  * pending_submission_worker() - Work item to process pending kicked GPU command queues.
  *
@@ -953,19 +966,6 @@ void kbase_csf_ring_cs_kernel_doorbell(struct kbase_device *kbdev,
 
 	if (likely(ring_csg_doorbell))
 		kbase_csf_ring_csg_doorbell(kbdev, csg_nr);
-}
-
-static void enqueue_gpu_submission_work(struct kbase_context *const kctx)
-{
-#if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
-	if (kctx->csf.pending_submission_mode == GPU_PENDING_SUBMISSION_KTHREAD) {
-		atomic_inc(&kctx->csf.trigger_submission);
-		wake_up(&kctx->csf.pending_wait_queue);
-	} else
-		queue_work(system_highpri_wq, &kctx->csf.pending_submission_work);
-#else
-		queue_work(system_highpri_wq, &kctx->csf.pending_submission_work);
-#endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
 }
 
 int kbase_csf_queue_kick(struct kbase_context *kctx,
