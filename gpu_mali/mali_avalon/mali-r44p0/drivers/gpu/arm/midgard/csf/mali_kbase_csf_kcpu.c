@@ -1918,6 +1918,7 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 	if (!kcpu_fence) {
 		dev_err(kctx->kbdev->dev, "no fence metadata found in ctx:%d_%d kcpu queue:%u",
 			kctx->tgid, kctx->id, queue->id);
+		kbase_fence_put(fence);
 		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 		return;
 	}
@@ -1936,6 +1937,7 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 	kbasep_csf_sync_kcpu_dump_locked(kctx, NULL);
 
 	dev_warn(kctx->kbdev->dev, "-----------------------------------------------\n");
+	kbase_fence_put(fence);
 	mutex_unlock(&kctx->csf.kcpu_queues.lock);
 }
 
@@ -1994,7 +1996,9 @@ static int delete_queue(struct kbase_context *kctx, u32 id)
 
 		mutex_unlock(&queue->lock);
 
+		cancel_work_sync(&queue->dump_work);
 		cancel_work_sync(&queue->work);
+
 		destroy_workqueue(queue->wq);
 
 		mutex_destroy(&queue->lock);

@@ -195,6 +195,8 @@ static void kbasep_csf_sync_print_kcpu_fence_wait_or_signal(char *buffer, int *l
 	*length += snprintf(buffer + *length, CSF_SYNC_DUMP_SIZE - *length,
 			    "timeline_name:%s timeline_context:0x%.16llx fence_seqno:0x%.16llx",
 			    timeline_name, fence->context, (u64)fence->seqno);
+
+	kbase_fence_put(fence);
 }
 
 /**
@@ -431,7 +433,7 @@ static void kbasep_csf_sync_kcpu_debugfs_print_queue(struct kbase_context *kctx,
 		length += snprintf(buffer, CSF_SYNC_DUMP_SIZE, "queue:KCPU-%d-%d exec:%c ",
 				   kctx->id, queue->id, started_or_pending);
 
-		cmd = &queue->commands[queue->start_offset + i];
+		cmd = &queue->commands[(u8)(queue->start_offset + i)];
 		switch (cmd->type) {
 #if IS_ENABLED(CONFIG_SYNC_FILE)
 		case BASE_KCPU_COMMAND_TYPE_FENCE_SIGNAL:
