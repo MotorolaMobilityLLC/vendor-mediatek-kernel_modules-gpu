@@ -62,7 +62,12 @@
 /**
  * Number of timer events per second.
  */
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+		IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+#define TIMER_EVENTS_PER_SECOND ((u32)6000 / TIMER_DEFAULT_VALUE_MS)
+#else
 #define TIMER_EVENTS_PER_SECOND ((u32)1000 / TIMER_DEFAULT_VALUE_MS)
+#endif
 
 /**
  * Maximum number of loops polling the GPU before we assume the GPU has hung.
