@@ -500,7 +500,7 @@ unsigned int kbase_csf_firmware_trace_buffer_read_data(
 	u32 insert_offset = *(trace_buffer->cpu_va.insert_cpu_va);
 	u32 buffer_size = trace_buffer->num_pages << PAGE_SHIFT;
 
-	if (bytes_copied == 0)
+	if ((bytes_copied == 0) && (buffer_size == 0x100000)) /* CONFIG_MALI_MTK_KE_DUMP_FWLOG: need to check fwlog size = 1MB */
 		extract_offset_tmp = extract_offset;
 
 	if (insert_offset >= extract_offset) {
@@ -525,7 +525,7 @@ unsigned int kbase_csf_firmware_trace_buffer_read_data(
 			extract_offset = bytes_copied_head;
 	}
 
-	if ((kbase_csf_firmware_trace_buffer_get_active_mask64(trace_buffer) == 0) && (bytes_copied == 0))
+	if ((kbase_csf_firmware_trace_buffer_get_active_mask64(trace_buffer) == 0) && (bytes_copied == 0) && (buffer_size == 0x100000))
 		*(trace_buffer->cpu_va.extract_cpu_va) = extract_offset_tmp;
 	else
 		*(trace_buffer->cpu_va.extract_cpu_va) = extract_offset;
