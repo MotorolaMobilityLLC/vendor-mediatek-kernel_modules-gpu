@@ -129,7 +129,7 @@ void kbase_mmu_report_mcu_as_fault_and_reset(struct kbase_device *kbdev,
 		access_type, kbase_gpu_access_type_name(fault->status),
 		source_id);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 		"Unexpected Page fault in firmware address space at VA 0x%016llX\n"
 		"raw fault status: 0x%X\n"
 		"exception type 0x%X: %s\n"
@@ -193,7 +193,7 @@ void kbase_gpu_report_bus_fault_and_kill(struct kbase_context *kctx,
 		source_id,
 		kctx->pid);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 		"GPU bus fault in AS%d at PA %pK\n"
 		"PA_VALID: %s\n"
 		"raw fault status: 0x%X\n"
@@ -282,7 +282,7 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 		source_id,
 		kctx->pid);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 		"Unhandled Page fault in AS%d at VA 0x%016llX\n"
 		"Reason: %s\n"
 		"raw fault status: 0x%X\n"

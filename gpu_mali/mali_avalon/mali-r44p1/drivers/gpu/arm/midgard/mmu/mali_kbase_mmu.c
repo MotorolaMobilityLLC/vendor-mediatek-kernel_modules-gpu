@@ -165,7 +165,7 @@ static void mmu_flush_pa_range(struct kbase_device *kbdev, phys_addr_t phys, siz
 	else {
 		dev_warn(kbdev->dev, "Invalid flush request (op = %d)", op);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"Invalid flush request (op = %d)\n", op);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return;
@@ -174,7 +174,7 @@ static void mmu_flush_pa_range(struct kbase_device *kbdev, phys_addr_t phys, siz
 	if (kbase_gpu_cache_flush_pa_range_and_busy_wait(kbdev, phys, nr_bytes, flush_op)) {
 		dev_err(kbdev->dev, "Flush for physical address range did not complete");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"Flush for physical address range did not complete\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
@@ -307,7 +307,7 @@ static void mmu_flush_invalidate_on_gpu_ctrl(struct kbase_device *kbdev, struct 
 		if (kbase_mmu_hw_do_flush_on_gpu_ctrl(kbdev, &kbdev->as[as_nr], op_param)) {
 			dev_err(kbdev->dev, "Flush for GPU page table update did not complete");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 				"Flush for GPU page table update did not complete\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		}

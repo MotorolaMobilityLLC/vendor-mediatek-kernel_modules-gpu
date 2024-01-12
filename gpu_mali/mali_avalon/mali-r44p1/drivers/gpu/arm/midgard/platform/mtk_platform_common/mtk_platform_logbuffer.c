@@ -339,7 +339,7 @@ fail_invalid_entry:
 	spin_unlock_irqrestore(&logbuf->access_lock, flags);
 }
 
-void mtk_logbuffer_type_print(struct kbase_device *const kbdev, enum mtk_logbuffer_type logType, const char *fmt, ...)
+void mtk_logbuffer_type_print(struct kbase_device *const kbdev, uint32_t logType, const char *fmt, ...)
 {
 	va_list args;
 	uint8_t buffer[MTK_LOG_BUFFER_ENTRY_SIZE];
@@ -348,13 +348,13 @@ void mtk_logbuffer_type_print(struct kbase_device *const kbdev, enum mtk_logbuff
 	vsnprintf(buffer, sizeof(buffer), fmt, args);
 	va_end(args);
 
-	if (logType == MTK_LOGBUFFER_TYPE_ALL || logType == MTK_LOGBUFFER_TYPE_REGULAR)
+	if (logType & MTK_LOGBUFFER_TYPE_REGULAR)
 		__mtk_logbuffer_print(&kbdev->logbuf_regular, buffer);
 
-	if (logType == MTK_LOGBUFFER_TYPE_ALL || logType == MTK_LOGBUFFER_TYPE_CRITICAL)
+	if (logType & MTK_LOGBUFFER_TYPE_CRITICAL)
 		__mtk_logbuffer_print(&kbdev->logbuf_critical, buffer);
 
-	if (logType == MTK_LOGBUFFER_TYPE_ALL || logType == MTK_LOGBUFFER_TYPE_EXCEPTION)
+	if (logType & MTK_LOGBUFFER_TYPE_EXCEPTION)
 		__mtk_logbuffer_print(&kbdev->logbuf_exception, buffer);
 }
 

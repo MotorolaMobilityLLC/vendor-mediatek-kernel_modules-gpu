@@ -92,7 +92,7 @@ static int busy_wait_cache_operation(struct kbase_device *kbdev, u32 irq_bit)
 			"Stuck waiting on %s bit, might be due to unstable GPU clk/pwr or possible faulty FPGA connector\n",
 			irq_flag_name);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"Stuck waiting on %s bit, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n",
 			irq_flag_name);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */

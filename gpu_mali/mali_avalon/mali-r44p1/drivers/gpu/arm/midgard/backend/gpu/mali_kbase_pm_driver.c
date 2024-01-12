@@ -2436,59 +2436,59 @@ static void kbase_pm_timed_out(struct kbase_device *kbdev, const char *timeout_m
 					L2_PWRTRANS_LO)));
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 		"Power transition timed out (%d ms) unexpectedly\n",
 		kbase_get_timeout_ms(kbdev, CSF_PM_TIMEOUT));
 
 #if !MALI_USE_CSF
 	CSTD_UNUSED(flags);
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 		"Desired state :\n");
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 		"\tShader=%016llx\n",
 			kbdev->pm.backend.shaders_desired ? kbdev->pm.backend.shaders_avail : 0);
 #else
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 		"\tMCU desired = %d\n",
 		kbase_pm_is_mcu_desired(kbdev));
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 		"\tMCU sw state = %d\n",
 		kbdev->pm.backend.mcu_state);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 #endif
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL, "Current state :\n");
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL, "\tShader=%08x%08x\n",
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "Current state :\n");
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "\tShader=%08x%08x\n",
 			kbase_reg_read(kbdev,
 				GPU_CONTROL_REG(SHADER_READY_HI)),
 			kbase_reg_read(kbdev,
 				GPU_CONTROL_REG(SHADER_READY_LO)));
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL, "\tTiler =%08x%08x\n",
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "\tTiler =%08x%08x\n",
 			kbase_reg_read(kbdev,
 				GPU_CONTROL_REG(TILER_READY_HI)),
 			kbase_reg_read(kbdev,
 				GPU_CONTROL_REG(TILER_READY_LO)));
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL, "\tL2    =%08x%08x\n",
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "\tL2    =%08x%08x\n",
 			kbase_reg_read(kbdev,
 				GPU_CONTROL_REG(L2_READY_HI)),
 			kbase_reg_read(kbdev,
 				GPU_CONTROL_REG(L2_READY_LO)));
 #if MALI_USE_CSF
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL, "\tMCU status = %d\n",
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "\tMCU status = %d\n",
 		kbase_reg_read(kbdev, GPU_CONTROL_REG(MCU_STATUS)));
 #endif
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL, "Cores transitioning :\n");
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL, "\tShader=%08x%08x\n",
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "Cores transitioning :\n");
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "\tShader=%08x%08x\n",
 			kbase_reg_read(kbdev, GPU_CONTROL_REG(
 					SHADER_PWRTRANS_HI)),
 			kbase_reg_read(kbdev, GPU_CONTROL_REG(
 					SHADER_PWRTRANS_LO)));
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL, "\tTiler =%08x%08x\n",
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "\tTiler =%08x%08x\n",
 			kbase_reg_read(kbdev, GPU_CONTROL_REG(
 					TILER_PWRTRANS_HI)),
 			kbase_reg_read(kbdev, GPU_CONTROL_REG(
 					TILER_PWRTRANS_LO)));
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL, "\tL2    =%08x%08x\n",
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "\tL2    =%08x%08x\n",
 			kbase_reg_read(kbdev, GPU_CONTROL_REG(
 					L2_PWRTRANS_HI)),
 			kbase_reg_read(kbdev, GPU_CONTROL_REG(
@@ -3309,7 +3309,7 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		destroy_hrtimer_on_stack(&rtdata.timer);
 		dev_info(kbdev->dev, "GPU soft reset completed");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR,
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL,
 			"GPU soft reset completed\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return 0;
@@ -3318,7 +3318,7 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 	} else {
 		dev_info(kbdev->dev, "No need to check if GPU soft reset was timed-out");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR,
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL,
 			"No need to check if GPU soft reset was timed-out\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
@@ -3334,7 +3334,7 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		 */
 		dev_err(kbdev->dev, "Reset interrupt didn't reach CPU. Check interrupt assignments.\n");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"Reset interrupt didn't reach CPU. Check interrupt assignments\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -3366,7 +3366,7 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		dev_err(kbdev->dev, "Failed to soft-reset GPU (timed out after %d ms), now attempting a hard reset\n",
 					RESET_TIMEOUT);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"Failed to soft-reset GPU (timed out after %d ms), now attempting a hard reset\n",
 			RESET_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
@@ -3395,7 +3395,7 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 			destroy_hrtimer_on_stack(&rtdata.timer);
 			dev_info(kbdev->dev, "GPU hard reset completed");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR,
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL,
 				"GPU hard reset completed\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			return 0;
@@ -3406,7 +3406,7 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		dev_err(kbdev->dev, "Failed to hard-reset the GPU (timed out after %d ms)\n",
 					RESET_TIMEOUT);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"Failed to hard-reset the GPU (timed out after %d ms)\n",
 			RESET_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */

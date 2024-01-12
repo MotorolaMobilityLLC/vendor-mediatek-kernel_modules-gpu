@@ -344,7 +344,7 @@ static int wait_ready(struct kbase_device *kbdev)
 		"AS_ACTIVE bit stuck for MCU AS. Might be caused by unstable GPU clk/pwr or faulty system");
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 		"AS_ACTIVE bit stuck for MCU AS. Might be caused by unstable GPU clk/pwr or faulty system\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -1277,7 +1277,7 @@ static int parse_capabilities(struct kbase_device *kbdev)
 	if (!iface->version) {
 		dev_err(kbdev->dev, "Version check failed. Firmware may have failed to boot.");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"Version check failed. Firmware may have failed to boot.\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return -EINVAL;
@@ -1697,7 +1697,7 @@ static int wait_for_global_request_with_timeout(struct kbase_device *const kbdev
 			 kbase_backend_get_cycle_cnt(kbdev), timeout_ms, req_mask);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"Timeout (%d ms) waiting for global request %x to complete\n",
 			timeout_ms, req_mask);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
@@ -2025,7 +2025,7 @@ static void kbase_csf_firmware_reload_worker(struct work_struct *work)
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_FWRELOAD_FAIL);
 #endif /* CONFIG_MALI_MTK_DEBUG */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"Reload of FW had failed, MCU won't be re-enabled !!\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return;
@@ -2068,7 +2068,7 @@ void kbase_csf_firmware_reload_completed(struct kbase_device *kbdev)
 	if (version != kbdev->csf.global_iface.version) {
 		dev_err(kbdev->dev, "Version check failed in firmware reboot.");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"Version check failed in firmware reboot.\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
