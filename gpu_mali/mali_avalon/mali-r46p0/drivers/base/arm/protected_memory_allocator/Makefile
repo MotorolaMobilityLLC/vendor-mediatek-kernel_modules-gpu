@@ -28,13 +28,26 @@ subdir-ccflags-y += $(ccflags-y)
 ifeq ($(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR), y)
 ifeq ($(MTK_PLATFORM_VERSION), mt6989)
 CONFIG_MALI_MTK_GPU_IOMMU := y
-else
-CONFIG_MALI_MTK_GPU_IOMMU := n
+CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP := y
 endif
+ifeq ($(MTK_PLATFORM_VERSION), mt6991)
+CONFIG_MALI_MTK_GPU_IOMMU := n
+CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP := n
+endif
+CONFIG_MALI_MTK_GPU_IOMMU ?= n
+CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP ?= n
+CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP_2MB ?= n
 
 ifeq ($(CONFIG_MALI_MTK_GPU_IOMMU), y)
 ccflags-y += -DCONFIG_MALI_MTK_GPU_IOMMU
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpufreq
+endif
+
+ifeq ($(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP), y)
+ccflags-y += -DCONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/trusted_mem/public \
+             -I$(DEVICE_MODULES_PATH)/drivers/dma-buf/heaps \
+             -Wno-unused-function -Wno-unused-variable
 endif
 
 ccflags-y += -DCONFIG_MALI_MTK_GPU_PROTECTED_MEMORY_SUPPORT
