@@ -5644,6 +5644,13 @@ static int kbase_device_suspend(struct device *dev)
 		dev_warn(kbdev->dev, "Abort suspend as GPU suspension failed");
 		return -EBUSY;
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_MFGSYS_PM)
+	pr_info("@%s: Suspending GPU, active_count=%d gpu_powered=%d mfgsys_powered=%d",
+		__func__,
+		kbdev->pm.active_count,
+		kbdev->pm.backend.gpu_powered,
+		kbdev->pm.backend.mfgsys_powered);
+#endif /* CONFIG_MALI_MTK_MFGSYS_PM */
 
 #ifdef CONFIG_MALI_MIDGARD_DVFS
 	kbase_pm_metrics_stop(kbdev);
@@ -5674,6 +5681,14 @@ static int kbase_device_resume(struct device *dev)
 
 	if (!kbdev)
 		return -ENODEV;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MFGSYS_PM)
+	pr_info("@%s: Resuming GPU, active_count=%d gpu_powered=%d mfgsys_powered=%d",
+		__func__,
+		kbdev->pm.active_count,
+		kbdev->pm.backend.gpu_powered,
+		kbdev->pm.backend.mfgsys_powered);
+#endif /* CONFIG_MALI_MTK_MFGSYS_PM */
 
 	kbase_pm_resume(kbdev);
 
