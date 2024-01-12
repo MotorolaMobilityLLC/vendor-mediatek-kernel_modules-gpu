@@ -28,11 +28,6 @@
 
 #include <linux/types.h>
 #include <linux/wait.h>
-#if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
-#include <linux/sched.h>
-#include <uapi/linux/sched/types.h>
-#include <linux/kthread.h>
-#endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
 
 #include "mali_kbase_csf_firmware.h"
 #include "mali_kbase_refcount_defs.h"
@@ -858,12 +853,6 @@ struct kbase_csf_context {
 	struct workqueue_struct *wq;
 	struct list_head link;
 	struct kbase_csf_scheduler_context sched;
-#if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
-	u32 pending_submission_mode;
-	struct task_struct *pending_submission_work_kthread;
-	wait_queue_head_t pending_wait_queue;
-	atomic_t trigger_submission;
-#endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
 	struct work_struct pending_submission_work;
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	struct kbase_csf_cpu_queue_context cpu_queue;

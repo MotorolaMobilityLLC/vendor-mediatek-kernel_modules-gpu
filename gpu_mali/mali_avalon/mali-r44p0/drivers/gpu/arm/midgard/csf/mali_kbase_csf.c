@@ -37,10 +37,6 @@
 #include <tl/mali_kbase_tracepoints.h>
 #include "mali_kbase_csf_mcu_shared_reg.h"
 
-#if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
-#include <platform/mtk_platform_common/mtk_platform_pending_submission.h>
-#endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
-
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG */
@@ -771,67 +767,9 @@ static struct kbase_queue_group *get_bound_queue_group(
 	return group;
 }
 
-#if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
-static int check_trigger_submission(struct kbase_context *kctx)
-{
-	int trigger_submission;
-
-	trigger_submission = atomic_read(&kctx->csf.trigger_submission);
-
-	if (trigger_submission > 0) {
-		atomic_dec(&kctx->csf.trigger_submission);
-	} else if (trigger_submission < 0) {
-		dev_vdbg(kctx->kbdev->dev, "Invalid trigger_submission: %d\n", trigger_submission);
-	}
-
-	return trigger_submission;
-}
-
-static int pending_submission_worker_kthread(void* data)
-{
-	struct kbase_context *kctx = (struct kbase_context *)data;
-	struct kbase_device *kbdev = kctx->kbdev;
-	struct kbase_queue *queue;
-	int err;
-	while (!kthread_should_stop()) {
-		wait_event_freezable_timeout(kctx->csf.pending_wait_queue,
-			((check_trigger_submission(kctx) > 0) || kthread_should_stop()), MAX_SCHEDULE_TIMEOUT);
-		if (kthread_should_stop())
-			return 0;
-		err = kbase_reset_gpu_prevent_and_wait(kbdev);
-		if (err) {
-			dev_err(kbdev->dev, "Unsuccessful GPU reset detected when kicking queue ");
-			continue;
-		}
-		mutex_lock(&kctx->csf.lock);
-		/* Iterate through the queue list and schedule the pending ones for submission. */
-		list_for_each_entry(queue, &kctx->csf.queue_list, link) {
-			if (atomic_cmpxchg(&queue->pending, 1, 0) == 1) {
-				struct kbase_queue_group *group = get_bound_queue_group(queue);
-				if (!group || queue->bind_state != KBASE_CSF_QUEUE_BOUND)
-					dev_vdbg(kbdev->dev, "queue is not bound to a group");
-				else if (kbase_csf_scheduler_queue_start(queue))
-					dev_vdbg(kbdev->dev, "Failed to start queue");
-			}
-		}
-		mutex_unlock(&kctx->csf.lock);
-		kbase_reset_gpu_allow(kbdev);
-	}
-	return 0;
-}
-#endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
-
 static void enqueue_gpu_submission_work(struct kbase_context *const kctx)
 {
-#if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
-	if (kctx->csf.pending_submission_mode == GPU_PENDING_SUBMISSION_KTHREAD) {
-		atomic_inc(&kctx->csf.trigger_submission);
-		wake_up(&kctx->csf.pending_wait_queue);
-	} else
 		queue_work(system_highpri_wq, &kctx->csf.pending_submission_work);
-#else
-		queue_work(system_highpri_wq, &kctx->csf.pending_submission_work);
-#endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
 }
 
 /**
@@ -1748,25 +1686,6 @@ int kbase_csf_ctx_init(struct kbase_context *kctx)
 {
 	int err = -ENOMEM;
 
-#if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
-	struct sched_param param = { .sched_priority = 0 /*MAX_RT_PRIO - 1*/ };
-	u32 pending_submission_mode = GPU_PENDING_SUBMISSION_KWORKER;
-	struct device_node *np;
-
-	kctx->csf.pending_submission_work_kthread = NULL;
-	kctx->csf.pending_submission_mode = pending_submission_mode;
-	np = kctx->kbdev->dev->of_node;
-
-	if (!of_property_read_u32(np, "pending-submission-mode", &pending_submission_mode)) {
-		dev_info(kctx->kbdev->dev, "Pending submission mode: %s",
-			(pending_submission_mode == GPU_PENDING_SUBMISSION_KWORKER)? "Kworker":
-			((pending_submission_mode == GPU_PENDING_SUBMISSION_KTHREAD)? "Kthread": "Undefined"));
-
-		kctx->csf.pending_submission_mode = pending_submission_mode;
-	} else
-		dev_info(kctx->kbdev->dev, "Pending submission mode: No dts property setting, undefined");
-#endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
-
 	INIT_LIST_HEAD(&kctx->csf.queue_list);
 	INIT_LIST_HEAD(&kctx->csf.link);
 
@@ -1789,48 +1708,12 @@ int kbase_csf_ctx_init(struct kbase_context *kctx)
 
 				if (likely(!err)) {
 					mutex_init(&kctx->csf.lock);
-#if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
-					if (kctx->csf.pending_submission_mode == GPU_PENDING_SUBMISSION_KTHREAD) {
-						init_waitqueue_head(&kctx->csf.pending_wait_queue);
-
-						atomic_set(&kctx->csf.trigger_submission, 0);
-
-						kctx->csf.pending_submission_work_kthread = kthread_run(
-							pending_submission_worker_kthread,
-							(void *)kctx,
-							"pending_submission_work");
-						if (IS_ERR(kctx->csf.pending_submission_work_kthread)) {
-							err = PTR_ERR(kctx->csf.pending_submission_work_kthread);
-							dev_err(kctx->kbdev->dev,
-								"%s, create kthread: pending_submission_work failed, err: %d\n", __func__, err);
-							kctx->csf.pending_submission_work_kthread = NULL;
-							/* WARN_ON(1); */
-
-							if (unlikely(err))
-								kbase_csf_tiler_heap_context_term(kctx);
-						} else {
-							/* kthread_bind(kctx->csf.pending_submission_work, 0); */
-							sched_setscheduler_nocheck(kctx->csf.pending_submission_work_kthread, SCHED_NORMAL, &param);
-							err = kbasep_ctx_user_reg_page_mapping_init(kctx);
-								if (unlikely(err))
-									kbase_csf_tiler_heap_context_term(kctx);
-						}
-					}else {
 						INIT_WORK(&kctx->csf.pending_submission_work,
 							  pending_submission_worker);
 						err = kbasep_ctx_user_reg_page_mapping_init(kctx);
 
 						if (unlikely(err))
 							kbase_csf_tiler_heap_context_term(kctx);
-					}
-#else
-						INIT_WORK(&kctx->csf.pending_submission_work,
-							  pending_submission_worker);
-						err = kbasep_ctx_user_reg_page_mapping_init(kctx);
-
-						if (unlikely(err))
-							kbase_csf_tiler_heap_context_term(kctx);
-#endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
 				}
 
 				if (unlikely(err))
@@ -1945,17 +1828,7 @@ void kbase_csf_ctx_term(struct kbase_context *kctx)
 	if (reset_prevented)
 		kbase_reset_gpu_allow(kbdev);
 
-#if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
-	if (kctx->csf.pending_submission_mode == GPU_PENDING_SUBMISSION_KTHREAD) {
-		if (!IS_ERR_OR_NULL(kctx->csf.pending_submission_work_kthread)) {
-			kthread_stop(kctx->csf.pending_submission_work_kthread);
-			kctx->csf.pending_submission_work_kthread = NULL;
-		}
-	} else
-		cancel_work_sync(&kctx->csf.pending_submission_work);
-#else
-		cancel_work_sync(&kctx->csf.pending_submission_work);
-#endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
+	cancel_work_sync(&kctx->csf.pending_submission_work);
 
 	/* Now that all queue groups have been terminated, there can be no
 	 * more OoM or timer event interrupts but there can be inflight work
