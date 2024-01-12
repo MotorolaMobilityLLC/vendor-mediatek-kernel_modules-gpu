@@ -516,7 +516,6 @@ static inline void kbase_csf_scheduler_invoke_tick(struct kbase_device *kbdev)
 		hrtimer_cancel(&scheduler->apo_idle_timer);
 
 		ged_get_predict_active_time();
-		ged_check_predict_power_duration();
 	}
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 	KBASE_KTRACE_ADD(kbdev, SCHEDULER_TICK_INVOKE, NULL, 0u);

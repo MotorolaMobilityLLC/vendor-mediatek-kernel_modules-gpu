@@ -1365,10 +1365,8 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 							ACTION_PWRON);
 				} else {
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
-					if (kbdev->csf.scheduler.apo_support) {
+					if (kbdev->csf.scheduler.apo_support)
 						ged_get_active_time();
-						ged_check_power_duration();
-					}
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)
 					mtk_common_ged_dvfs_write_sysram_last_commit_dual();

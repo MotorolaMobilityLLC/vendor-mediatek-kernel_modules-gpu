@@ -803,15 +803,17 @@ void kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev)
 				} else {
 					if (!hrtimer_active(&scheduler->apo_idle_timer)) {
 						expiry_time = HR_TIMER_DELAY_NSEC(
-							ged_get_apo_wakeup_us() * 1000);
+							ged_get_apo_wakeup_ns());
 						hrtimer_start(&scheduler->apo_idle_timer,
 							expiry_time,
 							HRTIMER_MODE_REL);
 					}
 				}
 			/* Handle enqueue */
-			} else
+			} else {
+				ged_check_predict_power_duration(); // call for autosuspend_delay setting
 				enqueue_gpu_idle_work(scheduler);
+			}
 #else
 			enqueue_gpu_idle_work(scheduler);
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
