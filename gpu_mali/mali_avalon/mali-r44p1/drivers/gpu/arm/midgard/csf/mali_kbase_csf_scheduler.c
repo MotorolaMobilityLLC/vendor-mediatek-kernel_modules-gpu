@@ -6659,6 +6659,49 @@ static bool check_sync_update_for_idle_groups_protm(struct kbase_device *kbdev)
 	return exit_protm;
 }
 
+/**
+ * wait_for_mcu_sleep_before_sync_update_check() - Wait for MCU sleep request to
+ *                                    complete before performing the sync update
+ *                                    check for all the on-slot groups.
+ *
+ * @kbdev:    Pointer to the GPU device
+ *
+ * This function is called before performing the sync update check on the GPU queues
+ * of all the on-slot groups when a CQS object is signaled and Scheduler was in
+ * SLEEPING state.
+ */
+static void wait_for_mcu_sleep_before_sync_update_check(struct kbase_device *kbdev)
+{
+	long timeout = kbase_csf_timeout_in_jiffies(kbase_get_timeout_ms(kbdev, CSF_PM_TIMEOUT));
+	bool can_wait_for_mcu_sleep;
+	unsigned long flags;
+
+	lockdep_assert_held(&kbdev->csf.scheduler.lock);
+
+	if (WARN_ON_ONCE(kbdev->csf.scheduler.state != SCHED_SLEEPING))
+		return;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	/* If exit from sleep state has already been triggered then there is no need
+	 * to wait, as scheduling is anyways going to be resumed and also MCU would
+	 * have already transitioned to the sleep state.
+	 * Also there is no need to wait if the Scheduler's PM refcount is not zero,
+	 * which implies that MCU needs to be turned on.
+	 */
+	can_wait_for_mcu_sleep = !kbdev->pm.backend.exit_gpu_sleep_mode &&
+				 !kbdev->csf.scheduler.pm_active_count;
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+	if (!can_wait_for_mcu_sleep)
+		return;
+
+	/* Wait until MCU enters sleep state or there is a pending GPU reset */
+	if (!wait_event_timeout(kbdev->pm.backend.gpu_in_desired_state_wait,
+				kbdev->pm.backend.mcu_state == KBASE_MCU_IN_SLEEP ||
+					!kbase_reset_gpu_is_not_pending(kbdev),
+				timeout))
+		dev_warn(kbdev->dev, "Wait for MCU sleep timed out");
+}
+
 static void check_sync_update_in_sleep_mode(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
@@ -6666,6 +6709,12 @@ static void check_sync_update_in_sleep_mode(struct kbase_device *kbdev)
 	u32 csg_nr;
 
 	lockdep_assert_held(&scheduler->lock);
+
+	/* Wait for MCU to enter the sleep state to ensure that FW has published
+	 * the status of CSGs/CSIs, otherwise we can miss detecting that a GPU
+	 * queue stuck on SYNC_WAIT has been unblocked.
+	 */
+	wait_for_mcu_sleep_before_sync_update_check(kbdev);
 
 	for (csg_nr = 0; csg_nr < num_groups; csg_nr++) {
 		struct kbase_queue_group *const group =
@@ -6743,14 +6792,7 @@ static void check_group_sync_update_worker(struct work_struct *work)
 	 * to serve on-slot CSGs blocked on CQS which has been signaled.
 	 */
 	if (!sync_updated && (scheduler->state == SCHED_SLEEPING))
-	{
-		/* Wait for sleep transition to complete to ensure the
-		 * CS_STATUS_WAIT registers are updated by the MCU.
-		 */
-		if (!kbdev->pm.backend.exit_gpu_sleep_mode)
-			kbase_pm_wait_for_desired_state(kbdev);
 		check_sync_update_in_sleep_mode(kbdev);
-	}
 
 	KBASE_KTRACE_ADD(kbdev, SCHEDULER_GROUP_SYNC_UPDATE_WORKER_END, kctx, 0u);
 

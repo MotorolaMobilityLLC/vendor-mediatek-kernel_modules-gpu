@@ -1098,6 +1098,16 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 				 */
 				if (!kbdev->csf.firmware_hctl_core_pwr)
 					kbasep_pm_toggle_power_interrupt(kbdev, true);
+				/* If Scheduler's PM refcount is not zero then the early wakeup
+				 * on reaching the sleep state can be skipped as the waiting thread
+				 * (like Scheduler kthread) would be interested in MCU being
+				 * turned ON.
+				 * In the more regular flow, the refcount is very likely to be zero
+				 * and there would be no waiters. The wake_up() call won't have an
+				 * effect if there are no waiters.
+				 */
+				if (likely(!kbdev->csf.scheduler.pm_active_count))
+					wake_up(&backend->gpu_in_desired_state_wait);
 			}
 			break;
 

@@ -582,6 +582,10 @@ bool kbase_prepare_to_reset_gpu(struct kbase_device *kbdev, unsigned int flags)
 		/* Some other thread is already resetting the GPU */
 		return false;
 
+	/* Issue the wake up of threads waiting for PM state transition.
+	 * They might want to exit the wait since GPU reset has been triggered.
+	 */
+	wake_up(&kbdev->pm.backend.gpu_in_desired_state_wait);
 	return true;
 }
 KBASE_EXPORT_TEST_API(kbase_prepare_to_reset_gpu);
