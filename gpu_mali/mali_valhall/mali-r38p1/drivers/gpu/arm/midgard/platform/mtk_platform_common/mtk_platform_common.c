@@ -126,7 +126,11 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	lockdep_off();
 
-	mutex_lock(&common_debug_lock);
+	if (!mutex_trylock(&common_debug_lock)) {
+		pr_info("[%s]lock held, bypass debug dump", __func__);
+		lockdep_on();
+		return;
+	}
 
 	switch (type) {
 	case MTK_COMMON_DBG_DUMP_INFRA_STATUS:
