@@ -18,6 +18,9 @@
 #include <device/mali_kbase_device.h>
 #endif
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ)
+#include "mtk_gpu_devfreq_governor.h"
+#endif
 
 static bool mfg_powered;
 static DEFINE_MUTEX(mfg_pm_lock);
@@ -210,6 +213,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	ged_dvfs_gpu_freq_commit_fp = mtk_common_ged_dvfs_commit;
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ)
+	mtk_common_devfreq_init();
+#endif
+
 	return 0;
 }
 
@@ -235,4 +242,7 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 	ged_dvfs_gpu_freq_commit_fp = NULL;
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ)
+	mtk_common_devfreq_term();
+#endif
 }
