@@ -537,8 +537,8 @@ struct page* mtk_fetch_page(struct mgm_groups *data, int order, int i32Rank)
 		p = list_first_entry(&data->free_list_r[o][i], struct page, lru);
 		list_del_init(&p->lru);
 		data->nr_rank[o][i]--;
+		mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, -(1 << order));
 	}
-
 	spin_unlock(&data->MGMFree_lst_lk);
 
 	if (!p) {
@@ -603,6 +603,7 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 
 		p = alloc_pages(gfp_mask, order_scan_walk);
 		if (p) {
+			mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, (1 << order_scan_walk));
 			split_page(p, order_scan_walk);
 			count = (1 << order_scan_walk ) - 1;
 			spin_lock(&data->free_4K_lst_lk);
@@ -626,7 +627,7 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 
 FALLBACK:
 	p = alloc_pages(gfp_mask, order);
-
+	mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, (1 << order));
 	return p;
 }
 
@@ -1003,6 +1004,7 @@ static void example_mgm_free_page(
 			list_add(&page->lru, &data->free_list_r[1][i]);
 			data->nr_rank[1][i]++;
 		}
+		mod_node_page_state(page_pgdat(page), NR_KERNEL_MISC_RECLAIMABLE, 1 << order);
 		spin_unlock(&data->MGMFree_lst_lk);
 	} else
 		__free_pages(page, order);
