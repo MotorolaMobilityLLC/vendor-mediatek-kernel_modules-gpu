@@ -274,6 +274,16 @@ void kbase_csf_add_group_fatal_error(
  */
 void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KCPU_FENCE_WA)
+/**
+ * kbase_process_csg_retry_job_irq - Retry CSG job IRQ.
+ *
+ * @kbdev: Instance of a GPU platform device that implements a CSF interface.
+ * @time_in_ms: The time of fence waiting time in milli-seconds
+ */
+void kbase_process_csg_retry_job_irq(struct kbase_context *kctx, unsigned long time_in_ms);
+#endif /* CONFIG_MALI_MTK_KCPU_FENCE_WA */
+
 /**
  * kbase_csf_doorbell_mapping_init - Initialize the fields that facilitates
  *                                   the update of userspace mapping of HW
