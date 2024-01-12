@@ -1481,17 +1481,19 @@ static void fence_timeout_callback(struct timer_list *timer)
 		}
 
 		dev_info(kctx->kbdev->dev,
-			 "ctx:%d_%d kcpu queue:%u Command - FENCE_WAIT timeout(%d ms) on fence[%pK] context#seqno:%s",
+			 "ctx:%d_%d kcpu queue:%u Command - FENCE_WAIT timeout(%d ms) on fence[%pK] context#seqno:%s (driver=%s, timeline=%s)",
 			 kctx->tgid, kctx->id, kcpu_queue->id,
 			 (kcpu_queue->fence_wait_command_timeout_counter * FENCE_WAIT_TIMEOUT_MS),
-			 fence, info.name);
+			 fence, info.name,
+			 fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			 "ctx:%d_%d kcpu queue:%u Command - FENCE_WAIT timeout(%d ms) on fence[%pK] context#seqno:%s\n",
+			 "ctx:%d_%d kcpu queue:%u Command - FENCE_WAIT timeout(%d ms) on fence[%pK] context#seqno:%s (driver=%s, timeline=%s)\n",
 			 kctx->tgid, kctx->id, kcpu_queue->id,
 			 (kcpu_queue->fence_wait_command_timeout_counter * FENCE_WAIT_TIMEOUT_MS),
-			 fence, info.name);
+			 fence, info.name,
+			 fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 		/* Raise the fence timeout timer again */
@@ -1958,20 +1960,22 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 	}
 
 	dev_info(kctx->kbdev->dev,
-			"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms) on fence[%pK] context#seqno:%s\n",
+			"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms) on fence[%pK] context#seqno:%s (driver=%s, timeline=%s)",
 			kctx->tgid, kctx->id, queue->id,
 			(queue->fence_signal_command_timeout_counter * kbase_get_timeout_ms(kctx->kbdev, KCPU_FENCE_SIGNAL_TIMEOUT)),
-			fence, info.name);
+			fence, info.name,
+			fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 
 	/* Dump when timeout 3s, 6s */
 	if ((queue->fence_signal_command_timeout_counter == 1) || (queue->fence_signal_command_timeout_counter == 2)) {
 		kbasep_csf_sync_kcpu_dump_locked(kctx, NULL);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms) on fence[%pK] context#seqno:%s\n",
+			"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms) on fence[%pK] context#seqno:%s (driver=%s, timeline=%s)\n",
 			kctx->tgid, kctx->id, queue->id,
 			(queue->fence_signal_command_timeout_counter * kbase_get_timeout_ms(kctx->kbdev, KCPU_FENCE_SIGNAL_TIMEOUT)),
-			fence, info.name);
+			fence, info.name,
+			fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
