@@ -2414,6 +2414,88 @@ void kbase_pm_reset_complete(struct kbase_device *kbdev)
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+/* HWIF base register & offset */
+#define CSHW_BASE 0x0030000
+#define CSHW_CSHWIF_0 0x4000 /* () CSHWIF 0 registers */
+#define CSHWIF(n) (CSHW_BASE + CSHW_CSHWIF_0 + (n)*256)
+#define CSHWIF_REG(n, r) (CSHWIF(n) + r)
+#define NR_HW_INTERFACES 4
+static void dump_cshwif_registers(struct kbase_device *kbdev)
+{
+	unsigned long flags;
+	unsigned int i;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	for (i = 0; kbdev->pm.backend.gpu_powered && (i < NR_HW_INTERFACES); i++) {
+		u64 cmd_ptr = kbase_reg_read(kbdev, CSHWIF_REG(i, 0x0)) |
+			((u64)kbase_reg_read(kbdev, CSHWIF_REG(i, 0x4)) << 32);
+
+		if (!cmd_ptr)
+			continue;
+		dev_err(kbdev->dev, "Register dump of CSHWIF %d", i);
+		dev_err(kbdev->dev, "CMD_PTR: %llx CMD_PTR_END: %llx STATUS: %x JASID: %x EMUL_INSTR: %llx WAIT_STATUS: %x SB_SET_SEL: %x SB_SEL: %x",
+			cmd_ptr,
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x8)) | ((u64)kbase_reg_read(kbdev, CSHWIF_REG(i, 0xC)) << 32),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x24)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x34)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x60)) | ((u64)kbase_reg_read(kbdev, CSHWIF_REG(i, 0x64)) << 32),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x74)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x78)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x7C)));
+		dev_err(kbdev->dev, "CMD_COUNTER: %x EVT_RAW: %x EVT_IRQ_STATUS: %x EVT_HALT_STATUS: %x FAULT_STATUS: %x FAULT_ADDR: %llx",
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x80)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x98)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0xA4)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0xAC)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0xB0)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0xB8)) | ((u64)kbase_reg_read(kbdev, CSHWIF_REG(i, 0xBC)) << 32));
+		dev_err(kbdev->dev, "\n");
+	}
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+}
+
+/* ITER base register & offset */
+#define CSHW_IT_COMP_REG(r) (CSHW_BASE + 0x1000 + r)
+#define CSHW_IT_FRAG_REG(r) (CSHW_BASE + 0x2000 + r)
+#define CSHW_IT_TILER_REG(r)(CSHW_BASE + 0x3000 + r)
+static void dump_cshw_iterator_registers(struct kbase_device *kbdev)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	if (kbdev->pm.backend.gpu_powered) {
+		dev_err(kbdev->dev, "Compute  CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x SUSPEND_BUF %llx",
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x0)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x4)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x8)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0xD0)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0xDC)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0xA4)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0xA0)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x80)) | ((u64)kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x84)) << 32));
+		dev_err(kbdev->dev, "Fragment CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x SUSPEND_BUF %llx",
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x0)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x4)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x8)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0xD0)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0xDC)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0xA4)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0xA0)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x80)) | ((u64)kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x84)) << 32));
+		dev_err(kbdev->dev, "Tiler    CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x SUSPEND_BUF %llx",
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0x0)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0x4)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0x8)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0xD0)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0xDC)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0xA4)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0xA0)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0x80)) | ((u64)kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0x84)) << 32));
+		dev_err(kbdev->dev, "\n");
+	}
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+}
+
 #include <csf/mali_kbase_csf_registers.h>
 #include <csf/mali_kbase_csf_firmware.h>
 #include <linux/of_irq.h>
@@ -2456,8 +2538,8 @@ static void mtk_kbase_pm_timed_out_mcu_transition_check(struct kbase_device *kbd
 		return;
 	case KBASE_MCU_PEND_ON_RELOAD: /* 1 */
 		dev_err(kbdev->dev, "====stuck:KBASE_MCU_PEND_ON_RELOAD============");
-		dev_err(kbdev->dev, "Please confirm whether the MFG2 is power on.\n");
-		dev_err(kbdev->dev, "If the MFG2 is power on, then check whether MCU's status is execting.\n");
+		dev_err(kbdev->dev, "Please confirm whether the MFG1 is power on.\n");
+		dev_err(kbdev->dev, "If the MFG1 is power on, then check whether MCU's status is execting.\n");
 		dev_err(kbdev->dev, "(0:non-executing, 1:executing, 2:halt, 3:fatal)\n");
 		dev_err(kbdev->dev, "If MCU's status = 1, then check below step:\n");
 		dev_err(kbdev->dev, "  a. Confirm whether the mcu occurs exception, oops will be in fwlog\n");
@@ -2482,8 +2564,8 @@ static void mtk_kbase_pm_timed_out_mcu_transition_check(struct kbase_device *kbd
 			dev_err(kbdev->dev,
 			"If GLB_REQ != GLB_ACK: indicate GLB CFG fail");
 		}
-		dev_err(kbdev->dev, "Please confirm whether the MFG2 is power on.\n");
-		dev_err(kbdev->dev, "If the MFG2 is power on, then check whether MCU's status is execting.\n");
+		dev_err(kbdev->dev, "Please confirm whether the MFG1 is power on.\n");
+		dev_err(kbdev->dev, "If the MFG1 is power on, then check whether MCU's status is execting.\n");
 		dev_err(kbdev->dev, "(0:non-executing, 1:executing, 2:halt, 3:fatal)\n");
 		dev_err(kbdev->dev, "If MCU's status = 1, then check below step:\n");
 		dev_err(kbdev->dev, "  a. Confirm whether the mcu occurs exception, oops will be in fwlog\n");
@@ -2510,8 +2592,8 @@ static void mtk_kbase_pm_timed_out_mcu_transition_check(struct kbase_device *kbd
 			dev_err(kbdev->dev,
 			"If GLB_REQ != GLB_ACK: indicate ATTR UPDATE fail");
 		}
-		dev_err(kbdev->dev, "Please confirm whether the MFG2 is power on.\n");
-		dev_err(kbdev->dev, "If the MFG2 is power on, then check whether MCU's status is execting.\n");
+		dev_err(kbdev->dev, "Please confirm whether the MFG1 is power on.\n");
+		dev_err(kbdev->dev, "If the MFG1 is power on, then check whether MCU's status is execting.\n");
 		dev_err(kbdev->dev, "(0:non-executing, 1:executing, 2:halt, 3:fatal)\n");
 		dev_err(kbdev->dev, "If MCU's status = 1, then check below step:\n");
 		dev_err(kbdev->dev, "  a. Confirm whether the mcu occurs exception, oops will be in fwlog\n");
@@ -2563,6 +2645,8 @@ static void mtk_kbase_pm_timed_out_mcu_transition_check(struct kbase_device *kbd
 		dev_err(kbdev->dev,
 			"MCU status(%d) can't be halted, suggest use DEBUG SCFFW to do DOE",
 			kbase_reg_read(kbdev, GPU_CONTROL_REG(MCU_STATUS)));
+		dump_cshwif_registers(kbdev);
+		dump_cshw_iterator_registers(kbdev);
 		dev_err(kbdev->dev, "======end:KBASE_MCU_ON_PEND_SLEEP============");
 		return;
 	case KBASE_MCU_IN_SLEEP: /* 22 */
