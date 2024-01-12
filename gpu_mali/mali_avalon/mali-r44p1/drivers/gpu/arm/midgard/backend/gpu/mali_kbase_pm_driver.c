@@ -615,6 +615,9 @@ static void kbase_pm_control_gpu_clock(struct kbase_device *kbdev)
 }
 
 #if MALI_USE_CSF
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+u64 mcu_state_history = 0;
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 static const char *kbase_mcu_state_to_string(enum kbase_mcu_state state)
 {
 	const char *const strings[] = {
@@ -1137,6 +1140,10 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 				kbase_mcu_state_to_string(prev_state),
 				kbase_mcu_state_to_string(backend->mcu_state));
 			kbase_ktrace_log_mcu_state(kbdev, backend->mcu_state);
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+			mcu_state_history = mcu_state_history << 8;
+			mcu_state_history |= (u8)(backend->mcu_state & 0xFF);
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 		}
 
 	} while (backend->mcu_state != prev_state);

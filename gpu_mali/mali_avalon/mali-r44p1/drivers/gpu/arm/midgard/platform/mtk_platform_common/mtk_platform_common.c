@@ -105,6 +105,11 @@ void mtk_common_pm_mfg_idle(void)
 	mutex_unlock(&mfg_pm_lock);
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+extern u64 mcu_state_history;
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
+#endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
 void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 {
 	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
@@ -121,7 +126,17 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 #if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
 		diagnosis_mode = mtk_diagnosis_mode_get_mode();
 		diagnosis_dump_mask = mtk_diagnosis_mode_get_dump_mask();
-
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+		dev_info(kbdev->dev, "mcu state back trace %llu->%llu->%llu->%llu->%llu->%llu->%llu->%llu\n",
+			((mcu_state_history >> 56) & 0xFF),
+			((mcu_state_history >> 48) & 0xFF),
+			((mcu_state_history >> 40) & 0xFF),
+			((mcu_state_history >> 32) & 0xFF),
+			((mcu_state_history >> 24) & 0xFF),
+			((mcu_state_history >> 16) & 0xFF),
+			((mcu_state_history >>  8) & 0xFF),
+			((mcu_state_history >>  0) & 0xFF));
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 		dev_info(kbdev->dev, "diagnosis hook = 0x%08llx, mode = %llu, mask = 0x%08llx", hook_point, diagnosis_mode, diagnosis_dump_mask);
 		if (hook_point & diagnosis_dump_mask) {
 			if (diagnosis_mode == 0) {
