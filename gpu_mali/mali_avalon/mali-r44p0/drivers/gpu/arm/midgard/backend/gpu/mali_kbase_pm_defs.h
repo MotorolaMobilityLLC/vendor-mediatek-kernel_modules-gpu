@@ -34,9 +34,15 @@
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
-	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY) && \
+    IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)
 /* counters defined in mali_kbase_csf_defs.h */
 #define NUM_PERF_COUNTERS (9)
+
+#elif IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+    IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+/* counters defined in mali_kbase_csf_defs.h */
+#define NUM_PERF_COUNTERS (6)
 #endif
 
 /* Forward definition - see mali_kbase.h */

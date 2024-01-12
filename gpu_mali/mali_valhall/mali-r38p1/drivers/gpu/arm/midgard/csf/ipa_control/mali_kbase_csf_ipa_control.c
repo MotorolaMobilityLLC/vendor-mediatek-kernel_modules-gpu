@@ -249,7 +249,10 @@ static inline void calc_prfcnt_delta(struct kbase_device *kbdev,
 	} else {
 		delta_value = raw_value - prfcnt->latest_raw_value;
 	}
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	prfcnt->accumulated_raw_diff += delta_value;
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 	delta_value *= prfcnt->scaling_factor;
 
@@ -865,7 +868,11 @@ int kbase_ipa_control_query(struct kbase_device *kbdev, const void *client,
 		values[i] = prfcnt->accumulated_diff;
 		prfcnt->accumulated_diff = 0;
 		values[i + session->num_prfcnts] = prfcnt->accumulated_raw_diff;
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+		values[i + session->num_prfcnts] = prfcnt->accumulated_raw_diff;
 		prfcnt->accumulated_raw_diff = 0;
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 	}
 
 	if (protected_time) {

@@ -1170,7 +1170,10 @@ struct kbase_ipa_control_prfcnt {
 	u64 latest_raw_value;
 	u64 scaling_factor;
 	u64 accumulated_diff;
-	u64 accumulated_raw_diff;
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+    IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+    u64 accumulated_raw_diff;
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 	enum kbase_ipa_core_type type;
 	u8 select_idx;
 	bool gpu_norm;
