@@ -7,6 +7,7 @@
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 #include <linux/sysfs.h>
+#include <linux/string.h>
 #include <platform/mtk_platform_common.h>
 #include <mtk_gpufreq.h>
 #include <ged_dvfs.h>
@@ -165,13 +166,7 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 
 	switch (type) {
 	case MTK_COMMON_DBG_DUMP_INFRA_STATUS:
-		if (!mtk_common_gpufreq_bringup() && kbdev->pm.backend.gpu_powered) {
-#if defined(CONFIG_MTK_GPUFREQ_V2)
-			gpufreq_dump_infra_status();
-#else
-			mt_gpufreq_dump_infra_status();
-#endif /* CONFIG_MTK_GPUFREQ_V2 */
-		}
+		mtk_common_gpufreq_dump_infra_status(kbdev);
 		break;
 	case MTK_COMMON_DBG_DUMP_PM_STATUS:
 		mtk_debug_dump_pm_status(kbdev);
@@ -241,6 +236,30 @@ int mtk_common_gpufreq_bringup(void)
 	}
 
 	return bringup;
+}
+
+void mtk_common_gpufreq_dump_infra_status(struct kbase_device *kbdev)
+{
+	char *buf = NULL, *token = NULL;
+	const char *delim = "\n";
+	int len = 0;
+
+	if (!mtk_common_gpufreq_bringup() && kbdev->pm.backend.gpu_powered) {
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+		buf = kmalloc(GPUFREQ_DUMP_INFRA_SIZE, GFP_KERNEL);
+		gpufreq_dump_infra_status_logbuffer(buf, &len, GPUFREQ_DUMP_INFRA_SIZE);
+
+		token = strsep(&buf, delim);
+		while (token != NULL) {
+			mtk_logbuffer_type_print(kbdev,
+				MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "%s\n", token);
+			token = strsep(&buf, delim);
+		}
+		kfree(buf);
+#else
+		mt_gpufreq_dump_infra_status();
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+	}
 }
 
 int mtk_common_gpufreq_commit(int opp_idx)

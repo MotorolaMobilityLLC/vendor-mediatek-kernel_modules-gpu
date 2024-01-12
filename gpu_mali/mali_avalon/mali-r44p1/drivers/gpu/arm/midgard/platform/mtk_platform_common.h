@@ -57,6 +57,7 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 void mtk_common_dump_db(int pid, u64 mask);
 
 int mtk_common_gpufreq_bringup(void);
+void mtk_common_gpufreq_dump_infra_status(struct kbase_device *kbdev);
 int mtk_common_gpufreq_commit(int opp_idx);
 int mtk_common_gpufreq_dual_commit(int gpu_oppidx, int stack_oppidx);
 int mtk_common_ged_dvfs_get_last_commit_idx(void);
