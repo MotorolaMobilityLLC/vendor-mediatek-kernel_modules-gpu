@@ -1395,7 +1395,6 @@ static int kbase_kcpu_fence_wait_process(
 #endif
 	struct kbase_context *const kctx = kcpu_queue->kctx;
 
-	lockdep_assert_held(&kctx->csf.kcpu_queues.lock);
 	lockdep_assert_held(&kcpu_queue->lock);
 
 	if (WARN_ON(!fence_info->fence))
