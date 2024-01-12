@@ -59,7 +59,7 @@
 
 #include <linux/of.h>
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG) || IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
@@ -71,7 +71,7 @@
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG) || IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH) || IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG) || IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
 #include <ged_dcs.h>
 #include <ged_log.h>
 #endif /* CONFIG_MALI_MTK_DEBUG || CONFIG_MALI_MTK_PROTECTED_PATCH */
@@ -1340,6 +1340,10 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 				kbase_pm_l2_config_override(kbdev);
 				kbase_pbha_write_settings(kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+				mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_ON);
+#endif /* CONFIG_MALI_MTK_ACP_DSU_REQ */
+
 				/* If Host is controlling the power for shader
 				 * cores, then it also needs to control the
 				 * power for Tiler.
@@ -1359,9 +1363,6 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)
 					mtk_common_ged_dvfs_write_sysram_last_commit_dual();
 #endif /* CONFIG_MALI_MTK_GPU_DVFS_ASYNC */
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
-										mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_ON);
-#endif /* CONFIG_MALI_MTK_ACP_DSU_REQ */
 					kbase_pm_invoke(kbdev, KBASE_PM_CORE_L2, l2_present,
 							ACTION_PWRON);
 				}
