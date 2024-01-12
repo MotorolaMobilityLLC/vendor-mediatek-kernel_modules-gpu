@@ -234,9 +234,17 @@ static bool gpu_metrics_read_event(struct kbase_device *kbdev, struct kbase_cont
 	if (kbase_csf_firmware_trace_buffer_read_data(tb, (u8 *)&e, GPU_METRICS_EVENT_SIZE) ==
 	    GPU_METRICS_EVENT_SIZE) {
 		const u8 slot = GPU_METRICS_CSG_GET(e.csg_slot_act);
+#if IS_ENABLED(CONFIG_MALI_MTK_CSG_ERROR_HANDLING)
+		struct kbase_queue_group *group = NULL;
+		if (slot >= kbdev->csf.global_iface.group_num) {
+			dev_err(kbdev->dev, "invalid CSG slot(%u)", slot);
+			return false;
+		}
+		group = kbdev->csf.scheduler.csg_slots[slot].resident_group;
+#else
 		struct kbase_queue_group *group =
 			kbdev->csf.scheduler.csg_slots[slot].resident_group;
-
+#endif
 		if (unlikely(!group)) {
 			dev_err(kbdev->dev, "failed to find CSG group from CSG slot(%u)", slot);
 			return false;
