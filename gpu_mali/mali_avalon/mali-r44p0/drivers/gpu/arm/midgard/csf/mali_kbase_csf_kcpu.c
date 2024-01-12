@@ -1962,14 +1962,20 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 	mutex_lock(&kctx->csf.kcpu_queues.lock);
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 	mutex_lock(&queue->lock);
-	cmd = &queue->commands[queue->start_offset];
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 	/* Find the next fence signal command in the queue */
 	for (i = 0; i < queue->num_pending_cmds - 1; i++) {
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+		cmd = &queue->commands[(u8)(queue->start_offset + i)];
+		if (cmd->type == BASE_KCPU_COMMAND_TYPE_FENCE_SIGNAL)
+			break;
+#else /* CONFIG_MALI_MTK_FENCE_DEBUG */
 		if (cmd->type == BASE_KCPU_COMMAND_TYPE_FENCE_SIGNAL)
 			break;
 		cmd++;
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+
 	}
 
 	if (cmd->type != BASE_KCPU_COMMAND_TYPE_FENCE_SIGNAL) {
