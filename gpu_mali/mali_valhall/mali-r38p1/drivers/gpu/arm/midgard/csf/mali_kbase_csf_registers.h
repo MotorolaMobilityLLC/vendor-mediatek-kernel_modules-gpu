@@ -550,10 +550,10 @@
 #define CS_STATUS_WAIT_SB_SOURCE_SHIFT 16
 #define CS_STATUS_WAIT_SB_SOURCE_MASK (0xF << CS_STATUS_WAIT_SB_SOURCE_SHIFT)
 #define CS_STATUS_WAIT_SB_SOURCE_GET(reg_val)                                                      \
-       (((reg_val)&CS_STATUS_WAIT_SB_SOURCE_MASK) >> CS_STATUS_WAIT_SB_SOURCE_SHIFT)
+	(((reg_val)&CS_STATUS_WAIT_SB_SOURCE_MASK) >> CS_STATUS_WAIT_SB_SOURCE_SHIFT)
 #define CS_STATUS_WAIT_SB_SOURCE_SET(reg_val, value)                                               \
-       (((reg_val) & ~CS_STATUS_WAIT_SB_SOURCE_MASK) |                                            \
-        (((value) << CS_STATUS_WAIT_SB_SOURCE_SHIFT) & CS_STATUS_WAIT_SB_SOURCE_MASK))
+	(((reg_val) & ~CS_STATUS_WAIT_SB_SOURCE_MASK) |                                            \
+	 (((value) << CS_STATUS_WAIT_SB_SOURCE_SHIFT) & CS_STATUS_WAIT_SB_SOURCE_MASK))
 #define CS_STATUS_WAIT_SYNC_WAIT_CONDITION_SHIFT 24
 #define CS_STATUS_WAIT_SYNC_WAIT_CONDITION_MASK (0xF << CS_STATUS_WAIT_SYNC_WAIT_CONDITION_SHIFT)
 #define CS_STATUS_WAIT_SYNC_WAIT_CONDITION_GET(reg_val) \

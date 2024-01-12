@@ -337,6 +337,22 @@ static void mmu_flush_invalidate_on_gpu_ctrl(struct kbase_device *kbdev, struct 
 	mutex_unlock(&kbdev->mmu_hw_mutex);
 }
 
+static void kbase_mmu_sync_pgd_gpu(struct kbase_device *kbdev, struct kbase_context *kctx,
+				   phys_addr_t phys, size_t size,
+				   enum kbase_mmu_op_type flush_op)
+{
+}
+
+static void kbase_mmu_sync_pgd_cpu(struct kbase_device *kbdev, dma_addr_t handle, size_t size)
+{
+	/* In non-coherent system, ensure the GPU can read
+	 * the pages from memory
+	 */
+	if (kbdev->system_coherency == COHERENCY_NONE)
+		dma_sync_single_for_device(kbdev->dev, handle, size,
+				DMA_TO_DEVICE);
+}
+
 /**
  * kbase_mmu_sync_pgd() - sync page directory to memory when needed.
  * @kbdev:    Device pointer.
@@ -360,13 +376,9 @@ static void kbase_mmu_sync_pgd(struct kbase_device *kbdev, struct kbase_context 
 			       phys_addr_t phys, dma_addr_t handle, size_t size,
 			       enum kbase_mmu_op_type flush_op)
 {
-	/* In non-coherent system, ensure the GPU can read
-	 * the pages from memory
-	 */
-	if (kbdev->system_coherency == COHERENCY_NONE)
-		dma_sync_single_for_device(kbdev->dev, handle, size,
-				DMA_TO_DEVICE);
 
+	kbase_mmu_sync_pgd_cpu(kbdev, handle, size);
+	kbase_mmu_sync_pgd_gpu(kbdev, kctx, phys, size, flush_op);
 }
 
 /*
@@ -1394,7 +1406,7 @@ static phys_addr_t kbase_mmu_alloc_pgd(struct kbase_device *kbdev,
 
 	p = kbase_mem_pool_alloc(&kbdev->mem_pools.small[mmut->group_id]);
 	if (!p)
-		return 0;
+		return KBASE_MMU_INVALID_PGD_ADDRESS;
 
 	page = kmap(p);
 	if (page == NULL)
@@ -1425,10 +1437,10 @@ static phys_addr_t kbase_mmu_alloc_pgd(struct kbase_device *kbdev,
 	for (i = 0; i < KBASE_MMU_PAGE_ENTRIES; i++)
 		kbdev->mmu_mode->entry_invalidate(&page[i]);
 
-	/* MMU cache flush strategy is NONE because this page is newly created, therefore
-	 * there is no content to clean or invalidate in the GPU caches.
+	/* As this page is newly created, therefore there is no content to
+	 * clean or invalidate in the GPU caches.
 	 */
-	kbase_mmu_sync_pgd(kbdev, mmut->kctx, pgd, kbase_dma_addr(p), PAGE_SIZE, KBASE_MMU_OP_NONE);
+	kbase_mmu_sync_pgd_cpu(kbdev, kbase_dma_addr(p), PAGE_SIZE);
 
 	kunmap(p);
 	return pgd;
@@ -1436,7 +1448,7 @@ static phys_addr_t kbase_mmu_alloc_pgd(struct kbase_device *kbdev,
 alloc_free:
 	kbase_mem_pool_free(&kbdev->mem_pools.small[mmut->group_id], p, false);
 
-	return 0;
+	return KBASE_MMU_INVALID_PGD_ADDRESS;
 }
 
 /* Given PGD PFN for level N, return PGD PFN for level N+1, allocating the
@@ -1468,16 +1480,13 @@ static int mmu_get_next_pgd(struct kbase_device *kbdev, struct kbase_mmu_table *
 		return -EINVAL;
 	}
 
-	target_pgd = kbdev->mmu_mode->pte_to_phy_addr(
-		kbdev->mgm_dev->ops.mgm_pte_to_original_pte(
-			kbdev->mgm_dev, MGM_DEFAULT_PTE_GROUP, level, page[vpfn]));
-
-	if (!target_pgd) {
+	if (!kbdev->mmu_mode->pte_is_valid(page[vpfn], level)) {
 		enum kbase_mmu_op_type flush_op = KBASE_MMU_OP_NONE;
 		unsigned int current_valid_entries;
 		u64 managed_pte;
+
 		target_pgd = kbase_mmu_alloc_pgd(kbdev, mmut);
-		if (!target_pgd) {
+		if (target_pgd == KBASE_MMU_INVALID_PGD_ADDRESS) {
 			dev_vdbg(kbdev->dev, "%s: kbase_mmu_alloc_pgd failure\n",
 					__func__);
 			kunmap(p);
@@ -1502,13 +1511,18 @@ static int mmu_get_next_pgd(struct kbase_device *kbdev, struct kbase_mmu_table *
 				*dirty_pgds |= 1ULL << level;
 		}
 
-		/* MMU cache flush strategy is FLUSH_PT because a new entry is added
-		 * to an existing PGD which may be stored in GPU caches and needs a
-		 * "clean" operation. An "invalidation" operation is not required here
-		 * as this entry points to a new page and cannot be present in GPU
-		 * caches.
+		/* A new valid entry is added to an existing PGD. Perform the
+		 * invalidate operation for GPU cache as it could be having a
+		 * cacheline that contains the entry (in an invalid form).
 		 */
-		kbase_mmu_sync_pgd(kbdev, mmut->kctx, *pgd, kbase_dma_addr(p), PAGE_SIZE, flush_op);
+		kbase_mmu_sync_pgd(kbdev, mmut->kctx,
+				   *pgd + (vpfn * sizeof(u64)),
+				   kbase_dma_addr(p) + (vpfn * sizeof(u64)),
+				   sizeof(u64), flush_op);
+	} else {
+		target_pgd = kbdev->mmu_mode->pte_to_phy_addr(
+			kbdev->mgm_dev->ops.mgm_pte_to_original_pte(
+				kbdev->mgm_dev, MGM_DEFAULT_PTE_GROUP, level, page[vpfn]));
 	}
 
 	kunmap(p);
@@ -2202,9 +2216,11 @@ static void kbase_mmu_update_and_free_parent_pgds(struct kbase_device *kbdev,
 
 	for (current_level = level - 1; current_level >= MIDGARD_MMU_LEVEL(0);
 	     current_level--) {
-		u64 *current_page = kmap(phys_to_page(pgds[current_level]));
+		phys_addr_t current_pgd = pgds[current_level];
+		u64 *current_page = kmap(phys_to_page(current_pgd));
 		unsigned int current_valid_entries =
 			kbdev->mmu_mode->get_num_valid_entries(current_page);
+		int index = (vpfn >> ((3 - current_level) * 9)) & 0x1FF;
 
 		/* We need to track every level that needs updating */
 		if (dirty_pgds)
@@ -2212,13 +2228,18 @@ static void kbase_mmu_update_and_free_parent_pgds(struct kbase_device *kbdev,
 
 		if (current_valid_entries == 1 &&
 		    current_level != MIDGARD_MMU_LEVEL(0)) {
-			kunmap(phys_to_page(pgds[current_level]));
+			kunmap(phys_to_page(current_pgd));
 
-			kbase_mmu_free_pgd(kbdev, mmut, pgds[current_level],
-					   true);
+			/* Ensure the cacheline containing the last valid entry
+			 * of PGD is invalidated from the GPU cache, before the
+			 * PGD page is freed.
+			 */
+			kbase_mmu_sync_pgd_gpu(kbdev, mmut->kctx,
+				current_pgd + (index * sizeof(u64)),
+				sizeof(u64), flush_op);
+
+			kbase_mmu_free_pgd(kbdev, mmut, current_pgd, true);
 		} else {
-			int index = (vpfn >> ((3 - current_level) * 9)) & 0x1FF;
-
 			kbdev->mmu_mode->entry_invalidate(&current_page[index]);
 
 			current_valid_entries--;
@@ -2226,12 +2247,12 @@ static void kbase_mmu_update_and_free_parent_pgds(struct kbase_device *kbdev,
 			kbdev->mmu_mode->set_num_valid_entries(
 				current_page, current_valid_entries);
 
-			kbase_mmu_sync_pgd(
-				kbdev, mmut->kctx, pgds[current_level] + (index * sizeof(u64)),
-				kbase_dma_addr(phys_to_page(pgds[current_level])) + 8 * index,
-				8 * 1, flush_op);
+			kunmap(phys_to_page(current_pgd));
 
-			kunmap(phys_to_page(pgds[current_level]));
+			kbase_mmu_sync_pgd(
+				kbdev, mmut->kctx, current_pgd + (index * sizeof(u64)),
+				kbase_dma_addr(phys_to_page(current_pgd)) + (index * sizeof(u64)),
+				sizeof(u64), flush_op);
 			break;
 		}
 	}
@@ -2436,6 +2457,13 @@ int kbase_mmu_teardown_pages(struct kbase_device *kbdev, struct kbase_mmu_table 
 		if (!num_of_valid_entries) {
 			kunmap(phys_to_page(pgd));
 
+			/* Ensure the cacheline(s) containing the last valid entries
+			 * of PGD is invalidated from the GPU cache, before the
+			 * PGD page is freed.
+			 */
+			kbase_mmu_sync_pgd_gpu(kbdev, mmut->kctx,
+				pgd + (index * sizeof(u64)),
+				pcount * sizeof(u64), flush_op);
 			kbase_mmu_free_pgd(kbdev, mmut, pgd, true);
 
 			kbase_mmu_update_and_free_parent_pgds(kbdev, mmut, pgds, vpfn, level,
@@ -2453,8 +2481,8 @@ int kbase_mmu_teardown_pages(struct kbase_device *kbdev, struct kbase_mmu_table 
 		mmu_mode->set_num_valid_entries(page, num_of_valid_entries);
 
 		kbase_mmu_sync_pgd(kbdev, mmut->kctx, pgd + (index * sizeof(u64)),
-				   kbase_dma_addr(phys_to_page(pgd)) + 8 * index, 8 * pcount,
-				   flush_op);
+				   kbase_dma_addr(phys_to_page(pgd)) + (index * sizeof(u64)),
+				   pcount * sizeof(u64), flush_op);
 next:
 		kunmap(phys_to_page(pgd));
 		vpfn += count;
@@ -2648,9 +2676,9 @@ static void mmu_teardown_level(struct kbase_device *kbdev,
 		struct kbase_mmu_table *mmut, phys_addr_t pgd,
 		int level)
 {
-	phys_addr_t target_pgd;
 	u64 *pgd_page;
 	int i;
+	struct memory_group_manager_device *mgm_dev;
 	struct kbase_mmu_mode const *mmu_mode;
 	u64 *pgd_page_buffer;
 
@@ -2674,19 +2702,16 @@ static void mmu_teardown_level(struct kbase_device *kbdev,
 	kunmap_atomic(pgd_page);
 	pgd_page = pgd_page_buffer;
 
+	mgm_dev = kbdev->mgm_dev;
 	mmu_mode = kbdev->mmu_mode;
 
 	for (i = 0; i < KBASE_MMU_PAGE_ENTRIES; i++) {
-		target_pgd = mmu_mode->pte_to_phy_addr(kbdev->mgm_dev->ops.mgm_pte_to_original_pte(
-			kbdev->mgm_dev, MGM_DEFAULT_PTE_GROUP,
-			level, pgd_page[i]));
+		if (mmu_mode->pte_is_valid(pgd_page[i], level)) {
+			phys_addr_t target_pgd = mmu_mode->pte_to_phy_addr(
+				mgm_dev->ops.mgm_pte_to_original_pte(mgm_dev, MGM_DEFAULT_PTE_GROUP,
+				level, pgd_page[i]));
 
-		if (target_pgd) {
-			if (mmu_mode->pte_is_valid(pgd_page[i], level)) {
-				mmu_teardown_level(kbdev, mmut,
-						   target_pgd,
-						   level + 1);
-			}
+			mmu_teardown_level(kbdev, mmut, target_pgd, level + 1);
 		}
 	}
 
@@ -2706,7 +2731,7 @@ int kbase_mmu_init(struct kbase_device *const kbdev,
 	mmut->group_id = group_id;
 	mutex_init(&mmut->mmu_lock);
 	mmut->kctx = kctx;
-	mmut->pgd = 0;
+	mmut->pgd = KBASE_MMU_INVALID_PGD_ADDRESS;
 
 	/* Preallocate MMU depth of 3 pages for mmu_teardown_level to use */
 	for (level = MIDGARD_MMU_TOPLEVEL;
@@ -2724,7 +2749,7 @@ int kbase_mmu_init(struct kbase_device *const kbdev,
 	 * kbase_mmu_alloc_pgd will allocate out of that pool. This is done to
 	 * avoid allocations from the kernel happening with the lock held.
 	 */
-	while (!mmut->pgd) {
+	while (mmut->pgd == KBASE_MMU_INVALID_PGD_ADDRESS) {
 		int err;
 
 		err = kbase_mem_pool_grow(
@@ -2747,7 +2772,7 @@ void kbase_mmu_term(struct kbase_device *kbdev, struct kbase_mmu_table *mmut)
 {
 	int level;
 
-	if (mmut->pgd) {
+	if (mmut->pgd != KBASE_MMU_INVALID_PGD_ADDRESS) {
 		mutex_lock(&mmut->mmu_lock);
 		mmu_teardown_level(kbdev, mmut, mmut->pgd, MIDGARD_MMU_TOPLEVEL);
 		mutex_unlock(&mmut->mmu_lock);

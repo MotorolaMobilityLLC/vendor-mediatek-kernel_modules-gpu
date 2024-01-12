@@ -147,9 +147,9 @@ static const struct firmware_trace_buffer_data trace_buffer_data[] = {
 	{ "fwutf", { 0 }, 1 },
 #endif
 #if IS_ENABLED(CONFIG_MALI_MTK_CSFFWLOG)
-	{ FW_TRACE_BUF_NAME, { 0x7ff }, 4 },
+	{ FIRMWARE_LOG_BUF_NAME, { 0x7ff }, 4 },
 #else
-	{ FW_TRACE_BUF_NAME, { 0 }, 4 },
+	{ FIRMWARE_LOG_BUF_NAME, { 0 }, 4 },
 #endif /* CONFIG_MALI_MTK_CSFFWLOG */
 	{ "benchmark", { 0 }, 2 },
 	{ "timeline", { 0 }, KBASE_CSF_TL_BUFFER_NR_PAGES },
@@ -537,10 +537,16 @@ unsigned int kbase_csf_firmware_trace_buffer_read_data(
 }
 EXPORT_SYMBOL(kbase_csf_firmware_trace_buffer_read_data);
 
-#if IS_ENABLED(CONFIG_DEBUG_FS)
+static void update_trace_buffer_active_mask64(struct firmware_trace_buffer *tb, u64 mask)
+{
+	unsigned int i;
+
+	for (i = 0; i < tb->trace_enable_entry_count; i++)
+		kbasep_csf_firmware_trace_buffer_update_trace_enable_bit(tb, i, (mask >> i) & 1);
+}
 
 #define U32_BITS 32
-static u64 get_trace_buffer_active_mask64(struct firmware_trace_buffer *tb)
+u64 kbase_csf_firmware_trace_buffer_get_active_mask64(struct firmware_trace_buffer *tb)
 {
 	u64 active_mask = tb->trace_enable_init_mask[0];
 
@@ -550,18 +556,7 @@ static u64 get_trace_buffer_active_mask64(struct firmware_trace_buffer *tb)
 	return active_mask;
 }
 
-static void update_trace_buffer_active_mask64(struct firmware_trace_buffer *tb,
-		u64 mask)
-{
-	unsigned int i;
-
-	for (i = 0; i < tb->trace_enable_entry_count; i++)
-		kbasep_csf_firmware_trace_buffer_update_trace_enable_bit(
-			tb, i, (mask >> i) & 1);
-}
-
-static int set_trace_buffer_active_mask64(struct firmware_trace_buffer *tb,
-		u64 mask)
+int kbase_csf_firmware_trace_buffer_set_active_mask64(struct firmware_trace_buffer *tb, u64 mask)
 {
 	struct kbase_device *kbdev = tb->kbdev;
 	unsigned long flags;
@@ -589,327 +584,3 @@ static int set_trace_buffer_active_mask64(struct firmware_trace_buffer *tb,
 
 	return err;
 }
-
-static int kbase_csf_firmware_trace_enable_mask_read(void *data, u64 *val)
-{
-	struct kbase_device *kbdev = (struct kbase_device *)data;
-	struct firmware_trace_buffer *tb;
-
-	tb = kbase_csf_firmware_get_trace_buffer(kbdev, FW_TRACE_BUF_NAME);
-
-	if (tb == NULL) {
-		dev_err(kbdev->dev, "Couldn't get the firmware trace buffer");
-		return -EIO;
-	}
-	/* The enabled traces limited to u64 here, regarded practical */
-	*val = get_trace_buffer_active_mask64(tb);
-
-	return 0;
-}
-
-static int kbase_csf_firmware_trace_enable_mask_write(void *data, u64 val)
-{
-	struct kbase_device *kbdev = (struct kbase_device *)data;
-	struct firmware_trace_buffer *tb;
-	u64 new_mask;
-	unsigned int enable_bits_count;
-
-	tb = kbase_csf_firmware_get_trace_buffer(kbdev, FW_TRACE_BUF_NAME);
-
-	if (tb == NULL) {
-		dev_err(kbdev->dev, "Couldn't get the firmware trace buffer");
-		return -EIO;
-	}
-
-	/* Ignore unsupported types */
-	enable_bits_count =
-	    kbase_csf_firmware_trace_buffer_get_trace_enable_bits_count(tb);
-	if (enable_bits_count > 64) {
-		dev_vdbg(kbdev->dev, "Limit enabled bits count from %u to 64",
-			enable_bits_count);
-		enable_bits_count = 64;
-	}
-	new_mask = val & ((1 << enable_bits_count) - 1);
-
-	if (new_mask != get_trace_buffer_active_mask64(tb))
-		return set_trace_buffer_active_mask64(tb, new_mask);
-	else
-		return 0;
-}
-
-static int kbasep_csf_firmware_trace_debugfs_open(struct inode *in,
-		struct file *file)
-{
-	struct kbase_device *kbdev = in->i_private;
-
-	file->private_data = kbdev;
-	dev_vdbg(kbdev->dev, "Opened firmware trace buffer dump debugfs file");
-
-	return 0;
-}
-
-static ssize_t kbasep_csf_firmware_trace_debugfs_read(struct file *file,
-		char __user *buf, size_t size, loff_t *ppos)
-{
-	struct kbase_device *kbdev = file->private_data;
-	u8 *pbyte;
-	unsigned int n_read;
-	unsigned long not_copied;
-#if IS_ENABLED(CONFIG_MALI_MTK_CSFFWLOG)
-	u8 *old_pbyte;
-	unsigned int n_old_read;
-	unsigned int fifo_io_size;
-	size_t mem = MIN(size, 4 * PAGE_SIZE);
-#else
-	/* Limit the kernel buffer to no more than two pages */
-	size_t mem = MIN(size, 2 * PAGE_SIZE);
-#endif /* CONFIG_MALI_MTK_CSFFWLOG */
-	unsigned long flags;
-	struct firmware_trace_buffer *tb;
-
-	tb = kbase_csf_firmware_get_trace_buffer(kbdev, FW_TRACE_BUF_NAME);
-
-	if (tb == NULL) {
-		dev_err(kbdev->dev, "Couldn't get the firmware trace buffer");
-		return -EIO;
-	}
-
-	pbyte = kmalloc(mem, GFP_KERNEL);
-	if (pbyte == NULL) {
-		dev_err(kbdev->dev, "Couldn't allocate memory for trace buffer dump");
-		return -ENOMEM;
-	}
-
-#if IS_ENABLED(CONFIG_MALI_MTK_CSFFWLOG)
-	old_pbyte = kmalloc(mem, GFP_KERNEL);
-	if (old_pbyte == NULL) {
-		dev_vdbg(kbdev->dev, "Couldn't allocate memory for trace buffer dump");
-		kfree(pbyte);
-		return -ENOMEM;
-	}
-#endif /* CONFIG_MALI_MTK_CSFFWLOG */
-
-	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-	n_read = kbase_csf_firmware_trace_buffer_read_data(tb, pbyte, mem);
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_CSFFWLOG)
-	/* dev_info(kbdev->dev, "FIFO:fifo_avail_length=%d\n", kfifo_avail(&fwlog_fifo)); */
-	if (n_read > kfifo_avail(&fwlog_fifo)) { /* fifo is not enough full, need to prepare enough space */
-		n_old_read = kfifo_out(&fwlog_fifo, old_pbyte, (n_read - kfifo_avail(&fwlog_fifo)));
-		/* dev_info(kbdev->dev, "FIFO:fifo_length=%d\n", kfifo_len(&fwlog_fifo)); */
-	}
-	fifo_io_size = kfifo_in(&fwlog_fifo, pbyte, n_read);
-	/* dev_info(kbdev->dev, "FIFO: IN fifo_io_size=%d, n_read=%d\n", fifo_io_size, n_read); */
-	fifo_io_size = kfifo_out(&fwlog_fifo, pbyte, mem);
-	/* dev_info(kbdev->dev, "FIFO: OUT fifo_io_size=%d, n_read=%d, fifo_length=%d\n", fifo_io_size, mem, kfifo_len(&fwlog_fifo)); */
-	n_read = fifo_io_size;
-#endif /* CONFIG_MALI_MTK_CSFFWLOG */
-
-	/* Do the copy, if we have obtained some trace data */
-	not_copied = (n_read) ? copy_to_user(buf, pbyte, n_read) : 0;
-	kfree(pbyte);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_CSFFWLOG)
-	kfree(old_pbyte);
-#endif /* CONFIG_MALI_MTK_CSFFWLOG */
-
-	if (!not_copied) {
-		*ppos += n_read;
-		return n_read;
-	}
-	dev_err(kbdev->dev, "Couldn't copy trace buffer data to user space buffer");
-	return -EFAULT;
-}
-
-#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
-void mtk_kbase_csf_firmware_ke_dump_fwlog(struct kbase_device *kbdev)
-{
-	unsigned int read_size, total_size = 0;
-	struct firmware_trace_buffer *tb =
-		kbase_csf_firmware_get_trace_buffer(kbdev, FW_TRACE_BUF_NAME);
-	if (tb == NULL) {
-		dev_vdbg(kbdev->dev, "Can't get the trace buffer, firmware trace dump skipped");
-		return;
-	}
-	while ((read_size = kbase_csf_firmware_trace_buffer_read_data(tb, g_buf, PAGE_SIZE))) {
-		total_size += read_size;
-		if (total_size <= PAGE_SIZE * 4) {
-			memcpy_toio(g_fw_dump_dest, g_buf, read_size);
-			g_fw_dump_dest +=read_size;
-		} else {
-			dev_vdbg(kbdev->dev, "fwlog dump size > 16KB");
-			break;
-		}
-	}
-}
-EXPORT_SYMBOL(mtk_kbase_csf_firmware_ke_dump_fwlog);
-#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
-
-#if IS_ENABLED(CONFIG_MALI_MTK_CSFFWLOG)
-void mtk_kbase_csf_firmware_dump_fwlog(struct kbase_device *kbdev)
-{
-	struct device_node *rmem_node;
-	struct reserved_mem *fwlogdump;
-	u8 *fw_dump_dest;
-	u8 *buf, *old_buf;
-	unsigned int old_read_size, read_size, total_size = 0;
-	struct firmware_trace_buffer *tb =
-		kbase_csf_firmware_get_trace_buffer(kbdev, FW_TRACE_BUF_NAME);
-
-	rmem_node = of_find_compatible_node(NULL, NULL, "mediatek,me_CSFFWLOG_reserved");
-
-	if(!rmem_node) {
-		dev_vdbg(kbdev->dev, "[CSFFWLOG] no node for reserved memory\n");
-		return;
-	}
-
-	fwlogdump = of_reserved_mem_lookup(rmem_node);
-
-	if(!fwlogdump) {
-		dev_vdbg(kbdev->dev, "[CSFFWLOG] cannot lookup reserved memory\n");
-		return;
-	}
-
-	fw_dump_dest = ioremap_wc(fwlogdump->base, fwlogdump->size);
-	dev_info(kbdev->dev, "[me_CSFFWLOG_reserved] phys = 0x%x, size = %d, virt = 0x%llx\n",
-			fwlogdump->base, fwlogdump->size, fw_dump_dest);
-
-
-	if (tb == NULL) {
-		dev_vdbg(kbdev->dev, "Can't get the trace buffer, firmware trace dump skipped");
-		return;
-	}
-
-	buf = kmalloc(PAGE_SIZE * 4, GFP_KERNEL);
-	if (buf == NULL) {
-		dev_vdbg(kbdev->dev, "Short of memory, firmware trace dump skipped");
-		return;
-	}
-
-	old_buf = kmalloc(PAGE_SIZE * 4, GFP_KERNEL);
-	if (old_buf == NULL) {
-		dev_vdbg(kbdev->dev, "Short of memory, firmware trace dump skipped");
-		kfree(buf);
-		return;
-	}
-
-	dev_info(kbdev->dev, "[CSFFWLOG] Firmware log buffer dump:");
-	while ((read_size = kbase_csf_firmware_trace_buffer_read_data(tb, buf, PAGE_SIZE))) {
-		total_size += read_size;
-		if (total_size <= PAGE_SIZE * 4) {
-			//memcpy_toio(fw_dump_dest, buf, read_size);
-			if (read_size > kfifo_avail(&fwlog_fifo)) { /* fifo is not enough full, need to prepare enough space */
-				old_read_size = kfifo_out(&fwlog_fifo, old_buf, (read_size - kfifo_avail(&fwlog_fifo)));
-			}
-			read_size = kfifo_in(&fwlog_fifo, buf, read_size);
-			//dev_info(kbdev->dev, "[CSFFWLOG] cpoy fwlog size(%d) from src_virt(0x%llx) to dest_virt(0x%llx)\n", read_size, buf, fw_dump_dest);
-			//fw_dump_dest +=read_size;
-		} else {
-			dev_vdbg(kbdev->dev, "fwlog dump size > 16KB");
-		}
-	}
-	read_size = kfifo_out(&fwlog_fifo, buf, PAGE_SIZE * 4);
-	dev_info(kbdev->dev, "[CSFFWDUMP] fwlog fifo out size:%d, fifo size=%d\n", read_size, kfifo_len(&fwlog_fifo));
-	memcpy_toio(fw_dump_dest, buf, read_size);
-	dev_info(kbdev->dev, "[CSFFWDUMP] cpoy fwlog size(%d) from src_virt(0x%llx) to dest_virt(0x%llx)\n", read_size, buf, fw_dump_dest);
-	kfree(buf);
-	kfree(old_buf);
-}
-EXPORT_SYMBOL(mtk_kbase_csf_firmware_dump_fwlog);
-
-bool mtk_kbase_csf_firmware_trace_buffer_is_need_drain(const struct firmware_trace_buffer *trace_buffer)
-{
-	unsigned int bytes_copied;
-	u32 extract_offset = *(trace_buffer->cpu_va.extract_cpu_va);
-	u32 insert_offset = *(trace_buffer->cpu_va.insert_cpu_va);
-	u32 buffer_size = trace_buffer->num_pages << PAGE_SHIFT;
-
-	if (insert_offset >= extract_offset) {
-		bytes_copied = insert_offset - extract_offset;
-	} else {
-		unsigned int bytes_copied_head, bytes_copied_tail;
-		bytes_copied_tail = buffer_size - extract_offset;
-		bytes_copied_head = insert_offset;
-		bytes_copied = bytes_copied_head + bytes_copied_tail;
-	}
-
-	if (bytes_copied > (buffer_size / 2))
-		return true;
-	else
-		return false;
-}
-EXPORT_SYMBOL(mtk_kbase_csf_firmware_trace_buffer_is_need_drain);
-
-void mtk_kbase_csf_firmware_check_drain_fwlog(struct kbase_device *kbdev)
-{
-	unsigned int old_read_size, read_size, total_size = 0;
-	struct firmware_trace_buffer *tb =
-		kbase_csf_firmware_get_trace_buffer(kbdev, FW_TRACE_BUF_NAME);
-
-	if (tb == NULL) {
-		dev_vdbg(kbdev->dev, "Can't get the trace buffer, firmware trace dump skipped");
-		return;
-	}
-
-	if (!mtk_kbase_csf_firmware_trace_buffer_is_need_drain(tb))
-		return;
-
-	/* dev_info(kbdev->dev, "[CSFFWLOG] Firmware log buffer drain:"); */
-	while ((read_size = kbase_csf_firmware_trace_buffer_read_data(tb, drain_fwlog_buf, PAGE_SIZE))) {
-		total_size +=read_size;
-		/* dev_info(kbdev->dev, "[CSFFWLOG:] read_size=%d, fifo_avail_len=%d", read_size, kfifo_avail(&fwlog_fifo)); */
-
-		if (read_size > kfifo_avail(&fwlog_fifo)) { /* fifo is not enough full, need to prepare enough space */
-			old_read_size = kfifo_out(&fwlog_fifo, drain_fwlog_out_buf, (read_size - kfifo_avail(&fwlog_fifo)));
-			/* dev_info(kbdev->dev, "[CSFFWLOG..] clear_size=%d, fifo_len=%d", old_read_size, kfifo_len(&fwlog_fifo)); */
-		}
-
-		read_size = kfifo_in(&fwlog_fifo, drain_fwlog_buf, read_size);
-		/* dev_info(kbdev->dev, "[CSFFWLOG==] new_read_size=%d, fifo_len=%d", read_size, kfifo_len(&fwlog_fifo)); */
-	}
-	/* dev_info(kbdev->dev, "[CSFFWLOG] Firmware log buffer drain size:%d", total_size); */
-}
-EXPORT_SYMBOL(mtk_kbase_csf_firmware_check_drain_fwlog);
-#endif /* CONFIG_MALI_MTK_CSFFWLOG */
-
-DEFINE_DEBUGFS_ATTRIBUTE(kbase_csf_firmware_trace_enable_mask_fops,
-			 kbase_csf_firmware_trace_enable_mask_read,
-			 kbase_csf_firmware_trace_enable_mask_write, "%llx\n");
-
-static const struct file_operations kbasep_csf_firmware_trace_debugfs_fops = {
-	.owner = THIS_MODULE,
-	.open = kbasep_csf_firmware_trace_debugfs_open,
-	.read = kbasep_csf_firmware_trace_debugfs_read,
-	.llseek = no_llseek,
-};
-
-void kbase_csf_firmware_trace_buffer_debugfs_init(struct kbase_device *kbdev)
-{
-#if IS_ENABLED(CONFIG_MALI_MTK_CSFFWLOG)
-	INIT_KFIFO(fwlog_fifo);
-	dev_info(kbdev->dev, "[CSFFWLOG:] create fwlog_fifo=%d", kfifo_len(&fwlog_fifo));
-#endif /* CONFIG_MALI_MTK_CSFFWLOG */
-	debugfs_create_file("fw_trace_enable_mask", 0644,
-			    kbdev->mali_debugfs_directory, kbdev,
-			    &kbase_csf_firmware_trace_enable_mask_fops);
-#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
-	g_rmem_node = of_find_compatible_node(NULL, NULL, "mediatek,me_CSFFWLOG_reserved");
-	if(!g_rmem_node) {
-		dev_vdbg(kbdev->dev, "[CSFFWLOG] no node for reserved memory\n");
-		return;
-	}
-	g_fwlogdump = of_reserved_mem_lookup(g_rmem_node);
-	if(!g_fwlogdump) {
-		dev_vdbg(kbdev->dev, "[CSFFWLOG] cannot lookup reserved memory\n");
-		return;
-	}
-	g_fw_dump_dest = ioremap_wc(g_fwlogdump->base, g_fwlogdump->size);
-	dev_info(kbdev->dev, "[me_CSFFWLOG_reserved] phys = 0x%x, size = %d, virt = 0x%llx\n",
-			g_fwlogdump->base, g_fwlogdump->size, g_fw_dump_dest);
-#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
-	debugfs_create_file("fw_traces", 0444,
-			    kbdev->mali_debugfs_directory, kbdev,
-			    &kbasep_csf_firmware_trace_debugfs_fops);
-}
-#endif /* CONFIG_DEBUG_FS */

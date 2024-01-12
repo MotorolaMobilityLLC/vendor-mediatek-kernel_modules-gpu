@@ -106,6 +106,9 @@ int kbasep_pm_metrics_init(struct kbase_device *kbdev)
 	int index = 0;
 #else
 	struct kbase_ipa_control_perf_counter perf_counter;
+
+	/* One counter group */
+	const size_t NUM_PERF_COUNTERS = 1;
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 	int err;
 
@@ -284,7 +287,7 @@ static void kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 #else
 	err = kbase_ipa_control_query(
 		kbdev, kbdev->pm.backend.metrics.ipa_control_client,
-		&gpu_active_counter, NUM_PERF_COUNTERS, &protected_time);
+		&gpu_active_counter, 1, &protected_time);
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 	/* Read the timestamp after reading the GPU_ACTIVE counter value.

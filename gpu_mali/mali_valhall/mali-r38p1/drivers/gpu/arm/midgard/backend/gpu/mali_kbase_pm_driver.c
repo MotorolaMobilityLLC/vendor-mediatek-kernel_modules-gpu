@@ -1152,17 +1152,18 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 				KBASE_PM_CORE_L2);
 		u64 l2_ready = kbase_pm_get_ready_cores(kbdev,
 				KBASE_PM_CORE_L2);
+#ifdef CONFIG_MALI_ARBITER_SUPPORT
+		u64 tiler_trans = kbase_pm_get_trans_cores(
+				kbdev, KBASE_PM_CORE_TILER);
+		u64 tiler_ready = kbase_pm_get_ready_cores(
+				kbdev, KBASE_PM_CORE_TILER);
 
 		/*
 		 * kbase_pm_get_ready_cores and kbase_pm_get_trans_cores
 		 * are vulnerable to corruption if gpu is lost
 		 */
 		if (kbase_is_gpu_removed(kbdev)
-#ifdef CONFIG_MALI_ARBITER_SUPPORT
 				|| kbase_pm_is_gpu_lost(kbdev)) {
-#else
-				) {
-#endif
 			backend->shaders_state =
 				KBASE_SHADERS_OFF_CORESTACK_OFF;
 			backend->hwcnt_desired = false;
@@ -1185,6 +1186,7 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 			}
 			break;
 		}
+#endif /* CONFIG_MALI_ARBITER_SUPPORT */
 
 		/* mask off ready from trans in case transitions finished
 		 * between the register reads
@@ -1196,6 +1198,12 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 		switch (backend->l2_state) {
 		case KBASE_L2_OFF:
 			if (kbase_pm_is_l2_desired(kbdev)) {
+#if MALI_USE_CSF && defined(KBASE_PM_RUNTIME)
+				/* Enable HW timer of IPA control before
+				 * L2 cache is powered-up.
+				 */
+				kbase_ipa_control_handle_gpu_sleep_exit(kbdev);
+#endif
 				/*
 				 * Set the desired config for L2 before
 				 * powering it on
@@ -1235,12 +1243,14 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 			l2_power_up_done = false;
 			if (!l2_trans && l2_ready == l2_present) {
 				if (need_tiler_control(kbdev)) {
+#ifndef CONFIG_MALI_ARBITER_SUPPORT
 					u64 tiler_trans = kbase_pm_get_trans_cores(
 						kbdev, KBASE_PM_CORE_TILER);
 					u64 tiler_ready = kbase_pm_get_ready_cores(
 						kbdev, KBASE_PM_CORE_TILER);
-					tiler_trans &= ~tiler_ready;
+#endif
 
+					tiler_trans &= ~tiler_ready;
 					if (!tiler_trans && tiler_ready == tiler_present) {
 						KBASE_KTRACE_ADD(kbdev,
 								 PM_CORES_CHANGE_AVAILABLE_TILER,
@@ -1449,12 +1459,26 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 				/* We only need to check the L2 here - if the L2
 				 * is off then the tiler is definitely also off.
 				 */
-				if (!l2_trans && !l2_ready)
+				if (!l2_trans && !l2_ready) {
+#if MALI_USE_CSF && defined(KBASE_PM_RUNTIME)
+					/* Allow clock gating within the GPU and prevent it
+					 * from being seen as active during sleep.
+					 */
+					kbase_ipa_control_handle_gpu_sleep_enter(kbdev);
+#endif
 					/* L2 is now powered off */
 					backend->l2_state = KBASE_L2_OFF;
+				}
 			} else {
-				if (!kbdev->cache_clean_in_progress)
+				if (!kbdev->cache_clean_in_progress) {
+#if MALI_USE_CSF && defined(KBASE_PM_RUNTIME)
+					/* Allow clock gating within the GPU and prevent it
+					 * from being seen as active during sleep.
+					 */
+					kbase_ipa_control_handle_gpu_sleep_enter(kbdev);
+#endif
 					backend->l2_state = KBASE_L2_OFF;
+				}
 			}
 			break;
 
@@ -2522,14 +2546,21 @@ static void update_user_reg_page_mapping(struct kbase_device *kbdev)
 	lockdep_assert_held(&kbdev->pm.lock);
 
 	mutex_lock(&kbdev->csf.reg_lock);
-	if (kbdev->csf.mali_file_inode) {
-		/* This would zap the pte corresponding to the mapping of User
-		 * register page for all the Kbase contexts.
-		 */
-		unmap_mapping_range(kbdev->csf.mali_file_inode->i_mapping,
-				    BASEP_MEM_CSF_USER_REG_PAGE_HANDLE,
-				    PAGE_SIZE, 1);
+
+	/* Only if the mappings for USER page exist, update all PTEs associated to it */
+	if (kbdev->csf.nr_user_page_mapped > 0) {
+		if (likely(kbdev->csf.mali_file_inode)) {
+			/* This would zap the pte corresponding to the mapping of User
+			 * register page for all the Kbase contexts.
+			 */
+			unmap_mapping_range(kbdev->csf.mali_file_inode->i_mapping,
+					    BASEP_MEM_CSF_USER_REG_PAGE_HANDLE, PAGE_SIZE, 1);
+		} else {
+			dev_err(kbdev->dev,
+				"Device file inode not exist even if USER page previously mapped");
+		}
 	}
+
 	mutex_unlock(&kbdev->csf.reg_lock);
 }
 #endif

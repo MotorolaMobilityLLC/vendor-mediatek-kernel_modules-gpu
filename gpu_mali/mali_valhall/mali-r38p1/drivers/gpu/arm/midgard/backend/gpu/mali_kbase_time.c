@@ -192,8 +192,10 @@ u64 kbase_backend_get_cycle_cnt(struct kbase_device *kbdev)
 {
 	u32 hi1, hi2, lo;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	if (!kbdev->pm.backend.gpu_powered)
 		return 0;
+#endif // CONFIG_MALI_MTK_DEBUG
 
 	/* Read hi, lo, hi to ensure a coherent u64 */
 	do {
@@ -208,6 +210,7 @@ u64 kbase_backend_get_cycle_cnt(struct kbase_device *kbdev)
 	return lo | (((u64) hi1) << 32);
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 u64 kbase_backend_get_timestamp(struct kbase_device *kbdev)
 {
 #if 0
@@ -231,3 +234,4 @@ u64 kbase_backend_get_timestamp(struct kbase_device *kbdev)
 	return 0;
 #endif
 }
+#endif // CONFIG_MALI_MTK_DEBUG

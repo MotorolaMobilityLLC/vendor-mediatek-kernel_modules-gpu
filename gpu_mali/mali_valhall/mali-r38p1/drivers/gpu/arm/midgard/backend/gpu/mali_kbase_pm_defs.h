@@ -37,9 +37,6 @@
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 /* counters defined in mali_kbase_csf_defs.h */
 #define NUM_PERF_COUNTERS (5)
-#else
-/* GPU_ACTIVE */
-#define NUM_PERF_COUNTERS (1)
 #endif
 
 /* Forward definition - see mali_kbase.h */

@@ -21,6 +21,7 @@
 
 #include "mali_kbase.h"
 #include "mali_kbase_csf_firmware_cfg.h"
+#include "mali_kbase_csf_firmware_log.h"
 #include "mali_kbase_csf_trace_buffer.h"
 #include "mali_kbase_csf_timeout.h"
 #include "mali_kbase_mem.h"
@@ -2276,6 +2277,12 @@ int kbase_csf_firmware_init(struct kbase_device *kbdev)
 	if (ret != 0)
 		goto err_out;
 
+	ret = kbase_csf_firmware_log_init(kbdev);
+	if (ret != 0) {
+		dev_err(kbdev->dev, "Failed to initialize FW trace (err %d)", ret);
+		goto err_out;
+	}
+
 	/* Firmware loaded successfully, ret = 0 */
 	KBASE_KTRACE_ADD(kbdev, CSF_FIRMWARE_BOOT, NULL,
 			(((u64)version_hash) << 32) |
@@ -2308,6 +2315,8 @@ void kbase_csf_firmware_term(struct kbase_device *kbdev)
 	ret = kbase_reset_gpu_wait(kbdev);
 
 	WARN(ret, "failed to wait for GPU reset");
+
+	kbase_csf_firmware_log_term(kbdev);
 
 	kbase_csf_firmware_cfg_term(kbdev);
 
