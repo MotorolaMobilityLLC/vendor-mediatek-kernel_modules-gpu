@@ -281,8 +281,7 @@ int kbase_csf_firmware_parse_trace_buffer_entry(struct kbase_device *kbdev,
 	if (!trace_buffer)
 		return -ENOMEM;
 
-	unsafe_memcpy(&trace_buffer->name, name, name_len,
-			/* trace_buffer->name is followed by a padding of name_len inside name */);
+	memcpy(&trace_buffer->name, name, name_len);
 	trace_buffer->name[name_len] = '\0';
 
 	for (i = 0; i < ARRAY_SIZE(trace_buffer_data); i++) {
