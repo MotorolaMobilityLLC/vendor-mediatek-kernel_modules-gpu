@@ -404,4 +404,31 @@ int kbase_kcpu_fence_signal_init(struct kbase_kcpu_command_queue *kcpu_queue,
 				 struct base_fence *fence, struct sync_file **sync_file, int *fd);
 #endif /* CONFIG_SYNC_FILE */
 
+/*
+ * kbase_csf_kcpu_queue_halt_timers - Halt the KCPU fence timers associated with
+ *                                    the kbase device.
+ *
+ * @kbdev: Kbase device
+ *
+ * Note that this function assumes that the caller has ensured that the
+ * kbase_device::kctx_list does not get updated during this function's runtime.
+ * At the moment, the function is only safe to call during system suspend, when
+ * the device PM active count has reached zero.
+ *
+ * Return: 0 on success, negative value otherwise.
+ */
+int kbase_csf_kcpu_queue_halt_timers(struct kbase_device *kbdev);
+
+/*
+ * kbase_csf_kcpu_queue_resume_timers - Resume the KCPU fence timers associated
+ *                                      with the kbase device.
+ *
+ * @kbdev: Kbase device
+ *
+ * Note that this function assumes that the caller has ensured that the
+ * kbase_device::kctx_list does not get updated during this function's runtime.
+ * At the moment, the function is only safe to call during system resume.
+ */
+void kbase_csf_kcpu_queue_resume_timers(struct kbase_device *kbdev);
+
 #endif /* _KBASE_CSF_KCPU_H_ */

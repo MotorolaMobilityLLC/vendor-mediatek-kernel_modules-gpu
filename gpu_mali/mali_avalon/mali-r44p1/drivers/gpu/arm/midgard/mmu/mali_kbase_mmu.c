@@ -62,6 +62,11 @@
 /* Macro to convert updated PDGs to flags indicating levels skip in flush */
 #define pgd_level_to_skip_flush(dirty_pgds) (~(dirty_pgds) & 0xF)
 
+static int mmu_insert_pages_no_flush(struct kbase_device *kbdev, struct kbase_mmu_table *mmut,
+				     const u64 start_vpfn, struct tagged_addr *phys, size_t nr,
+				     unsigned long flags, int const group_id, u64 *dirty_pgds,
+				     struct kbase_va_region *reg, bool ignore_page_migration);
+
 /* Small wrapper function to factor out GPU-dependent context releasing */
 static void release_ctx(struct kbase_device *kbdev,
 		struct kbase_context *kctx)
@@ -194,7 +199,7 @@ static void mmu_invalidate(struct kbase_device *kbdev, struct kbase_context *kct
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
-	if (kbdev->pm.backend.gpu_powered && (!kctx || kctx->as_nr >= 0)) {
+	if (kbdev->pm.backend.gpu_ready && (!kctx || kctx->as_nr >= 0)) {
 		as_nr = kctx ? kctx->as_nr : as_nr;
 		if (kbase_mmu_hw_do_unlock(kbdev, &kbdev->as[as_nr], op_param))
 			dev_err(kbdev->dev,
@@ -215,7 +220,7 @@ static void mmu_flush_invalidate_as(struct kbase_device *kbdev, struct kbase_as 
 	mutex_lock(&kbdev->mmu_hw_mutex);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
-	if (kbdev->pm.backend.gpu_powered && (kbase_mmu_hw_do_flush_locked(kbdev, as, op_param)))
+	if (kbdev->pm.backend.gpu_ready && (kbase_mmu_hw_do_flush_locked(kbdev, as, op_param)))
 		dev_err(kbdev->dev, "Flush for GPU page table update did not complete");
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
@@ -297,7 +302,7 @@ static void mmu_flush_invalidate_on_gpu_ctrl(struct kbase_device *kbdev, struct 
 	mutex_lock(&kbdev->mmu_hw_mutex);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
-	if (kbdev->pm.backend.gpu_powered && (!kctx || kctx->as_nr >= 0)) {
+	if (kbdev->pm.backend.gpu_ready && (!kctx || kctx->as_nr >= 0)) {
 		as_nr = kctx ? kctx->as_nr : as_nr;
 		if (kbase_mmu_hw_do_flush_on_gpu_ctrl(kbdev, &kbdev->as[as_nr], op_param)) {
 			dev_err(kbdev->dev, "Flush for GPU page table update did not complete");
@@ -413,7 +418,7 @@ static bool kbase_mmu_handle_isolated_pgd_page(struct kbase_device *kbdev,
 
 	lockdep_assert_held(&mmut->mmu_lock);
 
-	if (!kbase_page_migration_enabled)
+	if (!kbase_is_page_migration_enabled())
 		return false;
 
 	spin_lock(&page_md->migrate_lock);
@@ -753,7 +758,7 @@ static void kbase_gpu_mmu_handle_permission_fault(struct kbase_context *kctx,
 	case AS_FAULTSTATUS_ACCESS_TYPE_WRITE:
 		kbase_gpu_mmu_handle_write_fault(kctx, faulting_as);
 		break;
-	case AS_FAULTSTATUS_ACCESS_TYPE_EX:
+	case AS_FAULTSTATUS_ACCESS_TYPE_EXECUTE:
 		kbase_mmu_report_fault_and_kill(kctx, faulting_as,
 				"Execute Permission fault", fault);
 		break;
@@ -1319,10 +1324,11 @@ page_fault_retry:
 		 * so the no_flush version of insert_pages is used which allows
 		 * us to unlock the MMU as we see fit.
 		 */
-		err = kbase_mmu_insert_pages_no_flush(
-			kbdev, &kctx->mmu, region->start_pfn + pfn_offset,
-			&kbase_get_gpu_phy_pages(region)[pfn_offset], new_pages, region->flags,
-			region->gpu_alloc->group_id, &dirty_pgds, region, false);
+		err = mmu_insert_pages_no_flush(kbdev, &kctx->mmu, region->start_pfn + pfn_offset,
+						&kbase_get_gpu_phy_pages(region)[pfn_offset],
+						new_pages, region->flags,
+						region->gpu_alloc->group_id, &dirty_pgds, region,
+						false);
 		if (err) {
 			kbase_free_phy_pages_helper(region->gpu_alloc,
 					new_pages);
@@ -1792,7 +1798,7 @@ next:
 	 * going to happen to these pages at this stage. They might return
 	 * movable once they are returned to a memory pool.
 	 */
-	if (kbase_page_migration_enabled && !ignore_page_migration && phys) {
+	if (kbase_is_page_migration_enabled() && !ignore_page_migration && phys) {
 		const u64 num_pages = to_vpfn - from_vpfn + 1;
 		u64 i;
 
@@ -1933,7 +1939,7 @@ static int update_parent_pgds(struct kbase_device *kbdev, struct kbase_mmu_table
 		}
 
 		/* Update the new target_pgd page to its stable state */
-		if (kbase_page_migration_enabled) {
+		if (kbase_is_page_migration_enabled()) {
 			struct kbase_page_metadata *page_md =
 				kbase_page_private(phys_to_page(target_pgd));
 
@@ -2029,10 +2035,11 @@ static int mmu_insert_alloc_pgds(struct kbase_device *kbdev, struct kbase_mmu_ta
 	return 0;
 }
 
-int kbase_mmu_insert_single_page(struct kbase_context *kctx, u64 start_vpfn,
-				 struct tagged_addr phys, size_t nr, unsigned long flags,
-				 int const group_id, enum kbase_caller_mmu_sync_info mmu_sync_info,
-				 bool ignore_page_migration)
+static int kbase_mmu_insert_single_page(struct kbase_context *kctx, u64 start_vpfn,
+					struct tagged_addr phys, size_t nr, unsigned long flags,
+					int const group_id,
+					enum kbase_caller_mmu_sync_info mmu_sync_info,
+					bool ignore_page_migration)
 {
 	phys_addr_t pgd;
 	u64 *pgd_page;
@@ -2062,7 +2069,7 @@ int kbase_mmu_insert_single_page(struct kbase_context *kctx, u64 start_vpfn,
 	/* If page migration is enabled, pages involved in multiple GPU mappings
 	 * are always treated as not movable.
 	 */
-	if (kbase_page_migration_enabled && !ignore_page_migration) {
+	if (kbase_is_page_migration_enabled() && !ignore_page_migration) {
 		struct page *phys_page = as_page(phys);
 		struct kbase_page_metadata *page_md = kbase_page_private(phys_page);
 
@@ -2240,6 +2247,9 @@ static void kbase_mmu_progress_migration_on_insert(struct tagged_addr phys,
 	struct page *phys_page = as_page(phys);
 	struct kbase_page_metadata *page_md = kbase_page_private(phys_page);
 
+	if (!IS_ENABLED(CONFIG_PAGE_MIGRATION_SUPPORT))
+		return;
+
 	spin_lock(&page_md->migrate_lock);
 
 	/* If no GPU va region is given: the metadata provided are
@@ -2273,6 +2283,9 @@ static void kbase_mmu_progress_migration_on_teardown(struct kbase_device *kbdev,
 						     struct tagged_addr *phys, size_t requested_nr)
 {
 	size_t i;
+
+	if (!IS_ENABLED(CONFIG_PAGE_MIGRATION_SUPPORT))
+		return;
 
 	for (i = 0; i < requested_nr; i++) {
 		struct page *phys_page = as_page(phys[i]);
@@ -2323,10 +2336,10 @@ u64 kbase_mmu_create_ate(struct kbase_device *const kbdev,
 		group_id, level, entry);
 }
 
-int kbase_mmu_insert_pages_no_flush(struct kbase_device *kbdev, struct kbase_mmu_table *mmut,
-				    const u64 start_vpfn, struct tagged_addr *phys, size_t nr,
-				    unsigned long flags, int const group_id, u64 *dirty_pgds,
-				    struct kbase_va_region *reg, bool ignore_page_migration)
+static int mmu_insert_pages_no_flush(struct kbase_device *kbdev, struct kbase_mmu_table *mmut,
+				     const u64 start_vpfn, struct tagged_addr *phys, size_t nr,
+				     unsigned long flags, int const group_id, u64 *dirty_pgds,
+				     struct kbase_va_region *reg, bool ignore_page_migration)
 {
 	phys_addr_t pgd;
 	u64 *pgd_page;
@@ -2445,7 +2458,7 @@ int kbase_mmu_insert_pages_no_flush(struct kbase_device *kbdev, struct kbase_mmu
 				/* If page migration is enabled, this is the right time
 				 * to update the status of the page.
 				 */
-				if (kbase_page_migration_enabled && !ignore_page_migration &&
+				if (kbase_is_page_migration_enabled() && !ignore_page_migration &&
 				    !is_huge(phys[i]) && !is_partial(phys[i]))
 					kbase_mmu_progress_migration_on_insert(phys[i], reg, mmut,
 									       insert_vpfn + i);
@@ -2515,6 +2528,23 @@ fail_unlock:
 	return err;
 }
 
+int kbase_mmu_insert_pages_no_flush(struct kbase_device *kbdev, struct kbase_mmu_table *mmut,
+				    const u64 start_vpfn, struct tagged_addr *phys, size_t nr,
+				    unsigned long flags, int const group_id, u64 *dirty_pgds,
+				    struct kbase_va_region *reg)
+{
+	int err;
+
+	/* Early out if there is nothing to do */
+	if (nr == 0)
+		return 0;
+
+	err = mmu_insert_pages_no_flush(kbdev, mmut, start_vpfn, phys, nr, flags, group_id,
+					dirty_pgds, reg, false);
+
+	return err;
+}
+
 /*
  * Map 'nr' pages pointed to by 'phys' at GPU PFN 'vpfn' for GPU address space
  * number 'as_nr'.
@@ -2522,7 +2552,7 @@ fail_unlock:
 int kbase_mmu_insert_pages(struct kbase_device *kbdev, struct kbase_mmu_table *mmut, u64 vpfn,
 			   struct tagged_addr *phys, size_t nr, unsigned long flags, int as_nr,
 			   int const group_id, enum kbase_caller_mmu_sync_info mmu_sync_info,
-			   struct kbase_va_region *reg, bool ignore_page_migration)
+			   struct kbase_va_region *reg)
 {
 	int err;
 	u64 dirty_pgds = 0;
@@ -2531,8 +2561,8 @@ int kbase_mmu_insert_pages(struct kbase_device *kbdev, struct kbase_mmu_table *m
 	if (nr == 0)
 		return 0;
 
-	err = kbase_mmu_insert_pages_no_flush(kbdev, mmut, vpfn, phys, nr, flags, group_id,
-					      &dirty_pgds, reg, ignore_page_migration);
+	err = mmu_insert_pages_no_flush(kbdev, mmut, vpfn, phys, nr, flags, group_id, &dirty_pgds,
+					reg, false);
 	if (err)
 		return err;
 
@@ -2543,11 +2573,12 @@ int kbase_mmu_insert_pages(struct kbase_device *kbdev, struct kbase_mmu_table *m
 
 KBASE_EXPORT_TEST_API(kbase_mmu_insert_pages);
 
-int kbase_mmu_insert_imported_pages(struct kbase_device *kbdev, struct kbase_mmu_table *mmut,
-				    u64 vpfn, struct tagged_addr *phys, size_t nr,
-				    unsigned long flags, int as_nr, int const group_id,
-				    enum kbase_caller_mmu_sync_info mmu_sync_info,
-				    struct kbase_va_region *reg)
+int kbase_mmu_insert_pages_skip_status_update(struct kbase_device *kbdev,
+					      struct kbase_mmu_table *mmut, u64 vpfn,
+					      struct tagged_addr *phys, size_t nr,
+					      unsigned long flags, int as_nr, int const group_id,
+					      enum kbase_caller_mmu_sync_info mmu_sync_info,
+					      struct kbase_va_region *reg)
 {
 	int err;
 	u64 dirty_pgds = 0;
@@ -2559,8 +2590,8 @@ int kbase_mmu_insert_imported_pages(struct kbase_device *kbdev, struct kbase_mmu
 	/* Imported allocations don't have metadata and therefore always ignore the
 	 * page migration logic.
 	 */
-	err = kbase_mmu_insert_pages_no_flush(kbdev, mmut, vpfn, phys, nr, flags, group_id,
-					      &dirty_pgds, reg, true);
+	err = mmu_insert_pages_no_flush(kbdev, mmut, vpfn, phys, nr, flags, group_id, &dirty_pgds,
+					reg, true);
 	if (err)
 		return err;
 
@@ -2585,8 +2616,8 @@ int kbase_mmu_insert_aliased_pages(struct kbase_device *kbdev, struct kbase_mmu_
 	/* Memory aliases are always built on top of existing allocations,
 	 * therefore the state of physical pages shall be updated.
 	 */
-	err = kbase_mmu_insert_pages_no_flush(kbdev, mmut, vpfn, phys, nr, flags, group_id,
-					      &dirty_pgds, reg, false);
+	err = mmu_insert_pages_no_flush(kbdev, mmut, vpfn, phys, nr, flags, group_id, &dirty_pgds,
+					reg, false);
 	if (err)
 		return err;
 
@@ -2789,7 +2820,7 @@ static void mmu_flush_invalidate_teardown_pages(struct kbase_device *kbdev,
 
 		for (i = 0; !flush_done && i < phys_page_nr; i++) {
 			spin_lock_irqsave(&kbdev->hwaccess_lock, irq_flags);
-			if (kbdev->pm.backend.gpu_powered && (!kctx || kctx->as_nr >= 0))
+			if (kbdev->pm.backend.gpu_ready && (!kctx || kctx->as_nr >= 0))
 				mmu_flush_pa_range(kbdev, as_phys_addr_t(phys[i]), PAGE_SIZE,
 						   KBASE_MMU_OP_FLUSH_MEM);
 			else
@@ -2939,9 +2970,40 @@ out:
 	return 0;
 }
 
-int kbase_mmu_teardown_pages(struct kbase_device *kbdev, struct kbase_mmu_table *mmut, u64 vpfn,
-			     struct tagged_addr *phys, size_t nr_phys_pages, size_t nr_virt_pages,
-			     int as_nr, bool ignore_page_migration)
+/**
+ * mmu_teardown_pages - Remove GPU virtual addresses from the MMU page table
+ *
+ * @kbdev:    Pointer to kbase device.
+ * @mmut:     Pointer to GPU MMU page table.
+ * @vpfn:     Start page frame number of the GPU virtual pages to unmap.
+ * @phys:     Array of physical pages currently mapped to the virtual
+ *            pages to unmap, or NULL. This is used for GPU cache maintenance
+ *            and page migration support.
+ * @nr_phys_pages: Number of physical pages to flush.
+ * @nr_virt_pages: Number of virtual pages whose PTEs should be destroyed.
+ * @as_nr:    Address space number, for GPU cache maintenance operations
+ *            that happen outside a specific kbase context.
+ * @ignore_page_migration: Whether page migration metadata should be ignored.
+ *
+ * We actually discard the ATE and free the page table pages if no valid entries
+ * exist in the PGD.
+ *
+ * IMPORTANT: This uses kbasep_js_runpool_release_ctx() when the context is
+ * currently scheduled into the runpool, and so potentially uses a lot of locks.
+ * These locks must be taken in the correct order with respect to others
+ * already held by the caller. Refer to kbasep_js_runpool_release_ctx() for more
+ * information.
+ *
+ * The @p phys pointer to physical pages is not necessary for unmapping virtual memory,
+ * but it is used for fine-grained GPU cache maintenance. If @p phys is NULL,
+ * GPU cache maintenance will be done as usual; that is, invalidating the whole GPU caches
+ * instead of specific physical address ranges.
+ *
+ * Return: 0 on success, otherwise an error code.
+ */
+static int mmu_teardown_pages(struct kbase_device *kbdev, struct kbase_mmu_table *mmut, u64 vpfn,
+			      struct tagged_addr *phys, size_t nr_phys_pages, size_t nr_virt_pages,
+			      int as_nr, bool ignore_page_migration)
 {
 	u64 start_vpfn = vpfn;
 	enum kbase_mmu_op_type flush_op = KBASE_MMU_OP_NONE;
@@ -3012,7 +3074,7 @@ int kbase_mmu_teardown_pages(struct kbase_device *kbdev, struct kbase_mmu_table 
 	 * updated before releasing the lock to protect against concurrent
 	 * requests to migrate the pages, if they have been isolated.
 	 */
-	if (kbase_page_migration_enabled && phys && !ignore_page_migration)
+	if (kbase_is_page_migration_enabled() && phys && !ignore_page_migration)
 		kbase_mmu_progress_migration_on_teardown(kbdev, phys, nr_phys_pages);
 
 	kbase_mmu_free_pgds_list(kbdev, mmut);
@@ -3021,7 +3083,22 @@ int kbase_mmu_teardown_pages(struct kbase_device *kbdev, struct kbase_mmu_table 
 
 	return err;
 }
-KBASE_EXPORT_TEST_API(kbase_mmu_teardown_pages);
+
+int kbase_mmu_teardown_pages(struct kbase_device *kbdev, struct kbase_mmu_table *mmut, u64 vpfn,
+			     struct tagged_addr *phys, size_t nr_phys_pages, size_t nr_virt_pages,
+			     int as_nr)
+{
+	return mmu_teardown_pages(kbdev, mmut, vpfn, phys, nr_phys_pages, nr_virt_pages, as_nr,
+				  false);
+}
+
+int kbase_mmu_teardown_imported_pages(struct kbase_device *kbdev, struct kbase_mmu_table *mmut,
+				      u64 vpfn, struct tagged_addr *phys, size_t nr_phys_pages,
+				      size_t nr_virt_pages, int as_nr)
+{
+	return mmu_teardown_pages(kbdev, mmut, vpfn, phys, nr_phys_pages, nr_virt_pages, as_nr,
+				  true);
+}
 
 /**
  * kbase_mmu_update_pages_no_flush() - Update phy pages and attributes data in GPU
@@ -3253,6 +3330,9 @@ int kbase_mmu_migrate_page(struct tagged_addr old_phys, struct tagged_addr new_p
 	unsigned int num_of_valid_entries;
 	u8 vmap_count = 0;
 
+	/* If page migration support is not compiled in, return with fault */
+	if (!IS_ENABLED(CONFIG_PAGE_MIGRATION_SUPPORT))
+		return -EINVAL;
 	/* Due to the hard binding of mmu_command_instr with kctx_id via kbase_mmu_hw_op_param,
 	 * here we skip the no kctx case, which is only used with MCU's mmut.
 	 */
@@ -3378,7 +3458,6 @@ int kbase_mmu_migrate_page(struct tagged_addr old_phys, struct tagged_addr new_p
 		goto pgd_page_map_error;
 	}
 
-	mutex_lock(&kbdev->pm.lock);
 	mutex_lock(&kbdev->mmu_hw_mutex);
 
 	/* Lock MMU region and flush GPU cache by using GPU control,
@@ -3389,14 +3468,13 @@ int kbase_mmu_migrate_page(struct tagged_addr old_phys, struct tagged_addr new_p
 		/* Defer the migration as L2 is in a transitional phase */
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, hwaccess_flags);
 		mutex_unlock(&kbdev->mmu_hw_mutex);
-		mutex_unlock(&kbdev->pm.lock);
 		dev_vdbg(kbdev->dev, "%s: L2 in transtion, abort PGD page migration", __func__);
 		ret = -EAGAIN;
 		goto l2_state_defer_out;
 	}
 	/* Prevent transitional phases in L2 by starting the transaction */
 	mmu_page_migration_transaction_begin(kbdev);
-	if (kbdev->pm.backend.gpu_powered && mmut->kctx->as_nr >= 0) {
+	if (kbdev->pm.backend.gpu_ready && mmut->kctx->as_nr >= 0) {
 		int as_nr = mmut->kctx->as_nr;
 		struct kbase_as *as = &kbdev->as[as_nr];
 
@@ -3412,7 +3490,6 @@ int kbase_mmu_migrate_page(struct tagged_addr old_phys, struct tagged_addr new_p
 
 	if (ret < 0) {
 		mutex_unlock(&kbdev->mmu_hw_mutex);
-		mutex_unlock(&kbdev->pm.lock);
 		dev_err(kbdev->dev, "%s: failed to lock MMU region or flush GPU cache", __func__);
 		goto undo_mappings;
 	}
@@ -3488,7 +3565,7 @@ int kbase_mmu_migrate_page(struct tagged_addr old_phys, struct tagged_addr new_p
 	 * won't have any effect on them.
 	 */
 	spin_lock_irqsave(&kbdev->hwaccess_lock, hwaccess_flags);
-	if (kbdev->pm.backend.gpu_powered && mmut->kctx->as_nr >= 0) {
+	if (kbdev->pm.backend.gpu_ready && mmut->kctx->as_nr >= 0) {
 		int as_nr = mmut->kctx->as_nr;
 		struct kbase_as *as = &kbdev->as[as_nr];
 
@@ -3504,7 +3581,6 @@ int kbase_mmu_migrate_page(struct tagged_addr old_phys, struct tagged_addr new_p
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, hwaccess_flags);
 	/* Releasing locks before checking the migration transaction error state */
 	mutex_unlock(&kbdev->mmu_hw_mutex);
-	mutex_unlock(&kbdev->pm.lock);
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, hwaccess_flags);
 	/* Release the transition prevention in L2 by ending the transaction */
@@ -3587,7 +3663,7 @@ static void mmu_teardown_level(struct kbase_device *kbdev, struct kbase_mmu_tabl
 	 * there are no pages left mapped on the GPU for a context. Hence the count
 	 * of valid entries is expected to be zero here.
 	 */
-	if (kbase_page_migration_enabled && mmut->kctx)
+	if (kbase_is_page_migration_enabled() && mmut->kctx)
 		WARN_ON_ONCE(kbdev->mmu_mode->get_num_valid_entries(pgd_page));
 	/* Invalidate page after copying */
 	mmu_mode->entries_invalidate(pgd_page, KBASE_MMU_PAGE_ENTRIES);
@@ -3614,7 +3690,7 @@ static void kbase_mmu_mark_non_movable(struct page *page)
 {
 	struct kbase_page_metadata *page_md;
 
-	if (!kbase_page_migration_enabled)
+	if (!kbase_is_page_migration_enabled())
 		return;
 
 	page_md = kbase_page_private(page);
@@ -3700,7 +3776,7 @@ void kbase_mmu_flush_pa_range(struct kbase_device *kbdev, struct kbase_context *
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, irq_flags);
 	if (mmu_flush_cache_on_gpu_ctrl(kbdev) && (flush_op != KBASE_MMU_OP_NONE) &&
-	    kbdev->pm.backend.gpu_powered && (!kctx || kctx->as_nr >= 0))
+	    kbdev->pm.backend.gpu_ready && (!kctx || kctx->as_nr >= 0))
 		mmu_flush_pa_range(kbdev, phys, size, KBASE_MMU_OP_FLUSH_PT);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, irq_flags);
 #endif

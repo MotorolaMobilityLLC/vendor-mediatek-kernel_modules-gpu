@@ -112,7 +112,7 @@ static ssize_t show_fw_cfg(struct kobject *kobj,
 		return -EINVAL;
 	}
 
-	return snprintf(buf, PAGE_SIZE, "%u\n", val);
+	return scnprintf(buf, PAGE_SIZE, "%u\n", val);
 }
 
 static ssize_t store_fw_cfg(struct kobject *kobj,

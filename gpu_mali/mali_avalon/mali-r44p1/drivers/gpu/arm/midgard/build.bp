@@ -68,6 +68,9 @@ bob_defaults {
     large_page_alloc: {
         kbuild_options: ["CONFIG_LARGE_PAGE_ALLOC=y"],
     },
+    page_migration_support: {
+        kbuild_options: ["CONFIG_PAGE_MIGRATION_SUPPORT=y"],
+    },
     mali_memory_fully_backed: {
         kbuild_options: ["CONFIG_MALI_MEMORY_FULLY_BACKED=y"],
     },

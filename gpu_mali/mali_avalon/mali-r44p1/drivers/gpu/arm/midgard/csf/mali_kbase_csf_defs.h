@@ -268,16 +268,18 @@ enum kbase_queue_group_priority {
  * @CSF_PM_TIMEOUT: Timeout for GPU Power Management to reach the desired
  *                  Shader, L2 and MCU state.
  * @CSF_GPU_RESET_TIMEOUT: Waiting timeout for GPU reset to complete.
- * @CSF_CSG_SUSPEND_TIMEOUT: Timeout given for all active CSGs to be suspended.
+ * @CSF_CSG_SUSPEND_TIMEOUT: Timeout given for a CSG to be suspended.
  * @CSF_FIRMWARE_BOOT_TIMEOUT: Maximum time to wait for firmware to boot.
  * @CSF_FIRMWARE_PING_TIMEOUT: Maximum time to wait for firmware to respond
  *                             to a ping from KBase.
  * @CSF_SCHED_PROTM_PROGRESS_TIMEOUT: Timeout used to prevent protected mode execution hang.
  * @MMU_AS_INACTIVE_WAIT_TIMEOUT: Maximum waiting time in ms for the completion
- *                                of a MMU operation
+ *                                of a MMU operation.
  * @KCPU_FENCE_SIGNAL_TIMEOUT: Waiting time in ms for triggering a KCPU queue sync state dump
  * @KBASE_TIMEOUT_SELECTOR_COUNT: Number of timeout selectors. Must be last in
  *                                the enum.
+ * @KBASE_DEFAULT_TIMEOUT: Default timeout used when an invalid selector is passed
+ *                         to the pre-computed timeout getter.
  */
 enum kbase_timeout_selector {
 	CSF_FIRMWARE_TIMEOUT,
@@ -291,7 +293,8 @@ enum kbase_timeout_selector {
 	KCPU_FENCE_SIGNAL_TIMEOUT,
 
 	/* Must be the last in the enum */
-	KBASE_TIMEOUT_SELECTOR_COUNT
+	KBASE_TIMEOUT_SELECTOR_COUNT,
+	KBASE_DEFAULT_TIMEOUT = CSF_FIRMWARE_TIMEOUT
 };
 
 /**
@@ -399,7 +402,7 @@ struct kbase_queue {
 	struct kbase_context *kctx;
 	u64 user_io_gpu_va;
 	struct tagged_addr phys[2];
-	char *user_io_addr;
+	u64 *user_io_addr;
 	u64 handle;
 	int doorbell_nr;
 	unsigned long db_file_offset;
@@ -1524,7 +1527,7 @@ struct kbase_csf_user_reg {
  *                          image.
  * @shared_interface:       Pointer to the interface object containing info for
  *                          the memory area shared between firmware & host.
- * @shared_reg_rbtree:      RB tree of the memory regions allocated from the
+ * @mcu_shared_zone:        Memory zone tracking memory regions allocated from the
  *                          shared interface segment in MCU firmware address
  *                          space.
  * @db_filp:                Pointer to a dummy file, that alongwith
@@ -1626,7 +1629,7 @@ struct kbase_csf_device {
 	struct kobject *fw_cfg_kobj;
 	struct kbase_csf_trace_buffers firmware_trace_buffers;
 	void *shared_interface;
-	struct rb_root shared_reg_rbtree;
+	struct kbase_reg_zone mcu_shared_zone;
 	struct file *db_filp;
 	u32 db_file_offsets;
 	struct tagged_addr dummy_db_page;
@@ -1706,7 +1709,7 @@ struct kbase_csf_device {
  * @current_setup:     Stores the MMU configuration for this address space.
  * @is_unresponsive:   Flag to indicate MMU is not responding.
  *                     Set if a MMU command isn't completed within
- *                     &kbase_device:mmu_as_inactive_wait_time_ms.
+ *                     &kbase_device:mmu_or_gpu_cache_op_wait_time_ms.
  *                     Clear by kbase_ctx_sched_restore_all_as() after GPU reset completes.
  */
 struct kbase_as {

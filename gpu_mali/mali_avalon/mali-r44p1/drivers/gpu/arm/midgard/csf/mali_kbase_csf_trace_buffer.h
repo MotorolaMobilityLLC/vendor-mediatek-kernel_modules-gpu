@@ -25,7 +25,12 @@
 #include <linux/types.h>
 
 #define CSF_FIRMWARE_TRACE_ENABLE_INIT_MASK_MAX (4)
-#define FIRMWARE_LOG_BUF_NAME "fwlog"
+#if MALI_UNIT_TEST
+#define KBASE_CSFFW_UTF_BUF_NAME "fwutf"
+#endif
+#define KBASE_CSFFW_LOG_BUF_NAME "fwlog"
+#define KBASE_CSFFW_BENCHMARK_BUF_NAME "benchmark"
+#define KBASE_CSFFW_TIMELINE_BUF_NAME "timeline"
 
 /* Forward declarations */
 struct firmware_trace_buffer;

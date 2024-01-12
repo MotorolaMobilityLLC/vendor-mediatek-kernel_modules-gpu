@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 #
-# (C) COPYRIGHT 2010-2023 ARM Limited. All rights reserved.
+# (C) COPYRIGHT 2012-2023 ARM Limited. All rights reserved.
 #
 # This program is free software and is provided to you under the terms of the
 # GNU General Public License version 2 as published by the Free Software
@@ -115,22 +115,22 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_DEVFREQ := y
         CONFIG_MALI_FENCE_DEBUG := y
         CONFIG_MALI_MTK_DEBUG := y
-        CONFIG_MALI_MTK_LOG_BUFFER := y
+        CONFIG_MALI_MTK_LOG_BUFFER := n
         CONFIG_MALI_MTK_SYSFS := y
         CONFIG_MALI_MTK_PROC_FS := y
         CONFIG_MALI_MTK_DEBUG_FS := y
-        CONFIG_MALI_MTK_MEMTRACK := y
+        CONFIG_MALI_MTK_MEMTRACK := n
         CONFIG_MALI_MTK_DEVFREQ_GOVERNOR := y
         CONFIG_MALI_MTK_DEVFREQ_THERMAL := y
         CONFIG_MALI_PMU_LP4 := y
         CONFIG_MALI_PMU_CPB128 := y
         CONFIG_MALI_SCMI_ENABLE := n
         CONFIG_MALI_MTK_DUMMY_CM := n
-        CONFIG_MALI_MTK_FENCE_DEBUG := y
+        CONFIG_MALI_MTK_FENCE_DEBUG := n
         CONFIG_MALI_MTK_TIMEOUT_RESET := n
-        CONFIG_MALI_MTK_MFGSYS_PM := y
-        CONFIG_MALI_MTK_DIAGNOSIS_MODE := y
-        CONFIG_MALI_MTK_KE_DUMP_FWLOG := y
+        CONFIG_MALI_MTK_MFGSYS_PM := n
+        CONFIG_MALI_MTK_DIAGNOSIS_MODE := n
+        CONFIG_MALI_MTK_KE_DUMP_FWLOG := n
         CONFIG_MALI_MTK_CSG_DOORBELL_RECOVERY := n
         CONFIG_MALI_MTK_CM7_TRACE := n
         CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME := n
@@ -141,6 +141,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_GLB_PWROFF_TIMEOUT:= n
         CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING := n
         CONFIG_MALI_MTK_PROTECTED_PATCH := n
+        CONFIG_MALI_MTK_DEBUG_MEM_DUMP := n
     endif ## mt6989 ##
 endif
 
@@ -207,7 +208,7 @@ ccflags-y += -I$(KO_CODE_PATH)/include
 subdir-ccflags-y += -I$(KO_CODE_PATH)/include
 
 # Driver version string which is returned to userspace via an ioctl
-MALI_RELEASE_NAME ?= '"r44p0-00dev1"'
+MALI_RELEASE_NAME ?= '"r44p1-00dev1"'
 # Set up defaults if not defined by build system
 ifeq ($(CONFIG_MALI_DEBUG), y)
     MALI_UNIT_TEST = 1

@@ -29,46 +29,9 @@
 #include "mali_kbase_sync.h"
 #endif
 
-#if IS_ENABLED(CONFIG_DEBUG_FS)
-
 #define CQS_UNREADABLE_LIVE_VALUE "(unavailable)"
 
-/* GPU queue related values */
-#define GPU_CSF_MOVE_OPCODE ((u64)0x1)
-#define GPU_CSF_MOVE32_OPCODE ((u64)0x2)
-#define GPU_CSF_SYNC_ADD_OPCODE ((u64)0x25)
-#define GPU_CSF_SYNC_SET_OPCODE ((u64)0x26)
-#define GPU_CSF_SYNC_WAIT_OPCODE ((u64)0x27)
-#define GPU_CSF_SYNC_ADD64_OPCODE ((u64)0x33)
-#define GPU_CSF_SYNC_SET64_OPCODE ((u64)0x34)
-#define GPU_CSF_SYNC_WAIT64_OPCODE ((u64)0x35)
-#define GPU_CSF_CALL_OPCODE ((u64)0x20)
-
-#define MAX_NR_GPU_CALLS (5)
-#define INSTR_OPCODE_MASK ((u64)0xFF << 56)
-#define INSTR_OPCODE_GET(value) ((value & INSTR_OPCODE_MASK) >> 56)
-#define MOVE32_IMM_MASK ((u64)0xFFFFFFFFFUL)
-#define MOVE_DEST_MASK ((u64)0xFF << 48)
-#define MOVE_DEST_GET(value) ((value & MOVE_DEST_MASK) >> 48)
-#define MOVE_IMM_MASK ((u64)0xFFFFFFFFFFFFUL)
-#define SYNC_SRC0_MASK ((u64)0xFF << 40)
-#define SYNC_SRC1_MASK ((u64)0xFF << 32)
-#define SYNC_SRC0_GET(value) (u8)((value & SYNC_SRC0_MASK) >> 40)
-#define SYNC_SRC1_GET(value) (u8)((value & SYNC_SRC1_MASK) >> 32)
-#define SYNC_WAIT_CONDITION_MASK ((u64)0xF << 28)
-#define SYNC_WAIT_CONDITION_GET(value) (u8)((value & SYNC_WAIT_CONDITION_MASK) >> 28)
-
 #define CSF_SYNC_DUMP_SIZE 256
-
-/* Enumeration for types of GPU queue sync events for
- * the purpose of dumping them through debugfs.
- */
-enum debugfs_gpu_sync_type {
-	DEBUGFS_GPU_SYNC_WAIT,
-	DEBUGFS_GPU_SYNC_SET,
-	DEBUGFS_GPU_SYNC_ADD,
-	NUM_DEBUGFS_GPU_SYNC_TYPES
-};
 
 /**
  * kbasep_print() - Helper function to print to either debugfs file or dmesg.
@@ -509,6 +472,43 @@ int kbasep_csf_sync_kcpu_dump(struct kbase_context *kctx, struct seq_file *file)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+
+/* GPU queue related values */
+#define GPU_CSF_MOVE_OPCODE ((u64)0x1)
+#define GPU_CSF_MOVE32_OPCODE ((u64)0x2)
+#define GPU_CSF_SYNC_ADD_OPCODE ((u64)0x25)
+#define GPU_CSF_SYNC_SET_OPCODE ((u64)0x26)
+#define GPU_CSF_SYNC_WAIT_OPCODE ((u64)0x27)
+#define GPU_CSF_SYNC_ADD64_OPCODE ((u64)0x33)
+#define GPU_CSF_SYNC_SET64_OPCODE ((u64)0x34)
+#define GPU_CSF_SYNC_WAIT64_OPCODE ((u64)0x35)
+#define GPU_CSF_CALL_OPCODE ((u64)0x20)
+
+#define MAX_NR_GPU_CALLS (5)
+#define INSTR_OPCODE_MASK ((u64)0xFF << 56)
+#define INSTR_OPCODE_GET(value) ((value & INSTR_OPCODE_MASK) >> 56)
+#define MOVE32_IMM_MASK ((u64)0xFFFFFFFFFUL)
+#define MOVE_DEST_MASK ((u64)0xFF << 48)
+#define MOVE_DEST_GET(value) ((value & MOVE_DEST_MASK) >> 48)
+#define MOVE_IMM_MASK ((u64)0xFFFFFFFFFFFFUL)
+#define SYNC_SRC0_MASK ((u64)0xFF << 40)
+#define SYNC_SRC1_MASK ((u64)0xFF << 32)
+#define SYNC_SRC0_GET(value) (u8)((value & SYNC_SRC0_MASK) >> 40)
+#define SYNC_SRC1_GET(value) (u8)((value & SYNC_SRC1_MASK) >> 32)
+#define SYNC_WAIT_CONDITION_MASK ((u64)0xF << 28)
+#define SYNC_WAIT_CONDITION_GET(value) (u8)((value & SYNC_WAIT_CONDITION_MASK) >> 28)
+
+/* Enumeration for types of GPU queue sync events for
+ * the purpose of dumping them through debugfs.
+ */
+enum debugfs_gpu_sync_type {
+	DEBUGFS_GPU_SYNC_WAIT,
+	DEBUGFS_GPU_SYNC_SET,
+	DEBUGFS_GPU_SYNC_ADD,
+	NUM_DEBUGFS_GPU_SYNC_TYPES
+};
+
 /**
  * kbasep_csf_get_move_immediate_value() - Get the immediate values for sync operations
  *                                         from a MOVE instruction.
@@ -562,10 +562,21 @@ static u64 kbasep_csf_read_ringbuffer_value(struct kbase_queue *queue, u32 ringb
 	u64 page_off = ringbuff_offset >> PAGE_SHIFT;
 	u64 offset_within_page = ringbuff_offset & ~PAGE_MASK;
 	struct page *page = as_page(queue->queue_reg->gpu_alloc->pages[page_off]);
-	u64 *ringbuffer = kbase_kmap_atomic(page);
-	u64 value = ringbuffer[offset_within_page / sizeof(u64)];
+	u64 *ringbuffer = vmap(&page, 1, VM_MAP, pgprot_noncached(PAGE_KERNEL));
+	u64 value;
 
-	kbase_kunmap_atomic(ringbuffer);
+	if (!ringbuffer) {
+		struct kbase_context *kctx = queue->kctx;
+
+		dev_err(kctx->kbdev->dev, "%s failed to map the buffer page for read a command!",
+			__func__);
+		/* Return an alternative 0 for dumpping operation*/
+		value = 0;
+	} else {
+		value = ringbuffer[offset_within_page / sizeof(u64)];
+		vunmap(ringbuffer);
+	}
+
 	return value;
 }
 
@@ -682,7 +693,7 @@ static void kbasep_csf_print_gpu_sync_op(struct seq_file *file, struct kbase_con
 static void kbasep_csf_dump_active_queue_sync_info(struct seq_file *file, struct kbase_queue *queue)
 {
 	struct kbase_context *kctx;
-	u32 *addr;
+	u64 *addr;
 	u64 cs_extract, cs_insert, instr, cursor;
 	bool follows_wait = false;
 	int nr_calls = 0;
@@ -692,11 +703,11 @@ static void kbasep_csf_dump_active_queue_sync_info(struct seq_file *file, struct
 
 	kctx = queue->kctx;
 
-	addr = (u32 *)queue->user_io_addr;
-	cs_insert = addr[CS_INSERT_LO / 4] | ((u64)addr[CS_INSERT_HI / 4] << 32);
+	addr = queue->user_io_addr;
+	cs_insert = addr[CS_INSERT_LO / sizeof(*addr)];
 
-	addr = (u32 *)(queue->user_io_addr + PAGE_SIZE);
-	cs_extract = addr[CS_EXTRACT_LO / 4] | ((u64)addr[CS_EXTRACT_HI / 4] << 32);
+	addr = queue->user_io_addr + PAGE_SIZE / sizeof(*addr);
+	cs_extract = addr[CS_EXTRACT_LO / sizeof(*addr)];
 
 	cursor = cs_extract;
 
@@ -724,7 +735,7 @@ static void kbasep_csf_dump_active_queue_sync_info(struct seq_file *file, struct
 		case GPU_CSF_SYNC_SET64_OPCODE:
 		case GPU_CSF_SYNC_WAIT64_OPCODE:
 			instr_is_64_bit = true;
-			fallthrough;
+			break;
 		default:
 			break;
 		}
@@ -751,8 +762,7 @@ static void kbasep_csf_dump_active_queue_sync_info(struct seq_file *file, struct
 			break;
 		case GPU_CSF_CALL_OPCODE:
 			nr_calls++;
-			/* Fallthrough */
-			fallthrough;
+			break;
 		default:
 			/* Unrecognized command, skip past it */
 			break;

@@ -196,6 +196,18 @@ config MALI_CORESTACK
 
 	  If unsure, say N.
 
+config PAGE_MIGRATION_SUPPORT
+	bool "Compile with page migration support"
+	depends on BACKEND_KERNEL
+	default y
+	default n if ANDROID
+	help
+	  Compile in support for page migration.
+	  If set to disabled ('n') then page migration cannot
+	  be enabled at all. If set to enabled, then page migration
+	  support is explicitly compiled in. This has no effect when
+	  PAGE_MIGRATION_OVERRIDE is disabled.
+
 choice
 	prompt "Error injection level"
 	depends on MALI_MIDGARD && MALI_EXPERT

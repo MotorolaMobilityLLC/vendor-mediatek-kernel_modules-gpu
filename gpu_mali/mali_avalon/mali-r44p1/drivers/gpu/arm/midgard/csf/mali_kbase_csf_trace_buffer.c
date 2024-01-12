@@ -101,7 +101,7 @@ struct firmware_trace_buffer {
 	} cpu_va;
 	u32 num_pages;
 	u32 trace_enable_init_mask[CSF_FIRMWARE_TRACE_ENABLE_INIT_MASK_MAX];
-	char name[]; /* this field must be last */
+	char name[1]; /* this field must be last */
 };
 
 /**
@@ -130,15 +130,15 @@ struct firmware_trace_buffer_data {
  */
 static const struct firmware_trace_buffer_data trace_buffer_data[] = {
 #if MALI_UNIT_TEST
-	{ "fwutf", { 0 }, 1 },
+	{ KBASE_CSFFW_UTF_BUF_NAME, { 0 }, 1 },
 #endif
 #if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
-	{ FIRMWARE_LOG_BUF_NAME, { 0 }, 256 },
+	{ KBASE_CSFFW_LOG_BUF_NAME, { 0 }, 256 },
 #else
-	{ FIRMWARE_LOG_BUF_NAME, { 0 }, 4 },
+	{ KBASE_CSFFW_LOG_BUF_NAME, { 0 }, 4 },
 #endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
-	{ "benchmark", { 0 }, 2 },
-	{ "timeline", { 0 }, KBASE_CSF_TL_BUFFER_NR_PAGES },
+	{ KBASE_CSFFW_BENCHMARK_BUF_NAME, { 0 }, 2 },
+	{ KBASE_CSFFW_TIMELINE_BUF_NAME, { 0 }, KBASE_CSF_TL_BUFFER_NR_PAGES },
 };
 
 int kbase_csf_firmware_trace_buffers_init(struct kbase_device *kbdev)
@@ -276,7 +276,7 @@ int kbase_csf_firmware_parse_trace_buffer_entry(struct kbase_device *kbdev,
 	 * trace buffer name (with NULL termination).
 	 */
 	trace_buffer =
-		kmalloc(struct_size(trace_buffer, name, name_len + 1), GFP_KERNEL);
+		kmalloc(sizeof(*trace_buffer) + name_len + 1, GFP_KERNEL);
 
 	if (!trace_buffer)
 		return -ENOMEM;

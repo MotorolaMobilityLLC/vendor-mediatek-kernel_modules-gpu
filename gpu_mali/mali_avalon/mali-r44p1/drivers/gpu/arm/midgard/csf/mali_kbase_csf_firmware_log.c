@@ -72,7 +72,7 @@ static int kbase_csf_firmware_log_enable_mask_read(void *data, u64 *val)
 {
 	struct kbase_device *kbdev = (struct kbase_device *)data;
 	struct firmware_trace_buffer *tb =
-		kbase_csf_firmware_get_trace_buffer(kbdev, FIRMWARE_LOG_BUF_NAME);
+		kbase_csf_firmware_get_trace_buffer(kbdev, KBASE_CSFFW_LOG_BUF_NAME);
 
 	if (tb == NULL) {
 		dev_err(kbdev->dev, "Couldn't get the firmware trace buffer");
@@ -87,7 +87,7 @@ static int kbase_csf_firmware_log_enable_mask_write(void *data, u64 val)
 {
 	struct kbase_device *kbdev = (struct kbase_device *)data;
 	struct firmware_trace_buffer *tb =
-		kbase_csf_firmware_get_trace_buffer(kbdev, FIRMWARE_LOG_BUF_NAME);
+		kbase_csf_firmware_get_trace_buffer(kbdev, KBASE_CSFFW_LOG_BUF_NAME);
 	u64 new_mask;
 	unsigned int enable_bits_count;
 
@@ -132,7 +132,7 @@ static ssize_t kbasep_csf_firmware_log_debugfs_read(struct file *file, char __us
 	int ret;
 
 	struct firmware_trace_buffer *tb =
-		kbase_csf_firmware_get_trace_buffer(kbdev, FIRMWARE_LOG_BUF_NAME);
+		kbase_csf_firmware_get_trace_buffer(kbdev, KBASE_CSFFW_LOG_BUF_NAME);
 
 	if (tb == NULL) {
 		dev_err(kbdev->dev, "Couldn't get the firmware trace buffer");
@@ -210,6 +210,24 @@ out:
 	return ret;
 }
 
+static int kbase_csf_firmware_log_poll_period_read(void *data, u64 *val)
+{
+	struct kbase_device *kbdev = (struct kbase_device *)data;
+	struct kbase_csf_firmware_log *fw_log = &kbdev->csf.fw_log;
+
+	*val = atomic_read(&fw_log->poll_period_ms);
+	return 0;
+}
+
+static int kbase_csf_firmware_log_poll_period_write(void *data, u64 val)
+{
+	struct kbase_device *kbdev = (struct kbase_device *)data;
+	struct kbase_csf_firmware_log *fw_log = &kbdev->csf.fw_log;
+
+	atomic_set(&fw_log->poll_period_ms, val);
+	return 0;
+}
+
 DEFINE_DEBUGFS_ATTRIBUTE(kbase_csf_firmware_log_enable_mask_fops,
 			 kbase_csf_firmware_log_enable_mask_read,
 			 kbase_csf_firmware_log_enable_mask_write, "%llx\n");
@@ -223,6 +241,9 @@ static const struct file_operations kbasep_csf_firmware_log_debugfs_fops = {
 
 DEFINE_DEBUGFS_ATTRIBUTE(kbase_csf_firmware_log_mode_fops, kbase_csf_firmware_log_mode_read,
 			 kbase_csf_firmware_log_mode_write, "%llu\n");
+DEFINE_DEBUGFS_ATTRIBUTE(kbase_csf_firmware_log_poll_period_fops,
+			 kbase_csf_firmware_log_poll_period_read,
+			 kbase_csf_firmware_log_poll_period_write, "%llu\n");
 
 #endif /* CONFIG_DEBUG_FS */
 
@@ -230,7 +251,7 @@ static void kbase_csf_firmware_log_discard_buffer(struct kbase_device *kbdev)
 {
 	struct kbase_csf_firmware_log *fw_log = &kbdev->csf.fw_log;
 	struct firmware_trace_buffer *tb =
-		kbase_csf_firmware_get_trace_buffer(kbdev, FIRMWARE_LOG_BUF_NAME);
+		kbase_csf_firmware_get_trace_buffer(kbdev, KBASE_CSFFW_LOG_BUF_NAME);
 
 	if (tb == NULL) {
 		dev_dbg(kbdev->dev, "Can't get the trace buffer, firmware log discard skipped");
@@ -446,8 +467,13 @@ int kbase_csf_firmware_log_init(struct kbase_device *kbdev)
 		err = -ENOENT;
 		goto free_out;
 	}
-	debugfs_create_atomic_t("fw_trace_poll_period_ms", 0644, kbdev->mali_debugfs_directory,
-				&fw_log->poll_period_ms);
+	dentry = debugfs_create_file("fw_trace_poll_period_ms", 0644, kbdev->mali_debugfs_directory,
+				     kbdev, &kbase_csf_firmware_log_poll_period_fops);
+	if (IS_ERR_OR_NULL(dentry)) {
+		dev_err(kbdev->dev, "Unable to create fw_trace_poll_period_ms");
+		err = -ENOENT;
+		goto free_out;
+	}
 
 #if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
 
@@ -507,7 +533,7 @@ void kbase_csf_firmware_log_dump_buffer(struct kbase_device *kbdev)
 	u8 *buf = fw_log->dump_buf, *p, *pnewline, *pend, *pendbuf;
 	unsigned int read_size, remaining_size;
 	struct firmware_trace_buffer *tb =
-		kbase_csf_firmware_get_trace_buffer(kbdev, FIRMWARE_LOG_BUF_NAME);
+		kbase_csf_firmware_get_trace_buffer(kbdev, KBASE_CSFFW_LOG_BUF_NAME);
 
 	if (tb == NULL) {
 		dev_vdbg(kbdev->dev, "Can't get the trace buffer, firmware trace dump skipped");
