@@ -81,6 +81,8 @@ static int mtk_common_devfreq_target(struct device *dev,
 
 	freq_khz = *freq / 1000;
 
+	if (mtk_common_gpufreq_bringup())
+		return 0;
 #if defined(CONFIG_MTK_GPUFREQ_V2)
 	(void)(pow);
 	opp_idx = gpufreq_get_oppidx_by_freq(TARGET_DEFAULT, freq_khz);
