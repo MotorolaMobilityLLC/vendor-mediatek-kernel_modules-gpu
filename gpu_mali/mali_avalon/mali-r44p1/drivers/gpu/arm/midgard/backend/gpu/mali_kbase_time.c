@@ -169,7 +169,11 @@ void kbase_device_set_timeout_ms(struct kbase_device *kbdev, enum kbase_timeout_
 	selector_str = timeout_info[selector].selector_str;
 
 	kbdev->backend_time.device_scaled_timeouts[selector] = timeout_ms;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_vdbg(kbdev->dev, "\t%-35s: %ums\n", selector_str, timeout_ms);
+#else
 	dev_dbg(kbdev->dev, "\t%-35s: %ums\n", selector_str, timeout_ms);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 }
 
 void kbase_device_set_timeout(struct kbase_device *kbdev, enum kbase_timeout_selector selector,
@@ -203,10 +207,17 @@ void kbase_device_set_timeout(struct kbase_device *kbdev, enum kbase_timeout_sel
 	timeout = div_u64(final_cycles, freq_khz);
 
 	if (unlikely(timeout > UINT_MAX)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		dev_vdbg(kbdev->dev,
+			"Capping excessive timeout %llums for %s at freq %llukHz to UINT_MAX ms",
+			timeout, timeout_info[selector].selector_str,
+			kbase_device_get_scaling_frequency(kbdev));
+#else
 		dev_dbg(kbdev->dev,
 			"Capping excessive timeout %llums for %s at freq %llukHz to UINT_MAX ms",
 			timeout, timeout_info[selector].selector_str,
 			kbase_device_get_scaling_frequency(kbdev));
+#endif /* CONFIG_MALI_MTK_DEBUG */
 		timeout = UINT_MAX;
 	}
 
@@ -234,8 +245,11 @@ static int kbase_timeout_scaling_init(struct kbase_device *kbdev)
 		dev_dbg(kbdev->dev, "Could not initialize GPU frequency\n");
 		return err;
 	}
-
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_vdbg(kbdev->dev, "Scaling kbase timeouts:\n");
+#else
 	dev_dbg(kbdev->dev, "Scaling kbase timeouts:\n");
+#endif /* CONFIG_MALI_MTK_DEBUG */
 	for (selector = 0; selector < KBASE_TIMEOUT_SELECTOR_COUNT; selector++) {
 		u32 cycle_multiplier = 1;
 		u64 nr_cycles = timeout_info[selector].timeout_cycles;

@@ -3064,21 +3064,33 @@ int kbase_csf_kcpu_queue_halt_timers(struct kbase_device *kbdev)
 
 			if (atomic_read(&kcpu_queue->fence_signal_pending_cnt)) {
 				int ret = del_timer_sync(&kcpu_queue->fence_signal_timeout);
-
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+				dev_vdbg(kbdev->dev,
+					"Fence signal timeout on KCPU queue(%lu), kctx (%d_%d) was %s on suspend",
+					queue_idx, kctx->tgid, kctx->id,
+					ret ? "pending" : "not pending");
+#else
 				dev_dbg(kbdev->dev,
 					"Fence signal timeout on KCPU queue(%lu), kctx (%d_%d) was %s on suspend",
 					queue_idx, kctx->tgid, kctx->id,
 					ret ? "pending" : "not pending");
+#endif /* CONFIG_MALI_MTK_DEBUG */
 			}
 
 #ifdef CONFIG_MALI_FENCE_DEBUG
 			if (kcpu_queue->fence_wait_processed) {
 				int ret = del_timer_sync(&kcpu_queue->fence_timeout);
-
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+				dev_vdbg(kbdev->dev,
+					"Fence wait timeout on KCPU queue(%lu), kctx (%d_%d) was %s on suspend",
+					queue_idx, kctx->tgid, kctx->id,
+					ret ? "pending" : "not pending");
+#else
 				dev_dbg(kbdev->dev,
 					"Fence wait timeout on KCPU queue(%lu), kctx (%d_%d) was %s on suspend",
 					queue_idx, kctx->tgid, kctx->id,
 					ret ? "pending" : "not pending");
+#endif /* CONFIG_MALI_MTK_DEBUG */
 			}
 #endif
 			mutex_unlock(&kcpu_queue->lock);
@@ -3108,17 +3120,29 @@ void kbase_csf_kcpu_queue_resume_timers(struct kbase_device *kbdev)
 #ifdef CONFIG_MALI_FENCE_DEBUG
 			if (kcpu_queue->fence_wait_processed) {
 				fence_wait_timeout_start(kcpu_queue);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+				dev_vdbg(kbdev->dev,
+					"Fence wait timeout on KCPU queue(%lu), kctx (%d_%d) has been resumed on system resume",
+					queue_idx, kctx->tgid, kctx->id);
+#else
 				dev_dbg(kbdev->dev,
 					"Fence wait timeout on KCPU queue(%lu), kctx (%d_%d) has been resumed on system resume",
 					queue_idx, kctx->tgid, kctx->id);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 			}
 #endif
 			if (atomic_read(&kbdev->fence_signal_timeout_enabled) &&
 			    atomic_read(&kcpu_queue->fence_signal_pending_cnt)) {
 				fence_signal_timeout_start(kcpu_queue);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+				dev_vdbg(kbdev->dev,
+					"Fence signal timeout on KCPU queue(%lu), kctx (%d_%d) has been resumed on system resume",
+					queue_idx, kctx->tgid, kctx->id);
+#else
 				dev_dbg(kbdev->dev,
 					"Fence signal timeout on KCPU queue(%lu), kctx (%d_%d) has been resumed on system resume",
 					queue_idx, kctx->tgid, kctx->id);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 			}
 			mutex_unlock(&kcpu_queue->lock);
 		}

@@ -396,7 +396,7 @@ static void kbase_file_destroy_kctx(struct kbase_file *const kfile)
 #endif
 
 	kbase_destroy_context(kfile->kctx);
-	dev_dbg(kfile->kbdev->dev, "Deleted kbase context");
+	dev_vdbg(kfile->kbdev->dev, "Deleted kbase context");
 }
 
 /**
@@ -3734,7 +3734,7 @@ int kbase_pm_gpu_freq_init(struct kbase_device *kbdev)
 		return -1;
 
 	dev_vdbg(kbdev->dev, "Lowest frequency identified is %llu kHz", kbdev->lowest_gpu_freq_khz);
-	dev_dbg(kbdev->dev,
+	dev_vdbg(kbdev->dev,
 		"Setting default highest frequency to %u kHz (pending devfreq initialization",
 		kbdev->gpu_props.props.core_props.gpu_freq_khz_max);
 
@@ -3875,8 +3875,11 @@ static ssize_t reset_timeout_store(struct device *dev,
 			 reset_timeout, default_reset_timeout);
 
 	kbdev->reset_timeout_ms = reset_timeout;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_vdbg(kbdev->dev, "Reset timeout: %ums\n", reset_timeout);
+#else
 	dev_dbg(kbdev->dev, "Reset timeout: %ums\n", reset_timeout);
-
+#endif /* CONFIG_MALI_MTK_DEBUG */
 	return count;
 }
 
