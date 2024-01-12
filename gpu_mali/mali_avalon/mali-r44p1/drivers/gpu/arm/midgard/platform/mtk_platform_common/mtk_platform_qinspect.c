@@ -173,7 +173,7 @@ static int mtk_qinspect_cpuq_internal_dump(struct kbase_context *kctx, enum mtk_
 		atomic_set(&kctx->csf.cpu_queue.dump_req_status, BASE_CSF_CPU_QUEUE_DUMP_COMPLETE);
 	} else {
 		qinspect_err(kctx->kbdev,
-			"[qinspect] cpuq_internal_dump: Ctx %d_%d dump error! (timeout = %ul)",
+			"[qinspect] cpuq_internal_dump: Ctx %d_%d dump error! (timeout = %lu)",
 			kctx->tgid, kctx->id, timeout);
 		atomic_set(&kctx->csf.cpu_queue.dump_req_status, BASE_CSF_CPU_QUEUE_DUMP_COMPLETE);
 		mutex_unlock(&kctx->csf.cpu_queue.lock);
