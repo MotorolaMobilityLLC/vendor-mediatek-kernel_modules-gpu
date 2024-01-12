@@ -465,6 +465,12 @@ static int mtk_debug_dump_kcpu_queues(struct seq_file *file, void *data)
 				continue;
 			}
 
+			if (!mutex_trylock(&queue->lock)) {
+				dev_info(kbdev->dev, "[%d_%d] %9lu(  lock held, bypass dump )",
+						kctx->tgid, kctx->id, idx);
+				continue;
+			}
+
 			seq_printf(file,
 					   "[%d_%d] %9lu(  %s ), %16u, %11u, %7u, %12u, %13llu  %8u\n",
 					   kctx->tgid,
@@ -643,6 +649,7 @@ static int mtk_debug_dump_kcpu_queues(struct seq_file *file, void *data)
 				}
 			}
 
+			mutex_unlock(&queue->lock);
 			idx = find_next_bit(kctx->csf.kcpu_queues.in_use, KBASEP_MAX_KCPU_QUEUES, idx + 1);
 		}
 
@@ -1913,6 +1920,12 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 						continue;
 					}
 
+					if (!mutex_trylock(&queue->lock)) {
+						dev_info(kbdev->dev, "[%d_%d] %9lu(  lock held, bypass dump )",
+								kctx->tgid, kctx->id, idx);
+						continue;
+					}
+
 					dev_info(kbdev->dev,
 					         "[%d_%d] %9lu(  %s ), %16u, %11u, %7u, %12u, %13llu  %8u",
 							kctx->tgid,
@@ -2091,6 +2104,7 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 						}
 					}
 
+					mutex_unlock(&queue->lock);
 					idx = find_next_bit(kctx->csf.kcpu_queues.in_use, KBASEP_MAX_KCPU_QUEUES, idx + 1);
 				}
 
