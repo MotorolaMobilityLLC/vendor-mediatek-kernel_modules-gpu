@@ -5916,7 +5916,7 @@ void kbase_csf_scheduler_reset(struct kbase_device *kbdev)
 		/* As all groups have been successfully evicted from the CSG
 		 * slots, clear out thee scheduler data fields and return
 		 */
-#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET)
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
 		if (!kbdev->reset_force_evict_group_work) {
 			scheduler_inner_reset(kbdev);
 			return;
@@ -5924,12 +5924,14 @@ void kbase_csf_scheduler_reset(struct kbase_device *kbdev)
 #else
 		scheduler_inner_reset(kbdev);
 		return;
-#endif /* CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET */
+#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
 	}
 
-#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET)
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+	spin_lock(&kbdev->reset_force_change);
 	kbdev->reset_force_evict_group_work = false;
-#endif /* CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET */
+	spin_unlock(&kbdev->reset_force_change);
+#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
 
 	mutex_lock(&kbdev->kctx_list_lock);
 
@@ -5960,6 +5962,14 @@ void kbase_csf_scheduler_reset(struct kbase_device *kbdev)
 
 	/* After queue groups reset, the scheduler data fields clear out */
 	scheduler_inner_reset(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_info(kbdev->dev, "Reset active queue groups and clear out scheduler data");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_print(&kbdev->logbuf_exception,
+		"[%llxt] Reset active queue groups and clear out scheduler data\n",
+		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception));
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_DEBUG */
 }
 
 static void firmware_aliveness_monitor(struct work_struct *work)
