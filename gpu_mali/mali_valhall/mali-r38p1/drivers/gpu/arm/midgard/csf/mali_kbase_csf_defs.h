@@ -1011,6 +1011,12 @@ struct kbase_csf_scheduler {
 
 /* Index of the GPU_ACTIVE counter within the CSHW counter block */
 #define GPU_ACTIVE_CNT_IDX (4)
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+#define ITER_TILER_ACTIVE_IDX (16)
+#define ITER_COMP_ACTIVE_IDX  (24)
+#define ITER_FRAG_ACTIVE_IDX  (32)
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 /*
  * Maximum number of sessions that can be managed by the IPA Control component.

@@ -4,5 +4,13 @@ curr := platform/mtk_platform_common
 
 mali_kbase-y += $(curr)/mtk_platform_common.o
 
+ifeq ($(CONFIG_MALI_MTK_DEVFREQ_GOVERNOR),y)
+    mali_kbase-y += $(curr)/mtk_platform_dvfs.o
+    mali_kbase-y += $(curr)/mtk_platform_devfreq_governor.o
+    ifeq ($(CONFIG_MALI_MTK_DEVFREQ_THERMAL),y)
+        mali_kbase-y += $(curr)/mtk_platform_devfreq_thermal.o
+    endif ## CONFIG_MALI_MTK_DEVFREQ_THERMAL ##
+endif ## CONFIG_MALI_MTK_DEVFREQ_GOVERNOR ##
+
 ccflags-y += -I$(srctree)/drivers/devfreq/
 ccflags-y += -Wno-unused-variable
