@@ -27,6 +27,110 @@ static DEFINE_MUTEX(fence_debug_lock);
 //#if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 //void kbase_csf_dump_firmware_trace_buffer(struct kbase_device *kbdev);
 //#endif
+static int mem_dump_mode = MTK_DEBUG_MEM_DUMP_DISABLE;
+#if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+static struct mtk_debug_cs_queue_dump_record cs_queue_dump_record;
+#endif /* CONFIG_MALI_CSF_SUPPORT && CONFIG_MALI_MTK_FENCE_DEBUG */
+
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+static void *mtk_debug_mem_dump_start(struct seq_file *m, loff_t *_pos)
+{
+	return NULL;
+}
+
+static void mtk_debug_mem_dump_stop(struct seq_file *m, void *v)
+{
+}
+
+static void *mtk_debug_mem_dump_next(struct seq_file *m, void *v, loff_t *pos)
+{
+	return NULL;
+}
+
+static int mtk_debug_mem_dump_show(struct seq_file *m, void *v)
+{
+	return 0;
+}
+
+static const struct seq_operations full_mem_ops = {
+	.start = mtk_debug_mem_dump_start,
+	.next  = mtk_debug_mem_dump_next,
+	.stop  = mtk_debug_mem_dump_stop,
+	.show  = mtk_debug_mem_dump_show,
+};
+
+static int mtk_debug_mem_dump_open(struct inode *in, struct file *file)
+{
+	struct kbase_device *kbdev = in->i_private;
+	int ret;
+
+	if (!kbdev)
+		return -ENODEV;
+
+	/* Check if file was opened in write mode. GPU memory contents
+	 * are returned only when the file is not opened in write mode.
+	 */
+	if (file->f_mode & FMODE_WRITE) {
+		file->private_data = kbdev;
+		return 0;
+	}
+
+	ret = seq_open(file, &full_mem_ops);
+	if (ret)
+		return ret;
+
+	((struct seq_file *)file->private_data)->private = kbdev;
+
+	return 0;
+}
+
+static int mtk_debug_mem_dump_release(struct inode *inode, struct file *file)
+{
+	return 0;
+}
+
+static ssize_t mtk_debug_mem_dump_write(struct file *file, const char __user *ubuf,
+			size_t count, loff_t *ppos)
+{
+	int ret = 0;
+
+	CSTD_UNUSED(ppos);
+
+	ret = kstrtoint_from_user(ubuf, count, 0, &mem_dump_mode);
+	if (ret)
+		return ret;
+
+	if (mem_dump_mode < MTK_DEBUG_MEM_DUMP_DISABLE || mem_dump_mode > MTK_DEBUG_MEM_DUMP_FULL)
+		mem_dump_mode = MTK_DEBUG_MEM_DUMP_DISABLE;
+
+	return count;
+}
+
+static const struct file_operations mtk_debug_mem_dump_fops = {
+	.open    = mtk_debug_mem_dump_open,
+	.release = mtk_debug_mem_dump_release,
+	.read    = seq_read,
+	.write   = mtk_debug_mem_dump_write,
+	.llseek  = seq_lseek
+};
+
+int mtk_debug_csf_debugfs_init(struct kbase_device *kbdev)
+{
+	if (IS_ERR_OR_NULL(kbdev))
+		return -1;
+
+	debugfs_create_file("mem_dump", 0644,
+	                    kbdev->mali_debugfs_directory, kbdev,
+	                    &mtk_debug_mem_dump_fops);
+
+	return 0;
+}
+#else
+int mtk_debug_csf_debugfs_init(struct kbase_device *kbdev)
+{
+	return 0;
+}
+#endif /* CONFIG_DEBUG_FS */
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
 static const char *mtk_debug_mcu_state_to_string(enum kbase_mcu_state state)
@@ -127,6 +231,302 @@ void mtk_debug_dump_pm_status(struct kbase_device *kbdev)
 }
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+static void mtk_debug_cs_queue_dump_record_init(void)
+{
+	INIT_LIST_HEAD(&cs_queue_dump_record.record_list);
+}
+
+static void mtk_debug_cs_queue_dump_record_flush(void)
+{
+	struct mtk_debug_cs_queue_dump_record_kctx *kctx_node;
+	struct mtk_debug_cs_queue_dump_record_gpu_addr *gpu_addr_node;
+	void *cpu_addr;
+
+	while (!list_empty(&cs_queue_dump_record.record_list)) {
+		kctx_node = list_first_entry(&cs_queue_dump_record.record_list,
+			struct mtk_debug_cs_queue_dump_record_kctx, list_node);
+
+		while (!list_empty(&kctx_node->record_list)) {
+			gpu_addr_node = list_first_entry(&kctx_node->record_list,
+				struct mtk_debug_cs_queue_dump_record_gpu_addr, list_node);
+			cpu_addr = gpu_addr_node->cpu_addr;
+			if (cpu_addr)
+				vunmap(cpu_addr);
+			list_del(&gpu_addr_node->list_node);
+			kfree(gpu_addr_node);
+		}
+
+		kbase_gpu_vm_unlock(kctx_node->kctx);
+		list_del(&kctx_node->list_node);
+		kfree(kctx_node);
+	}
+}
+
+static void *mtk_debug_cs_queue_dump_record_map_cpu_addr(struct kbase_context *kctx, u64 gpu_addr)
+{
+	struct kbase_va_region *reg;
+	u64 pfn = gpu_addr >> PAGE_SHIFT;
+	u64 offset;
+	struct page *page;
+	void *cpu_addr;
+	pgprot_t prot = PAGE_KERNEL;
+
+	reg = kbase_region_tracker_find_region_base_address_by_page(kctx, gpu_addr);
+	if (reg == NULL || reg->gpu_alloc == NULL)
+		/* Empty region - ignore */
+		return NULL;
+
+	if (reg->flags & KBASE_REG_PROTECTED)
+		/* CPU access to protected memory is forbidden - so
+		 * skip this GPU virtual region.
+		 */
+		return NULL;
+
+	offset = pfn - reg->start_pfn;
+	if (offset >= reg->gpu_alloc->nents)
+		return NULL;
+
+	if (!(reg->flags & KBASE_REG_CPU_CACHED))
+		prot = pgprot_writecombine(prot);
+
+	page = as_page(reg->gpu_alloc->pages[offset]);
+	cpu_addr = vmap(&page, 1, VM_MAP, prot);
+
+	return cpu_addr;
+}
+
+static void *mtk_debug_cs_queue_dump_record_map(struct kbase_context *kctx, u64 gpu_addr, int *new_map)
+{
+	struct mtk_debug_cs_queue_dump_record_kctx *kctx_node;
+	struct mtk_debug_cs_queue_dump_record_gpu_addr *gpu_addr_node;
+	void *cpu_addr;
+
+	*new_map = 0;
+	/* find kctx in list */
+	list_for_each_entry(kctx_node, &cs_queue_dump_record.record_list, list_node) {
+		if (kctx_node->kctx == kctx) {
+			/* kctx found, find gpu_addr in list */
+			list_for_each_entry(gpu_addr_node, &kctx_node->record_list, list_node) {
+				if (gpu_addr_node->gpu_addr == gpu_addr)
+					return gpu_addr_node->cpu_addr;
+			}
+
+			/* kctx found but gpu_addr does not existed, add new gpu_addr_node */
+			gpu_addr_node = kmalloc(sizeof(*gpu_addr_node), GFP_KERNEL);
+			if (!gpu_addr_node)
+				return NULL;
+
+			gpu_addr_node->gpu_addr = gpu_addr;
+			cpu_addr = mtk_debug_cs_queue_dump_record_map_cpu_addr(kctx, gpu_addr);
+			gpu_addr_node->cpu_addr = cpu_addr;
+			list_add_tail(&gpu_addr_node->list_node, &kctx_node->record_list);
+			*new_map = 1;
+			return cpu_addr;
+		}
+	}
+
+	/* can not find kctx, add new kctx_node and gpu_addr_node */
+	kctx_node = kmalloc(sizeof(*kctx_node), GFP_KERNEL);
+	if (!kctx_node)
+		return NULL;
+	INIT_LIST_HEAD(&kctx_node->record_list);
+	kctx_node->kctx = kctx;
+	kbase_gpu_vm_lock(kctx_node->kctx);
+	list_add_tail(&kctx_node->list_node, &cs_queue_dump_record.record_list);
+
+	gpu_addr_node = kmalloc(sizeof(*gpu_addr_node), GFP_KERNEL);
+	if (!gpu_addr_node)
+		return NULL;
+
+	gpu_addr_node->gpu_addr = gpu_addr;
+	cpu_addr = mtk_debug_cs_queue_dump_record_map_cpu_addr(kctx, gpu_addr);
+	gpu_addr_node->cpu_addr = cpu_addr;
+	list_add_tail(&gpu_addr_node->list_node, &kctx_node->record_list);
+	*new_map = 1;
+
+	return cpu_addr;
+}
+
+static void *mtk_debug_queue_mem_map_and_dump_once(struct device *dev,
+                                                   struct mtk_debug_cs_queue_mem_data *queue_mem,
+                                                   u64 gpu_addr)
+{
+	void *cpu_addr;
+	int new_map;
+
+	cpu_addr = mtk_debug_cs_queue_dump_record_map(queue_mem->kctx, gpu_addr, &new_map);
+
+	if (new_map) {
+		unsigned int i, j;
+		u64 *ptr = (typeof(ptr))cpu_addr;
+		const unsigned int col_width = sizeof(*ptr);
+		const unsigned int row_width = (col_width == sizeof(u64)) ? 32 : 16;
+		const unsigned int num_cols = row_width / col_width;
+
+		for (i = 0; i < PAGE_SIZE; i += row_width) {
+			/* skip the line that all the values in it are zero */
+			for (j = 0; j < num_cols; j++)
+				if (ptr[j])
+					break;
+			if (j == num_cols) {
+				ptr += num_cols;
+				continue;
+			}
+			if (col_width == sizeof(u64))
+				dev_info(dev, "%016llx: %016llx %016llx %016llx %016llx",
+				         gpu_addr + i, ptr[0], ptr[1], ptr[2], ptr[3]);
+			else
+				dev_info(dev, "%016llx: %08x %08x %08x %08x",
+				         gpu_addr + i, ptr[0], ptr[1], ptr[2], ptr[3]);
+			ptr += num_cols;
+		}
+	}
+
+	return cpu_addr;
+}
+
+static void mtk_debug_cs_mem_dump(struct device *dev,
+                                  struct mtk_debug_cs_queue_mem_data *queue_mem,
+                                  union mtk_debug_csf_register_file *rf,
+                                  int depth, u64 start, u64 end);
+
+static void mtk_debug_cs_decode_inst(struct device *dev,
+                                     struct mtk_debug_cs_queue_mem_data *queue_mem,
+                                     union mtk_debug_csf_register_file *rf,
+                                     int depth, u64 start, u64 end)
+{
+	union mtk_debug_csf_instruction *inst = (union mtk_debug_csf_instruction *)start;
+	int reg;
+	u64 size, buffer;
+
+	for (; (u64)inst < end; inst++) {
+		switch (inst->inst.opcode) {
+		case 0b00000001:			/* MOVE */
+			reg = (int)(inst->move.dest >> 1);
+			if (reg >= (MTK_DEBUG_CSF_REG_NUM / 2))
+				break;
+			rf->reg64[reg] = inst->move.imm;
+			break;
+		case 0b00000010:			/* MOVE32 */
+			reg = (int)(inst->move.dest);
+			if (reg >= MTK_DEBUG_CSF_REG_NUM)
+				break;
+			rf->reg32[reg] = inst->move32.imm;
+			break;
+		case 0b00100000:			/* CALL */
+			reg = (int)(inst->call.src1);
+			if (reg >= MTK_DEBUG_CSF_REG_NUM)
+				break;
+			size = rf->reg32[reg];
+			if (!size)
+				break;
+			/* limit the maximum dump size */
+			if (size > 4 * PAGE_SIZE)
+				size = 4 * PAGE_SIZE;
+			reg = (int)(inst->call.src0 >> 1);
+			if (reg >= (MTK_DEBUG_CSF_REG_NUM / 2))
+				break;
+			buffer = rf->reg64[reg];
+			if (!buffer || buffer & 0x07)
+				break;
+			mtk_debug_cs_mem_dump(dev, queue_mem, rf,
+				depth + 1, buffer, buffer + size);
+			break;
+		default:
+			break;
+		}
+	}
+}
+
+static void mtk_debug_cs_mem_dump(struct device *dev,
+                                  struct mtk_debug_cs_queue_mem_data *queue_mem,
+                                  union mtk_debug_csf_register_file *rf,
+                                  int depth, u64 start, u64 end)
+{
+	/*
+	 * There is an implementation defined maximum call stack depth,
+	 * which is guaranteed to be a minimum of 8 levels.
+	 * A total of 5 levels (ring buffer, dumped ring buffer, Vulkan primary,
+	 * Vulkan secondary and canned sequences) are currently used.
+	 */
+#define MAXIMUM_CALL_STACK_DEPTH 8
+
+	u64 page_addr;
+	u64 cpu_addr;
+	u64 offset, size, chunk_size;
+
+	if (depth >= MAXIMUM_CALL_STACK_DEPTH)
+		return;
+
+	/* dump buffers, using page as the dump unit */
+	page_addr = start & PAGE_MASK;
+	offset = start - page_addr;
+	size = end - start;
+	chunk_size = PAGE_SIZE - offset;
+	while (size) {
+		if (chunk_size > size)
+			chunk_size = size;
+		cpu_addr = (u64)mtk_debug_queue_mem_map_and_dump_once(dev, queue_mem, page_addr);
+		if (cpu_addr)
+			mtk_debug_cs_decode_inst(dev, queue_mem, rf, depth,
+				cpu_addr + offset, cpu_addr + offset + chunk_size);
+		page_addr += PAGE_SIZE;
+		offset = 0;
+		size -= chunk_size;
+		chunk_size = PAGE_SIZE;
+	}
+}
+
+static void mtk_debug_cs_queue_data_dump(struct device *dev,
+                                         struct mtk_debug_cs_queue_data *cs_queue_data)
+{
+	struct mtk_debug_cs_queue_mem_data *queue_mem;
+	u64 addr_start, addr_end;
+	union mtk_debug_csf_register_file rf;
+
+	mtk_debug_cs_queue_dump_record_init();
+	while (!list_empty(&cs_queue_data->queue_list)) {
+		queue_mem = list_first_entry(&cs_queue_data->queue_list,
+				struct mtk_debug_cs_queue_mem_data, node);
+		if (cs_queue_data->group_type == 0)
+			dev_info(dev, "[active_groups_mem] Ctx: %d_%d, GroupID: %d, Bind Idx: %d",
+			         queue_mem->kctx->tgid, queue_mem->kctx->id, queue_mem->handle, queue_mem->csi_index);
+		else
+			dev_info(dev, "[groups_mem] Ctx: %d_%d, GroupID: %d, Bind Idx: %d",
+			         queue_mem->kctx->tgid, queue_mem->kctx->id, queue_mem->handle, queue_mem->csi_index);
+		memset(&rf, 0, sizeof(rf));
+
+		if (queue_mem->cs_insert >= queue_mem->cs_extract) {
+			/* dump from start of cs_extract page head to cs_insert-8 */
+			addr_start = (queue_mem->base_addr + queue_mem->cs_extract) & PAGE_MASK;
+			addr_end = queue_mem->base_addr + queue_mem->cs_insert;
+			mtk_debug_cs_mem_dump(dev, queue_mem, &rf, 0, addr_start, addr_end);
+		} else {
+			/* two stage dumps */
+			/* 1. If cs_extract and cs_insert are in the same page then
+			 *    dump from cs_insert to end of buffer, or dump from start
+			 *    of cs_extract page head to end of buffer.
+			 */
+			if ((queue_mem->cs_extract & PAGE_MASK) == (queue_mem->cs_insert & PAGE_MASK))
+				addr_start = queue_mem->base_addr + queue_mem->cs_insert;
+			else
+				addr_start = (queue_mem->base_addr + queue_mem->cs_extract) & PAGE_MASK;
+			addr_end = queue_mem->base_addr + queue_mem->size;
+			mtk_debug_cs_mem_dump(dev, queue_mem, &rf, 0, addr_start, addr_end);
+			/* 2. dump from start of buffer to cs_insert-8 */
+			addr_start = queue_mem->base_addr;
+			addr_end = queue_mem->base_addr + queue_mem->cs_insert;
+			mtk_debug_cs_mem_dump(dev, queue_mem, &rf, 0, addr_start, addr_end);
+		}
+
+		list_del(&queue_mem->node);
+		kfree(queue_mem);
+	}
+	mtk_debug_cs_queue_dump_record_flush();
+}
+#endif /* CONFIG_MALI_CSF_SUPPORT && CONFIG_MALI_MTK_FENCE_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 static const char *blocked_reason_to_string(u32 reason_id)
 {
 	/* possible blocking reasons of a cs */
@@ -197,7 +597,9 @@ static void mtk_debug_csf_scheduler_dump_active_queue_cs_status_wait(
 #endif
 }
 
-static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id, struct kbase_queue *queue)
+static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
+                                                      struct kbase_queue *queue,
+                                                      struct mtk_debug_cs_queue_data *cs_queue_data)
 {
 	u32 *addr;
 	u64 cs_extract;
@@ -240,16 +642,33 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id, struct
 	cs_extract = addr[CS_EXTRACT_LO/4] | ((u64)addr[CS_EXTRACT_HI/4] << 32);
 	cs_active = addr[CS_ACTIVE/4];
 
+	if (cs_queue_data) {
+		struct mtk_debug_cs_queue_mem_data *queue_mem = kmalloc(sizeof(*queue_mem), GFP_KERNEL);
+
+		if (queue_mem) {
+			queue_mem->kctx = cs_queue_data->kctx;
+			queue_mem->group_type = cs_queue_data->group_type;
+			queue_mem->handle = cs_queue_data->handle;
+			queue_mem->csi_index = queue->csi_index;
+			queue_mem->base_addr = queue->base_addr;
+			queue_mem->size = queue->size;
+			queue_mem->cs_insert = cs_insert % queue->size;
+			queue_mem->cs_extract = cs_extract % queue->size;
+			list_add_tail(&queue_mem->node, &cs_queue_data->queue_list);
+		}
+	}
+
 	dev_info(queue->kctx->kbdev->dev,
-			"[%d_%d] Bind Idx,     Ringbuf addr, Prio,    Insert offset,   Extract offset, Active, Doorbell",
+			"[%d_%d] Bind Idx,     Ringbuf addr,     Size, Prio,    Insert offset,   Extract offset, Active, Doorbell",
 			tgid,
 			id);
 	dev_info(queue->kctx->kbdev->dev,
-			 "[%d_%d] %8d, %16llx, %4u, %16llx, %16llx, %6u, %8d",
+			 "[%d_%d] %8d, %16llx, %8x, %4u, %16llx, %16llx, %6u, %8d",
 			 tgid,
 			 id,
 			 queue->csi_index,
 			 queue->base_addr,
+			 queue->size,
 			 queue->priority,
 			 cs_insert,
 			 cs_extract,
@@ -423,7 +842,8 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id, struct
 /* Waiting timeout for STATUS_UPDATE acknowledgment, in milliseconds */
 #define CSF_STATUS_UPDATE_TO_MS (100)
 
-static void mtk_debug_csf_scheduler_dump_active_group(struct kbase_queue_group *const group)
+static void mtk_debug_csf_scheduler_dump_active_group(struct kbase_queue_group *const group,
+                                                      struct mtk_debug_cs_queue_data *cs_queue_data)
 {
 	if (kbase_csf_scheduler_group_get_slot(group) >= 0) {
 		struct kbase_device *const kbdev = group->kctx->kbdev;
@@ -512,13 +932,21 @@ static void mtk_debug_csf_scheduler_dump_active_group(struct kbase_queue_group *
 			mtk_debug_csf_scheduler_dump_active_queue(
 				group->kctx->tgid,
 				group->kctx->id,
-				group->bound_queues[i]);
+				group->bound_queues[i],
+				cs_queue_data);
 		}
 	}
 }
 
 void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 {
+	bool dump_queue_data = (mem_dump_mode != MTK_DEBUG_MEM_DUMP_DISABLE);
+	static struct mtk_debug_cs_queue_data cs_queue_data;
+
+	/* init mtk_debug_cs_queue_data for dump bound queues */
+	if (dump_queue_data)
+		INIT_LIST_HEAD(&cs_queue_data.queue_list);
+
 	mutex_lock(&kbdev->kctx_list_lock);
 	{
 		struct kbase_context *kctx;
@@ -543,7 +971,13 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 
 					dev_info(kbdev->dev, "[active_groups] ##### Ctx %d_%d #####", group->kctx->tgid, group->kctx->id);
 
-					mtk_debug_csf_scheduler_dump_active_group(group);
+					if (dump_queue_data) {
+						cs_queue_data.kctx = group->kctx;
+						cs_queue_data.group_type = 0;
+						cs_queue_data.handle = group->handle;
+						mtk_debug_csf_scheduler_dump_active_group(group, &cs_queue_data);
+					} else
+						mtk_debug_csf_scheduler_dump_active_group(group, NULL);
 				}
 				//kbase_csf_scheduler_unlock(kbdev);
 				}
@@ -561,8 +995,13 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 
 					dev_info(kbdev->dev, "[groups] ##### Ctx %d_%d #####", group->kctx->tgid, group->kctx->id);
 
-					if (group)
-						mtk_debug_csf_scheduler_dump_active_group(group);
+					if (dump_queue_data) {
+						cs_queue_data.kctx = group->kctx;
+						cs_queue_data.group_type = 1;
+						cs_queue_data.handle = group->handle;
+						mtk_debug_csf_scheduler_dump_active_group(group, &cs_queue_data);
+					} else
+						mtk_debug_csf_scheduler_dump_active_group(group, NULL);
 				}
 				}
 				//kbase_csf_scheduler_unlock(kbdev);
@@ -586,8 +1025,10 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 				while (idx < KBASEP_MAX_KCPU_QUEUES) {
 					struct kbase_kcpu_command_queue *queue = kctx->csf.kcpu_queues.array[idx];
 
-					if (!queue)
-						return;
+					if (!queue) {
+						idx = find_next_bit(kctx->csf.kcpu_queues.in_use, KBASEP_MAX_KCPU_QUEUES, idx + 1);
+						continue;
+					}
 
 					dev_info(kbdev->dev,
 					         "[%d_%d] %9lu( %s ), %16u, %11u, %7u, %13llu  %8u",
@@ -616,6 +1057,7 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 							         kctx->id,
 							         idx,
 							         cmd->type);
+							continue;
 						}
 						switch (cmd->type) {
 #if IS_ENABLED(CONFIG_SYNC_FILE)
@@ -691,7 +1133,7 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 								u32 *const cpu_ptr = (u32 *)kbase_phy_alloc_mapping_get(kctx, waits->objs[i].addr, &mapping);
 
 								if (!cpu_ptr)
-									return;
+									break;
 
 								val = *cpu_ptr;
 								kbase_phy_alloc_mapping_put(kctx, mapping);
@@ -793,8 +1235,11 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 			}
 		}
 	}
-
 	mutex_unlock(&kbdev->kctx_list_lock);
+
+	/* dump active_groups bound queues mtk_debug_cs_queue_data */
+	if (dump_queue_data)
+		mtk_debug_cs_queue_data_dump(kbdev->dev, &cs_queue_data);
 }
 #endif
 

@@ -296,6 +296,46 @@ struct kbase_va_region *kbase_region_tracker_find_region_base_address(
 
 KBASE_EXPORT_TEST_API(kbase_region_tracker_find_region_base_address);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+struct kbase_va_region *kbase_find_region_base_address_by_page(
+		struct rb_root *rbtree, u64 gpu_addr)
+{
+	u64 gpu_pfn = gpu_addr >> PAGE_SHIFT;
+	struct rb_node *rbnode = NULL;
+	struct kbase_va_region *reg = NULL;
+
+	rbnode = rbtree->rb_node;
+
+	while (rbnode) {
+		reg = rb_entry(rbnode, struct kbase_va_region, rblink);
+		if (reg->start_pfn > gpu_pfn)
+			rbnode = rbnode->rb_left;
+		else if ((reg->start_pfn + reg->nr_pages) <= gpu_pfn)
+			rbnode = rbnode->rb_right;
+		else
+			return reg;
+	}
+
+	return NULL;
+}
+
+/* Find region with given page address */
+struct kbase_va_region *kbase_region_tracker_find_region_base_address_by_page(
+		struct kbase_context *kctx, u64 gpu_addr)
+{
+	u64 gpu_pfn = gpu_addr >> PAGE_SHIFT;
+	struct rb_root *rbtree = NULL;
+
+	lockdep_assert_held(&kctx->reg_lock);
+
+	rbtree = kbase_gpu_va_to_rbtree(kctx, gpu_pfn);
+
+	return kbase_find_region_base_address_by_page(rbtree, gpu_addr);
+}
+
+KBASE_EXPORT_TEST_API(kbase_region_tracker_find_region_base_address_by_page);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 /* Find region meeting given requirements */
 static struct kbase_va_region *kbase_region_tracker_find_region_meeting_reqs(
 		struct kbase_va_region *reg_reqs,
