@@ -3278,9 +3278,8 @@ void kbase_process_csg_retry_job_irq(struct kbase_context *kctx, unsigned long t
 				"try to recover csg %d (tgid %d) redo job irq handler after waiting fence %lu(ms)",
 				csg_nr, kctx->tgid, time_in_ms);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_print(&kbdev->logbuf_exception,
-				"[%llxt] try to recover csg %d (tgid %d) redo job irq handler after waiting fence %lu(ms)\n",
-				mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
+			mtk_logbuffer_print(&kbdev->logbuf_regular,
+				"try to recover csg %d (tgid %d) redo job irq handler after waiting fence %lu(ms)\n",
 				csg_nr, kctx->tgid, time_in_ms);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 

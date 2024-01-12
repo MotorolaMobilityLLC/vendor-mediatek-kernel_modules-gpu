@@ -1295,9 +1295,8 @@ static void pending_cmds_timer_callback(struct timer_list *timer)
 		 COMMAND_TIMEOUT_MS, kctx->tgid, kctx->id, kcpu_queue->id, cmd->type, kcpu_queue->start_offset);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
-		"[%llxt] %s: KCPU queue has stuck in %ums! ctx=%d_%d queue_idx=%u cmd_type=%u start_offset=%u\n",
-		mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
+	mtk_logbuffer_print(&kctx->kbdev->logbuf_regular,
+		"%s: KCPU queue has stuck in %ums! ctx=%d_%d queue_idx=%u cmd_type=%u start_offset=%u\n",
 		__func__, COMMAND_TIMEOUT_MS, kctx->tgid, kctx->id, kcpu_queue->id, cmd->type, kcpu_queue->start_offset);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -1647,9 +1646,8 @@ static void kcpu_queue_cmds_timeout_worker(struct work_struct *data)
 		 COMMAND_TIMEOUT_MS, kctx->tgid, kctx->id, kcpu_queue->id, cmd->type, kcpu_queue->start_offset);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
-		"[%llxt] %s: KCPU queue fence command timeouts(%d ms)! ctx=%d_%d queue_idx=%u cmd_type=%u start_offset=%u\n",
-		mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
+	mtk_logbuffer_print(&kctx->kbdev->logbuf_regular,
+		"%s: KCPU queue fence command timeouts(%d ms)! ctx=%d_%d queue_idx=%u cmd_type=%u start_offset=%u\n",
 		__func__,  COMMAND_TIMEOUT_MS, kctx->tgid, kctx->id, kcpu_queue->id, cmd->type, kcpu_queue->start_offset);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
