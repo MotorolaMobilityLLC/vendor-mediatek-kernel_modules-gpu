@@ -31,7 +31,7 @@
 #include <mmu/mali_kbase_mmu_internal.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-#include "platform/mtk_platform_common.h"
+#include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
 void kbase_mmu_get_as_setup(struct kbase_mmu_table *mmut,

@@ -13,7 +13,7 @@
 #include <mali_kbase.h>
 #include <mali_kbase_defs.h>
 #include <platform/mtk_platform_common.h>
-#include "mtk_platform_logbuffer.h"
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 
 static phys_addr_t reserved_mem_phys;
 static phys_addr_t reserved_mem_virt;

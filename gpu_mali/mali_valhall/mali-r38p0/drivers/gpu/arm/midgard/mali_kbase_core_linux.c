@@ -122,7 +122,7 @@
 
 #include <mali_kbase_caps.h>
 
-#include "platform/mtk_platform_common.h"
+#include <platform/mtk_platform_common.h>
 #include <mtk_gpufreq.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)

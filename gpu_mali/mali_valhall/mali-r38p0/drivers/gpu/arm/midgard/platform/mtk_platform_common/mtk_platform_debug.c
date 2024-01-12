@@ -16,7 +16,7 @@
 #include <csf/mali_kbase_csf_cpu_queue_debugfs.h>
 #include <csf/mali_kbase_csf.h>
 #endif
-#include "mtk_platform_debug.h"
+#include <platform/mtk_platform_common/mtk_platform_debug.h>
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <mtk_gpufreq.h>
 #endif
