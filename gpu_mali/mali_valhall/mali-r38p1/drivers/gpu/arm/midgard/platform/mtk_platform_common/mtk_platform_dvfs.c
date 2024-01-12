@@ -97,8 +97,8 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 #if IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE)
 	struct GpuUtilization_Ex *util_ex =
 			(struct GpuUtilization_Ex *) Util_Ex;
-	unsigned long long delta_time;
 #endif
+	unsigned long long delta_time;
 
 	int utilisation[NUM_PERF_COUNTERS];
 	struct kbasep_pm_metrics *diff;
@@ -160,6 +160,7 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 #if IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE)
 	struct GpuUtilization_Ex *util_ex = (struct GpuUtilization_Ex *) Util_Ex;
 #endif
+	unsigned long long delta_time;
 
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
 
@@ -167,23 +168,21 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 
 	kbase_pm_get_dvfs_metrics(kbdev, &kbdev->pm.backend.metrics.dvfs_last, diff);
 
-	utilisation = (100 * diff->time_busy) /
-			max(diff->time_busy + diff->time_idle, 1u);
-
+	delta_time = max(diff->time_busy + diff->time_idle, 1u);
+	utilisation = (100 * diff->time_busy) / delta_time;
 	busy = max(diff->busy_gl + diff->busy_cl[0] + diff->busy_cl[1], 1u);
-
 	util_gl_share = (100 * diff->busy_gl) / busy;
 	util_cl_share[0] = (100 * diff->busy_cl[0]) / busy;
 	util_cl_share[1] = (100 * diff->busy_cl[1]) / busy;
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE)
 	util_ex->util_active = utilisation;
-	util_ex->util_3d = (100 * diff->busy_gl_plus[0]) /
-			max(diff->time_busy + diff->time_idle, 1u);
+	util_ex->util_3d = (100 * diff->busy_gl_plus[0]) / delta_time;
 	util_ex->util_ta = (100 * (diff->busy_gl_plus[1]+diff->busy_gl_plus[2])) /
-			max(diff->time_busy + diff->time_idle, 1u);
+		delta_time;
 	util_ex->util_compute = (100 * (diff->busy_cl[0]+diff->busy_cl[1])) /
-			max(diff->time_busy + diff->time_idle, 1u);
+		delta_time;
+	util_ex->delta_time = delta_time << 8;   // 8 = KBASE_PM_TIME_SHIFT
 #endif
 
 	if (pui32Loading)
@@ -200,12 +199,11 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 		util_cl_share[1] = 0;
 	} else {
 		current_util_active = utilisation;
-		current_util_3d = (100 * diff->busy_gl_plus[0]) /
-				max(diff->time_busy + diff->time_idle, 1u);
+		current_util_3d = (100 * diff->busy_gl_plus[0]) / delta_time;
 		current_util_ta = (100 * (diff->busy_gl_plus[1]+diff->busy_gl_plus[2])) /
-				max(diff->time_busy + diff->time_idle, 1u);
+			delta_time;
 		current_util_compute = (100 * (diff->busy_cl[0]+diff->busy_cl[1])) /
-				max(diff->time_busy + diff->time_idle, 1u);
+			delta_time;
 	}
 #endif /* MALI_USE_CSF */
 }
