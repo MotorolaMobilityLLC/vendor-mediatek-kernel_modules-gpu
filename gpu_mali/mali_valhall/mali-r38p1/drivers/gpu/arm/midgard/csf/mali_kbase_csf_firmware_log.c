@@ -31,6 +31,9 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_reserved_mem.h>
+#include <linux/proc_fs.h>
+#include <linux/sysfs.h>
+#include <platform/mtk_platform_common.h>
 
 /* for fwlog get latest 16kb data */
 struct device_node *g_rmem_node = NULL;
@@ -208,6 +211,130 @@ static void kbase_csf_firmware_log_poll(struct work_struct *work)
 	kbase_csf_firmware_log_dump_buffer(kbdev);
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+static ssize_t mtk_fwlog_enable_mask_show(struct device * const dev,
+                struct device_attribute * const attr, char * const buf)
+{
+	struct kbase_device *const kbdev = dev_get_drvdata(dev);
+	int err;
+	u64 val;
+	struct firmware_trace_buffer *tb =
+		kbase_csf_firmware_get_trace_buffer(kbdev, FIRMWARE_LOG_BUF_NAME);
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return -ENODEV;
+
+	if (tb == NULL) {
+		dev_vdbg(kbdev->dev, "Couldn't get the firmware trace buffer");
+		return -EIO;
+	}
+
+	/* The enabled traces limited to u64 here, regarded practical */
+	val = kbase_csf_firmware_trace_buffer_get_active_mask64(tb);
+
+	err = scnprintf(buf, PAGE_SIZE, "0x%016llx\n", val);
+
+	return err;
+}
+
+static ssize_t mtk_fwlog_enable_mask_store(struct device * const dev,
+                struct device_attribute * const attr, const char * const buf,
+                size_t const count)
+{
+	struct kbase_device *const kbdev = dev_get_drvdata(dev);
+	struct firmware_trace_buffer *tb =
+		kbase_csf_firmware_get_trace_buffer(kbdev, FIRMWARE_LOG_BUF_NAME);
+	u64 new_mask, val;
+	unsigned int enable_bits_count;
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return -ENODEV;
+
+	if (tb == NULL) {
+		dev_vdbg(kbdev->dev, "Couldn't get the firmware trace buffer");
+		return -EIO;
+	}
+
+	if (kstrtoull(buf, 0, &val) == 0) {
+		dev_info(kbdev->dev, "[CSFFW] enable bit set to 0x%016llx\n\r\n\r", val);
+	} else {
+		dev_vdbg(kbdev->dev, "[CSFFW] enable bit set fail.");
+		return count;
+	}
+
+	/* Ignore unsupported types */
+	enable_bits_count = kbase_csf_firmware_trace_buffer_get_trace_enable_bits_count(tb);
+	if (enable_bits_count > 64) {
+		dev_vdbg(kbdev->dev, "Limit enabled bits count from %u to 64", enable_bits_count);
+		enable_bits_count = 64;
+	}
+	new_mask = val & ((1 << enable_bits_count) - 1);
+
+	if (new_mask != kbase_csf_firmware_trace_buffer_get_active_mask64(tb))
+		kbase_csf_firmware_trace_buffer_set_active_mask64(tb, new_mask);
+
+	return count;
+}
+static DEVICE_ATTR_RW(mtk_fwlog_enable_mask);
+
+ssize_t mtk_fwlog_proc_read(struct file *filp, char __user *buf,
+		size_t count, loff_t *f_pos)
+{
+	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+	struct kbase_csf_firmware_log *fw_log = &kbdev->csf.fw_log;
+	unsigned int n_read;
+	unsigned long not_copied;
+	/* Limit reads to the kernel dump buffer count */
+	size_t mem = MIN(count, FIRMWARE_LOG_DUMP_BUF_SIZE);
+	int ret;
+	struct firmware_trace_buffer *tb =
+		kbase_csf_firmware_get_trace_buffer(kbdev, FIRMWARE_LOG_BUF_NAME);
+
+	if (tb == NULL) {
+		dev_vdbg(kbdev->dev, "Couldn't get the firmware trace buffer");
+		return -EIO;
+	}
+
+	if (atomic_cmpxchg(&fw_log->busy, 0, 1) != 0)
+		return -EBUSY;
+
+	/* Reading from userspace is only allowed in manual mode */
+	if (fw_log->mode != KBASE_CSF_FIRMWARE_LOG_MODE_MANUAL) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	n_read = kbase_csf_firmware_trace_buffer_read_data(tb, fw_log->dump_buf, mem);
+
+	/* Do the copy, if we have obtained some trace data */
+	not_copied = (n_read) ? copy_to_user(buf, fw_log->dump_buf, n_read) : 0;
+
+	if (not_copied) {
+		dev_vdbg(kbdev->dev, "Couldn't copy trace buffer data to user space buffer");
+		ret = -EFAULT;
+		goto out;
+	}
+
+	*f_pos += n_read;
+	ret = n_read;
+
+out:
+	atomic_set(&fw_log->busy, 0);
+	return ret;
+}
+
+ssize_t mtk_fwlog_proc_write(struct file *filp, const char __user *buffer,
+		size_t count, loff_t *f_pos)
+{
+	return count;
+}
+
+static const struct  proc_ops mtk_fwlog_proc_ops = {
+	.proc_read = mtk_fwlog_proc_read,
+	.proc_write = mtk_fwlog_proc_write,
+};
+#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
+
 int kbase_csf_firmware_log_init(struct kbase_device *kbdev)
 {
 	struct kbase_csf_firmware_log *fw_log = &kbdev->csf.fw_log;
@@ -235,6 +362,17 @@ int kbase_csf_firmware_log_init(struct kbase_device *kbdev)
 #endif /* CONFIG_DEBUG_FS */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+
+#if IS_ENABLED(CONFIG_MTK_GPU_DIAGNOSIS_DEBUG)
+#else /* only to create node in user load */
+	if (sysfs_create_file(&kbdev->dev->kobj,&dev_attr_mtk_fwlog_enable_mask.attr)) {
+		dev_info(kbdev->dev, "SysFS file fwlog enable mask creation failed\n");
+	}
+	if (!proc_create("mtk_mali/fwlog", 0444, NULL, &mtk_fwlog_proc_ops)) {
+		dev_info(kbdev->dev, "proc file fwlog creation failed\n");
+	}
+#endif /*CONFIG_MTK_GPU_DIAGNOSIS_DEBUG*/
+
 	g_rmem_node = of_find_compatible_node(NULL, NULL, "mediatek,me_CSFFWLOG_reserved");
 	if(!g_rmem_node) {
 		dev_vdbg(kbdev->dev, "[CSFFWLOG] no node for reserved memory\n");
