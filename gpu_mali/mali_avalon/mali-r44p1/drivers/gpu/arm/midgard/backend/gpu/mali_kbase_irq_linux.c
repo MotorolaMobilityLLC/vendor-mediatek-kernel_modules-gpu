@@ -372,17 +372,17 @@ static irqreturn_t kbase_job_irq_test_handler(int irq, void *data)
 	unsigned long flags;
 	struct kbase_device *kbdev = kbase_untag(data);
 	u32 val;
-#if MALI_USE_CSF
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG) && IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
 	u32 remaining;
 	s64 diff_us;
 	ktime_t start, spin_start;
 
 	start = spin_start = ktime_get();
-#endif
+#endif /* CONFIG_MALI_MTK_IRQ_DEBUG && CONFIG_MALI_CSF_SUPPORT */
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-#if MALI_USE_CSF
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG) && IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
 	kbdev->csf.spin_delta_us_0 = ktime_to_us(ktime_sub(ktime_get(), spin_start));
-#endif
+#endif /* CONFIG_MALI_MTK_IRQ_DEBUG && CONFIG_MALI_CSF_SUPPORT */
 
 	if (!kbdev->pm.backend.gpu_powered) {
 		/* GPU is turned off - IRQ is not for us */
@@ -424,7 +424,7 @@ static irqreturn_t kbase_mmu_irq_test_handler(int irq, void *data)
 	val = kbase_reg_read(kbdev, MMU_CONTROL_REG(MMU_IRQ_STATUS));
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-#if MALI_USE_CSF
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG) && IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
 	diff_us = ktime_to_us(ktime_sub(ktime_get(), start));
 	if(diff_us >= 5000) {
 		dev_info(kbdev->dev,
@@ -461,7 +461,7 @@ static irqreturn_t kbase_mmu_irq_test_handler(int irq, void *data)
 			kbdev->csf.spin_delta_us_1,
 			kbdev->csf.spin_delta_us_2);
 	}
-#endif
+#endif /* CONFIG_MALI_MTK_IRQ_DEBUG && CONFIG_MALI_CSF_SUPPORT */
 
 	if (!val)
 		return IRQ_NONE;
