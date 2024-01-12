@@ -1865,7 +1865,7 @@ static void mtk_debug_csf_dump_kcpu_queues(struct kbase_device *kbdev, struct kb
 			cmd = &queue->commands[cmd_idx];
 			if (cmd->type >= BASE_KCPU_COMMAND_TYPE_COUNT) {
 				mtk_log_critical_exception(kbdev, true,
-					"[%d_%d] %9lu(  %s ), %7d, %12d, (unknown blocking command)",
+					"[%d_%d] %9lu(  %s ), %4d(-), %12d, (unknown blocking command)",
 					kctx->tgid, kctx->id,
 					idx,
 					queue->has_error ? "InErr" : "NoErr",
@@ -1897,7 +1897,7 @@ static void mtk_debug_csf_dump_kcpu_queues(struct kbase_device *kbdev, struct kb
 				break;
 			default:
 				mtk_log_critical_exception(kbdev, true,
-					"[%d_%d] %9lu(  %s ), %7d, %12d, (other blocking command)",
+					"[%d_%d] %9lu(  %s ), %4d(-), %12d, (other blocking command)",
 					kctx->tgid, kctx->id,
 					idx,
 					queue->has_error ? "InErr" : "NoErr",

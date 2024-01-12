@@ -145,6 +145,8 @@ static int mtk_qinspect_gpuq_internal_get_u64(struct kbase_context *kctx, u64 gp
 
 static int mtk_qinspect_cpuq_internal_dump(struct kbase_context *kctx, enum mtk_base_csf_notification_dump_cmd dump_cmd)
 {
+	unsigned long timeout;
+
 	lockdep_assert_held(&kctx->csf.lock);
 
 	mutex_lock(&kctx->csf.cpu_queue.lock);
@@ -162,7 +164,7 @@ static int mtk_qinspect_cpuq_internal_dump(struct kbase_context *kctx, enum mtk_
 	kbase_event_wakeup(kctx);
 	mutex_unlock(&kctx->csf.cpu_queue.lock);
 
-	wait_for_completion_timeout(&kctx->csf.cpu_queue.dump_cmp, msecs_to_jiffies(3000));
+	timeout = wait_for_completion_timeout(&kctx->csf.cpu_queue.dump_cmp, msecs_to_jiffies(3000));
 
 	mutex_lock(&kctx->csf.cpu_queue.lock);
 	if (kctx->csf.cpu_queue.buffer) {
@@ -171,8 +173,8 @@ static int mtk_qinspect_cpuq_internal_dump(struct kbase_context *kctx, enum mtk_
 		atomic_set(&kctx->csf.cpu_queue.dump_req_status, BASE_CSF_CPU_QUEUE_DUMP_COMPLETE);
 	} else {
 		qinspect_err(kctx->kbdev,
-			"[qinspect] cpuq_internal_dump: Ctx %d_%d dump error! (time out)",
-			kctx->tgid, kctx->id);
+			"[qinspect] cpuq_internal_dump: Ctx %d_%d dump error! (timeout = %ul)",
+			kctx->tgid, kctx->id, timeout);
 		atomic_set(&kctx->csf.cpu_queue.dump_req_status, BASE_CSF_CPU_QUEUE_DUMP_COMPLETE);
 		mutex_unlock(&kctx->csf.cpu_queue.lock);
 		return -EBUSY;
@@ -311,7 +313,7 @@ struct mtk_qinspect_csf_register_file {
 	};
 };
 
-static int mtk_qinspect_csf_reg_num;
+static u64 mtk_qinspect_csf_reg_num;
 
 struct mtk_qinspect_gpuq_it {
 	union mtk_qinspect_csf_instruction inst;
@@ -334,11 +336,12 @@ static unsigned int mtk_qinspect_gpuq_search_countdown;
 
 static union mtk_qinspect_csf_instruction mtk_qinspect_gpuq_internal_search_inst(struct kbase_queue *queue,
 	struct mtk_qinspect_gpuq_it *gpuq_it, struct mtk_qinspect_csf_register_file *rf,
-	int depth, u64 start, u64 end, union mtk_qinspect_csf_instruction *inst_list);
+	unsigned int depth, u64 start, u64 end, union mtk_qinspect_csf_instruction *inst_list);
 
 static inline int rf_reg_load(struct mtk_qinspect_csf_register_file *rf, u64 reg, u32 *val)
 {
-	if (reg >= mtk_qinspect_csf_reg_num || (rf->valid_map[reg / 64] & (0x1 << (reg % 64))) != (0x1 << (reg % 64)))
+	if (reg >= mtk_qinspect_csf_reg_num
+		|| (rf->valid_map[reg / 64] & (((u64)0x1) << (reg % 64))) != (((u64)0x1) << (reg % 64)))
 		return -1;
 
 	*val = rf->reg32[reg];
@@ -349,7 +352,7 @@ static inline int rf_reg_load(struct mtk_qinspect_csf_register_file *rf, u64 reg
 static inline int rf_reg_load64(struct mtk_qinspect_csf_register_file *rf, u64 reg, u64 *val)
 {
 	if (reg >= mtk_qinspect_csf_reg_num || (reg & 1)
-		|| (rf->valid_map[reg / 64] & (0x3 << (reg % 64))) != (0x3 << (reg % 64)))
+		|| (rf->valid_map[reg / 64] & (((u64)0x3) << (reg % 64))) != (((u64)0x3) << (reg % 64)))
 		return -1;
 
 	*val = rf->reg64[reg >> 1];
@@ -362,7 +365,7 @@ static inline int rf_reg_store(struct mtk_qinspect_csf_register_file *rf, u64 re
 	if (reg >= mtk_qinspect_csf_reg_num)
 		return -1;
 
-	rf->valid_map[reg / 64] |= 0x1 << (reg % 64);
+	rf->valid_map[reg / 64] |= ((u64)0x1) << (reg % 64);
 	rf->reg32[reg] = val;
 
 	return 0;
@@ -373,7 +376,7 @@ static inline int rf_reg_store64(struct mtk_qinspect_csf_register_file *rf, u64 
 	if ((reg >= mtk_qinspect_csf_reg_num) || (reg & 1))
 		return -1;
 
-	rf->valid_map[reg / 64] |= 0x3 << (reg % 64);
+	rf->valid_map[reg / 64] |= ((u64)0x3) << (reg % 64);
 	rf->reg64[reg >> 1] = val;
 
 	return 0;
@@ -381,13 +384,13 @@ static inline int rf_reg_store64(struct mtk_qinspect_csf_register_file *rf, u64 
 
 static union mtk_qinspect_csf_instruction mtk_qinspect_gpuq_internal_decode_inst(struct kbase_queue *queue,
 	struct mtk_qinspect_gpuq_it *gpuq_it, struct mtk_qinspect_csf_register_file *rf,
-	int depth, u64 start, u64 end, union mtk_qinspect_csf_instruction *inst_list)
+	unsigned int depth, u64 start, u64 end, union mtk_qinspect_csf_instruction *inst_list)
 {
 	union mtk_qinspect_csf_instruction *inst = (union mtk_qinspect_csf_instruction *)start;
 	union mtk_qinspect_csf_instruction *target, ret;
 	u64 reg;
-	u32 size, val;
-	u64 buffer, val64;
+	u32 size = 0, val;
+	u64 buffer = 0, val64;
 
 	for (; (u64)inst < end; inst++) {
 		switch (inst->inst.opcode) {
@@ -455,7 +458,7 @@ static union mtk_qinspect_csf_instruction mtk_qinspect_gpuq_internal_decode_inst
 
 static union mtk_qinspect_csf_instruction mtk_qinspect_gpuq_internal_search_inst(struct kbase_queue *queue,
 	struct mtk_qinspect_gpuq_it *gpuq_it, struct mtk_qinspect_csf_register_file *rf,
-	int depth, u64 start, u64 end, union mtk_qinspect_csf_instruction *inst_list)
+	unsigned int depth, u64 start, u64 end, union mtk_qinspect_csf_instruction *inst_list)
 {
 	u64 page_addr;
 	u64 cpu_addr;
@@ -946,14 +949,14 @@ struct mtk_qinspect_gpu_command *mtk_qinspect_query_gpuq_internal_top_wait_cmd(s
 			queue->group->kctx->kbdev;
 		struct kbase_csf_cmd_stream_group_info const *const ginfo =
 			&kbdev->csf.global_iface.groups[queue->group->csg_nr];
-		struct kbase_csf_cmd_stream_info const *const stream =
-			&ginfo->streams[queue->csi_index];
+		struct kbase_csf_cmd_stream_info *stream;
 		u64 cmd_ptr;
 
-		if (!stream) {
+		if (!ginfo->streams) {
 			*blocked_reason = 0;
 			return NULL;
 		}
+		stream = &ginfo->streams[queue->csi_index];
 
 		status_wait = (u64)kbase_csf_firmware_cs_output(stream, CS_STATUS_WAIT);
 		*blocked_reason = (u64)kbase_csf_firmware_cs_output(stream, CS_STATUS_BLOCKED_REASON);
@@ -1126,7 +1129,7 @@ struct mtk_qinspect_fence_wait_on *mtk_qinspect_query_internal_fence_wait_it(
 			wait_it->kctx_next = NULL;
 			break;
 		}
-		do {
+		while (1) {
 			wait_it->kctx_next = list_next_entry(wait_it->kctx_next, kctx_list_link);
 			if (list_entry_is_head(wait_it->kctx_next, &wait_it->kbdev->kctx_list, kctx_list_link)) {
 				wait_it->kctx_next = NULL;
@@ -1151,7 +1154,8 @@ struct mtk_qinspect_fence_wait_on *mtk_qinspect_query_internal_fence_wait_it(
 			/* init kcpu_queue search record */
 			wait_it->kcpu_queue_idx = find_first_bit(wait_it->kctx_next->csf.kcpu_queues.in_use,
 				KBASEP_MAX_KCPU_QUEUES);
-		} while (0);
+			break;
+		}
 		mutex_unlock(&wait_it->kbdev->kctx_list_lock);
 	};
 

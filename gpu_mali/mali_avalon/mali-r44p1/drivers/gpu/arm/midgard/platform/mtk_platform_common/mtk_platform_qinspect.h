@@ -358,7 +358,7 @@ struct mtk_qinspect_cqs_wait_it {
 	/* gpu_queue search record */
 	struct kbase_queue_group *queue_group;
 	u32 queue_group_idx;
-	int gpu_queue_idx;
+	unsigned int gpu_queue_idx;
 
 	/* return info */
 	struct mtk_qinspect_gpu_sync_info gpu_sync_info_ret;
@@ -393,7 +393,7 @@ struct mtk_qinspect_shared_sb_wait_it {
 	u8 shared_entry;
 
 	/* gpu_queue search record */
-	int gpu_queue_idx;
+	unsigned int gpu_queue_idx;
 
 	/* return info */
 	struct mtk_qinspect_shared_sb_wait_on wait_on;
