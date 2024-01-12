@@ -891,6 +891,14 @@ static bool queue_group_scheduled_locked(struct kbase_queue_group *group)
 	return queue_group_scheduled(group);
 }
 
+static void update_idle_protm_group_state_to_runnable(struct kbase_queue_group *group)
+{
+	lockdep_assert_held(&group->kctx->kbdev->csf.scheduler.lock);
+
+	group->run_state = KBASE_CSF_GROUP_RUNNABLE;
+	KBASE_KTRACE_ADD_CSF_GRP(group->kctx->kbdev, CSF_GROUP_RUNNABLE, group, group->run_state);
+}
+
 /**
  * scheduler_protm_wait_quit() - Wait for GPU to exit protected mode.
  *
@@ -4545,7 +4553,9 @@ static void scheduler_ctx_scan_groups(struct kbase_device *kbdev, struct kbase_c
 				scheduler->tick_protm_pending_seq = group->scan_seq_num;
 		}
 
-		if (queue_group_idle_locked(group)) {
+		if (protm_req && on_slot_group_idle_locked(group))
+			update_idle_protm_group_state_to_runnable(group);
+		else if (queue_group_idle_locked(group)) {
 			if (can_schedule_idle_group(group))
 				list_add_tail(&group->link_to_schedule,
 					&scheduler->idle_groups_to_schedule);
@@ -6453,9 +6463,15 @@ static struct kbase_queue_group *scheduler_get_protm_enter_async_group(
 
 		spin_lock_irqsave(&scheduler->interrupt_lock, flags);
 
-		if (kbase_csf_scheduler_protected_mode_in_use(kbdev) ||
-		    bitmap_empty(pending, ginfo->stream_num))
+		if (bitmap_empty(pending, ginfo->stream_num)) {
+			dev_dbg(kbdev->dev,
+				"Pmode requested for group %d of ctx %d_%d with no pending queues",
+				input_grp->handle, input_grp->kctx->tgid, input_grp->kctx->id);
 			input_grp = NULL;
+		} else if (kbase_csf_scheduler_protected_mode_in_use(kbdev)) {
+			kbase_csf_scheduler_invoke_tock(kbdev);
+			input_grp = NULL;
+		}
 
 		spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 	} else {
@@ -6482,11 +6498,8 @@ void kbase_csf_scheduler_group_protm_enter(struct kbase_queue_group *group)
 
 	mutex_lock(&scheduler->lock);
 
-	if (group->run_state == KBASE_CSF_GROUP_IDLE) {
-		group->run_state = KBASE_CSF_GROUP_RUNNABLE;
-		KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSF_GROUP_RUNNABLE, group,
-					group->run_state);
-	}
+	if (on_slot_group_idle_locked(group))
+		update_idle_protm_group_state_to_runnable(group);
 	/* Check if the group is now eligible for execution in protected mode. */
 	if (scheduler_get_protm_enter_async_group(kbdev, group))
 		scheduler_group_check_protm_enter(kbdev, group);
