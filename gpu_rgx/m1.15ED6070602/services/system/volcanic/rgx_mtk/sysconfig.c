@@ -144,12 +144,6 @@ PVRSRV_ERROR SysDevInit(void *pvOSDevice, PVRSRV_DEVICE_CONFIG **ppsDevConfig)
 	gsDevices[0].hDevData = &gsRGXData;
 	gsDevices[0].eCacheSnoopingMode = PVRSRV_DEVICE_SNOOP_NONE;
 
-#if defined(CONFIG_MACH_MT6855)
-	gsDevices[0].bHasFBCDCVersion31 = IMG_TRUE;
-#else
-	gsDevices[0].bHasFBCDCVersion31 = IMG_FALSE;
-#endif
-
 	/* Setup other system specific stuff */
 #if defined(SUPPORT_ION)
 	IonInit(NULL);
