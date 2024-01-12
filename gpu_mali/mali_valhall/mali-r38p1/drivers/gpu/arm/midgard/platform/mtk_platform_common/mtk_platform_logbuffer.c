@@ -201,12 +201,9 @@ fail_invalid_entry:
 void mtk_logbuffer_dump(struct mtk_logbuffer_info *logbuf, struct seq_file *seq)
 {
 	uint32_t start, end, used_entry_num;
-	unsigned long flags;
 
 	if (!logbuf->entries)
 		return;
-
-	spin_lock_irqsave(&logbuf->access_lock, flags);
 
 	start = logbuf->head;
 	end = logbuf->tail;
@@ -230,8 +227,6 @@ void mtk_logbuffer_dump(struct mtk_logbuffer_info *logbuf, struct seq_file *seq)
 			seq_printf(seq, "%s", logbuf->entries);
 		}
 	}
-
-	spin_unlock_irqrestore(&logbuf->access_lock, flags);
 }
 
 static void mtk_logbuffer_init_internal(struct kbase_device *kbdev, struct mtk_logbuffer_info *logbuf,
