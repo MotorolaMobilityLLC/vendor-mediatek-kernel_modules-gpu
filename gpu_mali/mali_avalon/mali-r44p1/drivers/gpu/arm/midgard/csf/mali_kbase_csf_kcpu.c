@@ -2096,6 +2096,9 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 			fence, info.name,
 			fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		kbase_fence_put(fence);
+		mutex_unlock(&queue->lock);
+		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 	} else {
 		kbase_fence_put(fence);
 		mutex_unlock(&queue->lock);
