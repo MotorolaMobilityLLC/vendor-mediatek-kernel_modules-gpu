@@ -31,8 +31,8 @@
 #include <linux/version_compat_defs.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
-/* for fwlog get latest 16kb data */
-static u8 g_buf[PAGE_SIZE * 4];
+/* for fwlog get latest 1MB data */
+static u8 g_buf[PAGE_SIZE * 256];
 extern u8 *g_fw_dump_dest;
 #endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
 
@@ -126,7 +126,11 @@ static const struct firmware_trace_buffer_data trace_buffer_data[] = {
 #if MALI_UNIT_TEST
 	{ "fwutf", { 0 }, 1 },
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+	{ FIRMWARE_LOG_BUF_NAME, { 0 }, 256 },
+#else
 	{ FIRMWARE_LOG_BUF_NAME, { 0 }, 4 },
+#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
 	{ "benchmark", { 0 }, 2 },
 	{ "timeline", { 0 }, KBASE_CSF_TL_BUFFER_NR_PAGES },
 };
@@ -573,11 +577,11 @@ void mtk_kbase_csf_firmware_ke_dump_fwlog(struct kbase_device *kbdev)
 	}
 	while ((read_size = kbase_csf_firmware_trace_buffer_read_data(tb, g_buf, PAGE_SIZE))) {
 		total_size += read_size;
-		if (total_size <= PAGE_SIZE * 4) {
+		if (total_size <= PAGE_SIZE * 256) {
 			memcpy_toio(g_fw_dump_dest, g_buf, read_size);
 			g_fw_dump_dest +=read_size;
 		} else {
-			dev_vdbg(kbdev->dev, "fwlog dump size > 16KB");
+			dev_vdbg(kbdev->dev, "fwlog dump size > 1MB");
 			break;
 		}
 	}
