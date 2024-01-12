@@ -50,6 +50,10 @@
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+#include <ged_dvfs.h>
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
+
 #define CS_REQ_EXCEPTION_MASK (CS_REQ_FAULT_MASK | CS_REQ_FATAL_MASK)
 #define CS_ACK_EXCEPTION_MASK (CS_ACK_FAULT_MASK | CS_ACK_FATAL_MASK)
 
@@ -3273,6 +3277,9 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 						GLB_REQ_IDLE_EVENT_MASK);
 
 					glb_idle_irq_received = true;
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+					ged_get_predict_idle_time();
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 					/* Defer handling this IRQ to account for a race condition
 					 * where the idle worker could be executed before we have
 					 * finished handling all pending IRQs (including CSG IDLE

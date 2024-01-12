@@ -47,7 +47,6 @@
 
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 #include <ged_dvfs.h>
-#define NUM_BYPASS_IDLE_WORKER_ENQUEUE (1)
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 
 /* Value to indicate that a queue group is not groups_to_schedule list */
@@ -76,9 +75,6 @@
 
 /* Explicitly defining this blocked_reason code as SB_WAIT for clarity */
 #define CS_STATUS_BLOCKED_ON_SB_WAIT CS_STATUS_BLOCKED_REASON_REASON_WAIT
-#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
-static int bypss_enqueue_times;
-#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 
 static int scheduler_group_schedule(struct kbase_queue_group *group);
 static void remove_group_from_idle_wait(struct kbase_queue_group *const group);
@@ -533,27 +529,16 @@ void kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev)
 			 * but it'll eventually be blocked by the scheduler->interrupt_lock.
 			 */
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
-			/* Handle while false */
-			if (!atomic_read(&scheduler->gpu_adaptive_power_off)) {
-				/* Bypass enqueue */
-				if (ged_gpu_adaptive_power_notify()) {
-					bypss_enqueue_times++;
-					/* Next enqueue need for update power duration */
-					if (bypss_enqueue_times > NUM_BYPASS_IDLE_WORKER_ENQUEUE) {
-						atomic_set(&scheduler->gpu_adaptive_power_off, true);
-					}
-				/* Handle enqueue */
-				} else {
-					bypss_enqueue_times = 0;
+			/* Bypass enqueue */
+			if (ged_gpu_adaptive_power_notify()) {
+				kbase_pm_enable_db_mirror_interrupt(kbdev);
+				if (!ged_gpu_predict_adaptive_power_notify()) {
+					kbase_pm_disable_db_mirror_interrupt(kbdev);
 					enqueue_gpu_idle_work(scheduler);
-					atomic_set(&scheduler->gpu_adaptive_power_off, false);
 				}
-			/* Handle while true for new power duartion update */
-			} else {
-				bypss_enqueue_times = 0;
+			/* Handle enqueue */
+			} else
 				enqueue_gpu_idle_work(scheduler);
-				atomic_set(&scheduler->gpu_adaptive_power_off, false);
-			}
 #else
 			enqueue_gpu_idle_work(scheduler);
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
@@ -6741,9 +6726,6 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 	scheduler->fast_gpu_idle_handling = false;
 	atomic_set(&scheduler->gpu_no_longer_idle, false);
 	atomic_set(&scheduler->non_idle_offslot_grps, 0);
-#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
-	atomic_set(&scheduler->gpu_adaptive_power_off, false);
-#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 	hrtimer_init(&scheduler->tick_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	scheduler->tick_timer.function = tick_timer_callback;
 
