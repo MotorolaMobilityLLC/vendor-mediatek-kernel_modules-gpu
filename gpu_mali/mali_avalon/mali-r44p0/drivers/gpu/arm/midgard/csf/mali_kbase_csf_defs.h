@@ -1038,11 +1038,13 @@ struct kbase_csf_mcu_shared_regions {
  *                          This pointer being set doesn't necessarily indicates
  *                          that GPU is in protected mode, kbdev->protected_mode
  *                          needs to be checked for that.
+ * #if IS_ENABLED(CONFIG_MALI_MTK_PDCA_SVP_WA)
  * @pmode_exit_wa_work:     Work item for quickly executing the platform specific
  *                          workaround after executing protected mode.
  * @apply_pmode_exit_wa:    Flag to indicate that exit from protected mode has
  *                          happened and a platform specific workaround needs to
  *                          be applied.
+ * #endif IS_ENABLED(CONFIG_MALI_MTK_PDCA_SVP_WA)
  * @idle_wq:                Workqueue for executing GPU idle notification
  *                          handler.
  * @gpu_idle_work:          Work item for facilitating the scheduler to bring
@@ -1117,8 +1119,10 @@ struct kbase_csf_scheduler {
 	struct kbase_context *top_ctx;
 	struct kbase_queue_group *top_grp;
 	struct kbase_queue_group *active_protm_grp;
+#if IS_ENABLED(CONFIG_MALI_MTK_PDCA_SVP_WA)
 	struct work_struct pmode_exit_wa_work;
 	bool apply_pmode_exit_wa;
+#endif /* IS_ENABLED(CONFIG_MALI_MTK_PDCA_SVP_WA) */
 	struct workqueue_struct *idle_wq;
 	struct work_struct gpu_idle_work;
 	bool fast_gpu_idle_handling;

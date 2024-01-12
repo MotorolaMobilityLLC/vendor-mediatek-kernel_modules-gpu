@@ -997,6 +997,7 @@ static inline void kbase_pm_disable_db_mirror_interrupt(struct kbase_device *kbd
 }
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PDCA_SVP_WA)
 /**
  * kbase_pm_apply_pmode_entry_wa - Apply the WA, before protected mode entry, to
  *                                 disable the power control of SC on FW side
@@ -1020,6 +1021,7 @@ int kbase_pm_apply_pmode_entry_wa(struct kbase_device *kbdev);
  * This function must be called with Scheduler lock held.
  */
 void kbase_pm_apply_pmode_exit_wa(struct kbase_device *kbdev);
+#endif /* IS_ENABLED(CONFIG_MALI_MTK_PDCA_SVP_WA) */
 
 /**
  * kbase_pm_l2_allow_mmu_page_migration - L2 state allows MMU page migration or not

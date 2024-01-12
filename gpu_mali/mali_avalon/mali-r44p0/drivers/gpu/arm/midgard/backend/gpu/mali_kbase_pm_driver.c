@@ -3613,7 +3613,7 @@ void kbase_pm_release_gpu_cycle_counter(struct kbase_device *kbdev)
 
 KBASE_EXPORT_TEST_API(kbase_pm_release_gpu_cycle_counter);
 
-#if MALI_USE_CSF
+#if MALI_USE_CSF && IS_ENABLED(CONFIG_MALI_MTK_PDCA_SVP_WA)
 static int power_up_required_cores(struct kbase_device *kbdev)
 {
 	struct kbase_pm_backend_data *backend = &kbdev->pm.backend;
@@ -3745,4 +3745,4 @@ void kbase_pm_apply_pmode_exit_wa(struct kbase_device *kbdev)
 
 	kbase_pm_unlock(kbdev);
 }
-#endif
+#endif /* MALI_USE_CSF && IS_ENABLED(CONFIG_MALI_MTK_PDCA_SVP_WA) */
