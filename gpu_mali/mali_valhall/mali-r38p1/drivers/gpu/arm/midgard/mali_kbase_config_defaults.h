@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2013-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2013-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -262,5 +262,12 @@ enum {
  */
 #define DEFAULT_IR_THRESHOLD (192)
 
+/* Waiting time in clock cycles for the completion of a MMU operation.
+ *
+ * Ideally 1.6M GPU cycles required for the L2 cache (512KiB slice) flush.
+ *
+ * As a pessimistic value, 50M GPU cycles ( > 30 times bigger ) is chosen.
+ * It corresponds to 0.5s in GPU @ 100Mhz.
+ */
+#define MMU_AS_INACTIVE_WAIT_TIMEOUT_CYCLES ((u64)50 * 1024 * 1024)
 #endif /* _KBASE_CONFIG_DEFAULTS_H_ */
-

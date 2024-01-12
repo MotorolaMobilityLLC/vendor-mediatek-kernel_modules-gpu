@@ -550,13 +550,6 @@ static void kbase_csf_reset_gpu_worker(struct work_struct *data)
 		err = kbase_csf_reset_gpu_now(kbdev, firmware_inited, silent);
 		kbase_pm_context_idle(kbdev);
 	}
-
-#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
-	spin_lock(&kbdev->reset_force_change);
-	kbdev->reset_force_mmu_not_ready = false;
-	spin_unlock(&kbdev->reset_force_change);
-#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
-
 	kbase_disjoint_state_down(kbdev);
 
 	/* Allow other threads to once again use the GPU */
