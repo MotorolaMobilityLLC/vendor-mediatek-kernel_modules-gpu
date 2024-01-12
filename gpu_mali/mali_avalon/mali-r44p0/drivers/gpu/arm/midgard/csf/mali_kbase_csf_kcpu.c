@@ -1482,12 +1482,6 @@ static void fence_timeout_callback(struct timer_list *timer)
 			 "ctx:%d_%d kcpu queue:%u still waiting for fence[%pK] context#seqno:%s\n",
 			  kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, kctx->tgid, MTK_DBG_HOOK_FENCE_EXTERNAL_KCPU_TIMEOUT);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, kctx->tgid, MTK_DBG_HOOK_FENCE_EXTERNAL_KCPU_TIMEOUT);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, kctx->tgid, MTK_DBG_HOOK_FENCE_EXTERNAL_KCPU_TIMEOUT);
-		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, kctx->tgid, MTK_DBG_HOOK_FENCE_EXTERNAL_KCPU_TIMEOUT);
-#endif /* CONFIG_MALI_MTK_DEBUG */
 	} else {
 		dev_warn(kctx->kbdev->dev, "fence has got error");
 		dev_warn(kctx->kbdev->dev,
