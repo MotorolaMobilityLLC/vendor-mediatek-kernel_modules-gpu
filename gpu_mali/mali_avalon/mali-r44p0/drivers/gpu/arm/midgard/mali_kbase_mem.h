@@ -39,7 +39,9 @@
 #include "mali_kbase_mem_linux.h"
 #include "mali_kbase_mem_migrate.h"
 #include "mali_kbase_refcount_defs.h"
-
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+#include <slbc_ops.h>
+#endif
 static inline void kbase_process_page_usage_inc(struct kbase_context *kctx,
 		int pages);
 
@@ -958,6 +960,9 @@ static inline struct kbase_mem_phy_alloc *kbase_alloc_create(
 static inline int kbase_reg_prepare_native(struct kbase_va_region *reg,
 		struct kbase_context *kctx, int group_id)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+	struct slbc_gid_data slbc_data={0,0,0,0,0,0,0,0,0};
+#endif
 	KBASE_DEBUG_ASSERT(reg);
 	KBASE_DEBUG_ASSERT(!reg->cpu_alloc);
 	KBASE_DEBUG_ASSERT(!reg->gpu_alloc);
@@ -983,6 +988,11 @@ static inline int kbase_reg_prepare_native(struct kbase_va_region *reg,
 	} else {
 		reg->gpu_alloc = kbase_mem_phy_alloc_get(reg->cpu_alloc);
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+	slbc_gid_request(ID_GPU,&group_id,&slbc_data);
+	slbc_validate(ID_GPU,group_id);
+#endif
 
 	mutex_lock(&kctx->jit_evict_lock);
 	INIT_LIST_HEAD(&reg->cpu_alloc->evict_node);

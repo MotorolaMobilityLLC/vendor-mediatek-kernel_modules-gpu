@@ -44,6 +44,13 @@
 #include <mali_kbase_config_defaults.h>
 #include <mali_kbase_trace_gpu_mem.h>
 #include <linux/version_compat_defs.h>
+
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+#include <mtk_heap.h>
+#include <slbc_ops.h>
+#include <linux/memory_group_manager.h>
+#endif
+
 #define VA_REGION_SLAB_NAME_PREFIX "va-region-slab-"
 #define VA_REGION_SLAB_NAME_SIZE (DEVNAME_SIZE + sizeof(VA_REGION_SLAB_NAME_PREFIX) + 1)
 
@@ -3186,6 +3193,9 @@ static void kbase_jd_user_buf_unpin_pages(struct kbase_mem_phy_alloc *alloc);
 void kbase_mem_kref_free(struct kref *kref)
 {
 	struct kbase_mem_phy_alloc *alloc;
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+	int gid=0;
+#endif
 
 	alloc = container_of(kref, struct kbase_mem_phy_alloc, kref);
 
@@ -3246,6 +3256,17 @@ void kbase_mem_kref_free(struct kref *kref)
 			kbase_remove_dma_buf_usage(alloc->imported.umm.kctx,
 						   alloc);
 		}
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+		gid = dma_buf_get_gid(alloc->imported.umm.dma_buf);
+		if(gid==GPU_ONLY_GID){
+			slbc_invalidate(ID_GPU,gid);
+			slbc_gid_release(ID_GPU,gid);
+		}
+		else if(gid==GPU_TO_OVL_GID){
+			slbc_invalidate(ID_GPU_W,gid);
+			slbc_gid_release(ID_GPU_W,gid);
+		}
+#endif
 		dma_buf_detach(alloc->imported.umm.dma_buf,
 			       alloc->imported.umm.dma_attachment);
 		dma_buf_put(alloc->imported.umm.dma_buf);

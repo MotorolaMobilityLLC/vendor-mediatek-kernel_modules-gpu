@@ -40,6 +40,10 @@
 #define REFILL_TARGET (SZ_64M >> PAGE_SHIFT)
 #define HALF_REFILL_TARGET (REFILL_TARGET >> 1)
 #endif /* CONFIG_MALI_MTK_MGMM */
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+#include <mtk_heap.h>
+#include <slbc_ops.h>
+#endif
 
 #if (KERNEL_VERSION(4, 20, 0) > LINUX_VERSION_CODE)
 static inline vm_fault_t vmf_insert_pfn_prot(struct vm_area_struct *vma,
@@ -972,6 +976,11 @@ static int example_mgm_get_import_memory_id(
 	struct memory_group_manager_import_data *import_data)
 {
 	struct mgm_groups *const data = mgm_dev->data;
+	int group_id=IMPORTED_MEMORY_ID;
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+	struct dma_buf *buf;
+	int gid=0;
+#endif
 
 	dev_vdbg(data->dev, "%s(mgm_dev=%p, import_data=%p (type=%d)\n",
 		__func__, (void *)mgm_dev, (void *)import_data,
@@ -983,8 +992,17 @@ static int example_mgm_get_import_memory_id(
 		WARN_ON(import_data->type !=
 				MEMORY_GROUP_MANAGER_IMPORT_TYPE_DMA_BUF);
 	}
-
-	return IMPORTED_MEMORY_ID;
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+	buf = import_data->u.dma_buf;
+	gid=dma_buf_get_gid(buf);
+	if(gid == GPU_ONLY_GID){
+		group_id = GPU_ONLY_PBHA;
+	}
+	else if(gid == GPU_TO_OVL_GID){
+		group_id = GPU_TO_OVL_PBHA;
+	}
+#endif
+	return group_id;
 }
 
 static u64 example_mgm_update_gpu_pte(

@@ -32,6 +32,13 @@ typedef int vm_fault_t;
 
 #define MEMORY_GROUP_MANAGER_NR_GROUPS (16)
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+#define GPU_ONLY_GID 6
+#define GPU_ONLY_PBHA 6
+#define GPU_TO_OVL_GID 7
+#define GPU_TO_OVL_PBHA 7
+#endif
+
 struct memory_group_manager_device;
 struct memory_group_manager_import_data;
 
