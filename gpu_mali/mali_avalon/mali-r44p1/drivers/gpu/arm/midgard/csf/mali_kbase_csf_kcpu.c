@@ -3073,15 +3073,6 @@ int kbase_csf_kcpu_queue_halt_timers(struct kbase_device *kbdev)
 {
 	struct kbase_context *kctx;
 
-#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
-	/*
-	 * Not to have the timer halt/resume when GPU power off/on to prevent the gpu off
-	 * caused by the error and timeout will not be triggered
-	 */
-	(void)kctx;
-	return 0;
-#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
-
 	list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
 		unsigned long queue_idx;
 		struct kbase_csf_kcpu_queue_context *kcpu_ctx = &kctx->csf.kcpu_queues;
@@ -3137,15 +3128,6 @@ int kbase_csf_kcpu_queue_halt_timers(struct kbase_device *kbdev)
 void kbase_csf_kcpu_queue_resume_timers(struct kbase_device *kbdev)
 {
 	struct kbase_context *kctx;
-
-#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
-	/*
-	 * Not to have the timer halt/resume when GPU power off/on to prevent the gpu off
-	 * caused by the error and timeout will not be triggered
-	 */
-	(void)kctx;
-	return;
-#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 	list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
 		unsigned long queue_idx;
