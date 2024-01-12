@@ -1240,10 +1240,6 @@ struct kbase_device {
 
 	struct notifier_block oom_notifier_block;
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	GED_LOG_BUF_HANDLE ged_log_buf_hnd_kbase;
-#endif /* CONFIG_MALI_MTK_DEBUG */
-
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	struct mtk_logbuffer_info logbuf_regular;
 	struct mtk_logbuffer_info logbuf_exception;

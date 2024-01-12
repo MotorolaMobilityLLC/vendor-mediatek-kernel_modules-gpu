@@ -1241,16 +1241,6 @@ static void mtk_debug_csf_scheduler_dump_active_queue_cs_status_wait(
 	//     - WAIT: Blocked on scoreboards in some way.
 	//     - RESOURCE: Blocked on waiting for resource allocation. e.g., compute, tiler, and fragment resources.
 	//     - SYNC_WAIT: Blocked on a SYNC_WAIT{32|64} instruction.
-
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	if (blocked_reason == CS_STATUS_BLOCKED_REASON_REASON_WAIT) {
-		ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
-			 "    [%d_%d] BLOCKED_REASON: %s\n",
-	         tgid,
-	         id,
-	         blocked_reason_to_string(CS_STATUS_BLOCKED_REASON_REASON_GET(blocked_reason)));
-	}
-#endif
 }
 
 static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
@@ -1959,15 +1949,6 @@ static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int tim
 	         timeouts,
 	         fd,
 	         pid);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
-		 "%s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d\n",
-		 fence_timeout_type_to_string(type),
-		 timeouts,
-		 fd,
-		 pid);
-#endif
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_exception,
