@@ -1213,10 +1213,11 @@ struct kbase_device {
 	u64 reg_start;
 	size_t reg_size;
 	void __iomem *reg;
-#if IS_ENABLED(CONFIG_MALI_MTK_LOWVOLT_RESET)
-	int low_volt_irq;
+#if IS_ENABLED(CONFIG_MALI_MTK_GPUEB_IRQ)
+	int gpueb_irq;
 	u64 low_volt_count;
-#endif /* CONFIG_MALI_MTK_LOWVOLT_RESET */
+	u64 brcast_timeout_count;
+#endif /* CONFIG_MALI_MTK_GPUEB_IRQ */
 
 	struct {
 		int irq;

@@ -31,9 +31,9 @@
 #include <mali_kbase_reset_gpu.h>
 #include <csf/mali_kbase_csf_firmware_log.h>
 
-#if IS_ENABLED(CONFIG_MALI_MTK_LOWVOLT_RESET)
+#if IS_ENABLED(CONFIG_MALI_MTK_GPUEB_IRQ)
 #include <gpueb_ipi.h>
-#endif /* CONFIG_MALI_MTK_LOWVOLT_RESET */
+#endif /* CONFIG_MALI_MTK_GPUEB_IRQ */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <platform/mtk_platform_common.h>
@@ -729,32 +729,53 @@ int kbase_reset_gpu_wait(struct kbase_device *kbdev)
 }
 KBASE_EXPORT_TEST_API(kbase_reset_gpu_wait);
 
-#if IS_ENABLED(CONFIG_MALI_MTK_LOWVOLT_RESET)
-static irqreturn_t kbase_reset_gpu_low_volt_irq_handler(int irq, void *data) {
+#if IS_ENABLED(CONFIG_MALI_MTK_GPUEB_IRQ)
+static irqreturn_t kbase_gpueb_irq_handler(int irq, void *data) {
 	struct kbase_device *kbdev = data;
-	dev_err(kbdev->dev, "kbase_reset_gpu_low_volt_handler %llu", ++(kbdev->low_volt_count));
+	unsigned int gpueb_irq_status = 0;
+
+	gpueb_irq_status = gpueb_get_mbox1_irq();
+	if (gpueb_irq_status & BIT(0)) {
+		kbdev->low_volt_count++;
+		dev_err(kbdev->dev, "kbase_gpueb_irq_handler: ++LOW_VOLT[%llu] BRCAST_TIMEOUT[%llu]",
+			kbdev->low_volt_count, kbdev->brcast_timeout_count);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-		"kbase_reset_gpu_low_volt_handler %llu\n", kbdev->low_volt_count);
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"kbase_gpueb_irq_handler: ++LOW_VOLT[%llu] BRCAST_TIMEOUT[%llu]\n",
+			kbdev->low_volt_count, kbdev->brcast_timeout_count);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	} else if (gpueb_irq_status & BIT(1)) {
+		kbdev->brcast_timeout_count++;
+		dev_err(kbdev->dev, "kbase_gpueb_irq_handler: LOW_VOLT[%llu] ++BRCAST_TIMEOUT[%llu]",
+			kbdev->low_volt_count, kbdev->brcast_timeout_count);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"kbase_gpueb_irq_handler: LOW_VOLT[%llu] ++BRCAST_TIMEOUT[%llu]\n",
+			kbdev->low_volt_count, kbdev->brcast_timeout_count);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	}
 
 	if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
 		kbase_reset_gpu(kbdev);
 	else
-		dev_err(kbdev->dev, "kbase_reset_gpu_low_volt_handler Some other thread is already resetting the GPU");
+		dev_err(kbdev->dev, "kbase_gpueb_irq_handler: GPU is already under reset");
 
-	gpueb_clr_mbox1_irq();
+	if (gpueb_irq_status & BIT(0))
+		gpueb_clr_mbox1_irq(BIT(0));
+	else if (gpueb_irq_status & BIT(1))
+		gpueb_clr_mbox1_irq(BIT(1));
+
 	return IRQ_HANDLED;
 }
-#endif /* CONFIG_MALI_MTK_LOWVOLT_RESET */
+#endif /* CONFIG_MALI_MTK_GPUEB_IRQ */
 
 int kbase_reset_gpu_init(struct kbase_device *kbdev)
 {
-#if IS_ENABLED(CONFIG_MALI_MTK_LOWVOLT_RESET)
+#if IS_ENABLED(CONFIG_MALI_MTK_GPUEB_IRQ)
 	int ret = -1;
 	int irq;
 	struct platform_device *pdev;
-#endif /* CONFIG_MALI_MTK_LOWVOLT_RESET */
+#endif /* CONFIG_MALI_MTK_GPUEB_IRQ */
 	kbdev->csf.reset.workq = alloc_workqueue("Mali reset workqueue", 0, 1);
 	if (kbdev->csf.reset.workq == NULL)
 		return -ENOMEM;
@@ -764,35 +785,35 @@ int kbase_reset_gpu_init(struct kbase_device *kbdev)
 	init_waitqueue_head(&kbdev->csf.reset.wait);
 	init_rwsem(&kbdev->csf.reset.sem);
 
-#if IS_ENABLED(CONFIG_MALI_MTK_LOWVOLT_RESET)
-	kbdev->low_volt_irq = 0;
+#if IS_ENABLED(CONFIG_MALI_MTK_GPUEB_IRQ)
+	kbdev->gpueb_irq = 0;
 	kbdev->low_volt_count = 0;
+	kbdev->brcast_timeout_count = 0;
 
 	pdev = to_platform_device(kbdev->dev);
 #if IS_ENABLED(CONFIG_OF)
-	irq = platform_get_irq_byname(pdev, "LOWVOLT");
-	dev_info(kbdev->dev, "get LOWVOLT interrupt %d\n", irq);
+	irq = platform_get_irq_byname(pdev, "GPUEB_MBOX1");
+	dev_info(kbdev->dev, "get GPUEB_MBOX1 interrupt %d\n", irq);
 #else
 	irq = platform_get_irq(pdev, 5);
 	dev_info(kbdev->dev, "get mali 5 interrupt %d\n", irq);
 #endif /* CONFIG_OF */
 	if (irq <= 0) {
-		dev_err(kbdev->dev, "No LOWVOLT IRQ resource err_code = %d\n",
-					irq);
+		dev_err(kbdev->dev, "fail to get GPUEB_MBOX1 IRQ, err_code = %d\n", irq);
 		return -EINVAL;
 	}
 
-	kbdev->low_volt_irq = irq;
-	ret = request_irq(kbdev->low_volt_irq, kbase_reset_gpu_low_volt_irq_handler,
-			irqd_get_trigger_type(irq_get_irq_data(kbdev->low_volt_irq)) | IRQF_SHARED,
-			dev_name(kbdev->dev), kbdev);
+	kbdev->gpueb_irq = irq;
+	ret = request_irq(kbdev->gpueb_irq, kbase_gpueb_irq_handler,
+		irqd_get_trigger_type(irq_get_irq_data(kbdev->gpueb_irq)) | IRQF_SHARED,
+		dev_name(kbdev->dev), kbdev);
 
 	if (ret) {
-		dev_err(kbdev->dev, "Can't request low volt interrupt %d err_code = %d\n",
-					kbdev->low_volt_irq, ret);
+		dev_err(kbdev->dev, "fail to request GPUEB_MBOX1 IRQ %d, err_code = %d\n",
+			kbdev->gpueb_irq, ret);
 		return -EINVAL;
 	}
-#endif /* CONFIG_MALI_MTK_LOWVOLT_RESET */
+#endif /* CONFIG_MALI_MTK_GPUEB_IRQ */
 
 	return 0;
 }
@@ -801,8 +822,8 @@ void kbase_reset_gpu_term(struct kbase_device *kbdev)
 {
 	destroy_workqueue(kbdev->csf.reset.workq);
 
-#if IS_ENABLED(CONFIG_MALI_MTK_LOWVOLT_RESET)
-	if (kbdev->low_volt_irq)
-		free_irq(kbdev->low_volt_irq, kbdev);
-#endif /* CONFIG_MALI_MTK_LOWVOLT_RESET */
+#if IS_ENABLED(CONFIG_MALI_MTK_GPUEB_IRQ)
+	if (kbdev->gpueb_irq)
+		free_irq(kbdev->gpueb_irq, kbdev);
+#endif /* CONFIG_MALI_MTK_GPUEB_IRQ */
 }
