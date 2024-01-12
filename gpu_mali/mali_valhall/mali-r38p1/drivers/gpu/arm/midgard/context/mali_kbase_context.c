@@ -181,6 +181,7 @@ int kbase_context_common_init(struct kbase_context *kctx)
 
 	mutex_unlock(&kctx->kbdev->kctx_list_lock);
 
+	kctx->has_page_faults = false;
 	return err;
 }
 

@@ -1590,6 +1590,11 @@ int kbase_csf_queue_group_create(struct kbase_context *const kctx,
 			err = group_handle;
 	}
 
+	if (kctx->has_page_faults) {
+		dev_err(kctx->kbdev->dev, "CET: ctx %d_%d create new queue group, terminate the debug log", kctx->tgid, kctx->id);
+		kctx->has_page_faults = false;
+	}
+
 	mutex_unlock(&kctx->csf.lock);
 
 	return err;
@@ -1717,7 +1722,9 @@ static void term_queue_group(struct kbase_queue_group *group)
 	if (group->run_state == KBASE_CSF_GROUP_TERMINATED)
 		return;
 
-	dev_vdbg(kctx->kbdev->dev, "group %d terminating", group->handle);
+	if (kctx->has_page_faults) {
+		dev_err(kctx->kbdev->dev, "group %d terminating, ctx %d_%d", group->handle, kctx->tgid, kctx->id);
+	}
 
 	kbase_csf_term_descheduled_queue_group(group);
 }
@@ -1843,6 +1850,7 @@ void kbase_csf_add_group_fatal_error(
 	struct base_gpu_queue_group_error const *const err_payload)
 {
 	struct base_csf_notification error;
+	struct kbase_context *kctx = group->kctx;
 
 	if (WARN_ON(!group))
 		return;
@@ -1861,6 +1869,9 @@ void kbase_csf_add_group_fatal_error(
 	};
 
 	kbase_csf_event_add_error(group->kctx, &group->error_fatal, &error);
+
+	dev_err(kctx->kbdev->dev, "CET:kbase_csf_add_group_fatal_error Context %d_%d group %d",
+		kctx->tgid, kctx->id, group->handle);
 }
 
 void kbase_csf_active_queue_groups_reset(struct kbase_device *kbdev,
@@ -2581,6 +2592,9 @@ static void report_queue_fatal_error(struct kbase_queue *const queue,
 
 	kbase_csf_event_add_error(queue->kctx, &queue->error, &error);
 	kbase_event_wakeup(queue->kctx);
+
+	dev_err(queue->kctx->kbdev->dev, "CET:report_queue_fatal_error Context %d_%d group %d",
+		queue->kctx->tgid, queue->kctx->id, group_handle);
 }
 
 /**
@@ -2634,6 +2648,9 @@ static void fatal_event_worker(struct work_struct *const data)
 
 		goto unlock;
 	}
+
+	kctx->has_page_faults = true;
+	dev_err(kctx->kbdev->dev, "CET: start to track queue termination and recreation ctx %d_%d from here", kctx->tgid, kctx->id);
 
 	group_handle = group->handle;
 	term_queue_group(group);
