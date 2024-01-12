@@ -266,6 +266,23 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 	access_type = AS_FAULTSTATUS_ACCESS_TYPE_GET(status);
 	source_id = AS_FAULTSTATUS_SOURCE_ID_GET(status);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	dev_err(kbdev->dev,
+		"Unhandled Page fault in AS%d at VA 0x%016llX\n"
+		"Reason: %s\n"
+		"raw fault status: 0x%X\n"
+		"exception type 0x%X: %s\n"
+		"access type 0x%X: %s\n"
+		"source id 0x%X\n"
+		"tgid: %d, pid: %d, comm: %s\n",
+		as_no, fault->addr,
+		reason_str,
+		status,
+		exception_type, kbase_gpu_exception_name(exception_type),
+		access_type, kbase_gpu_access_type_name(status),
+		source_id,
+		kctx->tgid, kctx->pid, kctx->comm);
+#else
 	/* terminal fault, print info about the fault */
 	dev_err(kbdev->dev,
 		"Unhandled Page fault in AS%d at VA 0x%016llX\n"
@@ -282,6 +299,7 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 		access_type, kbase_gpu_access_type_name(status),
 		source_id,
 		kctx->pid);
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 		"Unhandled Page fault in AS%d at VA 0x%016llX\n"
@@ -290,14 +308,14 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 		"exception type 0x%X: %s\n"
 		"access type 0x%X: %s\n"
 		"source id 0x%X\n"
-		"pid: %d\n",
+		"tgid: %d, pid: %d, comm: %s\n",
 		as_no, fault->addr,
 		reason_str,
 		status,
 		exception_type, kbase_gpu_exception_name(exception_type),
 		access_type, kbase_gpu_access_type_name(status),
 		source_id,
-		kctx->pid);
+		kctx->tgid, kctx->pid, kctx->comm);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
