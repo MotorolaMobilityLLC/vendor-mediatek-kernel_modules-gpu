@@ -444,6 +444,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	mtk_mfg_counter_init();
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+	spin_lock_init(&kbdev->reset_force_change);
+#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
+
 	return 0;
 }
 
