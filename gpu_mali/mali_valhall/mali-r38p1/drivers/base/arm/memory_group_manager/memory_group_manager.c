@@ -586,10 +586,9 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 	spin_lock(&data->free_4K_lst_lk);
 	if (nr_4Kfree_lst) {
 		p = list_first_entry(&data->free_4K_lst, struct page, lru);
-		list_del_init(&p->lru);
-		nr_4Kfree_lst--;
-
 		if (p) {
+			list_del_init(&p->lru);
+			nr_4Kfree_lst--;
 			spin_unlock(&data->free_4K_lst_lk);
 			return p;
 		}
