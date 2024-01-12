@@ -36,9 +36,11 @@
 #include <platform/mtk_platform_common.h>
 
 /* for fwlog get latest 16kb data */
+#define FWLOG_DEFAULT_CONTENT_LEN 64
 struct device_node *g_rmem_node = NULL;
 struct reserved_mem *g_fwlogdump = NULL;
 u8 *g_fw_dump_dest = NULL;
+static char fw_default_content[FWLOG_DEFAULT_CONTENT_LEN] = "======CSF fwlog is empy! ======";
 #endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
 
 #if defined(CONFIG_DEBUG_FS)
@@ -386,6 +388,9 @@ int kbase_csf_firmware_log_init(struct kbase_device *kbdev)
 	g_fw_dump_dest = ioremap_wc(g_fwlogdump->base, g_fwlogdump->size);
 	dev_info(kbdev->dev, "[me_CSFFWLOG_reserved] phys = 0x%x, size = %d, virt = 0x%llx\n",
 			g_fwlogdump->base, g_fwlogdump->size, g_fw_dump_dest);
+
+	/* printf "======CSF fwlog is empy! ======" at START of SYS_MALI_CSFFW_LOG */
+	memcpy(g_fw_dump_dest, fw_default_content, FWLOG_DEFAULT_CONTENT_LEN);
 #endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
 
 	return 0;

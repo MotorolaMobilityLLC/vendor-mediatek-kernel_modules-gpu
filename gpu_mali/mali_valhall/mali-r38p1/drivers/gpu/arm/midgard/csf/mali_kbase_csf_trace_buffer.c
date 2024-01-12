@@ -31,9 +31,11 @@
 #include <linux/version_compat_defs.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+#define FWLOG_EOF_LEN 64
 /* for fwlog get latest 1MB data */
 static u8 g_buf[PAGE_SIZE * 256];
 extern u8 *g_fw_dump_dest;
+static char fw_eof_content[FWLOG_EOF_LEN] = "====[Cut]:fwlog end of file====";
 #endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
 
 /**
@@ -586,6 +588,10 @@ void mtk_kbase_csf_firmware_ke_dump_fwlog(struct kbase_device *kbdev)
 		}
 	}
 	dev_info(kbdev->dev, "[CSFFW]:(ke)dump fwlog size = 0x%x\n", total_size);
+
+	/* printf "[Cut]:fwlog end of file" at END of SYS_MALI_CSFFW_LOG */
+	if (total_size < (PAGE_SIZE * 256 - FWLOG_EOF_LEN))
+		memcpy_toio(g_fw_dump_dest, fw_eof_content, FWLOG_EOF_LEN);
 }
 EXPORT_SYMBOL(mtk_kbase_csf_firmware_ke_dump_fwlog);
 #endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
