@@ -700,5 +700,14 @@ __attribute__((unused)) static const enum base_hw_issue base_hw_issues_tTUx_r1p1
 	BASE_HW_ISSUE_END
 };
 
+__attribute__((unused)) static const enum base_hw_issue base_hw_issues_tTUx_r1p3[] = {
+	BASE_HW_ISSUE_TSIX_2033,
+	BASE_HW_ISSUE_TTRX_1337,
+	BASE_HW_ISSUE_GPU2019_3878,
+	BASE_HW_ISSUE_TURSEHW_2716,
+	BASE_HW_ISSUE_GPU2019_3901,
+	BASE_HW_ISSUE_GPU2021PRO_290,
+	BASE_HW_ISSUE_END
+};
 
 #endif /* _BASE_HWCONFIG_ISSUES_H_ */
