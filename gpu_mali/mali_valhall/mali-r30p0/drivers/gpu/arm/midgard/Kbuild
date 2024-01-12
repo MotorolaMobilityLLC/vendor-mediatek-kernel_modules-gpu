@@ -46,9 +46,7 @@ MALI_CUSTOMER_RELEASE ?= 1
 MALI_UNIT_TEST ?= 0
 MALI_KERNEL_TEST_API ?= 0
 MALI_COVERAGE ?= 0
-#CONFIG_MALI_PLATFORM_NAME ?= "devicetree"
-# *** MTK ***
-CONFIG_MALI_PLATFORM_NAME ?= $(CONFIG_MALI_PLATFORM_THIRDPARTY_NAME)
+CONFIG_MALI_PLATFORM_NAME ?= "devicetree"
 # Experimental features (corresponding -D definition should be appended to
 # DEFINES below, e.g. for MALI_EXPERIMENTAL_FEATURE,
 # -DMALI_EXPERIMENTAL_FEATURE=$(MALI_EXPERIMENTAL_FEATURE) should be appended)
@@ -189,9 +187,6 @@ ccflags-y += -I$(KBASE_PATH) -I$(KBASE_PATH)/debug \
 	-I$(KBASE_PATH)/debug/backend
 
 # Tell the Linux build system from which .o file to create the kernel module
-$(info *GPU [mtk-Kbuild] CONFIG_MTK_GPU_VERSION = $(CONFIG_MTK_GPU_VERSION))
-$(info *GPU [mtk-Kbuild] MTK_GPU_VERSION = $(MTK_GPU_VERSION))
-$(info *GPU [mtk-Kbuild] MTK_PLATFORM = $(MTK_PLATFORM))
 # LD1.0
 ifneq ($(CONFIG_MTK_GPU_VERSION),"")
 obj-$(CONFIG_MALI_MIDGARD) += mali_kbase.o
