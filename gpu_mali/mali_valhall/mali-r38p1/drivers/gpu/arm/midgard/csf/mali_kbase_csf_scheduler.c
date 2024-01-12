@@ -3005,18 +3005,13 @@ void kbase_csf_scheduler_group_deschedule(struct kbase_queue_group *group)
 				kbase_backend_get_cycle_cnt(kbdev),
 				group->handle, group->kctx->tgid,
 				group->kctx->id, group->csg_nr);
-
-			scheduler_wakeup(kbdev, true);
-
 			/* No point in waiting for CSG termination if MCU didn't
-			* become active.
-			*/
+			 * become active.
+			 */
 			wait_for_termination = false;
-
 		}
 	}
 #endif
-
 	if (!on_slot) {
 		sched_evict_group(group, false, true);
 	} else {
@@ -5296,7 +5291,7 @@ static void schedule_on_tock(struct work_struct *work)
 		return;
 
 	mutex_lock(&scheduler->lock);
-	if (can_skip_scheduling(kbdev)){
+	if (can_skip_scheduling(kbdev)) {
 		atomic_set(&scheduler->pending_tock_work, false);
 		goto exit_no_schedule_unlock;
 	}
@@ -7049,8 +7044,8 @@ kbase_csf_scheduler_scan_free_heap_pages(struct kbase_device *kbdev,
 				   msecs_to_jiffies(2));
 		if (!mutex_trylock(&kbdev->csf.scheduler.lock)) {
 			dev_vdbg(kbdev->dev,
-				"Reclaim scan see device busy (freed: 0, scan_nr: %lu/%lu)\n",
-				sc->nr_scanned, sc->nr_to_scan);
+				"Reclaim scan see device busy (freed: 0, number to scan: %lu)\n",
+				sc->nr_to_scan);
 			return 0;
 		}
 	}
@@ -7070,15 +7065,9 @@ kbase_csf_scheduler_scan_free_heap_pages(struct kbase_device *kbdev,
 
 	mutex_unlock(&kbdev->csf.scheduler.lock);
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	dev_vdbg(kbdev->dev,
-		 "Reclaim scan freed pages: %lu (avail: %lu, extra: %lu, scan_nr: %lu/%lu)\n",
-		 freed, avail, count, sc->nr_scanned, sc->nr_to_scan);
-#else
-	dev_info(kbdev->dev,
-		 "Reclaim scan freed pages: %lu (avail: %lu, extra: %lu, scan_nr: %lu/%lu)\n",
-		 freed, avail, count, sc->nr_scanned, sc->nr_to_scan);
-#endif /* CONFIG_MALI_MTK_DEBUG */
+		 "Reclaim scan freed pages: %lu (avail: %lu, extra: %lu, number to scan: %lu)\n",
+		 freed, avail, count, sc->nr_to_scan);
 
 	/* On no avilablity, and with no new extra count, return STOP */
 	if (!avail && !count)

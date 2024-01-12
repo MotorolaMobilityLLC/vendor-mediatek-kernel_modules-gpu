@@ -717,10 +717,10 @@ static void wait_mcu_as_inactive(struct kbase_device *kbdev)
  * @kbdev:  Pointer to the device
  * @enable: boolean indicating to enable interrupts or not
  *
- * The POWER_CHANGED_ALL and POWER_CHANGED_SINGLE interrupts can be disabled
- * after L2 has been turned on when FW is controlling the power for the shader
- * cores. Correspondingly, the interrupts can be re-enabled after the MCU has
- * been disabled before the power down of L2.
+ * The POWER_CHANGED_ALL interrupt can be disabled after L2 has been turned on
+ * when FW is controlling the power for the shader cores. Correspondingly, the
+ * interrupts can be re-enabled after the MCU has been disabled before the
+ * power down of L2.
  */
 static void kbasep_pm_toggle_power_interrupt(struct kbase_device *kbdev, bool enable)
 {
@@ -730,10 +730,12 @@ static void kbasep_pm_toggle_power_interrupt(struct kbase_device *kbdev, bool en
 
 	irq_mask = kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_MASK));
 
-	if (enable)
-		irq_mask |= POWER_CHANGED_ALL | POWER_CHANGED_SINGLE;
-	else
-		irq_mask &= ~(POWER_CHANGED_ALL | POWER_CHANGED_SINGLE);
+	if (enable) {
+		irq_mask |= POWER_CHANGED_ALL;
+		kbase_reg_write(kbdev, GPU_CONTROL_REG(GPU_IRQ_CLEAR), POWER_CHANGED_ALL);
+	} else {
+		irq_mask &= ~POWER_CHANGED_ALL;
+	}
 
 	kbase_reg_write(kbdev, GPU_CONTROL_REG(GPU_IRQ_MASK), irq_mask);
 }
@@ -2466,11 +2468,7 @@ int kbase_pm_wait_for_desired_state(struct kbase_device *kbdev)
 			 "Wait for desired PM state got interrupted");
 		err = (int)remaining;
 	}
-	if(!err)
-		if((kbdev->pm.backend.mcu_state != KBASE_MCU_ON) && (kbdev->pm.backend.mcu_state != KBASE_MCU_OFF))
-		{
-			dev_info(kbdev->dev, "mali-debug: mcu desired %x mcu status %x in desired state %x remaining %d", kbase_pm_is_mcu_desired(kbdev), kbdev->pm.backend.mcu_state, kbase_pm_is_in_desired_state(kbdev),remaining);
-		}
+
 	return err;
 }
 KBASE_EXPORT_TEST_API(kbase_pm_wait_for_desired_state);

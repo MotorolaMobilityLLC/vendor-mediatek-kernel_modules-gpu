@@ -2199,6 +2199,9 @@ static ssize_t kbase_read(struct file *filp, char __user *buf, size_t count, lof
 	if (unlikely(!kctx))
 		return -EPERM;
 
+	if (count < data_size)
+		return -ENOBUFS;
+
 	if (atomic_read(&kctx->event_count))
 		read_event = true;
 	else
@@ -3379,10 +3382,6 @@ static ssize_t gpuinfo_show(struct device *dev,
 		  .name = "Mali-G510" },
 		{ .id = GPU_ID2_PRODUCT_TVAX >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT,
 		  .name = "Mali-G310" },
-		{ .id = GPU_ID2_PRODUCT_TTUX >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT,
-		  .name = "Mali-TTUX" },
-		{ .id = GPU_ID2_PRODUCT_LTUX >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT,
-		  .name = "Mali-LTUX" },
 	};
 	const char *product_name = "(Unknown Mali GPU)";
 	struct kbase_device *kbdev;
@@ -3417,19 +3416,19 @@ static ssize_t gpuinfo_show(struct device *dev,
 			GPU_FEATURES_RAY_TRACING_GET(gpu_props->props.raw_props.gpu_features);
 		const u8 nr_cores = gpu_props->num_cores;
 
-		/* Mali-TTUX_B(ig) if 10 < number of cores with ray tracing supproted.
-		 * Mali-TTUX if 10 < number of cores without ray tracing supported.
-		 * Mali-TTUX if 7 <= number of cores <= 10 regardless ray tracing.
-		 * Mali-LTUX if number of cores < 7.
+		/* Mali-G715-Immortalis if 10 < number of cores with ray tracing supproted.
+		 * Mali-G715 if 10 < number of cores without ray tracing supported.
+		 * Mali-G715 if 7 <= number of cores <= 10 regardless ray tracing.
+		 * Mali-G615 if number of cores < 7.
 		 */
 		if ((nr_cores > 10) && rt_supported)
-			product_name = "Mali-TTUX_B";
+			product_name = "Mali-G715-Immortalis";
 		else if (nr_cores >= 7)
-			product_name = "Mali-TTUX";
+			product_name = "Mali-G715";
 
 		if (nr_cores < 7) {
-			dev_warn(kbdev->dev, "nr_cores(%u) GPU ID must be LTUX", nr_cores);
-			product_name = "Mali-LTUX";
+			dev_warn(kbdev->dev, "nr_cores(%u) GPU ID must be G615", nr_cores);
+			product_name = "Mali-G615";
 		} else
 			dev_vdbg(kbdev->dev, "GPU ID_Name: %s, nr_cores(%u)\n", product_name,
 				nr_cores);
