@@ -4,5 +4,8 @@ curr := platform/mtk_platform_common
 
 mali_kbase-y += $(curr)/mtk_platform_common.o
 
+ifeq ($(CONFIG_MALI_MTK_DEVFREQ),y)
+mali_kbase-y += $(curr)/mtk_gpu_dvfs.o
+endif
 ccflags-y += -I$(srctree)/drivers/devfreq/
 
