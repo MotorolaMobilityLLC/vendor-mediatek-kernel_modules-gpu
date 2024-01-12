@@ -1612,9 +1612,10 @@ static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int tim
 	if (timeouts > 3000)
 #endif
 	{
-		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, pid);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, pid);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, pid);
+		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, pid, MTK_DBG_HOOK_FENCE_EXTERNAL_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, pid, MTK_DBG_HOOK_FENCE_EXTERNAL_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, pid, MTK_DBG_HOOK_FENCE_EXTERNAL_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, pid, MTK_DBG_HOOK_FENCE_EXTERNAL_TIMEOUT);
 	}
 #endif
 

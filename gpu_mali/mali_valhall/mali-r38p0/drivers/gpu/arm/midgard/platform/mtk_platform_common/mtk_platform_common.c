@@ -6,6 +6,7 @@
 #include <mali_kbase.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+#include <linux/sysfs.h>
 #include <platform/mtk_platform_common.h>
 #include <mtk_gpufreq.h>
 #include <ged_dvfs.h>
@@ -38,11 +39,18 @@
 #include <mt-plat/aee.h>
 #endif /* CONFIG_MTK_AEE_FEATURE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
+#include "mtk_platform_diagnosis_mode.h"
+#endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
+
+#include "csf/mali_kbase_csf_trace_buffer.h"
+
 #if IS_ENABLED(CONFIG_PROC_FS)
 /* name of the proc root dir */
 #define	PROC_ROOT "mtk_mali"
 static struct proc_dir_entry *proc_root;
 #endif /* CONFIG_PROC_FS */
+
 static bool mfg_powered;
 static DEFINE_MUTEX(mfg_pm_lock);
 static DEFINE_MUTEX(common_debug_lock);
@@ -72,12 +80,39 @@ void mtk_common_pm_mfg_idle(void)
 	mutex_unlock(&mfg_pm_lock);
 }
 
-void mtk_common_debug(enum mtk_common_debug_types type, int pid)
+void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 {
 	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+#if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
+	u64 diagnosis_mode;
+	u64 diagnosis_dump_mask;
+#endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
 
 	if (IS_ERR_OR_NULL(kbdev))
 		return;
+
+        if (type == MTK_COMMON_DBG_DUMP_DB_BY_SETTING)
+        {
+#if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
+		diagnosis_mode = mtk_diagnosis_mode_get_mode();
+		diagnosis_dump_mask = mtk_diagnosis_mode_get_dump_mask();
+
+		dev_info(kbdev->dev, "0x%08llx triggers diagnosis db dump, mode = %llu, dump mask = 0x%08llx", hook_point, diagnosis_mode, diagnosis_dump_mask);
+		if (hook_point & diagnosis_dump_mask) {
+			if (diagnosis_mode == 0) {
+				return; //do no thing if diagnosis mode is not enabled
+			} else if (diagnosis_mode == 1) {
+				type = MTK_COMMON_DBG_TRIGGER_KERNEL_EXCEPTION;
+			} else if (diagnosis_mode == 2) {
+				type = MTK_COMMON_DBG_DUMP_FULL_DB;
+			}
+		} else {
+			return; // do nothing if hook point is not matched
+		}
+#else
+		return;
+#endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
+	}
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	lockdep_off();
@@ -104,6 +139,13 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid)
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 		break;
 #endif /* CONFIG_MALI_CSF_SUPPORT */
+	case MTK_COMMON_DBG_DUMP_FULL_DB:
+#if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
+		dev_info(kbdev->dev, "trigger gpu full DB dump");
+		// add core dump / fwlog / etb code here
+		BUG_ON(1);
+#endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
+		break;
 	case MTK_COMMON_DBG_TRIGGER_KERNEL_EXCEPTION:
 #if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
 		aee_kernel_exception("GPU", "pid:%d", pid);
@@ -194,6 +236,7 @@ static void mtk_common_procfs_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	mtk_dvfs_procfs_init(kbdev, proc_root);
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
+
 }
 
 static void mtk_common_procfs_term(struct kbase_device *kbdev)
@@ -223,12 +266,22 @@ void mtk_common_sysfs_init(struct kbase_device *kbdev)
 {
 	if (IS_ERR_OR_NULL(kbdev))
 		return;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
+        mtk_diagnosis_mode_sysfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
+
 }
 
 void mtk_common_sysfs_term(struct kbase_device *kbdev)
 {
 	if (IS_ERR_OR_NULL(kbdev))
 		return;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
+        mtk_diagnosis_mode_sysfs_term(kbdev);
+#endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
+
 }
 #endif /* CONFIG_MALI_MTK_SYSFS */
 
