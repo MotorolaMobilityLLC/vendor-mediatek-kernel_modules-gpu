@@ -76,6 +76,10 @@ extern void mt_irq_dump_status(int irq);
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+#include <platform/mtk_platform_common/mtk_platform_irq_trace.h>
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
+
 #ifdef CONFIG_MALI_CORESTACK
 bool corestack_driver_control = true;
 #else
@@ -1143,6 +1147,9 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 	u64 tiler_present = kbdev->gpu_props.props.raw_props.tiler_present;
 	bool l2_power_up_done;
 	enum kbase_l2_core_state prev_state;
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	unsigned long long irq_trace_start_time = 0;
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
@@ -1158,6 +1165,9 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 		u64 tiler_ready = kbase_pm_get_ready_cores(
 				kbdev, KBASE_PM_CORE_TILER);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+		mtk_debug_irq_trace_record_start(KBASE_IRQ_GPU, 11);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 		/*
 		 * kbase_pm_get_ready_cores and kbase_pm_get_trans_cores
 		 * are vulnerable to corruption if gpu is lost
@@ -1186,7 +1196,14 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 			}
 			break;
 		}
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+		mtk_debug_irq_trace_record_end(KBASE_IRQ_GPU, 11);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 #endif /* CONFIG_MALI_ARBITER_SUPPORT */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+		irq_trace_start_time = ktime_get_raw_ns();
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 		/* mask off ready from trans in case transitions finished
 		 * between the register reads
@@ -1493,20 +1510,31 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 					backend->l2_state);
 		}
 
-		if (backend->l2_state != prev_state)
+		if (backend->l2_state != prev_state) {
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+			mtk_debug_irq_trace_l2_record(irq_trace_start_time,
+				prev_state, backend->l2_state);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 			dev_vdbg(kbdev->dev, "L2 state transition: %s to %s\n",
 				kbase_l2_core_state_to_string(prev_state),
 				kbase_l2_core_state_to_string(
 					backend->l2_state));
+		}
 
 	} while (backend->l2_state != prev_state);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_start(KBASE_IRQ_GPU, 12);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 	if (kbdev->pm.backend.invoke_poweroff_wait_wq_when_l2_off &&
 			backend->l2_state == KBASE_L2_OFF) {
 		kbdev->pm.backend.invoke_poweroff_wait_wq_when_l2_off = false;
 		queue_work(kbdev->pm.backend.gpu_poweroff_wait_wq,
 				&kbdev->pm.backend.gpu_poweroff_wait_work);
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_end(KBASE_IRQ_GPU, 12);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 	return 0;
 }
@@ -2038,8 +2066,14 @@ void kbase_pm_update_state(struct kbase_device *kbdev)
 	if (!kbdev->pm.backend.gpu_ready)
 		return; /* Do nothing if the GPU is not ready */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_start(KBASE_IRQ_GPU, 7);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 	if (kbase_pm_l2_update_state(kbdev))
 		return;
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_end(KBASE_IRQ_GPU, 7);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 #if !MALI_USE_CSF
 	if (kbase_pm_shaders_update_state(kbdev))
@@ -2056,16 +2090,31 @@ void kbase_pm_update_state(struct kbase_device *kbdev)
 			return;
 		}
 #else
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_start(KBASE_IRQ_GPU, 8);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 	if (kbase_pm_mcu_update_state(kbdev))
 		return;
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_end(KBASE_IRQ_GPU, 8);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_start(KBASE_IRQ_GPU, 9);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 	if (!kbase_pm_is_mcu_inactive(kbdev, prev_mcu_state) &&
 	    kbase_pm_is_mcu_inactive(kbdev, kbdev->pm.backend.mcu_state)) {
 		if (kbase_pm_l2_update_state(kbdev))
 			return;
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_end(KBASE_IRQ_GPU, 9);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_start(KBASE_IRQ_GPU, 10);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 	if (kbase_pm_is_in_desired_state_nolock(kbdev)) {
 		KBASE_KTRACE_ADD(kbdev, PM_DESIRED_REACHED, NULL,
 				 kbdev->pm.backend.shaders_avail);
@@ -2075,6 +2124,9 @@ void kbase_pm_update_state(struct kbase_device *kbdev)
 		KBASE_KTRACE_ADD(kbdev, PM_WAKE_WAITERS, NULL, 0);
 		wake_up(&kbdev->pm.backend.gpu_in_desired_state_wait);
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_end(KBASE_IRQ_GPU, 10);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 }
 
 static enum hrtimer_restart
