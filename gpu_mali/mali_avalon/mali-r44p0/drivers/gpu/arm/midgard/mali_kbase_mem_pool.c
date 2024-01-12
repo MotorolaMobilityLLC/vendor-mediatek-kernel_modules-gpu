@@ -160,6 +160,7 @@ static void kbase_mem_pool_add_locked(struct kbase_mem_pool *pool,
 
 #if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
 	mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, 1 << pool->order);
+	atomic_add(1, &pool->kbdev->memdev.cache_pool_pages);
 #endif /* CONFIG_MALI_MTK_COMMON */
 }
 
@@ -204,6 +205,7 @@ static void kbase_mem_pool_add_list_locked(struct kbase_mem_pool *pool,
 #if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
 	p = list_first_entry(&pool->page_list, struct page, lru);
 	mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, nr_pages << pool->order);
+	atomic_add(nr_pages, &pool->kbdev->memdev.cache_pool_pages);
 #endif /* CONFIG_MALI_MTK_COMMON */
 }
 
@@ -238,6 +240,7 @@ static struct page *kbase_mem_pool_remove_locked(struct kbase_mem_pool *pool,
 
 #if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
 	mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, -(1 << pool->order));
+	atomic_sub(1, &pool->kbdev->memdev.cache_pool_pages);
 #endif /* CONFIG_MALI_MTK_COMMON */
 
 	list_del_init(&p->lru);

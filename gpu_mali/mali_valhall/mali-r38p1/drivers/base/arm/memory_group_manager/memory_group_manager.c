@@ -1029,6 +1029,18 @@ static struct page *example_mgm_alloc_page(
 
 	return p;
 }
+#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
+static size_t mgmm_cache_pool_size(struct memory_group_manager_device *mgm_dev)
+{
+	struct mgm_groups *const data = mgm_dev->data;
+	size_t ret;
+
+	ret = data->nr_rank[0][0] + data->nr_rank[0][1];
+	ret += ((data->nr_rank[1][0] + data->nr_rank[1][1]) << 9);
+
+	return ret;
+}
+#endif
 
 static void example_mgm_free_page(
 	struct memory_group_manager_device *mgm_dev, int group_id,
@@ -1247,6 +1259,9 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 	mgm_dev->ops.mgm_vmf_insert_pfn_prot = example_mgm_vmf_insert_pfn_prot;
 	mgm_dev->ops.mgm_update_gpu_pte = example_mgm_update_gpu_pte;
 	mgm_dev->ops.mgm_pte_to_original_pte = example_mgm_pte_to_original_pte;
+#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
+	mgm_dev->ops.mgm_mtk_cache_pool_size = mgmm_cache_pool_size;
+#endif
 
 	mgm_data = kzalloc(sizeof(*mgm_data), GFP_KERNEL);
 	if (!mgm_data) {
