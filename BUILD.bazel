@@ -7,10 +7,10 @@ package(
 )
 
 mt6878_outs = [
-    "mt6878/mali_avalon/mali-r44p1_dev2/drivers/base/arm/memory_group_manager/mali_mgm_mt6878_r44.ko",
-    "mt6878/mali_avalon/mali-r44p1_dev2/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6878_r44.ko",
-    "mt6878/mali_avalon/mali-r44p1_dev2/drivers/base/arm/dma_buf_test_exporter/mali_dmabuf_test_mt6878_r44.ko",
-    "mt6878/mali_avalon/mali-r44p1_dev2/drivers/gpu/arm/midgard/mali_kbase_mt6878_r44.ko",
+    "mt6878/mali_avalon/mali-r44p1/drivers/base/arm/memory_group_manager/mali_mgm_mt6878_r44.ko",
+    "mt6878/mali_avalon/mali-r44p1/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6878_r44.ko",
+    "mt6878/mali_avalon/mali-r44p1/drivers/base/arm/dma_buf_test_exporter/mali_dmabuf_test_mt6878_r44.ko",
+    "mt6878/mali_avalon/mali-r44p1/drivers/gpu/arm/midgard/mali_kbase_mt6878_r44.ko",
 ]
 
 mt6897_outs = [
