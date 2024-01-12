@@ -43,6 +43,10 @@ static DEFINE_SPINLOCK(kbase_csf_fence_lock);
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+#include <mali_kbase_reset_gpu.h>
+#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
+
 #ifdef CONFIG_MALI_FENCE_DEBUG
 #define FENCE_WAIT_TIMEOUT_MS 3000
 #endif
@@ -2033,7 +2037,7 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 					fence_signal_command_timeout_ms);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-					"KCPU queue command timeouts(%d ms)! Trigger GPU reset\n"),
+					"KCPU queue command timeouts(%d ms)! Trigger GPU reset\n",
 					fence_signal_command_timeout_ms);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 				kbase_reset_gpu(kctx->kbdev);
@@ -2042,7 +2046,7 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 					fence_signal_command_timeout_ms);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-					"KCPU queue command timeouts(%d ms)! Other threads are already resetting the GPU\n"),
+					"KCPU queue command timeouts(%d ms)! Other threads are already resetting the GPU\n",
 					fence_signal_command_timeout_ms);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			}
