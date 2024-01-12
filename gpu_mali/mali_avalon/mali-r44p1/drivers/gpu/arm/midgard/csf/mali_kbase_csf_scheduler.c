@@ -6562,16 +6562,45 @@ void kbase_csf_scheduler_context_term(struct kbase_context *kctx)
 	kbase_ctx_sched_remove_ctx(kctx);
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
+#define KTHREAD_WAIT_TIMEOUT MAX_SCHEDULE_TIMEOUT - 1
+#endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
+
 static int kbase_csf_scheduler_kthread(void *data)
 {
 	struct kbase_device *const kbdev = data;
 	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
+#if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
+	long ret = 0;
+	unsigned long timeout = KTHREAD_WAIT_TIMEOUT;
+	unsigned long expire = jiffies + timeout;
+#endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
 	while (scheduler->kthread_running) {
 		struct kbase_queue *queue;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
+		ret = wait_for_completion_interruptible_timeout(&scheduler->kthread_signal, timeout);
+		if (ret > 0) {
+			timeout = KTHREAD_WAIT_TIMEOUT;
+			expire = jiffies + timeout;
+		}
+		else if (ret == 0) {
+			pr_info("[%s]: TIMEOUT, continue waiting for completion\n", __func__);
+			timeout = KTHREAD_WAIT_TIMEOUT;
+			expire = jiffies + timeout;
+			continue;
+		}
+		else if ((ret == -ERESTARTSYS) && (time_before(jiffies, expire))) {
+			pr_info("[%s]: INTERRUPTED, continue waiting for completion\n", __func__);
+			timeout = expire - jiffies;
+			continue;
+		}
+		reinit_completion(&scheduler->kthread_signal);
+#else
 		wait_for_completion(&scheduler->kthread_signal);
 		reinit_completion(&scheduler->kthread_signal);
+#endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
 		/* Iterate through queues with pending kicks */
 		do {
