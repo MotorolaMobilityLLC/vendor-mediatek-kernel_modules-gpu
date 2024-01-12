@@ -98,6 +98,10 @@ int mtk_debug_term(struct kbase_device *kbdev);
 int mtk_debug_csf_debugfs_init(struct kbase_device *kbdev);
 
 void mtk_debug_dump_pm_status(struct kbase_device *kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+// check if active cag queue 3 blocked in resource, if yes do more dump for debug
+void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid, bool check_resource);
+#else
 void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid);
-
+#endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG*/
 #endif /* __MTK_PLATFORM_DEBUG_H__ */

@@ -111,7 +111,15 @@ void mtk_common_pm_mfg_idle(void)
 extern u64 mcu_state_history;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 #endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
 void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
+{
+	mtk_common_debug_extra(type, pid, hook_point, 0);
+}
+void mtk_common_debug_extra(enum mtk_common_debug_types type, int pid, u64 hook_point, unsigned int extra)
+#else
+void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
+#endif /*CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG*/
 {
 	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
 #if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
@@ -174,7 +182,15 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
 	case MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES:
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+	if (extra == 4000) {
+		mtk_debug_csf_dump_groups_and_queues(kbdev, pid, true);
+	} else {
+		mtk_debug_csf_dump_groups_and_queues(kbdev, pid, false);
+	}
+#else
 		mtk_debug_csf_dump_groups_and_queues(kbdev, pid);
+#endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG */
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 		break;
 #endif /* CONFIG_MALI_CSF_SUPPORT */
@@ -183,7 +199,11 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 		dev_info(kbdev->dev, "trigger gpu full DB dump");
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 		if (diagnosis_dump_mask & MTK_DBG_COMMON_DUMP_ENABLE_GROUPS_QUEUES) {
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+			mtk_debug_csf_dump_groups_and_queues(kbdev, pid, false);
+#else
 			mtk_debug_csf_dump_groups_and_queues(kbdev, pid);
+#endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG */
 		}
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 #if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)

@@ -64,6 +64,16 @@
 
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+#define NO_ISSUE_FOUND 0
+#define ISSUE_BLOCKED_IN_RESOURCE 1
+
+#if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
+#include <mt-plat/aee.h>
+#endif /* CONFIG_MTK_AEE_FEATURE */
+#include "csf/mali_kbase_csf_firmware_log.h"
+#endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG */
+
 extern void (*mtk_gpu_fence_debug_dump_fp)(int fd, int pid, int type, int timeouts);
 
 static DEFINE_MUTEX(fence_debug_lock);
@@ -1218,10 +1228,16 @@ static void mtk_debug_csf_scheduler_dump_queue_cs_status_wait(
 	//     - RESOURCE: Blocked on waiting for resource allocation. e.g., compute, tiler, and fragment resources.
 	//     - SYNC_WAIT: Blocked on a SYNC_WAIT{32|64} instruction.
 }
-
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+static int mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
+						struct kbase_queue *queue,
+						struct mtk_debug_cs_queue_data *cs_queue_data,
+						bool check_resource)
+#else
 static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 						struct kbase_queue *queue,
 						struct mtk_debug_cs_queue_data *cs_queue_data)
+#endif
 {
 	u64 *addr;
 	u32 *addr32;
@@ -1238,10 +1254,18 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 	u32 glb_version;
 
 	if (!queue)
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+		return NO_ISSUE_FOUND;
+#else
 		return;
+#endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG */
 
 	if (queue->csi_index == KBASEP_IF_NR_INVALID || !queue->group)
-		return;
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+                return NO_ISSUE_FOUND;
+#else
+                return;
+#endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG */
 
 	if (!queue->user_io_addr) {
 		mtk_log_critical_exception(queue->kctx->kbdev, true,
@@ -1251,7 +1275,11 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 			queue->base_addr,
 			queue->priority,
 			queue->doorbell_nr);
-		return;
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+                return NO_ISSUE_FOUND;
+#else
+                return;
+#endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG */
 	}
 
 	glb_version = queue->kctx->kbdev->csf.global_iface.version;
@@ -1380,7 +1408,11 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 
 		if (!stream) {
 			mtk_log_critical_exception(queue->kctx->kbdev, true, "[%d_%d] stream is NULL!", tgid, id);
-			return;
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+	                return NO_ISSUE_FOUND;
+#else
+        	        return;
+#endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG */
 		}
 
 		cmd_ptr = kbase_csf_firmware_cs_output(stream, CS_STATUS_CMD_PTR_LO);
@@ -1459,13 +1491,36 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 		} else {
 			mtk_log_critical_exception(queue->kctx->kbdev, true, "[%d_%d] NO CS_TRACE", tgid, id);
 		}
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+		if ( check_resource &&
+			(queue->csi_index == 3) &&
+			(CS_STATUS_BLOCKED_REASON_REASON_GET(blocked_reason) == CS_STATUS_BLOCKED_REASON_REASON_RESOURCE) ) {
+			return ISSUE_BLOCKED_IN_RESOURCE;
+		}
+#endif
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+	return NO_ISSUE_FOUND;
+#endif
 }
-
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+static int mtk_debug_csf_scheduler_dump_active_group_extra(struct kbase_queue_group *const group,
+                                                struct mtk_debug_cs_queue_data *cs_queue_data, bool check_resource);
+static void mtk_debug_csf_scheduler_dump_active_group(struct kbase_queue_group *const group,
+						struct mtk_debug_cs_queue_data *cs_queue_data) {
+	mtk_debug_csf_scheduler_dump_active_group_extra(group, cs_queue_data, false);
+}
+static int mtk_debug_csf_scheduler_dump_active_group_extra(struct kbase_queue_group *const group,
+						struct mtk_debug_cs_queue_data *cs_queue_data, bool check_resource)
+#else
 static void mtk_debug_csf_scheduler_dump_active_group(struct kbase_queue_group *const group,
 						struct mtk_debug_cs_queue_data *cs_queue_data)
+#endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG */
 {
 	struct kbase_device *const kbdev = group->kctx->kbdev;
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+	int ret = NO_ISSUE_FOUND;
+#endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG*/
 
 	if (kbase_csf_scheduler_group_get_slot(group) >= 0) {
 		u32 ep_c, ep_r;
@@ -1533,13 +1588,28 @@ static void mtk_debug_csf_scheduler_dump_active_group(struct kbase_queue_group *
 			group->kctx->id);
 
 		for (i = 0; i < MAX_SUPPORTED_STREAMS_PER_GROUP; i++) {
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+			if ( mtk_debug_csf_scheduler_dump_active_queue(
+				 group->kctx->tgid,
+				 group->kctx->id,
+				 group->bound_queues[i],
+				 cs_queue_data, check_resource) == ISSUE_BLOCKED_IN_RESOURCE 
+				) {
+				ret = ISSUE_BLOCKED_IN_RESOURCE;
+			}
+#else
 			mtk_debug_csf_scheduler_dump_active_queue(
 				group->kctx->tgid,
 				group->kctx->id,
 				group->bound_queues[i],
 				cs_queue_data);
+#endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG*/
 		}
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+	return ret;
+#endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG*/
 }
 
 #if IS_ENABLED(CONFIG_SYNC_FILE)
@@ -1914,6 +1984,91 @@ static void mtk_debug_csf_dump_kcpu_queues(struct kbase_device *kbdev, struct kb
 	mutex_unlock(&kctx->csf.kcpu_queues.lock);
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+#define CSHW_BASE 0x0030000
+#define CSHW_CSHWIF_0 0x4000 /* () CSHWIF 0 registers */
+#define CSHWIF(n) (CSHW_BASE + CSHW_CSHWIF_0 + (n)*256)
+#define CSHWIF_REG(n, r) (CSHWIF(n) + r)
+#define NR_HW_INTERFACES 4
+
+static void dump_hwif_registers(struct kbase_device *kbdev)
+{
+	unsigned long flags;
+	unsigned int i;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	for (i = 0; kbdev->pm.backend.gpu_powered && (i < NR_HW_INTERFACES); i++) {
+		u64 cmd_ptr = kbase_reg_read(kbdev, CSHWIF_REG(i, 0x0)) |
+			((u64)kbase_reg_read(kbdev, CSHWIF_REG(i, 0x4)) << 32);
+
+		if (!cmd_ptr)
+			continue;
+		mtk_log_critical_exception(kbdev, true, "Register dump of CSHWIF %d", i);
+		mtk_log_critical_exception(kbdev, true, "CMD_PTR: %llx CMD_PTR_END: %llx STATUS: %x JASID: %x EMUL_INSTR: %llx WAIT_STATUS: %x SB_SET_SEL: %x SB_SEL: %x",
+			cmd_ptr,
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x8)) | ((u64)kbase_reg_read(kbdev, CSHWIF_REG(i, 0xC)) << 32),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x24)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x34)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x60)) | ((u64)kbase_reg_read(kbdev, CSHWIF_REG(i, 0x64)) << 32),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x74)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x78)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x7C)));
+		mtk_log_critical_exception(kbdev, true, "CMD_COUNTER: %x EVT_RAW: %x EVT_IRQ_STATUS: %x EVT_HALT_STATUS: %x FAULT_STATUS: %x FAULT_ADDR: %llx",
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x80)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x98)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0xA4)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0xAC)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0xB0)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0xB8)) | ((u64)kbase_reg_read(kbdev, CSHWIF_REG(i, 0xBC)) << 32));
+		dev_info(kbdev->dev, "\n");
+	}
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+}
+
+#define CSHW_IT_COMP_REG(r) (CSHW_BASE + 0x1000 + r)
+#define CSHW_IT_FRAG_REG(r) (CSHW_BASE + 0x2000 + r)
+#define CSHW_IT_TILER_REG(r)(CSHW_BASE + 0x3000 + r)
+
+static void dump_iterator_registers(struct kbase_device *kbdev)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	if (kbdev->pm.backend.gpu_powered) {
+		mtk_log_critical_exception(kbdev, true, "Compute  CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x SUSPEND_BUF %llx",
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x0)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x4)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x8)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0xD0)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0xDC)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0xA4)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0xA0)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x80)) | ((u64)kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x84)) << 32));
+		mtk_log_critical_exception(kbdev, true, "Fragment CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x SUSPEND_BUF %llx",
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x0)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x4)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x8)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0xD0)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0xDC)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0xA4)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0xA0)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x80)) | ((u64)kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x84)) << 32));
+		mtk_log_critical_exception(kbdev, true, "Tiler    CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x SUSPEND_BUF %llx",
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0x0)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0x4)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0x8)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0xD0)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0xDC)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0xA4)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0xA0)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0x80)) | ((u64)kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0x84)) << 32));
+		dev_info(kbdev->dev, "\n");
+	}
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+}
+
+#endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG */
+
 static void mtk_debug_csf_dump_cpu_queues(struct kbase_device *kbdev, struct kbase_context *kctx)
 {
 	lockdep_assert_held(&kctx->csf.lock);
@@ -1998,10 +2153,18 @@ static void mtk_debug_csf_dump_cpu_queues(struct kbase_device *kbdev, struct kba
 	mutex_unlock(&kctx->csf.lock);
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid, bool check_resource)
+#else
 void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
+#endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG */
 {
 	bool dump_queue_data;
 	static struct mtk_debug_cs_queue_data cs_queue_data;
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+	int active_group_dump_ret = NO_ISSUE_FOUND;
+#endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG */
+
 
 	/* init mtk_debug_cs_queue_data for dump bound queues */
 	mtk_debug_cs_dump_mode = mem_dump_mode & MTK_DEBUG_MEM_DUMP_CS_BUFFER;
@@ -2083,9 +2246,21 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 					cs_queue_data.kctx = group->kctx;
 					cs_queue_data.group_type = 0;
 					cs_queue_data.handle = group->handle;
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+					if(mtk_debug_csf_scheduler_dump_active_group_extra(group, &cs_queue_data, check_resource) == ISSUE_BLOCKED_IN_RESOURCE) {
+						active_group_dump_ret = ISSUE_BLOCKED_IN_RESOURCE;
+					}
+#else
 					mtk_debug_csf_scheduler_dump_active_group(group, &cs_queue_data);
+#endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG */
 				} else
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+					if(mtk_debug_csf_scheduler_dump_active_group_extra(group, NULL, check_resource) == ISSUE_BLOCKED_IN_RESOURCE) {
+						active_group_dump_ret = ISSUE_BLOCKED_IN_RESOURCE;
+					}
+#else
 					mtk_debug_csf_scheduler_dump_active_group(group, NULL);
+#endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG */
 			}
 		}
 
@@ -2153,6 +2328,20 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 			mutex_unlock(&kbdev->kctx_list_lock);
 		}
 	} while (0);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+	if ( active_group_dump_ret == ISSUE_BLOCKED_IN_RESOURCE) {
+		mtk_log_critical_exception(kbdev, true,
+		"Debug dump for resource");
+
+		dump_hwif_registers(kbdev);
+		dump_iterator_registers(kbdev);
+
+		kbase_csf_firmware_ping_wait(kbdev, 10);  //ping FW
+
+		aee_kernel_warning("GPU_RECOVERY", "\nCRDISPATCH_KEY:GPU_RECOVERY\nresource to reset");
+	}
+#endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG */
 
 	if (dump_queue_data) {
 #if USING_ZLIB_COMPRESSING && IS_ENABLED(CONFIG_ZLIB_DEFLATE)

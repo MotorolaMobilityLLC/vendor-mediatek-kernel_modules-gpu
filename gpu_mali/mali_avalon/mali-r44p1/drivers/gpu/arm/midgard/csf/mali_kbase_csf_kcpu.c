@@ -2236,7 +2236,11 @@ static void kcpu_queue_dump(struct kbase_kcpu_command_queue *queue)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, kctx->tgid, MTK_DBG_HOOK_MALI_FENCE_SIGNAL_TIMEOUT);
+#if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
+		mtk_common_debug_extra(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, kctx->tgid, MTK_DBG_HOOK_MALI_FENCE_SIGNAL_TIMEOUT, fence_signal_command_timeout_ms);
+#else
 		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, kctx->tgid, MTK_DBG_HOOK_MALI_FENCE_SIGNAL_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG */
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
