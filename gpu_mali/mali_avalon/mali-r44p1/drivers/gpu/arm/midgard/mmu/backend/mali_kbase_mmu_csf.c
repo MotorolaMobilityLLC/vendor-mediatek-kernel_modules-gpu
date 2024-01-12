@@ -251,20 +251,30 @@ void kbase_gpu_report_bus_fault_and_kill(struct kbase_context *kctx,
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
 static void print_group_queues_data(struct kbase_queue_group *const group)
 {
-	u64 insert[5];
-	u64 extract[5];
-	u64 ringbuff[5];
+	struct kbase_queue *queue;
+	struct page *page;
+	size_t size_mask;
+	const unsigned int instruction_size = sizeof(u64);
 	unsigned int i;
+	u64 insert[5], extract[5], ringbuff[5];
+	u64 *input_addr;
+	u64 *output_addr;
+	u64 cs_insert;
+	u64 cs_extract;
+	u64 start, stop;
+	u64 page_off;
+	u64 offset;
+	u64 *ringbuffer;
+	u64 *ptr;
 
 	if (!group)
 		return;
 
 	for (i = 0; i < 5; i++) {
-		struct kbase_queue *queue =
-				group->bound_queues[i];
+		queue = group->bound_queues[i];
 		if (queue && queue->user_io_addr) {
-			u64 *input_addr = (u64 *)queue->user_io_addr;
-			u64 *output_addr = (u64 *)(queue->user_io_addr + PAGE_SIZE / sizeof(u64));
+			input_addr = (u64 *)queue->user_io_addr;
+			output_addr = (u64 *)(queue->user_io_addr + PAGE_SIZE / sizeof(u64));
 
 			insert[i] = input_addr[CS_INSERT_LO / sizeof(u64)];
 			extract[i] = output_addr[CS_EXTRACT_LO / sizeof(u64)];
@@ -295,13 +305,18 @@ static void print_group_queues_data(struct kbase_queue_group *const group)
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	for (i = 0; i < 5; i++) {
-		struct kbase_queue *queue =
-				group->bound_queues[i];
-		u64 cs_insert = insert[i];
-		u64 cs_extract = extract[i];
-		const unsigned int instruction_size = sizeof(u64);
-		size_t size_mask = (queue->queue_reg->nr_pages << PAGE_SHIFT) - 1;
-		u64 start, stop;
+		queue = group->bound_queues[i];
+
+		if (!queue)
+			continue;
+
+		cs_insert = insert[i];
+		cs_extract = extract[i];
+
+		if (!queue->queue_reg || !queue->queue_reg->nr_pages)
+			continue;
+
+		size_mask = (queue->queue_reg->nr_pages << PAGE_SHIFT) - 1;
 
 		if (cs_insert == cs_extract)
 			continue;
@@ -327,11 +342,15 @@ static void print_group_queues_data(struct kbase_queue_group *const group)
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 		while (start != stop) {
-			u64 page_off = (start & size_mask) >> PAGE_SHIFT;
-			u64 offset = (start & size_mask) & ~PAGE_MASK;
-			struct page *page = as_page(queue->queue_reg->gpu_alloc->pages[page_off]);
-			u64 *ringbuffer = vmap(&page, 1, VM_MAP, pgprot_noncached(PAGE_KERNEL));
-			u64 *ptr = &ringbuffer[offset/8];
+			page_off = (start & size_mask) >> PAGE_SHIFT;
+			offset = (start & size_mask) & ~PAGE_MASK;
+
+			if (!queue->queue_reg->gpu_alloc)
+				break;
+
+			page = as_page(queue->queue_reg->gpu_alloc->pages[page_off]);
+			ringbuffer = vmap(&page, 1, VM_MAP, pgprot_noncached(PAGE_KERNEL));
+			ptr = &ringbuffer[offset/8];
 
 			pr_err("%016llx %016llx %016llx %016llx %016llx %016llx %016llx %016llx\n",
 					ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7]);
@@ -350,7 +369,12 @@ static void print_group_queues_data(struct kbase_queue_group *const group)
 
 static void dump_cmd_ptr_instructions(struct kbase_context *kctx, u64 cmd_ptr)
 {
+	struct kbase_vmap_struct mapping;
 	u64 address;
+	u64 *ptr;
+
+	if (!kctx)
+		return;
 
 	dev_err(kctx->kbdev->dev, "Dumping instructions around the CMD_PTR");
 
@@ -363,8 +387,7 @@ static void dump_cmd_ptr_instructions(struct kbase_context *kctx, u64 cmd_ptr)
 	for (address = cmd_ptr - (4 * sizeof(u64));
 	     address < (cmd_ptr + (4 * sizeof(u64)));
 	     address += sizeof(u64)) {
-		struct kbase_vmap_struct mapping;
-		u64 *ptr = kbase_vmap(kctx, address, sizeof(u64), &mapping);
+		ptr = kbase_vmap(kctx, address, sizeof(u64), &mapping);
 
 		if (!ptr)
 			continue;
@@ -435,19 +458,23 @@ static void dump_iterator_registers(struct kbase_device *kbdev)
 
 static void dump_hwif_registers(struct kbase_device *kbdev, int faulty_as)
 {
+	struct kbase_context *kctx;
 	unsigned int i, j;
+	int as_nr;
 	u32 reg_offsets[17] = { 0x24, 0x34, 0x60, 0x64, 0x74, 0x78, 0x7C, 0x80, 0x98, 0xA4, 0xAC, 0xB0, 0xB8, 0xBC, 0x28, 0x2C, 0x30 };
 	u32 cshwif_reg[17];
+	u64 cmd_ptr;
+	u64 cmd_ptr_end;
 
 	if (kbdev->protected_mode)
 		return;
 
 	for (i = 0; kbdev->pm.backend.gpu_powered && (i < NR_HW_INTERFACES); i++) {
-		u64 cmd_ptr = kbase_reg_read(kbdev, CSHWIF_REG(i, 0x0)) |
+		cmd_ptr = kbase_reg_read(kbdev, CSHWIF_REG(i, 0x0)) |
 			((u64)kbase_reg_read(kbdev, CSHWIF_REG(i, 0x4)) << 32);
-		u64 cmd_ptr_end = kbase_reg_read(kbdev, CSHWIF_REG(i, 0x8)) |
+		cmd_ptr_end = kbase_reg_read(kbdev, CSHWIF_REG(i, 0x8)) |
 			((u64)kbase_reg_read(kbdev, CSHWIF_REG(i, 0xC)) << 32);
-		int as_nr = kbase_reg_read(kbdev, CSHWIF_REG(i, 0x34));
+		as_nr = kbase_reg_read(kbdev, CSHWIF_REG(i, 0x34));
 
 		if (!cmd_ptr)
 			continue;
@@ -506,7 +533,7 @@ static void dump_hwif_registers(struct kbase_device *kbdev, int faulty_as)
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 		if ((cmd_ptr != cmd_ptr_end) && (as_nr == faulty_as)) {
-			struct kbase_context *kctx = kbdev->as_to_kctx[as_nr];
+			kctx = kbdev->as_to_kctx[as_nr];
 			if (kctx)
 				dump_cmd_ptr_instructions(kctx, cmd_ptr);
 		}
