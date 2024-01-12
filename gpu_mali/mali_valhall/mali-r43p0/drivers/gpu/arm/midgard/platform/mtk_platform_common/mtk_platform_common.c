@@ -55,6 +55,11 @@ static struct proc_dir_entry *proc_root;
 #include <platform/mtk_platform_common/mtk_platform_irq_trace.h>
 #endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CM7_TRACE)
+#include <bus_tracer_v1.h>
+#include "mtk_platform_cm7_trace.h"
+#endif /* CONFIG_MALI_MTK_CM7_TRACE */
+
 static bool mfg_powered;
 static DEFINE_MUTEX(mfg_pm_lock);
 static DEFINE_MUTEX(common_debug_lock);
@@ -131,6 +136,11 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 			mtk_kbase_csf_firmware_ke_dump_fwlog(kbdev); /* dump fwlog, reserve 1MB for fwlog*/
 		}
 #endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
+#if IS_ENABLED(CONFIG_MALI_MTK_CM7_TRACE)
+#if IS_ENABLED(CONFIG_MTK_GPU_DIAGNOSIS_DEBUG)
+		disable_etb_capture(); /* stop ETB capture before DFD trig */
+#endif /*CONFIG_MTK_GPU_DIAGNOSIS_DEBUG*/
+#endif /* CONFIG_MALI_MTK_CM7_TRACE */
 		break;
 	case MTK_COMMON_DBG_TRIGGER_KERNEL_EXCEPTION:
 #if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
@@ -235,12 +245,20 @@ void mtk_common_sysfs_init(struct kbase_device *kbdev)
 {
 	if (IS_ERR_OR_NULL(kbdev))
 		return;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_CM7_TRACE)
+        mtk_cm7_trace_sysfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_CM7_TRACE */
 }
 
 void mtk_common_sysfs_term(struct kbase_device *kbdev)
 {
 	if (IS_ERR_OR_NULL(kbdev))
 		return;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_CM7_TRACE)
+        mtk_cm7_trace_sysfs_term(kbdev);
+#endif /* CONFIG_MALI_MTK_CM7_TRACE */
 }
 #endif /* CONFIG_MALI_MTK_SYSFS */
 
