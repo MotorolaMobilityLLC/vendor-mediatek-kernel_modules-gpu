@@ -157,6 +157,10 @@ static void kbase_mem_pool_add_locked(struct kbase_mem_pool *pool,
 	}
 
 	pool_dbg(pool, "added page\n");
+
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+	mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, 1 << pool->order);
+#endif /* CONFIG_MALI_MTK_COMMON */
 }
 
 static void kbase_mem_pool_add(struct kbase_mem_pool *pool, struct page *p)
@@ -170,6 +174,9 @@ static void kbase_mem_pool_add_list_locked(struct kbase_mem_pool *pool,
 		struct list_head *page_list, size_t nr_pages)
 {
 	bool queue_work_to_free = false;
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+	struct page *p;
+#endif /* CONFIG_MALI_MTK_COMMON */
 
 	lockdep_assert_held(&pool->pool_lock);
 
@@ -193,6 +200,11 @@ static void kbase_mem_pool_add_list_locked(struct kbase_mem_pool *pool,
 	}
 
 	pool_dbg(pool, "added %zu pages\n", nr_pages);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+	p = list_first_entry(&pool->page_list, struct page, lru);
+	mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, nr_pages << pool->order);
+#endif /* CONFIG_MALI_MTK_COMMON */
 }
 
 static void kbase_mem_pool_add_list(struct kbase_mem_pool *pool,
@@ -223,6 +235,10 @@ static struct page *kbase_mem_pool_remove_locked(struct kbase_mem_pool *pool,
 		page_md->status = PAGE_STATUS_SET(page_md->status, (u8)status);
 		spin_unlock(&page_md->migrate_lock);
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+	mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, -(1 << pool->order));
+#endif /* CONFIG_MALI_MTK_COMMON */
 
 	list_del_init(&p->lru);
 	pool->cur_size--;

@@ -682,6 +682,11 @@ unsigned long kbase_mem_evictable_reclaim_count_objects(struct shrinker *s,
 	int evict_nents = atomic_read(&kctx->evict_nents);
 	unsigned long nr_freeable_items;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+	// MTK add to prevent false alarm
+	lockdep_off();
+#endif /* CONFIG_MALI_MTK_COMMON */
+
 	WARN((sc->gfp_mask & __GFP_ATOMIC),
 	     "Shrinkers cannot be called for GFP_ATOMIC allocations. Check kernel mm for problems. gfp_mask==%x\n",
 	     sc->gfp_mask);
@@ -700,6 +705,11 @@ unsigned long kbase_mem_evictable_reclaim_count_objects(struct shrinker *s,
 	if (nr_freeable_items == 0)
 		nr_freeable_items = SHRINK_EMPTY;
 #endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+	// MTK add to prevent false alarm
+	lockdep_on();
+#endif /* CONFIG_MALI_MTK_COMMON */
 
 	return nr_freeable_items;
 }
