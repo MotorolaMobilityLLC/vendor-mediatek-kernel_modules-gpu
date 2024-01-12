@@ -658,20 +658,16 @@ static void wait_pending_queue_kick(struct kbase_queue *queue)
 {
 	struct kbase_context *const kctx = queue->kctx;
 
-	lockdep_assert_held(&kctx->csf.lock);
-
 	/* Drain a pending queue kick if any. It should no longer be
 	 * possible to issue further queue kicks at this point: either the
 	 * queue has been unbound, or the context is being terminated.
-	 */
-	mutex_unlock(&kctx->csf.lock);
-	/* Signal kbase_csf_scheduler_kthread() to allow for the
+	 *
+	 * Signal kbase_csf_scheduler_kthread() to allow for the
 	 * eventual completion of the current iteration. Once it's done the
 	 * event_wait wait queue shall be signalled.
 	 */
 	complete(&kctx->kbdev->csf.scheduler.kthread_signal);
 	wait_event(kctx->kbdev->csf.event_wait, atomic_read(&queue->pending_kick) == 0);
-	mutex_lock(&kctx->csf.lock);
 }
 
 void kbase_csf_queue_terminate(struct kbase_context *kctx,
@@ -720,7 +716,17 @@ void kbase_csf_queue_terminate(struct kbase_context *kctx,
 			queue->queue_reg->user_data = NULL;
 		kbase_gpu_vm_unlock(kctx);
 
+		mutex_unlock(&kctx->csf.lock);
+		/* The GPU reset can be allowed now as the queue has been unbound. */
+		if (reset_prevented) {
+			kbase_reset_gpu_allow(kbdev);
+			reset_prevented = false;
+		}
 		wait_pending_queue_kick(queue);
+		/* The work items can be cancelled as Userspace is terminating the queue */
+		cancel_work_sync(&queue->oom_event_work);
+		cancel_work_sync(&queue->cs_error_work);
+		mutex_lock(&kctx->csf.lock);
 
 		release_queue(queue);
 	}
@@ -1867,7 +1873,9 @@ void kbase_csf_ctx_term(struct kbase_context *kctx)
 
 		list_del_init(&queue->link);
 
+		mutex_unlock(&kctx->csf.lock);
 		wait_pending_queue_kick(queue);
+		mutex_lock(&kctx->csf.lock);
 
 		/* The reference held when the IO mapping was created on bind
 		 * would have been dropped otherwise the termination of Kbase
@@ -2131,7 +2139,6 @@ static void oom_event_worker(struct work_struct *data)
 	mutex_lock(&kctx->csf.lock);
 
 	kbase_queue_oom_event(queue);
-	release_queue(queue);
 
 	mutex_unlock(&kctx->csf.lock);
 	kbase_reset_gpu_allow(kbdev);
@@ -2403,12 +2410,10 @@ handle_fault_event(struct kbase_queue *const queue, const u32 cs_ack)
 	if ((cs_fault_exception_type != CS_FAULT_EXCEPTION_TYPE_CS_INHERIT_FAULT) &&
 	    (cs_fault_exception_type != CS_FAULT_EXCEPTION_TYPE_CS_RESOURCE_TERMINATED)) {
 		if (unlikely(kbase_debug_csf_fault_notify(kbdev, queue->kctx, DF_CS_FAULT))) {
-			get_queue(queue);
 			queue->cs_error = cs_fault;
 			queue->cs_error_info = cs_fault_info;
 			queue->cs_error_fatal = false;
-			if (!queue_work(queue->kctx->csf.wq, &queue->cs_error_work))
-				release_queue(queue);
+			queue_work(queue->kctx->csf.wq, &queue->cs_error_work);
 			return;
 		}
 	}
@@ -2532,7 +2537,6 @@ static void cs_error_worker(struct work_struct *const data)
 				 group_handle);
 
 unlock:
-	release_queue(queue);
 	mutex_unlock(&kctx->csf.lock);
 	if (reset_prevented)
 		kbase_reset_gpu_allow(kbdev);
@@ -2612,12 +2616,10 @@ handle_fatal_event(struct kbase_queue *const queue,
 			if (kbase_prepare_to_reset_gpu(queue->kctx->kbdev, RESET_FLAGS_NONE))
 				kbase_reset_gpu(queue->kctx->kbdev);
 		}
-		get_queue(queue);
 		queue->cs_error = cs_fatal;
 		queue->cs_error_info = cs_fatal_info;
 		queue->cs_error_fatal = true;
-		if (!queue_work(queue->kctx->csf.wq, &queue->cs_error_work))
-			release_queue(queue);
+		queue_work(queue->kctx->csf.wq, &queue->cs_error_work);
 	}
 
 	kbase_csf_firmware_cs_input_mask(stream, CS_REQ, cs_ack,
@@ -2704,7 +2706,6 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 
 			if (((cs_req & CS_REQ_TILER_OOM_MASK) ^
 			     (cs_ack & CS_ACK_TILER_OOM_MASK))) {
-				get_queue(queue);
 				KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, CSI_INTERRUPT_TILER_OOM,
 							 group, queue, cs_req ^ cs_ack);
 				if (!queue_work(wq, &queue->oom_event_work)) {
@@ -2728,7 +2729,6 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 						queue->csi_index, group->handle, queue->kctx->tgid,
 						queue->kctx->id);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-					release_queue(queue);
 				}
 			}
 
