@@ -30,6 +30,13 @@
 #include <linux/mman.h>
 #include <linux/version_compat_defs.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+/* csffw reserved memory */
+#include <linux/of.h>
+#include <linux/of_address.h>
+#include <linux/of_reserved_mem.h>
+#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_CSFFWLOG)
 /* csffw reserved memory */
 #include <linux/of.h>
@@ -723,6 +730,54 @@ static ssize_t kbasep_csf_firmware_trace_debugfs_read(struct file *file,
 	dev_err(kbdev->dev, "Couldn't copy trace buffer data to user space buffer");
 	return -EFAULT;
 }
+
+#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+void mtk_kbase_csf_firmware_ke_dump_fwlog(struct kbase_device *kbdev)
+{
+	struct device_node *rmem_node;
+	struct reserved_mem *fwlogdump;
+	u8 *fw_dump_dest;
+	u8 *buf;
+	unsigned int read_size, total_size = 0;
+	struct firmware_trace_buffer *tb =
+		kbase_csf_firmware_get_trace_buffer(kbdev, FW_TRACE_BUF_NAME);
+	rmem_node = of_find_compatible_node(NULL, NULL, "mediatek,me_CSFFWLOG_reserved");
+	if(!rmem_node) {
+		dev_vdbg(kbdev->dev, "[CSFFWLOG] no node for reserved memory\n");
+		return;
+	}
+	fwlogdump = of_reserved_mem_lookup(rmem_node);
+	if(!fwlogdump) {
+		dev_vdbg(kbdev->dev, "[CSFFWLOG] cannot lookup reserved memory\n");
+		return;
+	}
+	fw_dump_dest = ioremap_wc(fwlogdump->base, fwlogdump->size);
+	dev_info(kbdev->dev, "[me_CSFFWLOG_reserved] phys = 0x%x, size = %d, virt = 0x%llx\n",
+			fwlogdump->base, fwlogdump->size, fw_dump_dest);
+	if (tb == NULL) {
+		dev_vdbg(kbdev->dev, "Can't get the trace buffer, firmware trace dump skipped");
+		return;
+	}
+	buf = kmalloc(PAGE_SIZE * 4, GFP_KERNEL);
+	if (buf == NULL) {
+		dev_vdbg(kbdev->dev, "Short of memory, firmware trace dump skipped");
+		return;
+	}
+
+	while ((read_size = kbase_csf_firmware_trace_buffer_read_data(tb, buf, PAGE_SIZE))) {
+		total_size += read_size;
+		if (total_size <= PAGE_SIZE * 4) {
+			memcpy_toio(fw_dump_dest, buf, read_size);
+			fw_dump_dest +=read_size;
+		} else {
+			dev_vdbg(kbdev->dev, "fwlog dump size > 16KB");
+			break;
+		}
+	}
+	kfree(buf);
+}
+EXPORT_SYMBOL(mtk_kbase_csf_firmware_ke_dump_fwlog);
+#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_CSFFWLOG)
 void mtk_kbase_csf_firmware_dump_fwlog(struct kbase_device *kbdev)
