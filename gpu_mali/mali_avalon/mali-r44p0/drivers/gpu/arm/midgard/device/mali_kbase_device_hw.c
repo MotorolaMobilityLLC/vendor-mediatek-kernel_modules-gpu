@@ -27,6 +27,14 @@
 #include <mali_kbase_reset_gpu.h>
 #include <mmu/mali_kbase_mmu.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 #if !IS_ENABLED(CONFIG_MALI_NO_MALI)
 bool kbase_is_gpu_removed(struct kbase_device *kbdev)
 {
@@ -75,6 +83,15 @@ static int busy_wait_on_irq(struct kbase_device *kbdev, u32 irq_bit)
 		dev_err(kbdev->dev,
 			"Stuck waiting on %s bit, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n",
 			irq_flag_name);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+			"Stuck waiting on %s bit, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n",
+			irq_flag_name);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_NA);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 		if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_NONE))
 			kbase_reset_gpu_locked(kbdev);
