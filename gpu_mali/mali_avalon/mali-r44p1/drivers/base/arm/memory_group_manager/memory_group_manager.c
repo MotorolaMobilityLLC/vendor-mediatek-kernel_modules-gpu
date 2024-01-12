@@ -1153,10 +1153,10 @@ static int example_mgm_get_import_memory_id(
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
 	buf = import_data->u.dma_buf;
 	gid = dma_buf_get_gid(buf);
-	if(gid == GPU_ONLY_GID){
+	if(gid == slbc_gid_val(ID_GPU)){
 		group_id = GPU_ONLY_PBHA;
 	}
-	else if(gid == GPU_TO_OVL_GID){
+	else if(gid == slbc_gid_val(ID_GPU_W)){
 		group_id = GPU_TO_OVL_PBHA;
 	}
 	return group_id;

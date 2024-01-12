@@ -29,6 +29,7 @@ mali_mgm_$(MTK_PLATFORM_VERSION)_r44-y := memory_group_manager.o
 ccflags-y += -DCONFIG_MALI_MTK_PREVENT_MGM_KE
 ifeq ($(MTK_PLATFORM_VERSION),mt6989)
 ccflags-y += -DCONFIG_MALI_MTK_MGMM
+	CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE := y
 endif
 endif
 

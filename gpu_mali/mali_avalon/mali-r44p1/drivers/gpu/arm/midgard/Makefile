@@ -101,6 +101,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY := y
         CONFIG_MALI_MTK_GPU_DVFS_ASYNC := y
         CONFIG_MALI_MTK_KE_BIT_STUCK := y
+        CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE := y
     endif ## mt6989 ##
 endif
 

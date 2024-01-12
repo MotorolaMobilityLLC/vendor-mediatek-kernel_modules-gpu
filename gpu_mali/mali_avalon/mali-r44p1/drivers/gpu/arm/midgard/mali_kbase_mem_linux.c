@@ -1556,7 +1556,7 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx,
 	int group_id;
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
 	int gid = 0;
-	struct slbc_gid_data slbc_data = {0,0,0,0,0,0,0,0,0};
+	struct slbc_gid_data slbc_data = {0x51ca11ca,0,0,0,0,0,0,0,0};
 #endif
 	/* 64-bit address range is the max */
 	if (*va_pages > (U64_MAX / PAGE_SIZE))
@@ -1628,11 +1628,8 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx,
 
 	group_id = get_umm_memory_group_id(kctx, dma_buf);
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
-	if(gid == GPU_ONLY_GID){
-		slbc_gid_request(ID_GPU,&gid,&slbc_data);
-		slbc_validate(ID_GPU,gid);
-	}
-	else if(gid == GPU_TO_OVL_GID){
+	/* GPU only GID is controlled along with power flow */
+	if (gid == slbc_gid_val(ID_GPU_W)) {
 		slbc_gid_request(ID_GPU_W,&gid,&slbc_data);
 		slbc_validate(ID_GPU_W,gid);
 	}
