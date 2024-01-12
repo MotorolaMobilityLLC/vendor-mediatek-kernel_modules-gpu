@@ -310,6 +310,7 @@ int kbase_device_misc_init(struct kbase_device * const kbdev)
 #endif /* MALI_USE_CSF */
 
 	kbdev->mmu_mode = kbase_mmu_mode_get_aarch64();
+	kbdev->mmu_as_inactive_wait_time_ms = KBASE_MMU_AS_INACTIVE_WAIT_TIME_MS;
 
 	mutex_init(&kbdev->kctx_list_lock);
 	INIT_LIST_HEAD(&kbdev->kctx_list);
