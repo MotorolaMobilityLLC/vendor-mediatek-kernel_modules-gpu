@@ -520,7 +520,11 @@ static int mtk_debug_dump_kcpu_queues(struct seq_file *file, void *data)
 				{
 					struct kbase_sync_fence_info info;
 
-					kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
+					if (cmd->info.fence.fence)
+						kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
+					else
+						scnprintf(info.name, sizeof(info.name), "NULL");
+
 					seq_printf(file,
 							   "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info\n",
 							   kctx->tgid,
@@ -541,7 +545,11 @@ static int mtk_debug_dump_kcpu_queues(struct seq_file *file, void *data)
 				{
 					struct kbase_sync_fence_info info;
 
-					kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
+					if (cmd->info.fence.fence)
+						kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
+					else
+						scnprintf(info.name, sizeof(info.name), "NULL");
+
 					seq_printf(file,
 							   "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info\n",
 							   kctx->tgid,
@@ -1960,7 +1968,11 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 						{
 							struct kbase_sync_fence_info info;
 
-							kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
+							if (cmd->info.fence.fence)
+								kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
+							else
+								scnprintf(info.name, sizeof(info.name), "NULL");
+
 							dev_info(kbdev->dev,
 							         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
 							         kctx->tgid,
@@ -1981,7 +1993,11 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 						{
 							struct kbase_sync_fence_info info;
 
-							kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
+							if (cmd->info.fence.fence)
+								kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
+							else
+								scnprintf(info.name, sizeof(info.name), "NULL");
+
 							dev_info(kbdev->dev,
 							         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
 							         kctx->tgid,
