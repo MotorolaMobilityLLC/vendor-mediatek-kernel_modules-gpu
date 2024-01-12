@@ -961,7 +961,7 @@ static inline int kbase_reg_prepare_native(struct kbase_va_region *reg,
 		struct kbase_context *kctx, int group_id)
 {
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
-	struct slbc_gid_data slbc_data={0,0,0,0,0,0,0,0,0};
+	struct slbc_gid_data slbc_data = {0,0,0,0,0,0,0,0,0};
 #endif
 	KBASE_DEBUG_ASSERT(reg);
 	KBASE_DEBUG_ASSERT(!reg->cpu_alloc);

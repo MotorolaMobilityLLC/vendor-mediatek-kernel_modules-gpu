@@ -3194,7 +3194,7 @@ void kbase_mem_kref_free(struct kref *kref)
 {
 	struct kbase_mem_phy_alloc *alloc;
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
-	int gid=0;
+	int gid = 0;
 #endif
 
 	alloc = container_of(kref, struct kbase_mem_phy_alloc, kref);
@@ -3258,11 +3258,11 @@ void kbase_mem_kref_free(struct kref *kref)
 		}
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
 		gid = dma_buf_get_gid(alloc->imported.umm.dma_buf);
-		if(gid==GPU_ONLY_GID){
+		if(gid == GPU_ONLY_GID){
 			slbc_invalidate(ID_GPU,gid);
 			slbc_gid_release(ID_GPU,gid);
 		}
-		else if(gid==GPU_TO_OVL_GID){
+		else if(gid == GPU_TO_OVL_GID){
 			slbc_invalidate(ID_GPU_W,gid);
 			slbc_gid_release(ID_GPU_W,gid);
 		}

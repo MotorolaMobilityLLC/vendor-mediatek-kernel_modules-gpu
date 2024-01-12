@@ -1024,10 +1024,10 @@ static int example_mgm_get_import_memory_id(
 	struct memory_group_manager_import_data *import_data)
 {
 	struct mgm_groups *const data = mgm_dev->data;
-	int group_id=IMPORTED_MEMORY_ID;
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+	int group_id = IMPORTED_MEMORY_ID;
 	struct dma_buf *buf;
-	int gid=0;
+	int gid = 0;
 #endif
 
 	dev_vdbg(data->dev, "%s(mgm_dev=%p, import_data=%p (type=%d)\n",
@@ -1042,15 +1042,16 @@ static int example_mgm_get_import_memory_id(
 	}
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
 	buf = import_data->u.dma_buf;
-	gid=dma_buf_get_gid(buf);
+	gid = dma_buf_get_gid(buf);
 	if(gid == GPU_ONLY_GID){
 		group_id = GPU_ONLY_PBHA;
 	}
 	else if(gid == GPU_TO_OVL_GID){
 		group_id = GPU_TO_OVL_PBHA;
 	}
-#endif
 	return group_id;
+#endif
+	return IMPORTED_MEMORY_ID;
 }
 
 static u64 example_mgm_update_gpu_pte(
