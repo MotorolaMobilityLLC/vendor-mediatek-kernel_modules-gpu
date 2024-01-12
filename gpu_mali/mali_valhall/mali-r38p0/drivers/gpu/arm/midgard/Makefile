@@ -45,7 +45,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_DIAGNOSIS_MODE := y
         CONFIG_MALI_MTK_CSFFWLOG := n
         CONFIG_MALI_MTK_KE_DUMP_FWLOG := y
-        CONFIG_MALI_MTK_CM7_TRACE := y
+        CONFIG_MALI_MTK_CM7_TRACE := n
     endif ## mt6983 ##
 
     ifeq ($(MTK_PLATFORM_VERSION),mt6985)
