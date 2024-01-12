@@ -10,6 +10,7 @@
 #include <linux/delay.h>
 #include <platform/mtk_platform_common.h>
 #include <backend/gpu/mali_kbase_pm_defs.h>
+#include <backend/gpu/mali_kbase_pm_internal.h>
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
 #include <csf/mali_kbase_csf_csg_debugfs.h>
 #include <csf/mali_kbase_csf_kcpu_debugfs.h>
@@ -1204,9 +1205,24 @@ static const char *blocked_reason_to_string(u32 reason_id)
 	return cs_blocked_reason[reason_id];
 }
 
+static bool sb_source_supported(u32 glb_version)
+{
+	bool supported = false;
+
+	if (((GLB_VERSION_MAJOR_GET(glb_version) == 3) &&
+	     (GLB_VERSION_MINOR_GET(glb_version) >= 5)) ||
+	    ((GLB_VERSION_MAJOR_GET(glb_version) == 2) &&
+	     (GLB_VERSION_MINOR_GET(glb_version) >= 6)) ||
+	    ((GLB_VERSION_MAJOR_GET(glb_version) == 1) &&
+	     (GLB_VERSION_MINOR_GET(glb_version) >= 3)))
+		supported = true;
+
+	return supported;
+}
+
 static void mtk_debug_csf_scheduler_dump_active_queue_cs_status_wait(
 	struct kbase_device *kbdev, pid_t tgid, u32 id,
-	u32 wait_status, u32 wait_sync_value, u64 wait_sync_live_value,
+	u32 glb_version, u32 wait_status, u32 wait_sync_value, u64 wait_sync_live_value,
 	u64 wait_sync_pointer, u32 sb_status, u32 blocked_reason)
 {
 #define WAITING "Waiting"
@@ -1219,6 +1235,12 @@ static void mtk_debug_csf_scheduler_dump_active_queue_cs_status_wait(
 	         CS_STATUS_WAIT_SB_MASK_GET(wait_status),
 	         CS_STATUS_WAIT_PROGRESS_WAIT_GET(wait_status) ? WAITING : NOT_WAITING,
 	         CS_STATUS_WAIT_PROTM_PEND_GET(wait_status) ? WAITING : NOT_WAITING);
+	if (sb_source_supported(glb_version))
+		dev_info(kbdev->dev,
+		         "[%d_%d] SB_SOURCE: %d",
+		         tgid,
+		         id,
+		         CS_STATUS_WAIT_SB_SOURCE_GET(wait_status));
 	dev_info(kbdev->dev,
 	         "[%d_%d] SYNC_WAIT: %s, WAIT_CONDITION: %s, SYNC_POINTER: 0x%llx",
 	         tgid,
@@ -1260,6 +1282,7 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 	struct kbase_vmap_struct *mapping;
 	u64 *evt;
 	u64 wait_sync_live_value;
+	u32 glb_version;
 
 	if (!queue)
 		return;
@@ -1278,6 +1301,8 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 			 queue->doorbell_nr);
 		return;
 	}
+
+	glb_version = queue->kctx->kbdev->csf.global_iface.version;
 
 	/* Ring the doorbell to have firmware update CS_EXTRACT */
 	kbase_csf_ring_cs_user_doorbell(queue->kctx->kbdev, queue);
@@ -1366,6 +1391,11 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 	 * if cs_trace is enabled, dump the interface's cs_trace configuration.
 	 */
 	if (kbase_csf_scheduler_group_get_slot(queue->group) < 0) {
+		dev_info(queue->kctx->kbdev->dev,
+		         "[%d_%d] SAVED_CMD_PTR: 0x%llx",
+		         tgid,
+		         id,
+		         queue->saved_cmd_ptr);
 		if (CS_STATUS_WAIT_SYNC_WAIT_GET(queue->status_wait)) {
 			wait_status = queue->status_wait;
 			wait_sync_value = queue->sync_value;
@@ -1383,7 +1413,7 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 
 			mtk_debug_csf_scheduler_dump_active_queue_cs_status_wait(
 				queue->kctx->kbdev, tgid, id,
-				wait_status, wait_sync_value,
+				glb_version, wait_status, wait_sync_value,
 				wait_sync_live_value, wait_sync_pointer,
 				sb_status, blocked_reason);
 		}
@@ -1442,7 +1472,7 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 
 		mtk_debug_csf_scheduler_dump_active_queue_cs_status_wait(
 			queue->kctx->kbdev, tgid, id,
-			wait_status, wait_sync_value,
+			glb_version, wait_status, wait_sync_value,
 			wait_sync_live_value, wait_sync_pointer, sb_status,
 			blocked_reason);
 		/* Dealing with cs_trace */
@@ -1487,29 +1517,66 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 /* Waiting timeout for STATUS_UPDATE acknowledgment, in milliseconds */
 #define CSF_STATUS_UPDATE_TO_MS (100)
 
+static void update_active_group_status(struct kbase_queue_group *const group)
+{
+       struct kbase_device *const kbdev = group->kctx->kbdev;
+      struct kbase_csf_cmd_stream_group_info const *const ginfo =
+               &kbdev->csf.global_iface.groups[group->csg_nr];
+       long remaining =
+               kbase_csf_timeout_in_jiffies(CSF_STATUS_UPDATE_TO_MS);
+       unsigned long flags;
+
+       /* Global doorbell ring for CSG STATUS_UPDATE request or User doorbell
+        * ring for Extract offset update, shall not be made when MCU has been
+        * put to sleep otherwise it will undesirably make MCU exit the sleep
+        * state. Also it isn't really needed as FW will implicitly update the
+        * status of all on-slot groups when MCU sleep request is sent to it.
+        */
+       if (kbdev->csf.scheduler.state == SCHED_SLEEPING)
+               return;
+
+       /* Ring the User doobell shared between the queues bound to this
+        * group, to have FW update the CS_EXTRACT for all the queues
+        * bound to the group. Ring early so that FW gets adequate time
+        * for the handling.
+        */
+       kbase_csf_ring_doorbell(kbdev, group->doorbell_nr);
+
+       kbase_csf_scheduler_spin_lock(kbdev, &flags);
+       kbase_csf_firmware_csg_input_mask(ginfo, CSG_REQ,
+                       ~kbase_csf_firmware_csg_output(ginfo, CSG_ACK),
+                       CSG_REQ_STATUS_UPDATE_MASK);
+       kbase_csf_scheduler_spin_unlock(kbdev, flags);
+       kbase_csf_ring_csg_doorbell(kbdev, group->csg_nr);
+
+       remaining = wait_event_timeout(kbdev->csf.event_wait,
+               !((kbase_csf_firmware_csg_input_read(ginfo, CSG_REQ) ^
+               kbase_csf_firmware_csg_output(ginfo, CSG_ACK)) &
+               CSG_REQ_STATUS_UPDATE_MASK), remaining);
+
+       if (!remaining) {
+               dev_info(kbdev->dev,
+                        "[%d_%d] Timed out for STATUS_UPDATE on group %d on slot %d",
+                        group->kctx->tgid,
+                        group->kctx->id,
+                        group->handle,
+                        group->csg_nr);
+       }
+}
+
+
 static void mtk_debug_csf_scheduler_dump_active_group(struct kbase_queue_group *const group,
                                                       struct mtk_debug_cs_queue_data *cs_queue_data)
 {
 	if (kbase_csf_scheduler_group_get_slot(group) >= 0) {
 		struct kbase_device *const kbdev = group->kctx->kbdev;
-		unsigned long flags;
 		u32 ep_c, ep_r;
 		char exclusive;
+		char idle = 'N';
 		struct kbase_csf_cmd_stream_group_info const *const ginfo = &kbdev->csf.global_iface.groups[group->csg_nr];
-		long remaining = kbase_csf_timeout_in_jiffies(CSF_STATUS_UPDATE_TO_MS);
 		u8 slot_priority = kbdev->csf.scheduler.csg_slots[group->csg_nr].priority;
 
-		kbase_csf_scheduler_spin_lock(kbdev, &flags);
-		kbase_csf_firmware_csg_input_mask(ginfo, CSG_REQ,
-				~kbase_csf_firmware_csg_output(ginfo, CSG_ACK),
-				CSG_REQ_STATUS_UPDATE_MASK);
-		kbase_csf_scheduler_spin_unlock(kbdev, flags);
-		kbase_csf_ring_csg_doorbell(kbdev, group->csg_nr);
-
-		remaining = wait_event_timeout(kbdev->csf.event_wait,
-			!((kbase_csf_firmware_csg_input_read(ginfo, CSG_REQ) ^
-			   kbase_csf_firmware_csg_output(ginfo, CSG_ACK)) &
-			   CSG_REQ_STATUS_UPDATE_MASK), remaining);
+		update_active_group_status(group);
 
 		ep_c = kbase_csf_firmware_csg_output(ginfo, CSG_STATUS_EP_CURRENT);
 		ep_r = kbase_csf_firmware_csg_output(ginfo, CSG_STATUS_EP_REQ);
@@ -1521,21 +1588,16 @@ static void mtk_debug_csf_scheduler_dump_active_group(struct kbase_queue_group *
 		else
 			exclusive = '0';
 
-		if (!remaining) {
-			dev_info(kbdev->dev,
-			         "[%d_%d] Timed out for STATUS_UPDATE on group %d on slot %d",
-			         group->kctx->tgid,
-			         group->kctx->id,
-			         group->handle,
-			         group->csg_nr);
-		}
+		if (kbase_csf_firmware_csg_output(ginfo, CSG_STATUS_STATE) &
+				CSG_STATUS_STATE_IDLE_MASK)
+			idle = 'Y';
 
 		dev_info(kbdev->dev,
-		        "[%d_%d] GroupID, CSG NR, CSG Prio, Run State, Priority, C_EP(Alloc/Req), F_EP(Alloc/Req), T_EP(Alloc/Req), Exclusive",
+		        "[%d_%d] GroupID, CSG NR, CSG Prio, Run State, Priority, C_EP(Alloc/Req), F_EP(Alloc/Req), T_EP(Alloc/Req), Exclusive, Idle",
 		        group->kctx->tgid,
 		        group->kctx->id);
 		dev_info(kbdev->dev,
-		        "[%d_%d] %7d, %6d, %8d, %9d, %8d, %11d/%3d, %11d/%3d, %11d/%3d, %9c",
+		        "[%d_%d] %7d, %6d, %8d, %9d, %8d, %11d/%3d, %11d/%3d, %11d/%3d, %9c, %4c",
 		        group->kctx->tgid,
 		        group->kctx->id,
 		        group->handle,
@@ -1549,7 +1611,7 @@ static void mtk_debug_csf_scheduler_dump_active_group(struct kbase_queue_group *
 		        CSG_STATUS_EP_REQ_FRAGMENT_EP_GET(ep_r),
 		        CSG_STATUS_EP_CURRENT_TILER_EP_GET(ep_c),
 		        CSG_STATUS_EP_REQ_TILER_EP_GET(ep_r),
-		        exclusive);
+		        exclusive, idle);
 	} else {
 		dev_info(group->kctx->kbdev->dev,
 		        "[%d_%d] GroupID, CSG NR, Run State, Priority",
@@ -1608,6 +1670,12 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 				u32 num_groups = kbdev->csf.global_iface.group_num;
 
 				dev_info(kbdev->dev, "[active_groups] MALI_CSF_CSG_DEBUGFS_VERSION: v%u\n", MALI_CSF_CSG_DEBUGFS_VERSION);
+				if (kbdev->csf.scheduler.state == SCHED_SLEEPING) {
+					/* Wait for the MCU sleep request to complete. Please refer the
+					 * update_active_group_status() function for the explanation.
+					 */
+					kbase_pm_wait_for_desired_state(kbdev);
+				}
 
 				for (csg_nr = 0; csg_nr < num_groups; csg_nr++) {
 					struct kbase_queue_group *const group = kbdev->csf.scheduler.csg_slots[csg_nr].resident_group;
