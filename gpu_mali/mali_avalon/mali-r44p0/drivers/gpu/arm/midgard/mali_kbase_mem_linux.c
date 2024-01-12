@@ -1609,8 +1609,8 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx,
 	bool need_sync = false;
 	int group_id;
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
-	int gid=0;
-	struct slbc_gid_data slbc_data={0,0,0,0,0,0,0,0,0};
+	int gid = 0;
+	struct slbc_gid_data slbc_data = {0,0,0,0,0,0,0,0,0};
 #endif
 	/* 64-bit address range is the max */
 	if (*va_pages > (U64_MAX / PAGE_SIZE))
@@ -1620,7 +1620,7 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx,
 	if (IS_ERR_OR_NULL(dma_buf))
 		return NULL;
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
-	gid=dma_buf_get_gid(dma_buf);
+	gid = dma_buf_get_gid(dma_buf);
 #endif
 	dma_attachment = dma_buf_attach(dma_buf, kctx->kbdev->dev);
 	if (IS_ERR_OR_NULL(dma_attachment)) {
