@@ -6754,7 +6754,14 @@ static void check_group_sync_update_worker(struct work_struct *work)
 	 * to serve on-slot CSGs blocked on CQS which has been signaled.
 	 */
 	if (!sync_updated && (scheduler->state == SCHED_SLEEPING))
+	{
+		/* Wait for sleep transition to complete to ensure the
+		 * CS_STATUS_WAIT registers are updated by the MCU.
+		 */
+		if (!kbdev->pm.backend.exit_gpu_sleep_mode)
+			kbase_pm_wait_for_desired_state(kbdev);
 		check_sync_update_in_sleep_mode(kbdev);
+	}
 
 	KBASE_KTRACE_ADD(kbdev, SCHEDULER_GROUP_SYNC_UPDATE_WORKER_END, kctx, 0u);
 
