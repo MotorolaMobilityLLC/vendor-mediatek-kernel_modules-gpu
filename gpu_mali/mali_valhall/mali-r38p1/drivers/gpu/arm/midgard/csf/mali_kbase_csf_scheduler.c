@@ -3000,7 +3000,7 @@ void kbase_csf_scheduler_group_deschedule(struct kbase_queue_group *group)
 			term_group_sync(group);
 		else
 			term_csg_slot(group);
-		
+
 		/* Treat the csg been terminated */
 		as_faulty = cleanup_csg_slot(group);
 		/* remove from the scheduler list */
@@ -6940,9 +6940,15 @@ kbase_csf_scheduler_scan_free_heap_pages(struct kbase_device *kbdev,
 
 	mutex_unlock(&kbdev->csf.scheduler.lock);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	dev_vdbg(kbdev->dev,
+		 "Reclaim scan freed pages: %lu (avail: %lu, extra: %lu, scan_nr: %lu/%lu)\n",
+		 freed, avail, count, sc->nr_scanned, sc->nr_to_scan);
+#else
 	dev_info(kbdev->dev,
 		 "Reclaim scan freed pages: %lu (avail: %lu, extra: %lu, scan_nr: %lu/%lu)\n",
 		 freed, avail, count, sc->nr_scanned, sc->nr_to_scan);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	/* On no avilablity, and with no new extra count, return STOP */
 	if (!avail && !count)
