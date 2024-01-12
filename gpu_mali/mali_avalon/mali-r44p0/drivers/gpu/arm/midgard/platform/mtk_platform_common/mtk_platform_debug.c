@@ -1905,7 +1905,7 @@ static const char *fence_timeout_type_to_string(int type)
 	return fence_timeout_type[type];
 }
 
-static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int timeouts)
+static void __attribute__((unused)) mtk_debug_dump_for_external_fence(int fd, int pid, int type, int timeouts)
 {
 	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
 
@@ -1988,7 +1988,8 @@ int mtk_debug_init(struct kbase_device *kbdev)
 	if (IS_ERR_OR_NULL(kbdev))
 		return -1;
 
-	mtk_gpu_fence_debug_dump_fp = mtk_debug_dump_for_external_fence;
+	/* Hook null to deprecated the debug dump for GED swd fence monitor */
+	mtk_gpu_fence_debug_dump_fp = NULL;
 
 	return 0;
 }
