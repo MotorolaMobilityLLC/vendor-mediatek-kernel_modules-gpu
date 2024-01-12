@@ -254,8 +254,14 @@ uint32_t kbase_gator_instr_hwcnt_dump_complete(
 {
 
 	if (opaque_handles && success) {
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+		spin_lock_bh(&opaque_handles->dump_lock);
+#endif
 		*success = opaque_handles->dump_complete;
 		opaque_handles->dump_complete = 0;
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+		spin_unlock_bh(&opaque_handles->dump_lock);
+#endif
 		return *success;
 	}
 	return 0;
