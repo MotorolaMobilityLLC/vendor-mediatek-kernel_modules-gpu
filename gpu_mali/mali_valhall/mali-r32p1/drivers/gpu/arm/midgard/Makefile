@@ -132,6 +132,18 @@ ifeq ($(BUILD_RULE),OOT)
     CONFIG_MALI_MTK_MFGSYS_PM := y
     CONFIG_MALI_SCMI_ENABLE := y
     endif
+
+    ifeq ($(MTK_PLATFORM_VERSION),mt6768)
+    MTK_GPU_VERSION := $(LOCAL_MTK_GPU_VERSION)
+    MTK_PLATFORM := $(MTK_PLATFORM_VERSION)
+    CONFIG_MALI_REAL_HW := y
+    CONFIG_MALI_DEBUG := y
+    CONFIG_MALI_MIDGARD_DVFS := y
+    CONFIG_MALI_DEVFREQ := y
+    CONFIG_MALI_MTK_MEM_TRACK := y
+    CONFIG_MALI_MTK_DEVFREQ := y
+    CONFIG_MALI_MTK_DEVFREQ_THERMAL := y
+    endif
 endif
 
 # make $(src) as absolute path if it is not already, by prefixing $(srctree)
@@ -246,7 +258,7 @@ ccflags-y += \
     -DMALI_JIT_PRESSURE_LIMIT_BASE=$(MALI_JIT_PRESSURE_LIMIT_BASE) \
     -DMALI_INCREMENTAL_RENDERING=$(MALI_INCREMENTAL_RENDERING) \
     -DMALI_KBASE_BUILD \
-#    -DMALI_PLATFORM_DIR=$(MALI_PLATFORM_DIR)
+    -DMALI_PLATFORM_DIR=$(MALI_PLATFORM_DIR)
 
 
 ifeq ($(KBUILD_EXTMOD),)
@@ -280,11 +292,11 @@ ifneq ($(UNQUOTE_CONFIG_MTK_GPU_VERSION),)
 # LD2.0
 else ifneq ($(wildcard $(KO_CODE_PATH)/platform/$(MTK_PLATFORM)),)
     obj-$(CONFIG_MALI_MIDGARD) += mali_kbase_$(MTK_PLATFORM).o
-    mali_kbase_$(MTK_PLATFORM)-y := mali_kbase.o
+    mali_kbase_$(MTK_PLATFORM)-y += $(mali_kbase-y) $(mali_kbase-m)
 endif
 
 ifeq ($(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM), y)
-    include $(srctree)/drivers/misc/mediatek/trusted_mem/Makefile.include
+    include $(DEVICE_MODULES_PATH)/drivers/misc/mediatek/trusted_mem/Makefile.include
     ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/staging/android/ion
 endif
 
@@ -366,7 +378,6 @@ else
         mali_kbase_fence.o
 endif
 
-
 INCLUDE_SUBDIR = \
     $(KO_CODE_PATH)/context/Kbuild \
     $(KO_CODE_PATH)/debug/Kbuild \
@@ -399,4 +410,3 @@ else
 # out-of-tree
     include $(INCLUDE_SUBDIR)
 endif
-
