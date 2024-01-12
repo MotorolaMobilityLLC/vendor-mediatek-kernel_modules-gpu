@@ -1376,6 +1376,9 @@ static void fence_timeout_callback(struct timer_list *timer)
 			kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name,
 			fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#if IS_ENABLED(CONFIG_MALI_FENCE_DEBUG)
+		queue_work(kcpu_queue->timeout_wq, &kcpu_queue->timeout_work);
+#endif
 	} else {
 		dev_warn(kctx->kbdev->dev, "fence has got error");
 		dev_warn(kctx->kbdev->dev,
