@@ -402,6 +402,9 @@ DevmemIntUnreserveRange(DEVMEMINT_RESERVATION *psDevmemReservation);
 PVRSRV_ERROR
 DevmemIntUnreserveRange2(DEVMEMINT_RESERVATION2 *psDevmemReservation);
 
+PVRSRV_ERROR
+DevmemIntGetReservationData(DEVMEMINT_RESERVATION2* psReservation, PMR** ppsPMR, IMG_DEV_VIRTADDR* psDevVAddr);
+
 /*************************************************************************/ /*!
 @Function       DevmemIntReservationAcquire
 @Description    Acquire a reference to the provided device memory reservation.
