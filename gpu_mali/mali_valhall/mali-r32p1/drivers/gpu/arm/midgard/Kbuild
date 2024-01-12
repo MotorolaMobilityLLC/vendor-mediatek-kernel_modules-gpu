@@ -163,6 +163,11 @@ obj-$(CONFIG_MALI_MIDGARD) += mali_kbase_$(MTK_PLATFORM).o
 mali_kbase_$(MTK_PLATFORM)-y := mali_kbase.o
 endif
 
+ifeq ($(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM), y)
+    include $(srctree)/drivers/misc/mediatek/trusted_mem/Makefile.include
+    ccflags-y += -I$(srctree)/drivers/staging/android/ion
+endif
+
 obj-$(CONFIG_MALI_ARBITRATION) += arbitration/
 obj-$(CONFIG_MALI_KUTF)    += tests/
 

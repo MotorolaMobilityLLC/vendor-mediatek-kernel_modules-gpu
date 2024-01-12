@@ -1,4 +1,4 @@
-$(info *GPU [mtk-Kbuild] building r32p0 DDK ...)
+$(info *GPU [mtk-Kbuild] building r32p1 DDK ...)
 
 MTK_TOP = $(srctree)/drivers/misc/mediatek/
 
