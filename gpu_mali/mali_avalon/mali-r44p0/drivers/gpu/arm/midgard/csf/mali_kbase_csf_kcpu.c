@@ -1438,6 +1438,11 @@ static void fence_timeout_callback(struct timer_list *timer)
 	struct dma_fence *fence;
 #endif
 	struct kbase_sync_fence_info info;
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	struct dma_fence_array *fence_array;
+	struct dma_fence **fences = NULL;
+	unsigned int i, num_fences;
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 	if (cmd->type != BASE_KCPU_COMMAND_TYPE_FENCE_WAIT) {
 		dev_err(kctx->kbdev->dev,
@@ -1495,6 +1500,36 @@ static void fence_timeout_callback(struct timer_list *timer)
 			 fence, info.name,
 			 fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+		/* Check if dma_fence_array and dump all fences */
+		if (dma_fence_is_array(fence)) {
+			fence_array = to_dma_fence_array(fence);
+			if (fence_array) {
+				fences = fence_array->fences;
+				num_fences = fence_array->num_fences;
+
+				for (i = 0; i < num_fences; i++) {
+					if (fences[i]) {
+						dev_info(kctx->kbdev->dev, "context#seqno:%s dma_fence_array[%d] (driver=%s, timeline=%s) status=%s",
+							info.name, i, fences[i]->ops->get_driver_name(fences[i]), fences[i]->ops->get_timeline_name(fences[i]),
+							dma_fence_is_signaled(fences[i]) ? "signaled" : "not signaled");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+						mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
+							"context#seqno:%s dma_fence_array[%d] (driver=%s, timeline=%s) status=%s\n",
+							info.name, i, fences[i]->ops->get_driver_name(fences[i]), fences[i]->ops->get_timeline_name(fences[i]),
+							dma_fence_is_signaled(fences[i]) ? "signaled" : "not signaled");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+					} else {
+						dev_info(kctx->kbdev->dev, "context#seqno:%s dma_fence_array[%d] null and log bypass",
+						info.name, i);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+						mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
+							"context#seqno:%s dma_fence_array[%d] null and log bypass\n", info.name, i);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+					}
+				}
+			}
+		}
 
 		/* Raise the fence timeout timer again */
 		fence_timeout_start(kcpu_queue);
@@ -1959,16 +1994,14 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 		queue->fence_signal_command_timeout_counter = 1;
 	}
 
-	dev_info(kctx->kbdev->dev,
+	/* Dump when timeout 3s, 4s */
+	if ((queue->fence_signal_command_timeout_counter == 3) || (queue->fence_signal_command_timeout_counter == 4)) {
+		dev_info(kctx->kbdev->dev,
 			"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms) on fence[%pK] context#seqno:%s (driver=%s, timeline=%s)",
 			kctx->tgid, kctx->id, queue->id,
 			(queue->fence_signal_command_timeout_counter * kbase_get_timeout_ms(kctx->kbdev, KCPU_FENCE_SIGNAL_TIMEOUT)),
 			fence, info.name,
 			fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
-
-	/* Dump when timeout 3s, 6s */
-	if ((queue->fence_signal_command_timeout_counter == 1) || (queue->fence_signal_command_timeout_counter == 2)) {
-		kbasep_csf_sync_kcpu_dump_locked(kctx, NULL);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
 			"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms) on fence[%pK] context#seqno:%s (driver=%s, timeline=%s)\n",
@@ -1977,7 +2010,10 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 			fence, info.name,
 			fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+		kbasep_csf_sync_kcpu_dump_locked(kctx, NULL);
 		mutex_unlock(&kctx->csf.kcpu_queues.lock);
+
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, kctx->tgid, MTK_DBG_HOOK_MALI_FENCE_SIGNAL_TIMEOUT);
 		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, kctx->tgid, MTK_DBG_HOOK_MALI_FENCE_SIGNAL_TIMEOUT);
