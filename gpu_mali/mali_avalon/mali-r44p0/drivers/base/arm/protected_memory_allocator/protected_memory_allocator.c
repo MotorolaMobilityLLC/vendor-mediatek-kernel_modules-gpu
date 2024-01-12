@@ -440,11 +440,19 @@ static int mtk_gpu_iommu_init(struct platform_device *pdev)
 	int ret = 1;
 	struct device *dev = &pdev->dev;
 
+#if defined(CONFIG_MTK_GPUFREQ_V2)
 	/* on,off/ SWCG(BG3D)/ MTCMOS/ BUCK */
 	if (gpufreq_power_control(GPU_PWR_ON) < 0) {
 		dev_err(dev, "Power On Failed");
 		return ret;
 	}
+
+	/* Control runtime active-sleep state of GPU */
+	if (gpufreq_active_sleep_control(GPU_PWR_ON) < 0) {
+		dev_err(dev, "Active Failed (on)");
+		return ret;
+	}
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
 
 	/* Create platform device for the sub node. */
 	ret = of_platform_populate(dev->of_node, NULL, NULL, dev);
@@ -453,11 +461,20 @@ static int mtk_gpu_iommu_init(struct platform_device *pdev)
 		return ret;
 	}
 
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+	/* Control runtime active-sleep state of GPU */
+	if (gpufreq_active_sleep_control(GPU_PWR_OFF) < 0) {
+		dev_err(dev, "Sleep Failed (off)");
+		return ret;
+	}
+
 	/* on,off/ SWCG(BG3D)/ MTCMOS/ BUCK */
 	if (gpufreq_power_control(GPU_PWR_OFF) < 0) {
 		dev_err(dev, "Power Off Failed");
 		return 1;
 	}
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+
 	dev_info(dev, "[gpu_iommu] init done %d", ret);
 	return ret;
 }
