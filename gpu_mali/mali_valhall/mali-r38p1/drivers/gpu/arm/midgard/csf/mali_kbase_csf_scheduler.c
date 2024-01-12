@@ -5358,7 +5358,7 @@ static void scheduler_inner_reset(struct kbase_device *kbdev)
 	if (scheduler->active_protm_grp) {
 		KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_PROTM_EXIT, scheduler->active_protm_grp,
 					 0u);
-		 scheduler->apply_pmode_exit_wa = true;
+		scheduler->apply_pmode_exit_wa = true;
 	}
 	scheduler->active_protm_grp = NULL;
 	memset(kbdev->csf.scheduler.csg_slots, 0,
