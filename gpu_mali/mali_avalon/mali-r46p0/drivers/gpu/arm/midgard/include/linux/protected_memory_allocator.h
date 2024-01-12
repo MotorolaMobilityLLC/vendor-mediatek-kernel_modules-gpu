@@ -24,6 +24,14 @@
 
 #include <linux/mm.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP)
+struct dma_buf_info {
+	struct dma_buf *buf;
+	struct dma_buf_attachment *buf_attachment;
+	struct sg_table *sgt;
+};
+#endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP */
+
 /**
  * struct protected_memory_allocation - Protected memory allocation
  *
@@ -33,6 +41,9 @@
 struct protected_memory_allocation {
 	phys_addr_t pa;
 	unsigned int order;
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP)
+	struct dma_buf_info dma_info;
+#endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP */
 };
 
 struct protected_memory_allocator_device;
