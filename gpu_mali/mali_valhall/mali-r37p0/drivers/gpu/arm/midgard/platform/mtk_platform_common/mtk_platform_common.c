@@ -145,6 +145,48 @@ static int mtk_common_gpu_utilization_show(struct seq_file *m, void *v)
 }
 DEFINE_PROC_SHOW_ATTRIBUTE(mtk_common_gpu_utilization);
 
+static int mtk_common_gpu_memory_show(struct seq_file *m, void *v)
+{
+#if IS_ENABLED(CONFIG_MALI_MTK_MEM_TRACK)
+	struct list_head *entry;
+	const struct list_head *kbdev_list;
+
+	lockdep_off();
+
+	kbdev_list = kbase_device_get_list();
+	list_for_each(entry, kbdev_list) {
+		struct kbase_device *kbdev = NULL;
+		struct kbase_context *kctx;
+
+		kbdev = list_entry(entry, struct kbase_device, entry);
+		/* output the total memory usage and cap for this device */
+		seq_printf(m, "%-16s  %10u\n",
+				kbdev->devname,
+				atomic_read(&(kbdev->memdev.used_pages)));
+		mutex_lock(&kbdev->kctx_list_lock);
+		list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
+			/* output the memory usage and cap for each kctx
+			* opened on this device
+			*/
+			seq_printf(m, "  %s-0x%p %10u %10u\n",
+				"kctx",
+				kctx,
+				atomic_read(&(kctx->used_pages)),
+				kctx->tgid);
+		}
+		mutex_unlock(&kbdev->kctx_list_lock);
+	}
+	kbase_device_put_list(kbdev_list);
+
+	lockdep_on();
+#else
+	seq_puts(m, "GPU mem_profile doesn't be enabled\n");
+#endif /* CONFIG_MALI_MTK_MEM_TRACK */
+
+	return 0;
+}
+DEFINE_PROC_SHOW_ATTRIBUTE(mtk_common_gpu_memory);
+
 void mtk_common_procfs_init(void)
 {
   	mtk_mali_root = proc_mkdir("mtk_mali", NULL);
@@ -184,6 +226,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	ged_dvfs_set_gpu_core_mask_fp = mtk_set_core_mask;
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEM_TRACK)
+	mtk_get_gpu_memory_usage_fp = mtk_common_gpu_memory_usage;
+#endif
+
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	mtk_gpu_fence_debug_dump_fp = mtk_common_gpu_fence_debug_dump;
 #endif
@@ -207,5 +253,10 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_DVFS_LOADING_MODE */
 	ged_dvfs_gpu_freq_commit_fp = NULL;
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEM_TRACK)
+	mtk_get_gpu_memory_usage_fp = NULL;
+#endif
+
 
 }
