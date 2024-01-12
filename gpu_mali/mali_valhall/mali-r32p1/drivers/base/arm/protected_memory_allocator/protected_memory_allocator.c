@@ -530,6 +530,7 @@ static int mtk_protected_memory_allocator_probe(struct platform_device *pdev)
 	size_t rmem_size;
 	size_t alloc_bitmap_pages_arr_size;
 	uint32_t gpr_offset, gpr_id, gmpu_table_size, psize;
+	uint64_t GPR_target_64;
 
 	np = pdev->dev.of_node;
 
@@ -570,12 +571,13 @@ static int mtk_protected_memory_allocator_probe(struct platform_device *pdev)
 	GPR_target = GPR(gpueb_base + gpr_offset, gpr_id);
 
 	/* Note GPR is 32 bits */
-	rmem_base = *(uint32_t*)GPR_target + gmpu_table_size;
+	GPR_target_64 = *(uint32_t*)GPR_target;
+	rmem_base = (GPR_target_64 << PAGE_SHIFT) + gmpu_table_size;
 	rmem_size = psize; // at least 256KB
 	rmem_size = rmem_size >> PAGE_SHIFT;
 
 	dev_info(&pdev->dev,
-		"addr(%x), size: %u pages\n", rmem_base, rmem_size);
+		"addr(%llx), size: %u pages\n", rmem_base, rmem_size);
 
 	devm_iounmap(&pdev->dev, gpueb_base);
 
