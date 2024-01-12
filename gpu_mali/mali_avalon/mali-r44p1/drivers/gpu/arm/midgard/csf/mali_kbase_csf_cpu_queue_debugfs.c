@@ -36,6 +36,9 @@ bool kbase_csf_cpu_queue_read_dump_req(struct kbase_context *kctx,
 	}
 
 	req->type = BASE_CSF_NOTIFICATION_CPU_QUEUE_DUMP;
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
+	req->payload.dump.cmd = kctx->csf.cpu_queue.dump_cmd;
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
 	return true;
 }
 
@@ -52,9 +55,15 @@ static int kbasep_csf_cpu_queue_debugfs_show(struct seq_file *file, void *data)
 	struct kbase_context *kctx = file->private;
 
 	mutex_lock(&kctx->csf.lock);
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY) || IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
+	mutex_lock(&kctx->csf.cpu_queue.lock);
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY || CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT */
 	if (atomic_read(&kctx->csf.cpu_queue.dump_req_status) !=
 				BASE_CSF_CPU_QUEUE_DUMP_COMPLETE) {
 		seq_puts(file, "Dump request already started! (try again)\n");
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY) || IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
+		mutex_unlock(&kctx->csf.cpu_queue.lock);
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY || CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT */
 		mutex_unlock(&kctx->csf.lock);
 		return -EBUSY;
 	}
@@ -62,7 +71,11 @@ static int kbasep_csf_cpu_queue_debugfs_show(struct seq_file *file, void *data)
 	atomic_set(&kctx->csf.cpu_queue.dump_req_status, BASE_CSF_CPU_QUEUE_DUMP_ISSUED);
 	init_completion(&kctx->csf.cpu_queue.dump_cmp);
 	kbase_event_wakeup(kctx);
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY) || IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
+	mutex_unlock(&kctx->csf.cpu_queue.lock);
+#else
 	mutex_unlock(&kctx->csf.lock);
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY || CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT */
 
 	seq_puts(file,
 		"CPU Queues table (version:v" __stringify(MALI_CSF_CPU_QUEUE_DEBUGFS_VERSION) "):\n");
@@ -70,7 +83,11 @@ static int kbasep_csf_cpu_queue_debugfs_show(struct seq_file *file, void *data)
 	wait_for_completion_timeout(&kctx->csf.cpu_queue.dump_cmp,
 			msecs_to_jiffies(3000));
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY) || IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
+	mutex_lock(&kctx->csf.cpu_queue.lock);
+#else
 	mutex_lock(&kctx->csf.lock);
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY || CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT */
 	if (kctx->csf.cpu_queue.buffer) {
 		WARN_ON(atomic_read(&kctx->csf.cpu_queue.dump_req_status) !=
 				    BASE_CSF_CPU_QUEUE_DUMP_PENDING);
@@ -86,6 +103,9 @@ static int kbasep_csf_cpu_queue_debugfs_show(struct seq_file *file, void *data)
 	atomic_set(&kctx->csf.cpu_queue.dump_req_status,
 			BASE_CSF_CPU_QUEUE_DUMP_COMPLETE);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY) || IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
+	mutex_unlock(&kctx->csf.cpu_queue.lock);
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY || CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT */
 	mutex_unlock(&kctx->csf.lock);
 	return 0;
 }
@@ -117,8 +137,14 @@ void kbase_csf_cpu_queue_debugfs_init(struct kbase_context *kctx)
 				"Unable to create cpu queue debugfs entry");
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY) || IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
+	mutex_init(&kctx->csf.cpu_queue.lock);
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY || CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT */
 	kctx->csf.cpu_queue.buffer = NULL;
 	kctx->csf.cpu_queue.buffer_size = 0;
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
+	kctx->csf.cpu_queue.dump_cmd = MTK_BASE_CSF_CPU_QUEUE_DUMP; /* setup default dump command */
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
 	atomic_set(&kctx->csf.cpu_queue.dump_req_status,
 		   BASE_CSF_CPU_QUEUE_DUMP_COMPLETE);
 }
@@ -146,7 +172,11 @@ int kbase_csf_cpu_queue_dump(struct kbase_context *kctx,
 		return -EFAULT;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY) || IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
+	mutex_lock(&kctx->csf.cpu_queue.lock);
+#else
 	mutex_lock(&kctx->csf.lock);
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY || CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT */
 
 	kfree(kctx->csf.cpu_queue.buffer);
 
@@ -154,11 +184,18 @@ int kbase_csf_cpu_queue_dump(struct kbase_context *kctx,
 			BASE_CSF_CPU_QUEUE_DUMP_PENDING) {
 		kctx->csf.cpu_queue.buffer = dump_buffer;
 		kctx->csf.cpu_queue.buffer_size = buf_size;
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
+		kctx->csf.cpu_queue.dump_cmd = MTK_BASE_CSF_CPU_QUEUE_DUMP; /* reset to default dump command */
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
 		complete_all(&kctx->csf.cpu_queue.dump_cmp);
 	} else
 		kfree(dump_buffer);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY) || IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
+	mutex_unlock(&kctx->csf.cpu_queue.lock);
+#else
 	mutex_unlock(&kctx->csf.lock);
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY || CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT */
 
 	return 0;
 }
@@ -168,17 +205,75 @@ int kbase_csf_cpu_queue_dump(struct kbase_context *kctx,
  */
 void kbase_csf_cpu_queue_debugfs_init(struct kbase_context *kctx)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
+	mutex_init(&kctx->csf.cpu_queue.lock);
+	kctx->csf.cpu_queue.buffer = NULL;
+	kctx->csf.cpu_queue.buffer_size = 0;
+	kctx->csf.cpu_queue.dump_cmd = MTK_BASE_CSF_CPU_QUEUE_DUMP; /* setup default dump command */
+	atomic_set(&kctx->csf.cpu_queue.dump_req_status,
+		   BASE_CSF_CPU_QUEUE_DUMP_COMPLETE);
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
 }
 
 bool kbase_csf_cpu_queue_read_dump_req(struct kbase_context *kctx,
 					struct base_csf_notification *req)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
+	if (atomic_cmpxchg(&kctx->csf.cpu_queue.dump_req_status,
+			   BASE_CSF_CPU_QUEUE_DUMP_ISSUED,
+			   BASE_CSF_CPU_QUEUE_DUMP_PENDING) !=
+		BASE_CSF_CPU_QUEUE_DUMP_ISSUED) {
+		return false;
+	}
+
+	req->type = BASE_CSF_NOTIFICATION_CPU_QUEUE_DUMP;
+	req->payload.dump.cmd = kctx->csf.cpu_queue.dump_cmd;
+	return true;
+#else
 	return false;
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
 }
 
 int kbase_csf_cpu_queue_dump(struct kbase_context *kctx,
 			u64 buffer, size_t buf_size)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
+	size_t alloc_size = buf_size;
+	char *dump_buffer;
+
+	if (!buffer || !alloc_size)
+		return 0;
+
+	alloc_size = (alloc_size + PAGE_SIZE) & ~(PAGE_SIZE - 1);
+	dump_buffer = kzalloc(alloc_size, GFP_KERNEL);
+	if (ZERO_OR_NULL_PTR(dump_buffer))
+		return -ENOMEM;
+
+	WARN_ON(kctx->csf.cpu_queue.buffer != NULL);
+
+	if (copy_from_user(dump_buffer,
+			u64_to_user_ptr(buffer),
+			buf_size)) {
+		kfree(dump_buffer);
+		return -EFAULT;
+	}
+
+	mutex_lock(&kctx->csf.cpu_queue.lock);
+
+	kfree(kctx->csf.cpu_queue.buffer);
+
+	if (atomic_read(&kctx->csf.cpu_queue.dump_req_status) ==
+			BASE_CSF_CPU_QUEUE_DUMP_PENDING) {
+		kctx->csf.cpu_queue.buffer = dump_buffer;
+		kctx->csf.cpu_queue.buffer_size = buf_size;
+		kctx->csf.cpu_queue.dump_cmd = MTK_BASE_CSF_CPU_QUEUE_DUMP; /* reset to default dump command */
+		complete_all(&kctx->csf.cpu_queue.dump_cmp);
+	} else
+		kfree(dump_buffer);
+
+	mutex_unlock(&kctx->csf.cpu_queue.lock);
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
+
 	return 0;
 }
 #endif /* CONFIG_DEBUG_FS */
