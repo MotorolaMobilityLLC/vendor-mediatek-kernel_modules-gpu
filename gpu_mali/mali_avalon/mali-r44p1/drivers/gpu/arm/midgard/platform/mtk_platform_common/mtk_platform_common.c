@@ -71,6 +71,10 @@ static struct proc_dir_entry *proc_root;
 #include <mtk_gpu_power_model_sspm_ipi.h>
 #endif /* CONFIG_MTK_GPU_SWPM_SUPPORT */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+#include <platform/mtk_platform_common/mtk_platform_irq_trace.h>
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
+
 static bool mfg_powered;
 static DEFINE_MUTEX(mfg_pm_lock);
 static DEFINE_MUTEX(common_debug_lock);
@@ -533,6 +537,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	spin_lock_init(&kbdev->reset_force_change);
 #endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_init(kbdev);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
+
 	return 0;
 }
 
@@ -568,6 +576,10 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 	MTK_GPU_Power_model_destroy();
 	MTK_LTR_gpu_pmu_destroy();
 #endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_term(kbdev);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 	mtk_platform_pm_term(kbdev);
 }
