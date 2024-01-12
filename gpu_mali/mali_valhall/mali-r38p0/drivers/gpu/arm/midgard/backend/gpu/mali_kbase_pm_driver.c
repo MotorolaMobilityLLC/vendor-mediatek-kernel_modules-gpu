@@ -577,14 +577,14 @@ static void kbase_pm_l2_config_override(struct kbase_device *kbdev)
 		val |= (0x1 << L2_CONFIG_ASN_HASH_ENABLE_SHIFT);
 
 		for (i = 0; i < ASN_HASH_COUNT; i++) {
-			dev_dbg(kbdev->dev, "Program 0x%x to ASN_HASH[%d]\n",
+			dev_vdbg(kbdev->dev, "Program 0x%x to ASN_HASH[%d]\n",
 				kbdev->l2_hash_values[i], i);
 			kbase_reg_write(kbdev, GPU_CONTROL_REG(ASN_HASH(i)),
 					kbdev->l2_hash_values[i]);
 		}
 	}
 
-	dev_dbg(kbdev->dev, "Program 0x%x to L2_CONFIG\n", val);
+	dev_vdbg(kbdev->dev, "Program 0x%x to L2_CONFIG\n", val);
 	kbase_reg_write(kbdev, GPU_CONTROL_REG(L2_CONFIG), val);
 }
 
@@ -1041,7 +1041,7 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 		}
 
 		if (backend->mcu_state != prev_state)
-			dev_dbg(kbdev->dev, "MCU state transition: %s to %s\n",
+			dev_vdbg(kbdev->dev, "MCU state transition: %s to %s\n",
 				kbase_mcu_state_to_string(prev_state),
 				kbase_mcu_state_to_string(backend->mcu_state));
 
@@ -1466,7 +1466,7 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 		}
 
 		if (backend->l2_state != prev_state)
-			dev_dbg(kbdev->dev, "L2 state transition: %s to %s\n",
+			dev_vdbg(kbdev->dev, "L2 state transition: %s to %s\n",
 				kbase_l2_core_state_to_string(prev_state),
 				kbase_l2_core_state_to_string(
 					backend->l2_state));
@@ -1597,7 +1597,7 @@ static int kbase_pm_shaders_update_state(struct kbase_device *kbdev)
 #endif
 			backend->shaders_state =
 				KBASE_SHADERS_OFF_CORESTACK_OFF;
-			dev_dbg(kbdev->dev, "GPU lost has occurred - shaders off\n");
+			dev_vdbg(kbdev->dev, "GPU lost has occurred - shaders off\n");
 			break;
 		}
 
@@ -1906,7 +1906,7 @@ static int kbase_pm_shaders_update_state(struct kbase_device *kbdev)
 		}
 
 		if (backend->shaders_state != prev_state)
-			dev_dbg(kbdev->dev, "Shader state transition: %s to %s\n",
+			dev_vdbg(kbdev->dev, "Shader state transition: %s to %s\n",
 				kbase_shader_core_state_to_string(prev_state),
 				kbase_shader_core_state_to_string(
 					backend->shaders_state));
@@ -2867,7 +2867,7 @@ void kbase_pm_cache_snoop_enable(struct kbase_device *kbdev)
 		if (kbdev->snoop_enable_smc != 0)
 			kbase_invoke_smc_fid(kbdev->snoop_enable_smc, 0, 0, 0);
 #endif /* CONFIG_ARM64 */
-		dev_dbg(kbdev->dev, "MALI - CCI Snoops - Enabled\n");
+		dev_vdbg(kbdev->dev, "MALI - CCI Snoops - Enabled\n");
 		kbdev->cci_snoop_enabled = true;
 	}
 }
@@ -2881,7 +2881,7 @@ void kbase_pm_cache_snoop_disable(struct kbase_device *kbdev)
 			kbase_invoke_smc_fid(kbdev->snoop_disable_smc, 0, 0, 0);
 		}
 #endif /* CONFIG_ARM64 */
-		dev_dbg(kbdev->dev, "MALI - CCI Snoops Disabled\n");
+		dev_vdbg(kbdev->dev, "MALI - CCI Snoops Disabled\n");
 		kbdev->cci_snoop_enabled = false;
 	}
 }
@@ -2984,7 +2984,7 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 	}
 
 	if (kbase_is_gpu_removed(kbdev)) {
-		dev_dbg(kbdev->dev, "GPU has been removed, reset no longer needed.\n");
+		dev_vdbg(kbdev->dev, "GPU has been removed, reset no longer needed.\n");
 		destroy_hrtimer_on_stack(&rtdata.timer);
 		return -EINVAL;
 	}
@@ -3330,6 +3330,10 @@ int kbase_pm_apply_pmode_entry_wa(struct kbase_device *kbdev)
 	kbase_pm_lock(kbdev);
 
 	/* Call to update the core_mask can be added here */
+#if IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
+	/* 1. disable dcs */
+	dcs_enable(0);
+#endif /* CONFIG_MALI_MTK_PROTECTED_PATCH */
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
@@ -3358,6 +3362,12 @@ int kbase_pm_apply_pmode_entry_wa(struct kbase_device *kbdev)
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	/* Can switch to ARM backup PDCA here */
+#if IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
+	/* 2. fake pwr on mfg2~18 */
+	gpufreq_fake_spm_mtcmos_control(1);
+	/* 3. disable pdcv2 */
+	gpufreq_pdc_control(0);
+#endif /* CONFIG_MALI_MTK_PROTECTED_PATCH */
 
 	kbase_pm_unlock(kbdev);
 
@@ -3373,6 +3383,12 @@ void kbase_pm_apply_pmode_exit_wa(struct kbase_device *kbdev)
 	WARN_ON(!kbdev->pm.backend.gpu_powered);
 
 	/* Can switch back to MTK PDCA here */
+#if IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
+	/* 1. enable pdcv2 */
+	gpufreq_pdc_control(1);
+	/* 2. enable dcs */
+	dcs_enable(1);
+#endif /* CONFIG_MALI_MTK_PROTECTED_PATCH */
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	if (!kbase_pm_no_mcu_core_pwroff(kbdev)) {
