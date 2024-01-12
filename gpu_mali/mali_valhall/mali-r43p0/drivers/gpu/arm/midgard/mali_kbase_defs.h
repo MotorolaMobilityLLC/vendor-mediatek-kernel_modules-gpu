@@ -1049,6 +1049,9 @@ struct kbase_mem_migrate {
  * @mmu_as_inactive_wait_time_ms: Maximum waiting time in ms for the completion of
  *                          a MMU operation
  * @va_region_slab:         kmem_cache (slab) for allocated kbase_va_region structures.
+ * @jit_reclaim_timeout_ms: This timeout value determines how long we should kept
+ *                          reclaimable jit mem from being reclaimed by shrinker
+ *                          prematurely, which causes kswapd thrashing.
  */
 struct kbase_device {
 	u32 hw_quirks_sc;
@@ -1347,6 +1350,10 @@ struct kbase_device {
 #endif
 	u32 mmu_as_inactive_wait_time_ms;
 	struct kmem_cache *va_region_slab;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	u32 jit_reclaim_timeout_ms;
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 };
 
 /**

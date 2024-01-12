@@ -4856,6 +4856,55 @@ static const struct file_operations
 	.release = single_release,
 };
 
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+static int kbase_device_debugfs_jit_reclaim_timeout_ms_show(struct seq_file *sfile,
+	void *data)
+{
+	void *const jit_reclaim_timeout_ms = sfile->private;
+
+	CSTD_UNUSED(data);
+
+	seq_printf(sfile, "%u\n", *(u32 *) jit_reclaim_timeout_ms);
+
+	return 0;
+}
+
+static ssize_t kbase_device_debugfs_jit_reclaim_timeout_ms_write(struct file *file,
+		const char __user *ubuf, size_t count, loff_t *ppos)
+{
+	const struct seq_file *const sfile = (struct seq_file *) file->private_data;
+	void *const jit_reclaim_timeout_ms = sfile->private;
+	unsigned long val = 0;
+	int err = 0;
+
+	CSTD_UNUSED(ppos);
+	err = kstrtoul_from_user(ubuf, count, 0, &val);
+	if (err)
+		return err;
+
+	*((u32 *) jit_reclaim_timeout_ms) = val;
+
+	return count;
+}
+
+static int kbase_device_debugfs_jit_reclaim_timeout_ms_open(struct inode *in,
+	struct file *file)
+{
+	return single_open(file, kbase_device_debugfs_jit_reclaim_timeout_ms_show,
+		in->i_private);
+}
+
+static const struct file_operations
+	kbase_device_debugfs_jit_reclaim_timeout_ms_fops = {
+	.owner = THIS_MODULE,
+	.open = kbase_device_debugfs_jit_reclaim_timeout_ms_open,
+	.read = seq_read,
+	.write = kbase_device_debugfs_jit_reclaim_timeout_ms_write,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
+
 /**
  * debugfs_ctx_defaults_init - Create the default configuration of new contexts in debugfs
  * @kbdev: An instance of the GPU platform device, allocated from the probe method of the driver.
@@ -4999,6 +5048,13 @@ static struct dentry *init_debugfs(struct kbase_device *kbdev)
 		dev_err(kbdev->dev, "Unable to create reset debugfs entry\n");
 		return dentry;
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	debugfs_create_file("jit_reclaim_timeout_ms", 0644,
+			kbdev->mali_debugfs_directory,
+			&kbdev->jit_reclaim_timeout_ms,
+			&kbase_device_debugfs_jit_reclaim_timeout_ms_fops);
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 
 	kbase_ktrace_debugfs_init(kbdev);
 
