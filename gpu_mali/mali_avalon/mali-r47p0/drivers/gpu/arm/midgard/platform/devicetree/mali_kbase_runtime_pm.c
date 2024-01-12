@@ -84,7 +84,6 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	WARN_ON(kbdev->pm.backend.gpu_powered);
-#if MALI_USE_CSF
 	if (likely(kbdev->csf.firmware_inited)) {
 		WARN_ON(!kbdev->pm.active_count);
 		WARN_ON(kbdev->pm.runtime_active);
@@ -93,24 +92,6 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 
 	enable_gpu_power_control(kbdev);
 	CSTD_UNUSED(error);
-#else
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-
-#ifdef KBASE_PM_RUNTIME
-	error = pm_runtime_get_sync(kbdev->dev);
-	if (error == 1) {
-		/*
-		 * Let core know that the chip has not been
-		 * powered off, so we can save on re-initialization.
-		 */
-		ret = 0;
-	}
-	dev_dbg(kbdev->dev, "pm_runtime_get_sync returned %d\n", error);
-#else
-	enable_gpu_power_control(kbdev);
-#endif /* KBASE_PM_RUNTIME */
-
-#endif /* MALI_USE_CSF */
 
 	return ret;
 }
@@ -123,7 +104,6 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	WARN_ON(kbdev->pm.backend.gpu_powered);
-#if MALI_USE_CSF
 	if (likely(kbdev->csf.firmware_inited)) {
 #ifdef CONFIG_MALI_DEBUG
 		WARN_ON(kbase_csf_scheduler_get_nr_active_csgs(kbdev));
@@ -134,17 +114,6 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 
 	/* Power down the GPU immediately */
 	disable_gpu_power_control(kbdev);
-#else /* MALI_USE_CSF */
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-
-#ifdef KBASE_PM_RUNTIME
-	pm_runtime_mark_last_busy(kbdev->dev);
-	pm_runtime_put_autosuspend(kbdev->dev);
-#else
-	/* Power down the GPU immediately as runtime PM is disabled */
-	disable_gpu_power_control(kbdev);
-#endif
-#endif /* MALI_USE_CSF */
 }
 
 #if MALI_USE_CSF && defined(KBASE_PM_RUNTIME)
@@ -240,9 +209,6 @@ static int pm_callback_runtime_on(struct kbase_device *kbdev)
 {
 	dev_dbg(kbdev->dev, "%s\n", __func__);
 
-#if !MALI_USE_CSF
-	enable_gpu_power_control(kbdev);
-#endif
 	return 0;
 }
 
@@ -250,9 +216,6 @@ static void pm_callback_runtime_off(struct kbase_device *kbdev)
 {
 	dev_dbg(kbdev->dev, "%s\n", __func__);
 
-#if !MALI_USE_CSF
-	disable_gpu_power_control(kbdev);
-#endif
 }
 
 static void pm_callback_resume(struct kbase_device *kbdev)

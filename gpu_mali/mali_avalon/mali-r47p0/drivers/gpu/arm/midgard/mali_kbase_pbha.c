@@ -24,9 +24,7 @@
 #include <device/mali_kbase_device.h>
 #include <mali_kbase.h>
 
-#if MALI_USE_CSF
 #define DTB_SET_SIZE 2
-#endif
 
 static bool read_setting_valid(unsigned int prod_model, unsigned int id, unsigned int read_setting)
 {
@@ -153,9 +151,8 @@ int kbase_pbha_record_settings(struct kbase_device *kbdev, bool runtime, unsigne
 		unsigned int const sysc_alloc_num = id / sizeof(u32);
 		u32 modified_reg;
 
-#if MALI_USE_CSF
 		if (runtime) {
-			int i;
+			uint i;
 
 			kbase_pm_context_active(kbdev);
 			/* Ensure host copy of SYSC_ALLOC is up to date */
@@ -164,9 +161,6 @@ int kbase_pbha_record_settings(struct kbase_device *kbdev, bool runtime, unsigne
 					kbase_reg_read32(kbdev, GPU_SYSC_ALLOC_OFFSET(i));
 			kbase_pm_context_idle(kbdev);
 		}
-#else
-		CSTD_UNUSED(runtime);
-#endif /* MALI_USE_CSF */
 
 		modified_reg = kbdev->sysc_alloc[sysc_alloc_num];
 
@@ -213,19 +207,14 @@ int kbase_pbha_record_settings(struct kbase_device *kbdev, bool runtime, unsigne
 
 void kbase_pbha_write_settings(struct kbase_device *kbdev)
 {
-#if MALI_USE_CSF
 	if (kbasep_pbha_supported(kbdev)) {
-		int i;
+		uint i;
 
 		for (i = 0; i < GPU_SYSC_ALLOC_COUNT; ++i)
 			kbase_reg_write32(kbdev, GPU_SYSC_ALLOC_OFFSET(i), kbdev->sysc_alloc[i]);
 	}
-#else
-	CSTD_UNUSED(kbdev);
-#endif /* MALI_USE_CSF */
 }
 
-#if MALI_USE_CSF
 static int kbase_pbha_read_int_id_override_property(struct kbase_device *kbdev,
 						    const struct device_node *pbha_node)
 {
@@ -249,9 +238,10 @@ static int kbase_pbha_read_int_id_override_property(struct kbase_device *kbdev,
 		dev_err(kbdev->dev, "Bad DTB format: pbha.int_id_override\n");
 		return -EINVAL;
 	}
-	if (of_property_read_u32_array(pbha_node, "int-id-override", dtb_data, sz) != 0) {
+	if (of_property_read_u32_array(pbha_node, "int-id-override", dtb_data, (size_t)sz) != 0) {
 		/* There may be no int-id-override field. Fallback to int_id_override instead */
-		if (of_property_read_u32_array(pbha_node, "int_id_override", dtb_data, sz) != 0) {
+		if (of_property_read_u32_array(pbha_node, "int_id_override", dtb_data,
+					       (size_t)sz) != 0) {
 			dev_err(kbdev->dev, "Failed to read DTB pbha.int_id_override\n");
 			return -EINVAL;
 		}
@@ -309,11 +299,9 @@ static int kbase_pbha_read_propagate_bits_property(struct kbase_device *kbdev,
 	kbdev->pbha_propagate_bits = bits;
 	return 0;
 }
-#endif /* MALI_USE_CSF */
 
 int kbase_pbha_read_dtb(struct kbase_device *kbdev)
 {
-#if MALI_USE_CSF
 	const struct device_node *pbha_node;
 	int err;
 
@@ -331,7 +319,4 @@ int kbase_pbha_read_dtb(struct kbase_device *kbdev)
 
 	err = kbase_pbha_read_propagate_bits_property(kbdev, pbha_node);
 	return err;
-#else
-	return 0;
-#endif
 }

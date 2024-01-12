@@ -57,10 +57,6 @@ void mali_kutf_test_kernel_power_core_availability_cg0(struct kutf_context *cont
 	}
 
 	cg0_mask = kctx->kbdev->gpu_props.coherency_info.group.core_mask;
-#if !MALI_USE_CSF
-	kbase_pm_context_active(kctx->kbdev);
-	kbase_pm_wait_for_poweroff_work_complete(kctx->kbdev);
-#endif
 	kbase_pm_wait_for_desired_state(kctx->kbdev);
 
 	ready_mask = kbase_reg_read64(kctx->kbdev, GPU_CONTROL_ENUM(SHADER_READY));
@@ -69,9 +65,6 @@ void mali_kutf_test_kernel_power_core_availability_cg0(struct kutf_context *cont
 	if (!(ready_mask & cg0_mask))
 		kutf_test_fail(context, "Core group 0 is not powered during power on test.");
 
-#if !MALI_USE_CSF
-	kbase_pm_context_idle(kctx->kbdev);
-#endif
 	kbase_pm_set_policy(kctx->kbdev, current_policy);
 #endif /* CONFIG_ANDROID */
 }

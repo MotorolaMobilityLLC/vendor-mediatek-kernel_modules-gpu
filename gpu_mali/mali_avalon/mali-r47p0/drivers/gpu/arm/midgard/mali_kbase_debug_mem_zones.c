@@ -63,7 +63,6 @@ static int debug_mem_zones_show(struct seq_file *sfile, void *data)
 				   reg_zone->va_size_pages);
 		}
 	}
-#if MALI_USE_CSF
 	reg_zone = &kctx->kbdev->csf.mcu_shared_zone;
 
 	if (reg_zone && reg_zone->base_pfn) {
@@ -71,7 +70,6 @@ static int debug_mem_zones_show(struct seq_file *sfile, void *data)
 			   kbase_reg_zone_get_name(MCU_SHARED_ZONE), MCU_SHARED_ZONE,
 			   reg_zone->base_pfn, reg_zone->va_size_pages);
 	}
-#endif
 
 	kbase_gpu_vm_unlock(kctx);
 	return 0;

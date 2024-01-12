@@ -29,15 +29,14 @@ struct kutf_kernel_defect_fixture_data {
 	struct kbase_context *kctx;
 };
 
-#if MALI_USE_CSF
 void notify_user_val(struct kutf_context *context, const char *name, u64 val);
 void wait_user_val(struct kutf_context *context, const char *name);
 struct kbase_context *get_kbase_ctx_ptr_from_id(struct kbase_device *kbdev, u32 id);
-#endif /* MALI_USE_CSF */
 
 void mali_kutf_kernel_defect_GPUCORE_27226(struct kutf_context *context);
 void mali_kutf_kernel_defect_GPUCORE_35490(struct kutf_context *context);
 void mali_kutf_kernel_defect_GPUCORE_37201(struct kutf_context *context);
 void mali_kutf_kernel_defect_GPUCORE_37465(struct kutf_context *context);
+void mali_kutf_kernel_defect_GPUCORE_39614(struct kutf_context *context);
 
 #endif /* _KUTF_KERNEL_DEFECT_TEST_MAIN_H_ */

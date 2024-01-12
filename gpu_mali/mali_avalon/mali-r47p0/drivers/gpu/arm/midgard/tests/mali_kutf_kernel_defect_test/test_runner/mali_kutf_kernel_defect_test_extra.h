@@ -21,9 +21,11 @@ extern struct kutf_extra_func_spec defect_test_GPUCORE27226;
 extern struct kutf_extra_func_spec defect_test_GPUCORE35490;
 extern struct kutf_extra_func_spec defect_test_GPUCORE37201;
 extern struct kutf_extra_func_spec defect_test_GPUCORE37465;
+extern struct kutf_extra_func_spec defect_test_GPUCORE39614;
 
 void GPUCORE35490(struct mali_utf_suite *suite);
 void GPUCORE37201(struct mali_utf_suite *suite);
 void GPUCORE37465(struct mali_utf_suite *suite);
+void GPUCORE39614(struct mali_utf_suite *suite);
 
 #endif /* _KUTF_KERNEL_DEFECT_TEST_EXTRA_H_ */

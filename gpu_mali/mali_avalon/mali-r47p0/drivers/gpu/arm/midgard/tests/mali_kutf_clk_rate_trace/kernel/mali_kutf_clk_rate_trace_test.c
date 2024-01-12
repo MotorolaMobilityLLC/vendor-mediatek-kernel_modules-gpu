@@ -176,9 +176,6 @@ static void kutf_set_pm_ctx_active(struct kutf_context *context)
 
 	kbase_pm_context_active(data->kbdev);
 	kbase_pm_wait_for_desired_state(data->kbdev);
-#if !MALI_USE_CSF
-	kbase_pm_request_gpu_cycle_counter(data->kbdev);
-#endif
 }
 
 static void kutf_set_pm_ctx_idle(struct kutf_context *context)
@@ -187,9 +184,6 @@ static void kutf_set_pm_ctx_idle(struct kutf_context *context)
 
 	if (WARN_ON(data->pm_ctx_cnt > 0))
 		return;
-#if !MALI_USE_CSF
-	kbase_pm_release_gpu_cycle_counter(data->kbdev);
-#endif
 	kbase_pm_context_idle(data->kbdev);
 }
 
@@ -255,11 +249,11 @@ static const char *kutf_clk_trace_do_get_rate(struct kutf_context *context,
 		spin_unlock(&kbdev->pm.clk_rtm.lock);
 
 		if ((i + 1) == data->nclks)
-			ret += snprintf(portal_msg_buf + ret, PORTAL_MSG_LEN - ret,
+			ret += snprintf(portal_msg_buf + ret, PORTAL_MSG_LEN - (size_t)ret,
 					"0x%lx], GPU_IDLE:%d}", rate, idle);
 		else
-			ret += snprintf(portal_msg_buf + ret, PORTAL_MSG_LEN - ret, "0x%lx, ",
-					rate);
+			ret += snprintf(portal_msg_buf + ret, PORTAL_MSG_LEN - (size_t)ret,
+					"0x%lx, ", rate);
 
 		if (ret >= PORTAL_MSG_LEN) {
 			pr_warn("Message buf overflow with rate array data\n");
@@ -319,7 +313,7 @@ static const char *kutf_clk_trace_do_get_snapshot(struct kutf_context *context,
 			fmt = "(0x%lx, 0x%lx, %u, %u)]}";
 		else
 			fmt = "(0x%lx, 0x%lx, %u, %u), ";
-		ret += snprintf(portal_msg_buf + ret, PORTAL_MSG_LEN - ret, fmt,
+		ret += snprintf(portal_msg_buf + ret, PORTAL_MSG_LEN - (size_t)ret, fmt,
 				snapshot.previous_rate, snapshot.current_rate, snapshot.rate_up_cnt,
 				snapshot.rate_down_cnt);
 		if (ret >= PORTAL_MSG_LEN) {

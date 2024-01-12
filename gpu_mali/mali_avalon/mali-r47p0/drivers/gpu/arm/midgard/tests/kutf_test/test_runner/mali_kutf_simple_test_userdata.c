@@ -195,7 +195,7 @@ static void userdata_increasing_str_sizes(struct mali_utf_suite *suite)
 		/* Check KSTR */
 		/* String gets truncated when kernel side, so only check up to expected_str_len */
 		MALI_UTF_ASSERT_INT_EQ(strlen(kern_str_val.u.val_str), expected_str_len);
-		MALI_UTF_ASSERT_FAIL(strncmp(kern_str_val.u.val_str, buf, expected_str_len) == 0);
+		MALI_UTF_ASSERT(strncmp(kern_str_val.u.val_str, buf, expected_str_len) == 0);
 
 		/* Next iteration will have one more character in the string */
 		buf[idx] = test_str[idx];
@@ -338,7 +338,7 @@ static void userdata_random_str_sizes(struct mali_utf_suite *suite)
 		/* Check KSTR */
 		/* String gets truncated when kernel side, so only check up to expected_str_len */
 		MALI_UTF_ASSERT_INT_EQ(strlen(kern_str_val.u.val_str), expected_str_len);
-		MALI_UTF_ASSERT_FAIL(strncmp(kern_str_val.u.val_str, buf, expected_str_len) == 0);
+		MALI_UTF_ASSERT(strncmp(kern_str_val.u.val_str, buf, expected_str_len) == 0);
 	}
 
 out:

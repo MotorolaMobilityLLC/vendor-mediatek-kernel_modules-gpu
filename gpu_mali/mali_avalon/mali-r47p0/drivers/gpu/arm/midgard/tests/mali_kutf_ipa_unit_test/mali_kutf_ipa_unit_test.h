@@ -32,7 +32,6 @@
 #define IPA_SUITE_NAME_G77 "ipa_unit_g77"
 #define IPA_SUITE_NAME_TNAX "ipa_unit_tnax"
 #define IPA_SUITE_NAME_TBEX "ipa_unit_tbex"
-#if MALI_USE_CSF
 #define IPA_SUITE_NAME_TODX "ipa_unit_todx"
 #define IPA_SUITE_NAME_TGRX "ipa_unit_tgrx"
 #define IPA_SUITE_NAME_TVAX "ipa_unit_tvax"
@@ -40,9 +39,6 @@
 #define IPA_SUITE_NAME_TTIX "ipa_unit_ttix"
 #define IPA_SUITE_NAME_TKRX "ipa_unit_tkrx"
 #define IPA_SUITE_FIXTURES 21
-#else
-#define IPA_SUITE_FIXTURES 19
-#endif
 #define IPA_UNIT_TEST_0 "ipa_sample_dummy"
 
 /* Input parameter names */

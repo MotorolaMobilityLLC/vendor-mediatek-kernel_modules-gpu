@@ -32,6 +32,7 @@
 #include <unistd.h>
 #include <helpers/mali_base_helpers_kmsg.h>
 #include <helpers/mali_base_helpers_csf.h>
+#include <helpers/mali_base_helpers.h>
 #include <csf/helpers/mali_base_csf_scheduler_helpers.h>
 #include <base/tests/internal/api_tests/helpers/mali_base_helpers_file.h>
 #include <base/tests/common/mali_base_user_common.h>
@@ -168,8 +169,7 @@ static const struct fault_test_fixture cs_fault_settings[CS_FAULT_SUITE_FIXTURES
 	},
 };
 
-static const struct
-	fault_test_fixture trace_info_fault_settings[TRACE_INFO_FAULT_SUITE_FIXTURES] = {
+static const struct fault_test_fixture trace_info_fault_settings[TRACE_INFO_FAULT_SUITE_FIXTURES] = {
 	{
 		.fault_exception_type = CS_FAULT_EXCEPTION_TYPE_IMPRECISE_FAULT,
 		.fault_exception_data = 0x800551,
@@ -451,7 +451,7 @@ static int send_values(struct mali_utf_suite *const suite, unsigned int ctx_id,
  * f must have been returned by a previous successful call to
  * base_apitest_kmsg_open().
  */
-static void verify_dmesg_output(FILE * const f, const struct fault_test_fixture *fix,
+static void verify_dmesg_output(FILE *const f, const struct fault_test_fixture *fix,
 				bool verify_trace_info)
 {
 	char *msg = NULL;
@@ -472,30 +472,28 @@ static void verify_dmesg_output(FILE * const f, const struct fault_test_fixture 
 		char buf[32];
 
 		snprintf(buf, sizeof(buf), "0x%x", fix->fault_exception_type);
-		MALI_UTF_ASSERT_FAIL_M(strstr(msg, buf) != NULL,
-				       "Failed to find CS_FAULT.EXCEPTION_TYPE");
+		MALI_UTF_ASSERT_M(strstr(msg, buf) != NULL,
+				  "Failed to find CS_FAULT.EXCEPTION_TYPE");
 
 		snprintf(buf, sizeof(buf), "0x%x", fix->fault_exception_data);
-		MALI_UTF_ASSERT_FAIL_M(strstr(msg, buf) != NULL,
-				       "Failed to find CS_FAULT.EXCEPTION_DATA");
+		MALI_UTF_ASSERT_M(strstr(msg, buf) != NULL,
+				  "Failed to find CS_FAULT.EXCEPTION_DATA");
 
 		snprintf(buf, sizeof(buf), "0x%" PRIx64, fix->fault_info_exception_data);
-		MALI_UTF_ASSERT_FAIL_M(strstr(msg, buf) != NULL,
-				       "Failed to find CS_FAULT_INFO.EXCEPTION_DATA");
+		MALI_UTF_ASSERT_M(strstr(msg, buf) != NULL,
+				  "Failed to find CS_FAULT_INFO.EXCEPTION_DATA");
 
 		if (verify_trace_info) {
 			snprintf(buf, sizeof(buf), "0x%x", fix->fault_trace_id0);
-			MALI_UTF_ASSERT_FAIL_M(
-				strstr(msg, buf) != NULL,
-				"Failed to find CS_FAULT_TRACE_ID0.EXCEPTION_TRACE_ID0");
+			MALI_UTF_ASSERT_M(strstr(msg, buf) != NULL,
+					  "Failed to find CS_FAULT_TRACE_ID0.EXCEPTION_TRACE_ID0");
 
 			snprintf(buf, sizeof(buf), "0x%x", fix->fault_trace_id1);
-			MALI_UTF_ASSERT_FAIL_M(
-				strstr(msg, buf) != NULL,
-				"Failed to find CS_FAULT_TRACE_ID1.EXCEPTION_TRACE_ID1");
+			MALI_UTF_ASSERT_M(strstr(msg, buf) != NULL,
+					  "Failed to find CS_FAULT_TRACE_ID1.EXCEPTION_TRACE_ID1");
 
 			snprintf(buf, sizeof(buf), "0x%x", fix->fault_trace_task);
-			MALI_UTF_ASSERT_FAIL_M(
+			MALI_UTF_ASSERT_M(
 				strstr(msg, buf) != NULL,
 				"Failed to find CS_FAULT_TRACE_TASK.EXCEPTION_TRACE_TASK");
 		}
@@ -561,7 +559,7 @@ static void fault_event_test_common(struct mali_utf_suite *suite, enum fault_tes
 	const struct fault_test_fixture *fix_data = fix->extra_funcs_data;
 
 	bool success = base_context_init(&ctx, BASE_CONTEXT_CSF_EVENT_THREAD);
-	MALI_UTF_ASSERT_FAIL_EX_M(success, "Failed to create context");
+	MALI_UTF_ASSERT_EX_M(success, "Failed to create context");
 
 	mali_error err = MALI_ERROR_NONE;
 
@@ -595,7 +593,7 @@ static void fault_event_test_common(struct mali_utf_suite *suite, enum fault_tes
 
 	if (mali_error_no_error(err)) {
 		err = base_gpu_queue_group_bind(group, queue, CSF_INTERFACE_INDEX);
-		MALI_UTF_ASSERT_FAIL_M(mali_error_no_error(err), "Failed to bind queue to group");
+		MALI_UTF_ASSERT_M(mali_error_no_error(err), "Failed to bind queue to group");
 	}
 
 	if (mali_error_no_error(err)) {
@@ -628,9 +626,7 @@ static void fault_event_test_common(struct mali_utf_suite *suite, enum fault_tes
 
 	if (mali_error_no_error(err)) {
 		uint64_t gpu_queue_va = base_mem_gpu_address(queue->basep.buffer_h, 0);
-		unsigned int ctx_id;
-
-		base_get_context_id(&ctx, &ctx_id);
+		unsigned int ctx_id = base_get_context_id(&ctx);
 
 		/* Send fault event parameters to kernel space
 		 */
@@ -848,10 +844,10 @@ static void gpu_fault_event_test_internal(struct mali_utf_suite *const suite, ba
 				 * result.
 				 */
 				for (int gr = 0; gr < NR_GRPS; gr++) {
-					MALI_UTF_ASSERT_FAIL_M(check_result(&cb_data1[gr],
-									    &expected_result1),
-							       "Callback not called");
-					MALI_UTF_ASSERT_FAIL_M(
+					MALI_UTF_ASSERT_M(check_result(&cb_data1[gr],
+								       &expected_result1),
+							  "Callback not called");
+					MALI_UTF_ASSERT_M(
 						check_result(&cb_data2[gr], &expected_result2),
 						jasid_valid ? "Unexpected callback called" :
 								    "Callback not called");
@@ -879,6 +875,10 @@ static void trace_info_fault_event_test(struct mali_utf_suite *suite)
 	CSTD_UNUSED(suite);
 	mali_utf_test_skip_msg("Test skipped on Android platform");
 #else
+	if (!base_is_debugfs_supported()) {
+		mali_utf_test_skip_msg("Skip test as DEBUGFS is not enabled.");
+		return;
+	}
 	struct kutf_test_helpers_named_val skip_trace_info_test;
 	int error = kutf_test_helpers_userdata_receive_check_val(
 		&skip_trace_info_test, suite, SKIP_TRACE_INFO_TEST, KUTF_TEST_HELPERS_VALTYPE_U64);
@@ -963,7 +963,7 @@ static void gpu_fault_test(struct mali_utf_suite *suite)
 #else
 	base_context ctx1;
 
-	MALI_UTF_ASSERT_FAIL_EX(base_context_init(&ctx1, BASE_CONTEXT_CSF_EVENT_THREAD));
+	MALI_UTF_ASSERT_EX(base_context_init(&ctx1, BASE_CONTEXT_CSF_EVENT_THREAD));
 
 	base_context ctx2;
 
@@ -1013,9 +1013,7 @@ static void *send_fault_thread(void *arg)
 	if (!f)
 		return NULL;
 
-	unsigned int ctx_id;
-
-	base_get_context_id(thread->group->group->basep.ctx, &ctx_id);
+	unsigned int ctx_id = base_get_context_id(thread->group->group->basep.ctx);
 
 	/* Wait for basep_test_csf_resource_terminate to be executed and blocked */
 	MALI_UTF_ASSERT_UINT_EQ_M(mali_tpi_sleep_ns(((uint64_t)500 * 1E6), false),
@@ -1101,17 +1099,17 @@ static void fw_cs_fault_cs_unrecoverable_event_test_internal(struct mali_utf_sui
 		 */
 		mali_utf_barrier thread_barrier;
 
-		MALI_UTF_ASSERT_FAIL_EX_M(true == mali_utf_test_barrier_init(&thread_barrier, 2),
-					  "Failed to create a barrier for thread synchronization");
+		MALI_UTF_ASSERT_EX_M(true == mali_utf_test_barrier_init(&thread_barrier, 2),
+				     "Failed to create a barrier for thread synchronization");
 
 		struct test_thread_data thread_data = { .barrier = &thread_barrier,
 							.suite = suite,
 							.group = &group };
 		mali_tpi_thread thread;
 
-		MALI_UTF_ASSERT_FAIL_EX_M(true == mali_tpi_thread_create(&thread, send_fault_thread,
-									 &thread_data),
-					  "Failed to create a thread");
+		MALI_UTF_ASSERT_EX_M(true == mali_tpi_thread_create(&thread, send_fault_thread,
+								    &thread_data),
+				     "Failed to create a thread");
 
 		/* Parent thread continues bellow */
 		mali_utf_barrier_wait(&thread_barrier);
@@ -1136,7 +1134,7 @@ static void fw_cs_fault_cs_unrecoverable_event_test(struct mali_utf_suite *suite
 #else
 	base_context ctx;
 
-	MALI_UTF_ASSERT_FAIL_EX(base_context_init(&ctx, BASE_CONTEXT_CSF_EVENT_THREAD));
+	MALI_UTF_ASSERT_EX(base_context_init(&ctx, BASE_CONTEXT_CSF_EVENT_THREAD));
 
 	fw_cs_fault_cs_unrecoverable_event_test_internal(suite, &ctx);
 
@@ -1325,9 +1323,7 @@ static void fw_cs_fault_event_test_internal(struct mali_utf_suite *const suite, 
 
 			base_mem_handle handle = groups1[0].queue->basep.buffer_h;
 			uint64_t gpu_queue_va = base_mem_gpu_address(handle, 0);
-			unsigned int ctx_id;
-
-			base_get_context_id(ctx1, &ctx_id);
+			unsigned int ctx_id = base_get_context_id(ctx1);
 
 			/* Send fault data to kernel space. */
 			if (!send_values(suite, ctx_id, gpu_queue_va, false)) {
@@ -1381,7 +1377,7 @@ static void fw_cs_fault_event_test_common(struct mali_utf_suite *suite, bool tes
 #else
 	base_context ctx1;
 
-	MALI_UTF_ASSERT_FAIL_EX(base_context_init(&ctx1, BASE_CONTEXT_CSF_EVENT_THREAD));
+	MALI_UTF_ASSERT_EX(base_context_init(&ctx1, BASE_CONTEXT_CSF_EVENT_THREAD));
 
 	base_context ctx2;
 	if (!base_context_init(&ctx2, BASE_CONTEXT_CSF_EVENT_THREAD))

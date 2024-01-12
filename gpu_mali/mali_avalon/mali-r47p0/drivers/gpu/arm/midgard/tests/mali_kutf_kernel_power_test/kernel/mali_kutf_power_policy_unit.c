@@ -200,19 +200,11 @@ void mali_kutf_test_kernel_power_policy(struct kutf_context *context)
 								      KBASE_PM_POLICY_STATE_IDLE);
 
 			if (status == 0) {
-#if MALI_USE_CSF
 				kbase_csf_scheduler_pm_active(kctx->kbdev);
-#else
-				kbase_pm_context_active(kctx->kbdev);
-#endif
 				status = mali_kernel_power_policy_verify_core(
 					kctx->kbdev, pm_policy, KBASE_PM_POLICY_STATE_ACTIVE);
 
-#if MALI_USE_CSF
 				kbase_csf_scheduler_pm_idle(kctx->kbdev);
-#else
-				kbase_pm_context_idle(kctx->kbdev);
-#endif
 				if (status == 0)
 					status = mali_kernel_power_policy_verify_core(
 						kctx->kbdev, pm_policy, KBASE_PM_POLICY_STATE_IDLE);

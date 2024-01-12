@@ -26,20 +26,13 @@
 #ifndef _KBASE_CONFIG_H_
 #define _KBASE_CONFIG_H_
 
-#include <linux/mm.h>
 #include <mali_malisw.h>
-#include <backend/gpu/mali_kbase_backend_config.h>
+
+#include <linux/mm.h>
 
 /* Forward declaration of struct kbase_device */
 struct kbase_device;
 
-#if !MALI_USE_CSF
-/* Forward declaration of struct kbase_context */
-struct kbase_context;
-
-/* Forward declaration of struct kbase_atom */
-struct kbase_jd_atom;
-#endif
 
 /**
  * struct kbase_platform_funcs_conf - Specifies platform integration function
@@ -104,56 +97,6 @@ struct kbase_platform_funcs_conf {
 	 */
 	void (*platform_late_term_func)(struct kbase_device *kbdev);
 
-#if !MALI_USE_CSF
-	/**
-	 * @platform_handler_context_init_func: platform specific handler for
-	 * when a new kbase_context is created.
-	 * @kctx - kbase_context pointer
-	 *
-	 * Returns 0 on success, negative error code otherwise.
-	 *
-	 * Function pointer for platform specific initialization of a kernel
-	 * context or NULL if not required. Called at the last stage of kernel
-	 * context initialization.
-	 */
-	int (*platform_handler_context_init_func)(struct kbase_context *kctx);
-	/**
-	 * @platform_handler_context_term_func: platform specific handler for
-	 * when a kbase_context is terminated.
-	 * @kctx - kbase_context pointer
-	 *
-	 * Function pointer for platform specific termination of a kernel
-	 * context or NULL if not required. Called at the first stage of kernel
-	 * context termination.
-	 */
-	void (*platform_handler_context_term_func)(struct kbase_context *kctx);
-	/**
-	 * @platform_handler_atom_submit_func: platform specific handler for
-	 * when a kbase_jd_atom is submitted.
-	 * @katom - kbase_jd_atom pointer
-	 *
-	 * Function pointer for platform specific handling at the point when an
-	 * atom is submitted to the GPU or set to NULL if not required. The
-	 * function cannot assume that it is running in a process context.
-	 *
-	 * Context: The caller must hold the hwaccess_lock. Function must be
-	 *          runnable in an interrupt context.
-	 */
-	void (*platform_handler_atom_submit_func)(struct kbase_jd_atom *katom);
-	/**
-	 * @platform_handler_atom_complete_func: platform specific handler for
-	 * when a kbase_jd_atom completes.
-	 * @katom - kbase_jd_atom pointer
-	 *
-	 * Function pointer for platform specific handling at the point when an
-	 * atom stops running on the GPU or set to NULL if not required. The
-	 * function cannot assume that it is running in a process context.
-	 *
-	 * Context: The caller must hold the hwaccess_lock. Function must be
-	 *          runnable in an interrupt context.
-	 */
-	void (*platform_handler_atom_complete_func)(struct kbase_jd_atom *katom);
-#endif
 };
 
 /*
@@ -507,55 +450,6 @@ int kbasep_platform_device_late_init(struct kbase_device *kbdev);
  */
 void kbasep_platform_device_late_term(struct kbase_device *kbdev);
 
-#if !MALI_USE_CSF
-/**
- * kbasep_platform_context_init - Platform specific callback when a kernel
- *                                context is created
- * @kctx: kbase_context pointer
- *
- * Function calls a platform defined routine if specified in the configuration
- * attributes.  The routine can initialize any per kernel context structures
- * that are required for the GPU block to function.
- *
- * Return: 0 if no errors were encountered. Negative error code otherwise.
- */
-int kbasep_platform_context_init(struct kbase_context *kctx);
-
-/**
- * kbasep_platform_context_term - Platform specific callback when a kernel
- *                                context is terminated
- * @kctx: kbase_context pointer
- *
- * Function calls a platform defined routine if specified in the configuration
- * attributes.  The routine should terminate any per kernel context structures
- * created as part of &kbasep_platform_context_init.
- *
- */
-void kbasep_platform_context_term(struct kbase_context *kctx);
-
-/**
- * kbasep_platform_event_atom_submit - Platform specific callback when an atom
- *                                     is submitted to the GPU
- * @katom: kbase_jd_atom pointer
- *
- * Function calls a platform defined routine if specified in the configuration
- * attributes.  The routine should not assume that it is in a process context.
- *
- * Return: 0 if no errors were encountered. Negative error code otherwise.
- */
-void kbasep_platform_event_atom_submit(struct kbase_jd_atom *katom);
-
-/**
- * kbasep_platform_event_atom_complete - Platform specific callback when an atom
- *                                       has stopped running on the GPU
- * @katom: kbase_jd_atom pointer
- *
- * Function calls a platform defined routine if specified in the configuration
- * attributes.  The routine should not assume that it is in a process context.
- *
- */
-void kbasep_platform_event_atom_complete(struct kbase_jd_atom *katom);
-#endif
 
 #ifndef CONFIG_OF
 /**

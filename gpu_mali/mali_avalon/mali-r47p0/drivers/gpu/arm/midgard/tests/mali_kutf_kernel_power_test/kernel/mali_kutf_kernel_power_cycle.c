@@ -67,10 +67,6 @@ void mali_kutf_test_kernel_power_cycle(struct kutf_context *context)
 	shader_present_bitmap = kctx->kbdev->gpu_props.shader_present;
 	if (corestack_driver_control)
 		stack_present_bitmap = kctx->kbdev->gpu_props.stack_present;
-#if !MALI_USE_CSF
-	kbase_pm_context_active(kctx->kbdev);
-	msleep(3000);
-#endif
 
 	/* Core group 0: All cores must now be in powered state */
 	shader_ready = read_gpu_control_reg(kctx, GPU_CONTROL_ENUM(SHADER_READY));
@@ -88,7 +84,6 @@ void mali_kutf_test_kernel_power_cycle(struct kutf_context *context)
 	}
 
 	/* Core group 0: Power off all cores test */
-#if MALI_USE_CSF
 	/* The basic assumption for the CSF case is that there is a
      * queue running with a long lasting loop job. This is arranged
      * with the test application on the user-side. The corresponding
@@ -96,9 +91,6 @@ void mali_kutf_test_kernel_power_cycle(struct kutf_context *context)
      * needs a scheduler pm suspend.
      */
 	kbase_csf_scheduler_pm_suspend(kctx->kbdev);
-#else
-	kbase_pm_context_idle(kctx->kbdev);
-#endif
 	kbase_pm_wait_for_desired_state(kctx->kbdev);
 
 	/* Core group 0: All cores must now be in power off state */
@@ -115,10 +107,8 @@ void mali_kutf_test_kernel_power_cycle(struct kutf_context *context)
 	}
 
 	kbase_pm_set_policy(kctx->kbdev, current_policy);
-#if MALI_USE_CSF
 	/* CSF scheduler pm resumes to restore the CSG running state */
 	kbase_csf_scheduler_pm_resume(kctx->kbdev);
-#endif
 #endif /* CONFIG_ANDROID */
 }
 
@@ -168,10 +158,6 @@ void mali_kutf_test_kernel_power_cycle_whilst_wait_enqueued(struct kutf_context 
 	     * as the powering up is assumed from its user-side test
 	     * application via a long lasting running loop-job.
 	     */
-#if !MALI_USE_CSF
-		kbase_pm_context_active(kctx->kbdev);
-		msleep(3000);
-#endif
 		/* Core group 0: All cores must now be in powered state */
 		shader_ready = read_gpu_control_reg(kctx, GPU_CONTROL_ENUM(SHADER_READY));
 		correct_power_state = (shader_ready & shader_present_bitmap) != 0;
@@ -188,7 +174,6 @@ void mali_kutf_test_kernel_power_cycle_whilst_wait_enqueued(struct kutf_context 
 		}
 
 		/* Now idle the GPU */
-#if MALI_USE_CSF
 		/* The basic assumption for the CSF case is that there is a
 	     * queue running with a long lasting loop-job. This is arranged
 	     * with the test application on the user-side. The
@@ -196,9 +181,6 @@ void mali_kutf_test_kernel_power_cycle_whilst_wait_enqueued(struct kutf_context 
 	     * shader cores thus needs a scheduler pm suspend.
 	     */
 		kbase_csf_scheduler_pm_suspend(kctx->kbdev);
-#else
-		kbase_pm_context_idle(kctx->kbdev);
-#endif
 
 		/* Wait for the L2 state machine to turn off L2, as after that only the
 		 * gpu_poweroff_wait_work is enqueued inside gpu_poweroff_wait_wq.
@@ -214,13 +196,8 @@ void mali_kutf_test_kernel_power_cycle_whilst_wait_enqueued(struct kutf_context 
 		spin_unlock_irqrestore(&kctx->kbdev->hwaccess_lock, flags);
 
 		/* back-to-back active and idle */
-#if MALI_USE_CSF
 		kbase_csf_scheduler_pm_resume(kctx->kbdev);
 		kbase_csf_scheduler_pm_suspend(kctx->kbdev);
-#else
-		kbase_pm_context_active(kctx->kbdev);
-		kbase_pm_context_idle(kctx->kbdev);
-#endif
 
 		/**
 	     * This sleep seems to make the test more likely to fail, if the driver
@@ -240,7 +217,6 @@ void mali_kutf_test_kernel_power_cycle_whilst_wait_enqueued(struct kutf_context 
 		spin_unlock_irqrestore(&kctx->kbdev->hwaccess_lock, flags);
 		mutex_unlock(&kctx->kbdev->pm.lock);
 
-#if MALI_USE_CSF
 		/* Counter-step to the earlier scheduler pm suspend, this
 	     * resumes the user flushed queue-group into running with
 	     * the test arrangement. A wait is required for the cores
@@ -248,7 +224,6 @@ void mali_kutf_test_kernel_power_cycle_whilst_wait_enqueued(struct kutf_context 
 	     */
 		kbase_csf_scheduler_pm_resume(kctx->kbdev);
 		msleep(3000);
-#endif
 		if (l2_ready && !l2_trans) {
 			/* Fail the test */
 			kutf_test_fail(context, "L2 is ready and not transitioning");

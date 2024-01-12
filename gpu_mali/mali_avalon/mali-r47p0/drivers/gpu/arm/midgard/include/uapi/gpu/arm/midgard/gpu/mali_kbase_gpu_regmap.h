@@ -22,10 +22,6 @@
 #ifndef _UAPI_KBASE_GPU_REGMAP_H_
 #define _UAPI_KBASE_GPU_REGMAP_H_
 
-#if MALI_USE_CSF
 #include "backend/mali_kbase_gpu_regmap_csf.h"
-#else
-#include "backend/mali_kbase_gpu_regmap_jm.h"
-#endif /* !MALI_USE_CSF */
 
 #endif /* _UAPI_KBASE_GPU_REGMAP_H_ */

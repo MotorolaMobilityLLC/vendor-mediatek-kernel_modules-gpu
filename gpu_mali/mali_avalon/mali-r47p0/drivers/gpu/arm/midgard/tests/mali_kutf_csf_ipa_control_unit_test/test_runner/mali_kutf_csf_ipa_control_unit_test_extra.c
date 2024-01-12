@@ -49,7 +49,7 @@ static int csf_ipa_control_pretest(struct mali_utf_suite *suite)
 	basep_test_csf_job_resources *job = &gpu_loop_job_data.job;
 
 	success = base_context_init(ctx, BASE_CONTEXT_CSF_EVENT_THREAD);
-	MALI_UTF_ASSERT_FAIL_EX_M(success, "Failed to create context");
+	MALI_UTF_ASSERT_EX_M(success, "Failed to create context");
 
 	if (!success)
 		return -ENOMEM;

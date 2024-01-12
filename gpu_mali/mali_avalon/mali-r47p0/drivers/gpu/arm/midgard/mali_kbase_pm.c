@@ -87,7 +87,7 @@ int kbase_pm_context_active_handle_suspend(struct kbase_device *kbdev,
 		}
 	}
 	c = ++kbdev->pm.active_count;
-	KBASE_KTRACE_ADD(kbdev, PM_CONTEXT_ACTIVE, NULL, c);
+	KBASE_KTRACE_ADD(kbdev, PM_CONTEXT_ACTIVE, NULL, (u64)c);
 
 	if (c == 1) {
 		/* First context active: Power on the GPU and
@@ -117,7 +117,7 @@ void kbase_pm_context_idle(struct kbase_device *kbdev)
 	kbase_pm_lock(kbdev);
 
 	c = --kbdev->pm.active_count;
-	KBASE_KTRACE_ADD(kbdev, PM_CONTEXT_IDLE, NULL, c);
+	KBASE_KTRACE_ADD(kbdev, PM_CONTEXT_IDLE, NULL, (u64)c);
 
 	KBASE_DEBUG_ASSERT(c >= 0);
 
@@ -144,15 +144,9 @@ static void reenable_hwcnt_on_resume(struct kbase_device *kbdev)
 	unsigned long flags;
 
 	/* Re-enable GPU hardware counters */
-#if MALI_USE_CSF
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 	kbase_hwcnt_context_enable(kbdev->hwcnt_gpu_ctx);
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
-#else
-	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-	kbase_hwcnt_context_enable(kbdev->hwcnt_gpu_ctx);
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-#endif
 
 	/* Resume HW counters intermediaries. */
 	kbase_kinstr_prfcnt_resume(kbdev->kinstr_prfcnt_ctx);
@@ -160,19 +154,7 @@ static void reenable_hwcnt_on_resume(struct kbase_device *kbdev)
 
 static void resume_job_scheduling(struct kbase_device *kbdev)
 {
-#if !MALI_USE_CSF
-	/* Resume any blocked atoms (which may cause contexts to be scheduled in
-	 * and dependent atoms to run)
-	 */
-	kbase_resume_suspended_soft_jobs(kbdev);
-
-	/* Resume the Job Scheduler and associated components, and start running
-	 * atoms
-	 */
-	kbasep_js_resume(kbdev);
-#else
 	kbase_csf_scheduler_pm_resume(kbdev);
-#endif
 }
 
 int kbase_pm_driver_suspend(struct kbase_device *kbdev)
@@ -200,17 +182,6 @@ int kbase_pm_driver_suspend(struct kbase_device *kbdev)
 	mutex_unlock(&kbdev->pm.lock);
 
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
-	if (kbdev->arb.arb_if) {
-		int i;
-		unsigned long flags;
-
-		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-		kbdev->js_data.runpool_irq.submit_allowed = 0;
-		kbase_disjoint_state_up(kbdev);
-		for (i = 0; i < kbdev->gpu_props.num_job_slots; i++)
-			kbase_job_slot_softstop(kbdev, i, NULL);
-		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-	}
 #endif /* CONFIG_MALI_ARBITER_SUPPORT */
 
 	/* From now on, the active count will drop towards zero. Sometimes,
@@ -219,15 +190,8 @@ int kbase_pm_driver_suspend(struct kbase_device *kbdev)
 	 * all pm references
 	 */
 
-#if !MALI_USE_CSF
-	/* Suspend job scheduler and associated components, so that it releases all
-	 * the PM active count references
-	 */
-	kbasep_js_suspend(kbdev);
-#else
 	if (kbase_csf_scheduler_pm_suspend(kbdev))
 		goto exit;
-#endif
 
 	scheduling_suspended = true;
 
@@ -240,7 +204,6 @@ int kbase_pm_driver_suspend(struct kbase_device *kbdev)
 	wait_event(kbdev->pm.zero_active_count_wait, kbdev->pm.active_count == 0);
 	dev_dbg(kbdev->dev, ">wait_event - waiting done\n");
 
-#if MALI_USE_CSF
 	/* At this point, any kbase context termination should either have run to
 	 * completion and any further context termination can only begin after
 	 * the system resumes. Therefore, it is now safe to skip taking the context
@@ -248,7 +211,6 @@ int kbase_pm_driver_suspend(struct kbase_device *kbdev)
 	 */
 	if (kbase_csf_kcpu_queue_halt_timers(kbdev))
 		goto exit;
-#endif
 
 	timers_halted = true;
 
@@ -275,13 +237,11 @@ int kbase_pm_driver_suspend(struct kbase_device *kbdev)
 
 exit:
 	if (timers_halted) {
-#if MALI_USE_CSF
 		/* Resume the timers in case of suspend failure. But that needs to
 		 * be done before clearing the 'pm.suspending' flag so as to keep the
 		 * context termination blocked.
 		 */
 		kbase_csf_kcpu_queue_resume_timers(kbdev);
-#endif
 	}
 
 	mutex_lock(&kbdev->pm.lock);
@@ -316,9 +276,7 @@ void kbase_pm_driver_resume(struct kbase_device *kbdev, bool arb_gpu_start)
 
 	resume_job_scheduling(kbdev);
 
-#if MALI_USE_CSF
 	kbase_csf_kcpu_queue_resume_timers(kbdev);
-#endif
 
 	/* Matching idle call, to power off the GPU/cores if we didn't actually
 	 * need it and the policy doesn't want it on

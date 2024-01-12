@@ -27,6 +27,9 @@
 #include <kutf/kutf_utils.h>
 
 #include "kutf_test_userdata.h"
+#ifdef CONFIG_KPROBES
+#include "kutf_test_kprobe.h"
+#endif
 
 static struct kutf_application *app1;
 static struct kutf_application *app2;
@@ -103,6 +106,7 @@ static int __init init_test(void)
 	struct kutf_suite *app2_suite1;
 	struct kutf_suite *app2_suite2;
 	struct kutf_suite *app_userdata_suite;
+
 	unsigned int filters;
 
 	app1 = kutf_create_application("test_app");
@@ -162,7 +166,9 @@ static int __init init_test(void)
 				   userdata_increasing_str_sizes_test, filters);
 	kutf_add_test_with_filters(app_userdata_suite, 102, "random_str_sizes",
 				   userdata_random_str_sizes_test, filters);
-
+#ifdef CONFIG_KPROBES
+	kutf_test_kprobe_init();
+#endif
 	return 0;
 
 fail_app1_app2_appuserdata_present:
@@ -180,6 +186,9 @@ static void __exit exit_test(void)
 	kutf_destroy_application(app1);
 	kutf_destroy_application(app2);
 	kutf_destroy_application(app_userdata);
+#ifdef CONFIG_KPROBES
+	kutf_test_kprobe_exit();
+#endif
 }
 
 MODULE_LICENSE("GPL");

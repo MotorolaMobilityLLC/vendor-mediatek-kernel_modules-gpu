@@ -270,8 +270,8 @@ unsigned long kbase_context_get_unmapped_area(struct kbase_context *const kctx,
 	unsigned long high_limit = mm->mmap_base;
 	unsigned long low_limit = PAGE_SIZE;
 #endif
-	int cpu_va_bits = BITS_PER_LONG;
-	int gpu_pc_bits = kctx->kbdev->gpu_props.log2_program_counter_size;
+	unsigned int cpu_va_bits = BITS_PER_LONG;
+	unsigned int gpu_pc_bits = kctx->kbdev->gpu_props.log2_program_counter_size;
 	bool is_shader_code = false;
 	bool is_same_4gb_page = false;
 	unsigned long ret;
@@ -347,21 +347,6 @@ unsigned long kbase_context_get_unmapped_area(struct kbase_context *const kctx,
 				align_mask = align_offset - 1;
 				is_shader_code = true;
 			}
-#if !MALI_USE_CSF
-		} else if (reg->flags & KBASE_REG_TILER_ALIGN_TOP) {
-			unsigned long extension_bytes =
-				(unsigned long)(reg->extension << PAGE_SHIFT);
-			/* kbase_check_alloc_sizes() already satisfies
-			 * these checks, but they're here to avoid
-			 * maintenance hazards due to the assumptions
-			 * involved
-			 */
-			WARN_ON(reg->extension > (ULONG_MAX >> PAGE_SHIFT));
-			WARN_ON(reg->initial_commit > (ULONG_MAX >> PAGE_SHIFT));
-			WARN_ON(!is_power_of_2(extension_bytes));
-			align_mask = extension_bytes - 1;
-			align_offset = extension_bytes - (reg->initial_commit << PAGE_SHIFT);
-#endif /* !MALI_USE_CSF */
 		} else if (reg->flags & KBASE_REG_GPU_VA_SAME_4GB_PAGE) {
 			is_same_4gb_page = true;
 		}

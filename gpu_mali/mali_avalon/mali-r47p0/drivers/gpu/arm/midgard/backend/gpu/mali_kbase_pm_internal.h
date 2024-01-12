@@ -200,7 +200,6 @@ int kbase_pm_init_hw(struct kbase_device *kbdev, unsigned int flags);
  */
 void kbase_pm_reset_done(struct kbase_device *kbdev);
 
-#if MALI_USE_CSF
 /**
  * kbase_pm_wait_for_desired_state - Wait for the desired power state to be
  *                                   reached
@@ -222,30 +221,6 @@ void kbase_pm_reset_done(struct kbase_device *kbdev);
  * Return: 0 on success, or -ETIMEDOUT code on timeout error.
  */
 int kbase_pm_wait_for_desired_state(struct kbase_device *kbdev);
-#else
-/**
- * kbase_pm_wait_for_desired_state - Wait for the desired power state to be
- *                                   reached
- * @kbdev: The kbase device structure for the device (must be a valid pointer)
- *
- * Wait for the L2 and shader power state machines to reach the states
- * corresponding to the values of 'l2_desired' and 'shaders_desired'.
- *
- * The usual use-case for this is to ensure cores are 'READY' after performing
- * a GPU Reset.
- *
- * Unlike kbase_pm_update_state(), the caller must not hold hwaccess_lock,
- * because this function will take that lock itself.
- *
- * NOTE: This may not wait until the correct state is reached if there is a
- * power off in progress. To correctly wait for the desired state the caller
- * must ensure that this is not the case by, for example, calling
- * kbase_pm_wait_for_poweroff_work_complete()
- *
- * Return: 0 on success, or -ETIMEDOUT error code on timeout error.
- */
-int kbase_pm_wait_for_desired_state(struct kbase_device *kbdev);
-#endif
 
 /**
  * kbase_pm_killable_wait_for_desired_state - Wait for the desired power state to be
@@ -279,7 +254,6 @@ int kbase_pm_killable_wait_for_desired_state(struct kbase_device *kbdev);
  */
 int kbase_pm_wait_for_l2_powered(struct kbase_device *kbdev);
 
-#if MALI_USE_CSF
 /**
  * kbase_pm_wait_for_cores_down_scale - Wait for the downscaling of shader cores
  *
@@ -308,7 +282,6 @@ int kbase_pm_wait_for_l2_powered(struct kbase_device *kbdev);
  * Return: 0 on success, error code on error or remaining jiffies on timeout.
  */
 int kbase_pm_wait_for_cores_down_scale(struct kbase_device *kbdev);
-#endif
 
 /**
  * kbase_pm_update_dynamic_cores_onoff - Update the L2 and shader power state
@@ -606,7 +579,6 @@ void kbase_pm_get_dvfs_metrics(struct kbase_device *kbdev, struct kbasep_pm_metr
 
 #ifdef CONFIG_MALI_MIDGARD_DVFS
 
-#if MALI_USE_CSF
 /**
  * kbase_platform_dvfs_event - Report utilisation to DVFS code for CSF GPU
  *
@@ -620,24 +592,6 @@ void kbase_pm_get_dvfs_metrics(struct kbase_device *kbdev, struct kbasep_pm_metr
  * Return:         Returns 0 on failure and non zero on success.
  */
 int kbase_platform_dvfs_event(struct kbase_device *kbdev, u32 utilisation);
-#else
-/**
- * kbase_platform_dvfs_event - Report utilisation to DVFS code for JM GPU
- *
- * @kbdev:         The kbase device structure for the device (must be a
- *                 valid pointer)
- * @utilisation:   The current calculated utilisation by the metrics system.
- * @util_gl_share: The current calculated gl share of utilisation.
- * @util_cl_share: The current calculated cl share of utilisation per core
- *                 group.
- * Function provided by platform specific code when DVFS is enabled to allow
- * the power management metrics system to report utilisation.
- *
- * Return:         Returns 0 on failure and non zero on success.
- */
-int kbase_platform_dvfs_event(struct kbase_device *kbdev, u32 utilisation, u32 util_gl_share,
-			      u32 util_cl_share[2]);
-#endif
 
 #endif /* CONFIG_MALI_MIDGARD_DVFS */
 
@@ -704,80 +658,6 @@ void kbase_pm_reset_start_locked(struct kbase_device *kbdev);
  */
 void kbase_pm_reset_complete(struct kbase_device *kbdev);
 
-#if !MALI_USE_CSF
-/**
- * kbase_pm_protected_override_enable - Enable the protected mode override
- * @kbdev: Device pointer
- *
- * When the protected mode override is enabled, all shader cores are requested
- * to power down, and the L2 power state can be controlled by
- * kbase_pm_protected_l2_override().
- *
- * Caller must hold hwaccess_lock.
- */
-void kbase_pm_protected_override_enable(struct kbase_device *kbdev);
-
-/**
- * kbase_pm_protected_override_disable - Disable the protected mode override
- * @kbdev: Device pointer
- *
- * Caller must hold hwaccess_lock.
- */
-void kbase_pm_protected_override_disable(struct kbase_device *kbdev);
-
-/**
- * kbase_pm_protected_l2_override - Control the protected mode L2 override
- * @kbdev: Device pointer
- * @override: true to enable the override, false to disable
- *
- * When the driver is transitioning in or out of protected mode, the L2 cache is
- * forced to power off. This can be overridden to force the L2 cache to power
- * on. This is required to change coherency settings on some GPUs.
- */
-void kbase_pm_protected_l2_override(struct kbase_device *kbdev, bool override);
-
-/**
- * kbase_pm_protected_entry_override_enable - Enable the protected mode entry
- *                                            override
- * @kbdev: Device pointer
- *
- * Initiate a GPU reset and enable the protected mode entry override flag if
- * l2_always_on WA is enabled and platform is fully coherent. If the GPU
- * reset is already ongoing then protected mode entry override flag will not
- * be enabled and function will have to be called again.
- *
- * When protected mode entry override flag is enabled to power down L2 via GPU
- * reset, the GPU reset handling behavior gets changed. For example call to
- * kbase_backend_reset() is skipped, Hw counters are not re-enabled and L2
- * isn't powered up again post reset.
- * This is needed only as a workaround for a Hw issue where explicit power down
- * of L2 causes a glitch. For entering protected mode on fully coherent
- * platforms L2 needs to be powered down to switch to IO coherency mode, so to
- * avoid the glitch GPU reset is used to power down L2. Hence, this function
- * does nothing on systems where the glitch issue isn't present.
- *
- * Caller must hold hwaccess_lock. Should be only called during the transition
- * to enter protected mode.
- *
- * Return: -EAGAIN if a GPU reset was required for the glitch workaround but
- * was already ongoing, otherwise 0.
- */
-int kbase_pm_protected_entry_override_enable(struct kbase_device *kbdev);
-
-/**
- * kbase_pm_protected_entry_override_disable - Disable the protected mode entry
- *                                             override
- * @kbdev: Device pointer
- *
- * This shall be called once L2 has powered down and switch to IO coherency
- * mode has been made. As with kbase_pm_protected_entry_override_enable(),
- * this function does nothing on systems where the glitch issue isn't present.
- *
- * Caller must hold hwaccess_lock. Should be only called during the transition
- * to enter protected mode.
- */
-void kbase_pm_protected_entry_override_disable(struct kbase_device *kbdev);
-#endif
 
 /* If true, the driver should explicitly control corestack power management,
  * instead of relying on the Power Domain Controller.
@@ -795,7 +675,6 @@ extern bool corestack_driver_control;
  */
 bool kbase_pm_is_l2_desired(struct kbase_device *kbdev);
 
-#if MALI_USE_CSF
 /**
  * kbase_pm_is_mcu_desired - Check whether MCU is desired
  *
@@ -892,7 +771,6 @@ static inline bool kbase_pm_mcu_is_in_desired_state(struct kbase_device *kbdev)
 	return in_desired_state;
 }
 
-#endif
 
 /**
  * kbase_pm_l2_is_in_desired_state - Check if L2 is in stable ON/OFF state.
@@ -922,9 +800,6 @@ static inline bool kbase_pm_l2_is_in_desired_state(struct kbase_device *kbdev)
  */
 static inline void kbase_pm_lock(struct kbase_device *kbdev)
 {
-#if !MALI_USE_CSF
-	mutex_lock(&kbdev->js_data.runpool_mutex);
-#endif /* !MALI_USE_CSF */
 	mutex_lock(&kbdev->pm.lock);
 }
 
@@ -936,9 +811,6 @@ static inline void kbase_pm_lock(struct kbase_device *kbdev)
 static inline void kbase_pm_unlock(struct kbase_device *kbdev)
 {
 	mutex_unlock(&kbdev->pm.lock);
-#if !MALI_USE_CSF
-	mutex_unlock(&kbdev->js_data.runpool_mutex);
-#endif /* !MALI_USE_CSF */
 }
 
 #if MALI_USE_CSF && defined(KBASE_PM_RUNTIME)
@@ -1040,5 +912,6 @@ static inline bool kbase_pm_l2_allow_mmu_page_migration(struct kbase_device *kbd
 
 	return (backend->l2_state != KBASE_L2_PEND_ON && backend->l2_state != KBASE_L2_PEND_OFF);
 }
+
 
 #endif /* _KBASE_BACKEND_PM_INTERNAL_H_ */

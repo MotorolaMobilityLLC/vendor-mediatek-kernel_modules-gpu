@@ -20,11 +20,9 @@
 #include "../mali_kutf_kernel_power_test.h"
 #include <base/tests/internal/api_tests/helpers/mali_base_helpers.h>
 
-#if MALI_USE_CSF
 #include <base/tests/internal/api_tests/helpers/mali_base_helpers_csf.h>
 #include <base/tests/internal/api_tests/csf/helpers/mali_base_csf_scheduler_helpers.h>
 #include <base/tests/internal/api_tests/csf/mali_base_csf_user.h>
-#endif
 
 #define PM_BUFFER_SIZE 256
 
@@ -38,11 +36,9 @@ extern struct kutf_extra_func_spec power_test_instant_poweroff_power_core_availa
 extern struct kutf_extra_func_spec power_test_instant_poweroff_power_policy_unit;
 
 struct kutf_userspace_power_fixture_data {
-#if MALI_USE_CSF
 	base_context ctx;
 	basep_test_single_cs_group group;
 	basep_test_csf_job_resources jobs_res;
-#endif
 	char old_pm_poweroff[PM_BUFFER_SIZE];
 };
 

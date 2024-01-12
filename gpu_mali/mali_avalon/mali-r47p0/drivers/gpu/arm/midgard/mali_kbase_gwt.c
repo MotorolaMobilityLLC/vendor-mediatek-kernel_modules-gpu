@@ -19,8 +19,15 @@
  *
  */
 
-#include "mali_kbase_gwt.h"
+#include <mali_kbase_gwt.h>
+#include <mmu/mali_kbase_mmu.h>
+#include <mali_kbase.h>
+#include <mali_kbase_defs.h>
+#include <mali_malisw.h>
+
+#include <linux/rbtree.h>
 #include <linux/list_sort.h>
+#include <linux/module.h>
 
 static inline void kbase_gpu_gwt_setup_page_permission(struct kbase_context *kctx,
 						       unsigned long flag, struct rb_node *node)
@@ -65,16 +72,6 @@ int kbase_gpu_gwt_start(struct kbase_context *kctx)
 	INIT_LIST_HEAD(&kctx->gwt_current_list);
 	INIT_LIST_HEAD(&kctx->gwt_snapshot_list);
 
-#if !MALI_USE_CSF
-	/* If GWT is enabled using new vector dumping format
-	 * from user space, back up status of the job serialization flag and
-	 * use full serialisation of jobs for dumping.
-	 * Status will be restored on end of dumping in gwt_stop.
-	 */
-	kctx->kbdev->backup_serialize_jobs = kctx->kbdev->serialize_jobs;
-	kctx->kbdev->serialize_jobs = KBASE_SERIALIZE_INTRA_SLOT | KBASE_SERIALIZE_INTER_SLOT;
-
-#endif
 	/* Mark gwt enabled before making pages read only in case a
 	 * write page fault is triggered while we're still in this loop.
 	 * (kbase_gpu_vm_lock() doesn't prevent this!)
@@ -108,9 +105,6 @@ int kbase_gpu_gwt_stop(struct kbase_context *kctx)
 		kfree(pos);
 	}
 
-#if !MALI_USE_CSF
-	kctx->kbdev->serialize_jobs = kctx->kbdev->backup_serialize_jobs;
-#endif
 
 	kbase_gpu_gwt_setup_pages(kctx, ~0UL);
 

@@ -29,7 +29,6 @@
 #include "mali_kutf_kernel_defect_test_main.h"
 #include "backend/gpu/mali_kbase_irq_internal.h"
 
-#if MALI_USE_CSF
 
 struct kutf_tiler_heap_in {
 	struct kutf_helper_named_val ctx_id;
@@ -277,7 +276,7 @@ static void mali_kutf_GPUCORE37465_test_function(struct kutf_context *context)
 	 * simulate reset in progress
 	 */
 	down_write(&kbdev->csf.reset.sem);
-	reset_state = atomic_read(&kbdev->csf.reset.state);
+	reset_state = (unsigned long)atomic_read(&kbdev->csf.reset.state);
 	atomic_set(&kbdev->csf.reset.state, KBASE_CSF_RESET_GPU_HAPPENING);
 	/* Trigger Tiler Out Of Memory IRQ */
 	send_interrupt(kbdev, csi_index, csg_nr);
@@ -302,7 +301,6 @@ static void mali_kutf_GPUCORE37465_test_function(struct kutf_context *context)
 	notify_user_val(context, GPUCORE37465_KERNEL_CLEANUP_DONE, GPUCORE37465_OK);
 }
 
-#endif /* MALI_USE_CSF */
 
 /**
  * mali_kutf_kernel_defect_GPUCORE_37465 - Entry point for the test
@@ -311,9 +309,5 @@ static void mali_kutf_GPUCORE37465_test_function(struct kutf_context *context)
  */
 void mali_kutf_kernel_defect_GPUCORE_37465(struct kutf_context *context)
 {
-#if MALI_USE_CSF
 	mali_kutf_GPUCORE37465_test_function(context);
-#else /* MALI_USE_CSF */
-	kutf_test_skip_msg(context, "The GPUCORE-37465 test is only applicable to CSF GPUs");
-#endif /* MALI_USE_CSF */
 }

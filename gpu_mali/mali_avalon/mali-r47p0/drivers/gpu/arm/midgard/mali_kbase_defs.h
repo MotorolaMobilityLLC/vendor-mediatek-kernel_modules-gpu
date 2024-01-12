@@ -33,25 +33,17 @@
 #include <mali_kbase_mem_lowlevel.h>
 #include <mmu/mali_kbase_mmu_hw.h>
 #include <backend/gpu/mali_kbase_instr_defs.h>
+#include <backend/gpu/mali_kbase_pm_defs.h>
 #include <mali_kbase_pm.h>
 #include <mali_kbase_reg_track.h>
 #include <mali_kbase_gpuprops_types.h>
 #include <hwcnt/mali_kbase_hwcnt_watchdog_if.h>
 
-#if MALI_USE_CSF
 #include <hwcnt/backend/mali_kbase_hwcnt_backend_csf.h>
-#else
-#include <hwcnt/backend/mali_kbase_hwcnt_backend_jm.h>
-#include <hwcnt/backend/mali_kbase_hwcnt_backend_jm_watchdog.h>
-#endif
+
+#include "debug/mali_kbase_debug_ktrace_defs.h"
 
 #include <protected_mode_switcher.h>
-
-#include <linux/atomic.h>
-#include <linux/mempool.h>
-#include <linux/slab.h>
-#include <linux/file.h>
-#include <linux/sizes.h>
 #include <linux/version_compat_defs.h>
 
 
@@ -67,11 +59,16 @@
 #include <arbiter/mali_kbase_arbiter_defs.h>
 #endif /* CONFIG_MALI_ARBITER_SUPPORT */
 
-#include <linux/clk.h>
-#include <linux/regulator/consumer.h>
 #include <linux/memory_group_manager.h>
 
-#include "debug/mali_kbase_debug_ktrace_defs.h"
+#include <linux/atomic.h>
+#include <linux/mempool.h>
+#include <linux/notifier.h>
+#include <linux/slab.h>
+#include <linux/file.h>
+#include <linux/sizes.h>
+#include <linux/clk.h>
+#include <linux/regulator/consumer.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
 #include "platform/mtk_platform_utils.h"
@@ -133,7 +130,6 @@
  */
 #define KBASE_HWCNT_GPU_VIRTUALIZER_DUMP_THRESHOLD_NS (200 * NSEC_PER_USEC)
 
-#if MALI_USE_CSF
 /* The buffer count of CSF hwcnt backend ring buffer, which is used when CSF
  * hwcnt backend allocate the ring buffer to communicate with CSF firmware for
  * HWC dump samples.
@@ -141,7 +137,6 @@
  * CSF hwcnt backend creation will be failed.
  */
 #define KBASE_HWCNT_BACKEND_CSF_RING_BUFFER_COUNT (128)
-#endif
 
 /* Maximum number of clock/regulator pairs that may be referenced by
  * the device node.
@@ -358,11 +353,7 @@ struct kbase_mmu_table {
 	} scratch_mem;
 };
 
-#if MALI_USE_CSF
 #include "csf/mali_kbase_csf_defs.h"
-#else
-#include "jm/mali_kbase_jm_defs.h"
-#endif
 
 #include "mali_kbase_hwaccess_time.h"
 
@@ -490,22 +481,14 @@ struct kbase_pm_device_data {
 	int active_count;
 	bool suspending;
 	bool resuming;
-#if MALI_USE_CSF
 	bool runtime_active;
-#endif
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 	atomic_t gpu_lost;
 #endif /* CONFIG_MALI_ARBITER_SUPPORT */
 	wait_queue_head_t zero_active_count_wait;
 	wait_queue_head_t resume_wait;
 
-#if MALI_USE_CSF
 	u64 debug_core_mask;
-#else
-	/* One mask per job slot. */
-	u64 debug_core_mask[BASE_JM_MAX_NR_SLOTS];
-	u64 debug_core_mask_all;
-#endif /* MALI_USE_CSF */
 
 	int (*callback_power_runtime_init)(struct kbase_device *kbdev);
 	void (*callback_power_runtime_term)(struct kbase_device *kbdev);
@@ -524,8 +507,11 @@ struct kbase_pm_device_data {
  * @cur_size:                  Number of free pages currently in the pool (may exceed
  *                             @max_size in some corner cases)
  * @max_size:                  Maximum number of free pages in the pool
- * @order:                     order = 0 refers to a pool of 4 KB pages
- *                             order = 9 refers to a pool of 2 MB pages (2^9 * 4KB = 2 MB)
+ * @order:                     order = 0 refers to a pool of small pages
+ *                             order != 0 refers to a pool of 2 MB pages, so
+ *                             order = 9 (when small page size is 4KB,  2^9 *  4KB = 2 MB)
+ *                             order = 7 (when small page size is 16KB, 2^7 * 16KB = 2 MB)
+ *                             order = 5 (when small page size is 64KB, 2^5 * 64KB = 2 MB)
  * @group_id:                  A memory group ID to be passed to a platform-specific
  *                             memory group manager, if present. Immutable.
  *                             Valid range is 0..(MEMORY_GROUP_MANAGER_NR_GROUPS-1).
@@ -564,14 +550,14 @@ struct kbase_mem_pool {
 /**
  * struct kbase_mem_pool_group - a complete set of physical memory pools.
  *
- * @small: Array of objects containing the state for pools of 4 KiB size
+ * @small: Array of objects containing the state for pools of small size
  *         physical pages.
  * @large: Array of objects containing the state for pools of 2 MiB size
  *         physical pages.
  *
  * Memory pools are used to allow efficient reallocation of previously-freed
  * physical pages. A pair of memory pools is initialized for each physical
- * memory group: one for 4 KiB pages and one for 2 MiB pages. These arrays
+ * memory group: one for small pages and one for 2 MiB pages. These arrays
  * should be indexed by physical memory group ID, the meaning of which is
  * defined by the systems integrator.
  */
@@ -594,7 +580,7 @@ struct kbase_mem_pool_config {
  * struct kbase_mem_pool_group_config - Initial configuration for a complete
  *                                      set of physical memory pools
  *
- * @small: Array of initial configuration for pools of 4 KiB pages.
+ * @small: Array of initial configuration for pools of small pages.
  * @large: Array of initial configuration for pools of 2 MiB pages.
  *
  * This array should be indexed by physical memory group ID, the meaning
@@ -828,6 +814,7 @@ enum mmu_dbg_log_config {
  *                         power management, cache etc.)
  * @irqs.irq:              irq number
  * @irqs.flags:            irq flags
+ * @nr_irqs:               The number of interrupt entries.
  * @clocks:                Pointer to the input clock resources referenced by
  *                         the GPU device node.
  * @nr_clocks:             Number of clocks set in the clocks array.
@@ -882,8 +869,8 @@ enum mmu_dbg_log_config {
  *                         group manager if no platform-specific memory group
  *                         manager was retrieved through device tree.
  * @mmu_unresponsive:      Flag to indicate MMU is not responding.
- *                         Set if a MMU command isn't completed within
- *                         &kbase_device:mmu_or_gpu_cache_op_wait_time_ms.
+ *                         Set if a MMU command isn't completed within the
+ *                         MMU_AS_INACTIVE_WAIT_TIMEOUT scaled timeout.
  *                         Clear by kbase_ctx_sched_restore_all_as() after GPU reset completes.
  * @as:                    Array of objects representing address spaces of GPU.
  * @as_to_kctx:            Array of pointers to struct kbase_context, having
@@ -1037,13 +1024,6 @@ enum mmu_dbg_log_config {
  *                         backend specific data for HW access layer.
  * @faults_pending:        Count of page/bus faults waiting for bottom half processing
  *                         via workqueues.
- * @mmu_hw_operation_in_progress: Set before sending the MMU command and is
- *                         cleared after the command is complete. Whilst this
- *                         flag is set, the write to L2_PWROFF register will be
- *                         skipped which is needed to workaround the HW issue
- *                         GPU2019-3878. PM state machine is invoked after
- *                         clearing this flag and @hwaccess_lock is used to
- *                         serialize the access.
  * @mmu_page_migrate_in_progress: Set before starting a MMU page migration transaction
  *                         and cleared after the transaction completes. PM L2 state is
  *                         prevented from entering powering up/down transitions when the
@@ -1132,11 +1112,12 @@ enum mmu_dbg_log_config {
  *                          KCPU queue. These structures may outlive kbase module
  *                          itself. Therefore, in such a case, a warning should be
  *                          be produced.
- * @mmu_or_gpu_cache_op_wait_time_ms: Maximum waiting time in ms for the completion of
- *                          a cache operation via MMU_AS_CONTROL or GPU_CONTROL.
  * @va_region_slab:         kmem_cache (slab) for allocated kbase_va_region structures.
  * @fence_signal_timeout_enabled: Global flag for whether fence signal timeout tracking
  *                                is enabled.
+ * @pcm_prioritized_process_nb: Notifier block for the Priority Control Manager
+ *                              driver, this is used to be informed of the
+ *                              changes in the list of prioritized processes.
  */
 struct kbase_device {
 	u32 hw_quirks_sc;
@@ -1161,9 +1142,10 @@ struct kbase_device {
 		size_t size;
 	} regmap;
 	struct {
-		int irq;
-		int flags;
+		u32 irq;
+		u32 flags;
 	} irqs[3];
+	u32 nr_irqs;
 
 	struct clk *clocks[BASE_MAX_NR_CLOCKS_REGULATORS];
 	unsigned int nr_clocks;
@@ -1224,21 +1206,7 @@ struct kbase_device {
 	 */
 	u8 pbha_propagate_bits;
 
-#if MALI_USE_CSF
 	struct kbase_hwcnt_backend_csf_if hwcnt_backend_csf_if_fw;
-#else
-	struct kbase_hwcnt {
-		spinlock_t lock;
-
-		struct kbase_context *kctx;
-		u64 addr;
-		u64 addr_bytes;
-
-		struct kbase_instr_backend backend;
-	} hwcnt;
-
-	struct kbase_hwcnt_backend_interface hwcnt_gpu_jm_backend;
-#endif
 
 	struct kbase_hwcnt_backend_interface hwcnt_gpu_iface;
 	struct kbase_hwcnt_watchdog_interface hwcnt_watchdog_timer;
@@ -1306,9 +1274,6 @@ struct kbase_device {
 #endif /* CONFIG_MALI_DEVFREQ */
 	unsigned long previous_frequency;
 
-#if !MALI_USE_CSF
-	atomic_t job_fault_debug;
-#endif /* !MALI_USE_CSF */
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	struct dentry *mali_debugfs_directory;
@@ -1319,13 +1284,6 @@ struct kbase_device {
 	u64 debugfs_as_read_bitmap;
 #endif /* CONFIG_MALI_DEBUG */
 
-#if !MALI_USE_CSF
-	wait_queue_head_t job_fault_wq;
-	wait_queue_head_t job_fault_resume_wq;
-	struct workqueue_struct *job_fault_resume_workq;
-	struct list_head job_fault_event_list;
-	spinlock_t job_fault_event_lock;
-#endif /* !MALI_USE_CSF */
 
 #if !MALI_CUSTOMER_RELEASE
 	struct {
@@ -1344,9 +1302,6 @@ struct kbase_device {
 
 	atomic_t faults_pending;
 
-#if MALI_USE_CSF
-	bool mmu_hw_operation_in_progress;
-#endif
 	bool mmu_page_migrate_in_progress;
 	bool poweroff_pending;
 
@@ -1397,23 +1352,8 @@ struct kbase_device {
 	struct mutex ghpm_lock;
 #endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
 
-#if MALI_USE_CSF
 	/* CSF object for the GPU device. */
 	struct kbase_csf_device csf;
-#else
-	struct kbasep_js_device_data js_data;
-
-	/* See KBASE_JS_*_PRIORITY_MODE for details. */
-	u32 js_ctx_scheduling_mode;
-
-	/* See KBASE_SERIALIZE_* for details */
-	u8 serialize_jobs;
-
-#ifdef CONFIG_MALI_CINSTR_GWT
-	u8 backup_serialize_jobs;
-#endif /* CONFIG_MALI_CINSTR_GWT */
-
-#endif /* MALI_USE_CSF */
 
 	struct rb_root process_root;
 	struct rb_root dma_buf_root;
@@ -1425,7 +1365,7 @@ struct kbase_device {
 	struct {
 		struct kbase_context *kctx;
 		u64 jc;
-		int slot;
+		u32 slot;
 		u64 flags;
 	} dummy_job_wa;
 	bool dummy_job_wa_loaded;
@@ -1456,7 +1396,6 @@ struct kbase_device {
 #if MALI_USE_CSF && IS_ENABLED(CONFIG_SYNC_FILE)
 	atomic_t live_fence_metadata;
 #endif
-	u32 mmu_or_gpu_cache_op_wait_time_ms;
 	struct kmem_cache *va_region_slab;
 
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
@@ -1465,9 +1404,9 @@ struct kbase_device {
 	 */
 	struct kbase_gpu_metrics gpu_metrics;
 #endif
-#if MALI_USE_CSF
 	atomic_t fence_signal_timeout_enabled;
-#endif
+
+	struct notifier_block pcm_prioritized_process_nb;
 
 #if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
 	u32 jit_reclaim_timeout_ms;
@@ -1642,6 +1581,11 @@ struct kbase_file {
  * @KCTX_JPL_ENABLED: Set when JIT physical page limit is less than JIT virtual
  * address page limit, so we must take care to not exceed the physical limit
  *
+ * @KCTX_PAGE_FAULT_REPORT_SKIP: Set when the GPU page fault handler is not
+ * allowed to allocate a physical page due to the process exit or context
+ * termination. It is used to suppress the error messages that ensue because
+ * the page fault didn't get handled.
+ *
  * All members need to be separate bits. This enum is intended for use in a
  * bitmask where multiple values get OR-ed together.
  */
@@ -1662,6 +1606,7 @@ enum kbase_context_flags {
 	KCTX_PULLED_SINCE_ACTIVE_JS2 = 1U << 14,
 	KCTX_AS_DISABLED_ON_FAULT = 1U << 15,
 	KCTX_JPL_ENABLED = 1U << 16,
+	KCTX_PAGE_FAULT_REPORT_SKIP = 1U << 17,
 };
 #else
 /**
@@ -1720,6 +1665,11 @@ enum kbase_context_flags {
  * refcount for the context drops to 0 or on when the address spaces are
  * re-enabled on GPU reset or power cycle.
  *
+ * @KCTX_PAGE_FAULT_REPORT_SKIP: Set when the GPU page fault handler is not
+ * allowed to allocate a physical page due to the process exit or context
+ * termination. It is used to suppress the error messages that ensue because
+ * the page fault didn't get handled.
+ *
  * All members need to be separate bits. This enum is intended for use in a
  * bitmask where multiple values get OR-ed together.
  */
@@ -1739,13 +1689,14 @@ enum kbase_context_flags {
 	KCTX_PULLED_SINCE_ACTIVE_JS1 = 1U << 13,
 	KCTX_PULLED_SINCE_ACTIVE_JS2 = 1U << 14,
 	KCTX_AS_DISABLED_ON_FAULT = 1U << 15,
+	KCTX_PAGE_FAULT_REPORT_SKIP = 1U << 16,
 };
 #endif /* MALI_JIT_PRESSURE_LIMIT_BASE */
 
 struct kbase_sub_alloc {
 	struct list_head link;
 	struct page *page;
-	DECLARE_BITMAP(sub_pages, SZ_2M / SZ_4K);
+	DECLARE_BITMAP(sub_pages, NUM_PAGES_IN_2MB_LARGE_PAGE);
 };
 
 /**
@@ -1785,7 +1736,7 @@ struct kbase_sub_alloc {
  * @mem_partials_lock:    Lock for protecting the operations done on the elements
  *                        added to @mem_partials list.
  * @mem_partials:         List head for the list of large pages, 2MB in size, which
- *                        have been split into 4 KB pages and are used partially
+ *                        have been split into small pages and are used partially
  *                        for the allocations >= 2 MB in size.
  * @reg_lock:             Lock used for GPU virtual address space management operations,
  *                        like adding/freeing a memory region in the address space.
@@ -1815,10 +1766,17 @@ struct kbase_sub_alloc {
  *                        which actually created the context. This is usually,
  *                        but not necessarily, the same as the thread which
  *                        opened the device file /dev/malixx instance.
+ * @prioritized:          Indicate whether work items originating from this
+ *                        context should be treated with a higher priority
+ *                        level relative to work items with the same priority
+ *                        from other contexts. This value could change multiple
+ *                        times over the life time of the context, such as when
+ *                        an application becomes foreground or goes to the
+ *                        background.
  * @csf:                  kbase csf context
  * @jctx:                 object encapsulating all the Job dispatcher related state,
  *                        including the array of atoms.
- * @used_pages:           Keeps a track of the number of 4KB physical pages in use
+ * @used_pages:           Keeps a track of the number of small physical pages in use
  *                        for the context.
  * @nonmapped_pages:      Updated in the same way as @used_pages, except for the case
  *                        when special tracking page is freed by userspace where it
@@ -1873,7 +1831,7 @@ struct kbase_sub_alloc {
  *                        on this descriptor for the Userspace created contexts so that
  *                        Kbase can safely access it to update the memory usage counters.
  *                        The reference is dropped on context termination.
- * @gpu_va_end:           End address of the GPU va space (in 4KB page units)
+ * @gpu_va_end:           End address of the GPU va space (in small page units)
  * @running_total_tiler_heap_nr_chunks: Running total of number of chunks in all
  *                        tiler heaps of the kbase context.
  * @running_total_tiler_heap_memory: Running total of the tiler heap memory in the
@@ -2019,9 +1977,6 @@ struct kbase_context {
 	struct list_head event_list;
 	struct list_head event_coalesce_list;
 	struct mutex event_mutex;
-#if !MALI_USE_CSF
-	atomic_t event_closed;
-#endif
 	struct workqueue_struct *event_workq;
 	atomic_t event_count;
 	int event_coalesce_count;
@@ -2034,35 +1989,18 @@ struct kbase_context {
 	struct list_head mem_partials;
 
 	struct mutex reg_lock;
-#if MALI_USE_CSF
 	atomic64_t num_fixable_allocs;
 	atomic64_t num_fixed_allocs;
-#endif
 	struct kbase_reg_zone reg_zone[CONTEXT_ZONE_MAX];
 
-#if MALI_USE_CSF
 	struct kbase_csf_context csf;
-#else
-	struct kbase_jd_context jctx;
-	struct jsctx_queue jsctx_queue[KBASE_JS_ATOM_SCHED_PRIO_COUNT][BASE_JM_MAX_NR_SLOTS];
-	struct kbase_jsctx_slot_tracking slot_tracking[BASE_JM_MAX_NR_SLOTS];
-	atomic_t atoms_pulled_all_slots;
-
-	struct list_head completed_jobs;
-	atomic_t work_count;
-	struct timer_list soft_job_timeout;
-
-	int priority;
-	s16 atoms_count[KBASE_JS_ATOM_SCHED_PRIO_COUNT];
-	u32 slots_pullable;
-	u32 age_count;
-#endif /* MALI_USE_CSF */
 
 	DECLARE_BITMAP(cookies, BITS_PER_LONG);
 	struct kbase_va_region *pending_regions[BITS_PER_LONG];
 
 	pid_t tgid;
 	pid_t pid;
+	atomic_t prioritized;
 	atomic_t used_pages;
 	atomic_t nonmapped_pages;
 	atomic_t permanent_mapped_pages;
@@ -2082,11 +2020,9 @@ struct kbase_context {
 
 	struct mm_struct *process_mm;
 	u64 gpu_va_end;
-#if MALI_USE_CSF
 	u32 running_total_tiler_heap_nr_chunks;
 	u64 running_total_tiler_heap_memory;
 	u64 peak_total_tiler_heap_memory;
-#endif
 	bool jit_va;
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
@@ -2134,16 +2070,10 @@ struct kbase_context {
 
 	base_context_create_flags create_flags;
 
-#if !MALI_USE_CSF
-	struct kbase_kinstr_jm *kinstr_jm;
-#endif
 	struct list_head tl_kctx_list_node;
 
 	u64 limited_core_mask;
 
-#if !MALI_USE_CSF
-	void *platform_data;
-#endif
 
 	struct task_struct *task;
 
@@ -2252,10 +2182,4 @@ static inline u64 kbase_get_lock_region_min_size_log2(struct kbase_gpu_props con
 #define HR_TIMER_DELAY_MSEC(x) (ns_to_ktime(((u64)(x)) * 1000000U))
 #define HR_TIMER_DELAY_NSEC(x) (ns_to_ktime(x))
 
-/* Maximum number of loops polling the GPU for a cache flush before we assume it must have completed */
-#define KBASE_CLEAN_CACHE_MAX_LOOPS 100000
-/* Maximum number of loops polling the GPU for an AS command to complete before we assume the GPU has hung */
-#define KBASE_AS_INACTIVE_MAX_LOOPS 100000000
-/* Maximum number of loops polling the GPU PRFCNT_ACTIVE bit before we assume the GPU has hung */
-#define KBASE_PRFCNT_ACTIVE_MAX_LOOPS 100000000
 #endif /* _KBASE_DEFS_H_ */

@@ -18,17 +18,14 @@
 #include "mali_kutf_kernel_power_test_extra.h"
 #include <base/tests/internal/api_tests/helpers/mali_base_helpers.h>
 
-#if MALI_USE_CSF
 #include <base/tests/internal/api_tests/helpers/mali_base_helpers_csf.h>
 #include <base/tests/internal/api_tests/csf/helpers/mali_base_csf_scheduler_helpers.h>
-#endif
 
 #define NS_PER_SEC ((uint64_t)1E9)
 
 static char *default_poweroff_settings = "400000 2 2";
 static char *instant_poweroff_settings = "400000 0 0";
 
-#if MALI_USE_CSF
 /*
  * mali_kutf_kernel_power_test_csf_setup - creates an infinitely looping
  * active job claiming the shader cores, required by some of the poweroff
@@ -69,7 +66,6 @@ static int mali_kutf_kernel_power_test_csf_setup(mali_utf_suite *test_suite)
 	mali_utf_logerr("Could not initialize csf resources");
 	return 1;
 }
-#endif
 
 /*
  * mali_kutf_kernel_power_test_poweroff_setup - sets a new poweroff policy
@@ -114,7 +110,6 @@ static int mali_kutf_kernel_power_test_pretest(mali_utf_suite *test_suite, char 
 
 	test_suite->fixture = (void *)fix;
 
-#if MALI_USE_CSF
 	fix->group = (basep_test_single_cs_group){ 0 };
 	base_context *ctx = &fix->ctx;
 
@@ -125,7 +120,6 @@ static int mali_kutf_kernel_power_test_pretest(mali_utf_suite *test_suite, char 
 
 	if (mali_kutf_kernel_power_test_csf_setup(test_suite))
 		return 1;
-#endif
 	return mali_kutf_kernel_power_test_poweroff_setup(test_suite, poweroff);
 }
 
@@ -195,14 +189,12 @@ void mali_kutf_kernel_power_test_teardown(mali_utf_suite *test_suite)
 	struct kutf_userspace_power_fixture_data *fix = test_suite->fixture;
 
 	base_test_set_pm_poweroff(fix->old_pm_poweroff);
-#if MALI_USE_CSF
 	basep_test_csf_job_resources *jobs_res = &fix->jobs_res;
 
 	basep_test_csf_job_data_quit_now(jobs_res->jobs);
 	basep_test_single_cs_group_term(&fix->group);
 	basep_test_csf_job_resources_term(&fix->ctx, jobs_res);
 	base_context_term(&fix->ctx);
-#endif
 }
 
 /* mali_kutf_kernel_power_test_no_csf_teardown - restores the previous

@@ -56,7 +56,7 @@ bool kbase_is_gpu_removed(struct kbase_device *kbdev)
 static int busy_wait_cache_operation(struct kbase_device *kbdev, u32 irq_bit)
 {
 	const ktime_t wait_loop_start = ktime_get_raw();
-	const u32 wait_time_ms = kbdev->mmu_or_gpu_cache_op_wait_time_ms;
+	const u32 wait_time_ms = kbase_get_timeout_ms(kbdev, MMU_AS_INACTIVE_WAIT_TIMEOUT);
 	bool completed = false;
 	s64 diff;
 	u32 irq_bits_to_check = irq_bit;
@@ -138,7 +138,6 @@ static int busy_wait_cache_operation(struct kbase_device *kbdev, u32 irq_bit)
 	return 0;
 }
 
-#if MALI_USE_CSF
 
 int kbase_gpu_cache_flush_pa_range_and_busy_wait(struct kbase_device *kbdev, phys_addr_t phys,
 						 size_t nr_bytes, u32 flush_op)
@@ -164,7 +163,6 @@ int kbase_gpu_cache_flush_pa_range_and_busy_wait(struct kbase_device *kbdev, phy
 
 	return ret;
 }
-#endif /* MALI_USE_CSF */
 
 int kbase_gpu_cache_flush_and_busy_wait(struct kbase_device *kbdev, u32 flush_op)
 {
@@ -193,7 +191,7 @@ int kbase_gpu_cache_flush_and_busy_wait(struct kbase_device *kbdev, u32 flush_op
 				  irq_mask & ~CLEAN_CACHES_COMPLETED);
 
 		/* busy wait irq status to be enabled */
-		ret = busy_wait_cache_operation(kbdev, (u32)CLEAN_CACHES_COMPLETED);
+		ret = busy_wait_cache_operation(kbdev, CLEAN_CACHES_COMPLETED);
 		if (ret)
 			return ret;
 
@@ -212,7 +210,7 @@ int kbase_gpu_cache_flush_and_busy_wait(struct kbase_device *kbdev, u32 flush_op
 	kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_COMMAND), flush_op);
 
 	/* 3. Busy-wait irq status to be enabled. */
-	ret = busy_wait_cache_operation(kbdev, (u32)CLEAN_CACHES_COMPLETED);
+	ret = busy_wait_cache_operation(kbdev, CLEAN_CACHES_COMPLETED);
 	if (ret)
 		return ret;
 
@@ -325,7 +323,7 @@ void kbase_gpu_wait_cache_clean(struct kbase_device *kbdev)
 
 int kbase_gpu_wait_cache_clean_timeout(struct kbase_device *kbdev, unsigned int wait_timeout_ms)
 {
-	long remaining = msecs_to_jiffies(wait_timeout_ms);
+	long remaining = (long)msecs_to_jiffies(wait_timeout_ms);
 	int result = 0;
 
 	while (remaining && get_cache_clean_flag(kbdev)) {

@@ -336,10 +336,9 @@ static void set_fault_event_info(struct kutf_user_data_in *in, struct kbase_devi
 					      (~cs_req & CS_REQ_FAULT_MASK);
 
 	((u32 *)stream->output)[CS_FAULT / 4] =
-		CS_FAULT_EXCEPTION_TYPE_SET(((u32 *)stream->output)[CS_FAULT / 4],
-					    in->fault.exception_type.u.val_u64) |
-		CS_FAULT_EXCEPTION_DATA_SET(((u32 *)stream->output)[CS_FAULT / 4],
-					    in->fault.exception_data.u.val_u64);
+		(in->fault.exception_type.u.val_u64 & CS_FAULT_EXCEPTION_TYPE_MASK) |
+		((in->fault.exception_data.u.val_u64 << CS_FAULT_EXCEPTION_DATA_SHIFT)
+			 & CS_FAULT_EXCEPTION_DATA_MASK);
 
 	((u32 *)stream->output)[CS_FAULT_INFO_LO / 4] = temp_cs_fault_info & U32_MAX;
 	((u32 *)stream->output)[CS_FAULT_INFO_HI / 4] = (temp_cs_fault_info >> 32) & U32_MAX;
@@ -368,10 +367,9 @@ static void set_fatal_event_info(struct kutf_user_data_in *in, struct kbase_devi
 					      (~cs_req & CS_REQ_FATAL_MASK);
 
 	((u32 *)stream->output)[CS_FATAL / 4] =
-		CS_FATAL_EXCEPTION_TYPE_SET(((u32 *)stream->output)[CS_FATAL / 4],
-					    in->fault.exception_type.u.val_u64) |
-		CS_FATAL_EXCEPTION_DATA_SET(((u32 *)stream->output)[CS_FATAL / 4],
-					    in->fault.exception_data.u.val_u64);
+		(in->fault.exception_type.u.val_u64 & CS_FATAL_EXCEPTION_TYPE_MASK) |
+		((in->fault.exception_data.u.val_u64 << CS_FATAL_EXCEPTION_DATA_SHIFT)
+			 & CS_FATAL_EXCEPTION_DATA_MASK);
 
 	((u32 *)stream->output)[CS_FATAL_INFO_LO / 4] = temp_cs_fault_info & U32_MAX;
 	((u32 *)stream->output)[CS_FATAL_INFO_HI / 4] = (temp_cs_fault_info >> 32) & U32_MAX;

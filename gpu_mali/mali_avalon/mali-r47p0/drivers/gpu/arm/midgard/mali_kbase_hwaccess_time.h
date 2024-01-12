@@ -52,15 +52,12 @@
  *
  */
 struct kbase_backend_time {
-#if MALI_USE_CSF
 	u64 multiplier;
 	u64 divisor;
 	s64 offset;
-#endif
 	unsigned int device_scaled_timeouts[KBASE_TIMEOUT_SELECTOR_COUNT];
 };
 
-#if MALI_USE_CSF
 /**
  * kbase_backend_time_convert_gpu_to_cpu() - Convert GPU timestamp to CPU timestamp.
  *
@@ -70,7 +67,6 @@ struct kbase_backend_time {
  * Return: The CPU timestamp.
  */
 u64 __maybe_unused kbase_backend_time_convert_gpu_to_cpu(struct kbase_device *kbdev, u64 gpu_ts);
-#endif
 
 /**
  * kbase_backend_get_gpu_time() - Get current GPU time
@@ -159,6 +155,15 @@ u64 kbase_backend_get_cycle_cnt(struct kbase_device *kbdev);
  */
 u64 kbase_backend_get_timestamp(struct kbase_device *kbdev);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+/**
+ * kbase_arch_timer_get_cntfrq - Get system timestamp counter frequency.
+ *
+ * @kbdev: Instance of a GPU platform device.
+ *
+ * Return: Frequency in Hz
+ */
+u64 kbase_arch_timer_get_cntfrq(struct kbase_device *kbdev);
 
 /**
  * kbase_backend_time_init() - Initialize system timestamp converter.

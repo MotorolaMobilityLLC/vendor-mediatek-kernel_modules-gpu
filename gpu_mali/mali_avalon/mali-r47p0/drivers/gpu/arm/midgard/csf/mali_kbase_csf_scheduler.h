@@ -125,7 +125,7 @@ bool kbase_csf_scheduler_group_events_enabled(struct kbase_device *kbdev,
  * Note: Caller must hold the interrupt_lock.
  */
 struct kbase_queue_group *kbase_csf_scheduler_get_group_on_slot(struct kbase_device *kbdev,
-								int slot);
+								u32 slot);
 
 /**
  * kbase_csf_scheduler_group_deschedule() - Deschedule a GPU command queue

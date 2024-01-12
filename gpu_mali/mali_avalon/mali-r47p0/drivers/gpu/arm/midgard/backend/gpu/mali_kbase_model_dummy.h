@@ -134,10 +134,10 @@ struct error_status_t {
 
 	u32 errors_mask;
 	u32 mmu_table_level;
-	int faulty_mmu_as;
+	u32 faulty_mmu_as;
 
 	u64 current_jc;
-	int current_job_slot;
+	u32 current_job_slot;
 
 	u32 job_irq_rawstat;
 	u32 job_irq_status;
@@ -168,7 +168,7 @@ struct gpu_model_prfcnt_en {
 	u32 shader;
 };
 
-void midgard_set_error(int job_slot);
+void midgard_set_error(u32 job_slot);
 int job_atom_inject_error(struct kbase_error_params *params);
 int gpu_model_control(void *h, struct kbase_model_control_params *params);
 
@@ -202,7 +202,6 @@ void gpu_model_set_dummy_prfcnt_cores(struct kbase_device *kbdev, u64 l2_present
 /* Clear the counter values array maintained by the dummy model */
 void gpu_model_clear_prfcnt_values(void);
 
-#if MALI_USE_CSF
 /**
  * gpu_model_prfcnt_dump_request() - Request performance counter sample dump.
  * @sample_buf:  Pointer to KBASE_DUMMY_MODEL_MAX_VALUES_PER_SAMPLE sized array
@@ -217,7 +216,6 @@ void gpu_model_prfcnt_dump_request(uint32_t *sample_buf, struct gpu_model_prfcnt
  * @model: Model pointer returned by midgard_model_create().
  */
 void gpu_model_glb_request_job_irq(void *model);
-#endif /* MALI_USE_CSF */
 
 extern struct error_status_t hw_error_status;
 

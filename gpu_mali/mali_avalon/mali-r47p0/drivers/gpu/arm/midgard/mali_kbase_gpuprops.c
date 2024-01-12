@@ -290,11 +290,7 @@ static int kbase_gpuprops_get_props(struct kbase_device *kbdev)
 	else
 		gpu_props->max_threads = regdump->thread_max_threads;
 
-#if MALI_USE_CSF
 	gpu_props->impl_tech = KBASE_UBFX32(regdump->thread_features, 22U, 2);
-#else /* MALI_USE_CSF */
-	gpu_props->impl_tech = KBASE_UBFX32(regdump->thread_features, 30U, 2);
-#endif /* MALI_USE_CSF */
 
 	/* Features */
 	kbase_gpuprops_parse_gpu_features(&gpu_props->gpu_features, regdump->gpu_features);
@@ -380,6 +376,8 @@ void kbase_gpuprops_term(struct kbase_device *kbdev)
 static u8 override_l2_size;
 module_param(override_l2_size, byte, 0000);
 MODULE_PARM_DESC(override_l2_size, "Override L2 size config for testing");
+/* Minimum L2 cache size - LOG2(1KiB) */
+#define OVERRIDE_L2_SIZE_MIN_LOG2 (10)
 
 static u8 override_l2_hash;
 module_param(override_l2_hash, byte, 0000);
@@ -429,6 +427,9 @@ static enum l2_config_override_result kbase_read_l2_config_from_dt(struct kbase_
 		kbdev->l2_size_override = override_l2_size;
 	else if (of_property_read_u8(np, "l2-size", &kbdev->l2_size_override))
 		kbdev->l2_size_override = 0;
+
+	if (kbdev->l2_size_override != 0 && kbdev->l2_size_override < OVERRIDE_L2_SIZE_MIN_LOG2)
+		return L2_CONFIG_OVERRIDE_FAIL;
 
 	/* Check overriding value is supported, if not will result in
 	 * undefined behavior.
@@ -674,7 +675,6 @@ static void kbase_populate_user_data(struct kbase_device *kbdev, struct gpu_prop
 	data->raw_props.coherency_mode = kprops->coherency_mode;
 
 	/* Properties (mostly) from raw register values */
-	/* For compatibility, we are passing the lower 32-bits of the gpu_id */
 	data->raw_props.gpu_id = regdump->gpu_id;
 
 	{
@@ -696,14 +696,11 @@ static void kbase_populate_user_data(struct kbase_device *kbdev, struct gpu_prop
 	 * GPUs like tTIx have additional fields like LSC_SIZE that are
 	 * otherwise reserved/RAZ on older GPUs.
 	 */
-#if !MALI_USE_CSF
-	data->core_props.num_exec_engines = KBASE_UBFX64(regdump->core_features, 0, 4);
-#endif
 
 	data->l2_props.log2_cache_size = KBASE_UBFX64(regdump->l2_features, 16U, 8);
 	data->coherency_info.coherency = regdump->mem_features;
 
-	data->tiler_props.bin_size_bytes = 1 << KBASE_UBFX64(regdump->tiler_features, 0U, 6);
+	data->tiler_props.bin_size_bytes = 1U << KBASE_UBFX64(regdump->tiler_features, 0U, 6);
 	data->tiler_props.max_active_levels = KBASE_UBFX32(regdump->tiler_features, 8U, 4);
 
 	if (regdump->thread_max_workgroup_size == 0)
@@ -721,15 +718,9 @@ static void kbase_populate_user_data(struct kbase_device *kbdev, struct gpu_prop
 	else
 		data->thread_props.tls_alloc = regdump->thread_tls_alloc;
 
-#if MALI_USE_CSF
 	data->thread_props.max_registers = KBASE_UBFX32(regdump->thread_features, 0U, 22);
 	data->thread_props.max_task_queue = KBASE_UBFX32(regdump->thread_features, 24U, 8);
 	data->thread_props.max_thread_group_split = 0;
-#else
-	data->thread_props.max_registers = KBASE_UBFX32(regdump->thread_features, 0U, 16);
-	data->thread_props.max_task_queue = KBASE_UBFX32(regdump->thread_features, 16U, 8);
-	data->thread_props.max_thread_group_split = KBASE_UBFX32(regdump->thread_features, 24U, 6);
-#endif
 
 	if (data->thread_props.max_registers == 0) {
 		data->thread_props.max_registers = THREAD_MR_DEFAULT;
@@ -782,7 +773,7 @@ int kbase_gpuprops_populate_user_buffer(struct kbase_device *kbdev)
 
 	for (i = 0; i < count; i++) {
 		/* 4 bytes for the ID, and the size of the property */
-		size += 4 + gpu_property_mapping[i].size;
+		size += (u32)(4 + gpu_property_mapping[i].size);
 	}
 
 	kprops->prop_buffer_size = size;

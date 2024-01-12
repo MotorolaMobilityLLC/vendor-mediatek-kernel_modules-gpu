@@ -169,7 +169,7 @@ const char *get_val_type_name(enum kutf_test_helpers_valtype valtype)
  * - Has between 1 and KUTF_TEST_HELPERS_MAX_VAL_NAME_LEN characters before the \0 terminator
  * - And, each char is in the character set [A-Z0-9_]
  */
-static int validate_val_name(char *val_str, int str_len)
+static int validate_val_name(char *val_str, size_t str_len)
 {
 	int i = 0;
 
@@ -205,7 +205,7 @@ static int validate_val_name(char *val_str, int str_len)
  * That is, before any '\\', '\n' or '"' characters. This is so we don't have
  * to escape the string
  */
-static int find_quoted_string_valid_len(char *str)
+static size_t find_quoted_string_valid_len(char *str)
 {
 	char *ptr;
 	const char *check_chars = "\\\n\"";
@@ -346,8 +346,8 @@ int kutf_test_helpers_userdata_receive_named_val(struct kutf_test_helpers_named_
 	char *recv_str;
 	char *search_ptr;
 	char *name_str = NULL;
-	int name_len;
-	int strval_len;
+	size_t name_len;
+	size_t strval_len;
 	enum kutf_test_helpers_valtype type = KUTF_TEST_HELPERS_VALTYPE_INVALID;
 	char *strval = NULL;
 	uint64_t u64val = 0;
@@ -360,7 +360,7 @@ int kutf_test_helpers_userdata_receive_named_val(struct kutf_test_helpers_named_
 	/* Find the '=', grab the name and validate it */
 	search_ptr = strchr(recv_str, NAMED_VALUE_SEP[0]);
 	if (search_ptr) {
-		name_len = search_ptr - recv_str;
+		name_len = (size_t)(search_ptr - recv_str);
 		if (!validate_val_name(recv_str, name_len)) {
 			/* no need to reallocate - just modify string in place */
 			name_str = recv_str;
@@ -383,7 +383,7 @@ int kutf_test_helpers_userdata_receive_named_val(struct kutf_test_helpers_named_
 		/* Find end of string */
 		search_ptr = strchr(recv_str, NAMED_STR_END_DELIM[0]);
 		if (search_ptr) {
-			strval_len = search_ptr - recv_str;
+			strval_len = (size_t)(search_ptr - recv_str);
 			/* Validate the string to ensure it contains no quotes */
 			if (strval_len == find_quoted_string_valid_len(recv_str)) {
 				/* no need to reallocate - just modify string in place */
@@ -505,12 +505,14 @@ out_fail_and_fixup:
 		named_val->u.val_u64 = 0ull;
 		break;
 	case KUTF_TEST_HELPERS_VALTYPE_STR: {
-		char *str = mali_utf_test_alloc(sizeof(DUMMY_MSG));
+		size_t len = sizeof(DUMMY_MSG);
+		char *str = mali_utf_test_alloc(len);
 
 		if (!str)
 			return -1;
 
-		strcpy(str, DUMMY_MSG);
+		strncpy(str, DUMMY_MSG, len);
+		str[len - 1] = '\0';
 		named_val->u.val_str = str;
 		break;
 	}

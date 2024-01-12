@@ -26,7 +26,6 @@
 #include <kutf/kutf_helpers_user.h>
 #include "mali_kutf_kernel_defect_test_main.h"
 
-#if MALI_USE_CSF
 /**
  * mali_kutf_GPUCORE35490_test_function - Main test function (kernel-side)
  *
@@ -130,11 +129,11 @@ static void mali_kutf_GPUCORE35490_test_function(struct kutf_context *context)
 
 	/* Dump current refcounts */
 	kbase_gpu_vm_lock(kctx);
-	refcnt = atomic_read(&regs[0]->no_user_free_count);
-	refcnt_2 = atomic_read(&regs[1]->no_user_free_count);
+	refcnt = atomic64_read(&regs[0]->no_user_free_count);
+	refcnt_2 = atomic64_read(&regs[1]->no_user_free_count);
 	kbase_gpu_vm_unlock(kctx);
-	notify_user_val(context, "GPUCORE35490_REFCNT_1", refcnt);
-	notify_user_val(context, "GPUCORE35490_REFCNT_2", refcnt_2);
+	notify_user_val(context, "GPUCORE35490_REFCNT_1", (u64)refcnt);
+	notify_user_val(context, "GPUCORE35490_REFCNT_2", (u64)refcnt_2);
 
 	/* Userspace has had an opportunity to perform tiler heap init and CSF queue termination */
 	wait_user_val(context, "GPUCORE35490_TERM_DONE");
@@ -144,13 +143,13 @@ static void mali_kutf_GPUCORE35490_test_function(struct kutf_context *context)
 	 * are rejected early in tiler heap init/CSF queue init.
 	 */
 	kbase_gpu_vm_lock(kctx);
-	refcnt = atomic_read(&regs[0]->no_user_free_count);
-	refcnt_2 = atomic_read(&regs[1]->no_user_free_count);
+	refcnt = atomic64_read(&regs[0]->no_user_free_count);
+	refcnt_2 = atomic64_read(&regs[1]->no_user_free_count);
 	regs[2]->flags |= KBASE_REG_ACTIVE_JIT_ALLOC;
 	regs[3]->flags |= KBASE_REG_DONT_NEED;
 	kbase_gpu_vm_unlock(kctx);
-	notify_user_val(context, "GPUCORE35490_REFCNT_1_2", refcnt);
-	notify_user_val(context, "GPUCORE35490_REFCNT_2_2", refcnt_2);
+	notify_user_val(context, "GPUCORE35490_REFCNT_1_2", (u64)refcnt);
+	notify_user_val(context, "GPUCORE35490_REFCNT_2_2", (u64)refcnt_2);
 
 	/* Sync on exit */
 	wait_user_val(context, "GPUCORE35490_DO_CLEANUP");
@@ -164,7 +163,6 @@ static void mali_kutf_GPUCORE35490_test_function(struct kutf_context *context)
 	notify_user_val(context, "GPUCORE35490_CLEANUP_DONE", 1);
 }
 
-#endif /* MALI_USE_CSF */
 
 /**
  * mali_kutf_kernel_defect_GPUCORE_35490 - Entry point for the test
@@ -173,10 +171,5 @@ static void mali_kutf_GPUCORE35490_test_function(struct kutf_context *context)
  */
 void mali_kutf_kernel_defect_GPUCORE_35490(struct kutf_context *context)
 {
-#if MALI_USE_CSF
 	mali_kutf_GPUCORE35490_test_function(context);
-#else /* MALI_USE_CSF */
-	kutf_test_skip_msg(context,
-			   "The kernel_defect_GPUCORE_35490 test is only applicable to CSF GPUs");
-#endif /* MALI_USE_CSF */
 }

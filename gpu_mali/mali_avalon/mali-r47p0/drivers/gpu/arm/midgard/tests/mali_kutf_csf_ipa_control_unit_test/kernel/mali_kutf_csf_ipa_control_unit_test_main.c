@@ -22,6 +22,9 @@
 #include <linux/delay.h>
 #include <linux/math64.h>
 #include <linux/module.h>
+#ifdef CONFIG_OF
+#include <linux/of.h>
+#endif
 
 #include "mali_kbase.h"
 #include <mali_kbase_reset_gpu.h>
@@ -235,17 +238,12 @@ static u64 read_config(struct kbase_device *kbdev, u8 type)
 	switch (type) {
 	case KBASE_IPA_CORE_TYPE_CSHW:
 		return kbase_reg_read64(kbdev, IPA_CONTROL_ENUM(SELECT_CSHW));
-
-		break;
 	case KBASE_IPA_CORE_TYPE_MEMSYS:
 		return kbase_reg_read64(kbdev, IPA_CONTROL_ENUM(SELECT_MEMSYS));
-
 	case KBASE_IPA_CORE_TYPE_TILER:
 		return kbase_reg_read64(kbdev, IPA_CONTROL_ENUM(SELECT_TILER));
-
 	case KBASE_IPA_CORE_TYPE_SHADER:
 		return kbase_reg_read64(kbdev, IPA_CONTROL_ENUM(SELECT_SHADER));
-
 	default:
 		WARN(1, "Unknown core type: %u\n", type);
 		return 0;
@@ -268,10 +266,8 @@ static bool counter_enabled(struct kbase_device *kbdev, u8 idx, u8 type)
 }
 #endif
 
-static u64 read_value_cnt(struct kbase_device *kbdev, u8 type, int select_idx)
+static u64 read_value_cnt(struct kbase_device *kbdev, u8 type, u8 select_idx)
 {
-	u32 value_lo, value_hi;
-
 	switch (type) {
 	case KBASE_IPA_CORE_TYPE_CSHW:
 		return kbase_reg_read64(kbdev, IPA_VALUE_CSHW_OFFSET(select_idx));
@@ -289,8 +285,6 @@ static u64 read_value_cnt(struct kbase_device *kbdev, u8 type, int select_idx)
 		WARN(1, "Unknown core type: %u\n", type);
 		return 0;
 	}
-
-	return (((u64)value_hi << 32) | value_lo);
 }
 
 #if MALI_UNIT_TEST
@@ -870,6 +864,12 @@ static void mali_kutf_query_with_gpu_power_cycle_test(struct kutf_context *conte
 	const struct kbase_ipa_control_perf_counter perf_counter =
 		PERF_COUNTER_DEF(1, false, IDX_4, KBASE_IPA_CORE_TYPE_CSHW);
 
+#ifdef CONFIG_OF
+	if (of_machine_is_compatible("arm,juno") <= 0) {
+		kutf_test_skip_msg(context, "Test is supported only on Juno");
+		return;
+	}
+#endif
 	ret = kbase_ipa_control_register(kbdev, &perf_counter, 1, &ipa_client);
 	if (ret) {
 		kutf_test_fail(context, "failed to register");

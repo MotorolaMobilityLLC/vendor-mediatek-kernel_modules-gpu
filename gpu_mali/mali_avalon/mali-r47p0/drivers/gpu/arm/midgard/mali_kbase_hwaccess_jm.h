@@ -144,19 +144,6 @@ void kbase_backend_cache_clean(struct kbase_device *kbdev, struct kbase_jd_atom 
  */
 void kbase_backend_complete_wq(struct kbase_device *kbdev, struct kbase_jd_atom *katom);
 
-#if !MALI_USE_CSF
-/**
- * kbase_backend_complete_wq_post_sched - Perform backend-specific actions
- *                                        required on completing an atom, after
- *                                        any scheduling has taken place.
- * @kbdev:         Device pointer
- * @core_req:      Core requirements of atom
- *
- * This function should only be called from kbase_jd_done_worker() or
- * js_return_worker().
- */
-void kbase_backend_complete_wq_post_sched(struct kbase_device *kbdev, base_jd_core_req core_req);
-#endif /* !MALI_USE_CSF */
 
 /**
  * kbase_backend_reset() - The GPU is being reset. Cancel all jobs on the GPU
@@ -194,7 +181,7 @@ int kbase_backend_nr_atoms_on_slot(struct kbase_device *kbdev, unsigned int js);
  *
  * Return: Number of atoms currently on slot @js that are currently on the GPU.
  */
-int kbase_backend_nr_atoms_submitted(struct kbase_device *kbdev, unsigned int js);
+u32 kbase_backend_nr_atoms_submitted(struct kbase_device *kbdev, unsigned int js);
 
 /**
  * kbase_backend_ctx_count_changed() - Number of contexts ready to submit jobs

@@ -22,9 +22,6 @@
 #ifndef _MALI_KBASE_REGMAP_LEGACY_CSF_H_
 #define _MALI_KBASE_REGMAP_LEGACY_CSF_H_
 
-#if !MALI_USE_CSF && defined(__KERNEL__)
-#error "Cannot be compiled with JM"
-#endif
 /* GPU control registers */
 #define MCU_CONTROL 0x700
 

@@ -54,7 +54,7 @@ void kbase_mmu_get_as_setup(struct kbase_mmu_table *mmut, struct kbase_mmu_setup
 		(KBASE_MEMATTR_AARCH64_SHARED << (KBASE_MEMATTR_INDEX_SHARED * 8));
 
 	setup->transtab = (u64)mmut->pgd & AS_TRANSTAB_BASE_MASK;
-	setup->transcfg = AS_TRANSCFG_MODE_SET(0, AS_TRANSCFG_MODE_AARCH64_4K);
+	setup->transcfg = AS_TRANSCFG_MODE_SET(0ULL, AS_TRANSCFG_MODE_AARCH64_4K);
 }
 
 /**
@@ -104,7 +104,7 @@ void kbase_mmu_report_mcu_as_fault_and_reset(struct kbase_device *kbdev, struct 
 	u32 exception_type = fault->status & 0xFF;
 	u32 access_type = (fault->status >> 8) & 0x3;
 	u32 source_id = (fault->status >> 16);
-	int as_no;
+	u32 as_no;
 
 	/* terminal fault, print info about the fault */
 	dev_err(kbdev->dev,
@@ -135,7 +135,7 @@ void kbase_mmu_report_mcu_as_fault_and_reset(struct kbase_device *kbdev, struct 
 	kbase_debug_csf_fault_notify(kbdev, NULL, DF_GPU_PAGE_FAULT);
 
 	/* Report MMU fault for all address spaces (except MCU_AS_NR) */
-	for (as_no = 1; as_no < kbdev->nr_hw_address_spaces; as_no++)
+	for (as_no = 1u; as_no < (u32)kbdev->nr_hw_address_spaces; as_no++)
 		submit_work_pagefault(kbdev, as_no, fault);
 
 	/* GPU reset is required to recover */
@@ -150,20 +150,20 @@ void kbase_gpu_report_bus_fault_and_kill(struct kbase_context *kctx, struct kbas
 {
 	struct kbase_device *kbdev = kctx->kbdev;
 	u32 const status = fault->status;
-	int exception_type = (status & GPU_FAULTSTATUS_EXCEPTION_TYPE_MASK) >>
-			     GPU_FAULTSTATUS_EXCEPTION_TYPE_SHIFT;
-	int access_type = (status & GPU_FAULTSTATUS_ACCESS_TYPE_MASK) >>
-			  GPU_FAULTSTATUS_ACCESS_TYPE_SHIFT;
-	int source_id = (status & GPU_FAULTSTATUS_SOURCE_ID_MASK) >>
-			GPU_FAULTSTATUS_SOURCE_ID_SHIFT;
+	unsigned int exception_type = (status & GPU_FAULTSTATUS_EXCEPTION_TYPE_MASK) >>
+				      GPU_FAULTSTATUS_EXCEPTION_TYPE_SHIFT;
+	unsigned int access_type = (status & GPU_FAULTSTATUS_ACCESS_TYPE_MASK) >>
+				   GPU_FAULTSTATUS_ACCESS_TYPE_SHIFT;
+	unsigned int source_id = (status & GPU_FAULTSTATUS_SOURCE_ID_MASK) >>
+				 GPU_FAULTSTATUS_SOURCE_ID_SHIFT;
 	const char *addr_valid = (status & GPU_FAULTSTATUS_ADDRESS_VALID_MASK) ? "true" : "false";
-	int as_no = as->number;
+	unsigned int as_no = as->number;
 	unsigned long flags;
 	const uintptr_t fault_addr = fault->addr;
 
 	/* terminal fault, print info about the fault */
 	dev_err(kbdev->dev,
-		"GPU bus fault in AS%d at PA %pK\n"
+		"GPU bus fault in AS%u at PA %pK\n"
 		"PA_VALID: %s\n"
 		"raw fault status: 0x%X\n"
 		"exception type 0x%X: %s\n"
@@ -192,12 +192,10 @@ void kbase_gpu_report_bus_fault_and_kill(struct kbase_context *kctx, struct kbas
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	/* AS transaction begin */
-	mutex_lock(&kbdev->mmu_hw_mutex);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	kbase_mmu_disable(kctx);
 	kbase_ctx_flag_set(kctx, KCTX_AS_DISABLED_ON_FAULT);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-	mutex_unlock(&kbdev->mmu_hw_mutex);
 
 	/* Switching to UNMAPPED mode above would have enabled the firmware to
 	 * recover from the fault (if the memory access was made by firmware)
@@ -598,114 +596,109 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx, struct kbase_as
 				     const char *reason_str, struct kbase_fault *fault)
 {
 	unsigned long flags;
-	unsigned int exception_type;
-	unsigned int access_type;
-	unsigned int source_id;
-	int as_no;
-	struct kbase_device *kbdev;
-	const u32 status = fault->status;
+	struct kbase_device *kbdev = kctx->kbdev;
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
 	u32 csg_nr;
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
-
-	as_no = as->number;
-	kbdev = kctx->kbdev;
 
 	/* Make sure the context was active */
 	if (WARN_ON(atomic_read(&kctx->refcount) <= 0))
 		return;
 
-	/* decode the fault status */
-	exception_type = AS_FAULTSTATUS_EXCEPTION_TYPE_GET(status);
-	access_type = AS_FAULTSTATUS_ACCESS_TYPE_GET(status);
-	source_id = AS_FAULTSTATUS_SOURCE_ID_GET(status);
+	if (!kbase_ctx_flag(kctx, KCTX_PAGE_FAULT_REPORT_SKIP)) {
+		const u32 status = fault->status;
+		/* decode the fault status */
+		unsigned int exception_type = AS_FAULTSTATUS_EXCEPTION_TYPE_GET(status);
+		unsigned int access_type = AS_FAULTSTATUS_ACCESS_TYPE_GET(status);
+		unsigned int source_id = AS_FAULTSTATUS_SOURCE_ID_GET(status);
+		unsigned int as_no = as->number;
 
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
-	dev_err(kbdev->dev,
-		"Unhandled Page fault (protected mode %d) in AS%d at VA 0x%016llX\n"
-		"Reason: %s\n"
-		"raw fault status: 0x%X\n"
-		"exception type 0x%X: %s\n"
-		"access type 0x%X: %s\n"
-		"source id 0x%X\n"
-		"ctx_id: %d_%d, pid: %d\n"
-		"group_leader : %s, comm: %s\n",
-		kbdev->protected_mode, as_no, fault->addr,
-		reason_str,
-		status,
-		exception_type, kbase_gpu_exception_name(exception_type),
-		access_type, kbase_gpu_access_type_name(status),
-		source_id,
-		kctx->tgid, kctx->id, kctx->pid,
-		kctx->group_leader_comm, kctx->comm);
+		dev_err(kbdev->dev,
+			"Unhandled Page fault (protected mode %d) in AS%u at VA 0x%016llX\n"
+			"Reason: %s\n"
+			"raw fault status: 0x%X\n"
+			"exception type 0x%X: %s\n"
+			"access type 0x%X: %s\n"
+			"source id 0x%X\n"
+			"ctx_id: %d_%d, pid: %d\n"
+			"group_leader : %s, comm: %s\n",
+			kbdev->protected_mode, as_no, fault->addr,
+			reason_str,
+			status,
+			exception_type, kbase_gpu_exception_name(exception_type),
+			access_type, kbase_gpu_access_type_name(status),
+			source_id,
+			kctx->tgid, kctx->id, kctx->pid,
+			kctx->group_leader_comm, kctx->comm);
 #else
-	/* terminal fault, print info about the fault */
-	dev_err(kbdev->dev,
-		"Unhandled Page fault in AS%d at VA 0x%016llX\n"
-		"Reason: %s\n"
-		"raw fault status: 0x%X\n"
-		"exception type 0x%X: %s\n"
-		"access type 0x%X: %s\n"
-		"source id 0x%X\n"
-		"pid: %d\n",
-		as_no, fault->addr, reason_str, status, exception_type,
-		kbase_gpu_exception_name(exception_type), access_type,
-		kbase_gpu_access_type_name(status), source_id, kctx->pid);
+		/* terminal fault, print info about the fault */
+		dev_err(kbdev->dev,
+			"Unhandled Page fault in AS%u at VA 0x%016llX\n"
+			"Reason: %s\n"
+			"raw fault status: 0x%X\n"
+			"exception type 0x%X: %s\n"
+			"access type 0x%X: %s\n"
+			"source id 0x%X\n"
+			"pid: %d\n",
+			as_no, fault->addr, reason_str, status, exception_type,
+			kbase_gpu_exception_name(exception_type), access_type,
+			kbase_gpu_access_type_name(status), source_id, kctx->pid);
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-		"Unhandled Page fault in AS%d at VA 0x%016llX\n"
-		"Reason: %s\n"
-		"raw fault status: 0x%X\n"
-		"exception type 0x%X: %s\n"
-		"access type 0x%X: %s\n"
-		"source id 0x%X\n"
-		"pid: %d\n",
-		as_no, fault->addr, reason_str, status, exception_type,
-		kbase_gpu_exception_name(exception_type), access_type,
-		kbase_gpu_access_type_name(status), source_id, kctx->pid);
-#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-		"\nctx_id: %d_%d, pid: %d\n"
-		"group_leader : %s, comm: %s\n",
-		kctx->tgid, kctx->id, kctx->pid,
-		kctx->group_leader_comm, kctx->comm);
-#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-
-#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
-	mutex_lock(&kbdev->register_check_lock);
-
-	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-	//dump_hwif_registers(kbdev, as_no);
-	//dump_iterator_registers(kbdev);
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-	mutex_lock(&kctx->csf.lock);
-	for (csg_nr = 0; csg_nr < kbdev->csf.global_iface.group_num; csg_nr++) {
-		struct kbase_queue_group *const group =
-			kbdev->csf.scheduler.csg_slots[csg_nr].resident_group;
-
-		if (!group)
-			continue;
-		if (group->kctx != kctx)
-			continue;
-
-		dev_err(kbdev->dev, "Dumping data of queues of group %d on slot %d in run_state %d",
-			group->handle, group->csg_nr, group->run_state);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"Dumping data of queues of group %d on slot %d in run_state %d\n",
-			group->handle, group->csg_nr, group->run_state);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-		print_group_queues_data(group);
-	}
-	mutex_unlock(&kctx->csf.lock);
-
-	mutex_unlock(&kbdev->register_check_lock);
-
-	dump_mmu_teardown_records(kbdev);
+			"Unhandled Page fault in AS%d at VA 0x%016llX\n"
+			"Reason: %s\n"
+			"raw fault status: 0x%X\n"
+			"exception type 0x%X: %s\n"
+			"access type 0x%X: %s\n"
+			"source id 0x%X\n"
+			"pid: %d\n",
+			as_no, fault->addr, reason_str, status, exception_type,
+			kbase_gpu_exception_name(exception_type), access_type,
+			kbase_gpu_access_type_name(status), source_id, kctx->pid);
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"\nctx_id: %d_%d, pid: %d\n"
+			"group_leader : %s, comm: %s\n",
+			kctx->tgid, kctx->id, kctx->pid,
+			kctx->group_leader_comm, kctx->comm);
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+			mutex_lock(&kbdev->register_check_lock);
+
+			spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+			//dump_hwif_registers(kbdev, as_no);
+			//dump_iterator_registers(kbdev);
+			spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+			mutex_lock(&kctx->csf.lock);
+			for (csg_nr = 0; csg_nr < kbdev->csf.global_iface.group_num; csg_nr++) {
+				struct kbase_queue_group *const group =
+					kbdev->csf.scheduler.csg_slots[csg_nr].resident_group;
+
+				if (!group)
+					continue;
+				if (group->kctx != kctx)
+					continue;
+
+				dev_err(kbdev->dev, "Dumping data of queues of group %d on slot %d in run_state %d",
+					group->handle, group->csg_nr, group->run_state);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"Dumping data of queues of group %d on slot %d in run_state %d\n",
+				group->handle, group->csg_nr, group->run_state);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+			print_group_queues_data(group);
+		}
+		mutex_unlock(&kctx->csf.lock);
+
+		mutex_unlock(&kbdev->register_check_lock);
+
+		dump_mmu_teardown_records(kbdev);
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+	}
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
@@ -714,7 +707,6 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx, struct kbase_as
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	/* AS transaction begin */
-	mutex_lock(&kbdev->mmu_hw_mutex);
 
 	/* switch to UNMAPPED mode,
 	 * will abort all jobs and stop any hw counter dumping
@@ -726,7 +718,6 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx, struct kbase_as
 	kbase_csf_ctx_report_page_fault_for_active_groups(kctx, fault);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
-	mutex_unlock(&kbdev->mmu_hw_mutex);
 	/* AS transaction end */
 
 	/* Switching to UNMAPPED mode above would have enabled the firmware to
@@ -751,7 +742,9 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx, struct kbase_as
  * @as:		The address space that has the fault
  * @fault:	Data relating to the fault
  *
- * This function will process a fault on a specific address space
+ * This function will process a fault on a specific address space.
+ * The function must be called with the ref_count of the kctx already increased/acquired.
+ * If it fails to queue the work, the ref_count will be decreased.
  */
 static void kbase_mmu_interrupt_process(struct kbase_device *kbdev, struct kbase_context *kctx,
 					struct kbase_as *as, struct kbase_fault *fault)
@@ -790,11 +783,18 @@ static void kbase_mmu_interrupt_process(struct kbase_device *kbdev, struct kbase
 		 * We need to switch to UNMAPPED mode - but we do this in a
 		 * worker so that we can sleep
 		 */
-		WARN_ON(!queue_work(as->pf_wq, &as->work_busfault));
-		atomic_inc(&kbdev->faults_pending);
+		if (!queue_work(as->pf_wq, &as->work_busfault)) {
+			dev_warn(kbdev->dev, "Bus fault is already pending for as %u", as->number);
+			kbase_ctx_sched_release_ctx(kctx);
+		} else {
+			atomic_inc(&kbdev->faults_pending);
+		}
 	} else {
-		WARN_ON(!queue_work(as->pf_wq, &as->work_pagefault));
-		atomic_inc(&kbdev->faults_pending);
+		if (!queue_work(as->pf_wq, &as->work_pagefault)) {
+			dev_warn(kbdev->dev, "Page fault is already pending for as %u", as->number);
+			kbase_ctx_sched_release_ctx(kctx);
+		} else
+			atomic_inc(&kbdev->faults_pending);
 	}
 }
 
@@ -849,7 +849,7 @@ void kbase_mmu_interrupt(struct kbase_device *kbdev, u32 irq_stat)
 
 	while (pf_bits) {
 		struct kbase_context *kctx;
-		int as_no = ffs(pf_bits) - 1;
+		unsigned int as_no = (unsigned int)ffs((int)pf_bits) - 1;
 		struct kbase_as *as = &kbdev->as[as_no];
 		struct kbase_fault *fault = &as->pf_data;
 
@@ -1009,7 +1009,7 @@ void kbase_mmu_gpu_fault_interrupt(struct kbase_device *kbdev, u32 status, u32 a
 		 * the address space is invalid or it's MCU address space.
 		 */
 		for (as = 1; as < kbdev->nr_hw_address_spaces; as++)
-			submit_work_gpufault(kbdev, status, as, address);
+			submit_work_gpufault(kbdev, status, (u32)as, address);
 	} else
 		submit_work_gpufault(kbdev, status, as_nr, address);
 }
