@@ -5932,6 +5932,10 @@ static int __init kbase_driver_init(void)
 {
 	int ret;
 
+#if (KERNEL_VERSION(5, 3, 0) <= LINUX_VERSION_CODE)
+	mutex_init(&kbase_probe_mutex);
+#endif
+
 #ifndef CONFIG_OF
 	ret = kbase_platform_register();
 	if (ret)
@@ -5943,10 +5947,6 @@ static int __init kbase_driver_init(void)
 		kbase_platform_unregister();
 		return ret;
 	}
-#endif
-#if (KERNEL_VERSION(5, 3, 0) <= LINUX_VERSION_CODE)
-	if (!ret)
-		mutex_init(&kbase_probe_mutex);
 #endif
 	return ret;
 }
