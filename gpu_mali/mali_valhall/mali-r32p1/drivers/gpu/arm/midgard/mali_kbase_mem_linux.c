@@ -3376,9 +3376,10 @@ static vm_fault_t kbase_csf_user_io_pages_vm_fault(struct vm_fault *vmf)
 	    (vma->vm_pgoff != queue->db_file_offset))
 		return VM_FAULT_SIGBUS;
 
-	mutex_lock(&queue->kctx->csf.lock);
 	kbdev = queue->kctx->kbdev;
 	mgm_dev = kbdev->mgm_dev;
+
+	mutex_lock(&kbdev->csf.reg_lock);
 
 	/* Always map the doorbell page as uncached */
 	doorbell_pgprot = pgprot_device(vma->vm_page_prot);
@@ -3406,12 +3407,10 @@ static vm_fault_t kbase_csf_user_io_pages_vm_fault(struct vm_fault *vmf)
 #else
 	if (vmf->address == doorbell_cpu_addr) {
 #endif
-		mutex_lock(&kbdev->csf.reg_lock);
 		doorbell_page_pfn = get_queue_doorbell_pfn(kbdev, queue);
 		ret = mgm_dev->ops.mgm_vmf_insert_pfn_prot(mgm_dev,
 			KBASE_MEM_GROUP_CSF_IO, vma, doorbell_cpu_addr,
 			doorbell_page_pfn, doorbell_pgprot);
-		mutex_unlock(&kbdev->csf.reg_lock);
 	} else {
 		/* Map the Input page */
 		input_cpu_addr = doorbell_cpu_addr + PAGE_SIZE;
@@ -3431,7 +3430,7 @@ static vm_fault_t kbase_csf_user_io_pages_vm_fault(struct vm_fault *vmf)
 	}
 
 exit:
-	mutex_unlock(&queue->kctx->csf.lock);
+	mutex_unlock(&kbdev->csf.reg_lock);
 	return ret;
 }
 
