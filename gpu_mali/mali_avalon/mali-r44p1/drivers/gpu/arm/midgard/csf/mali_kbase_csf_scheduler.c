@@ -561,7 +561,9 @@ void kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev)
 			 */
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 			/* Bypass enqueue */
-			if (kbdev->csf.scheduler.apo_support && ged_gpu_apo_notify()) {
+			if (kbdev->csf.scheduler.apo_support &&
+				kbdev->csf.scheduler.state != SCHED_SLEEPING &&
+				ged_gpu_apo_notify()) {
 				kbase_pm_enable_db_mirror_interrupt(kbdev);
 				if (!ged_gpu_predict_apo_notify()) {
 					kbase_pm_disable_db_mirror_interrupt(kbdev);
