@@ -72,6 +72,16 @@ int kbasep_mem_profile_debugfs_insert(struct kbase_context *kctx, char *data, si
 {
 	const mode_t mode = 0444;
 	int err = 0;
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	if (unlikely('~' == kctx->process_name[0])) {
+		size_t offset = 0;
+		for (size_t i = 0; i < size && '\n' != data[i] && offset < MAX_PROCESS_NAME_LEN; i++) {
+			kctx->process_name[offset++] = data[i];
+		}
+		if (offset && kctx->process_name[offset-1] == '$') kctx->target_mem_profiling = true;
+		if (offset) kctx->process_name[offset-1] = '\0';
+	}
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 	mutex_lock(&kctx->mem_profile_lock);
 

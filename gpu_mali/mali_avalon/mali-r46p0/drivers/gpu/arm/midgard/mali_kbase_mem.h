@@ -407,6 +407,9 @@ struct kbase_mem_phy_alloc {
 	size_t evicted;
 	struct kbase_va_region *reg;
 	enum kbase_memory_type type;
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	enum kbase_memory_category category;
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 	struct kbase_vmap_struct *permanent_map;
 	u8 properties;
 	u8 group_id;
@@ -968,6 +971,9 @@ static inline struct kbase_mem_phy_alloc *kbase_alloc_create(struct kbase_contex
 		alloc->pages[i] = as_tagged(KBASE_INVALID_PHYSICAL_ADDRESS);
 	INIT_LIST_HEAD(&alloc->mappings);
 	alloc->type = type;
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	alloc->category = KBASE_MEM_UNKNOWN;
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 	alloc->group_id = group_id;
 
 	if (type == KBASE_MEM_TYPE_IMPORTED_USER_BUF)
@@ -2659,11 +2665,33 @@ static inline base_mem_alloc_flags kbase_mem_group_id_set(int id)
 }
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+static char category_str_list[KBASE_MEM_COUNT][10] = {"API", "GROW", "JTI", "MMU", "TILER", "CONTEXT", "JM", "UNKNOWN"};
 #define kbase_trace_alloc_pages(gpu_id, kctx, size, gpu_addr, category) \
-	trace_mali_mem_alloc(gpu_id, (kctx != NULL) ? kctx->kprcs->tgid : 0, size << PAGE_SHIFT, gpu_addr);
+	if (unlikely(kctx == NULL)) { \
+		trace_mali_mem_alloc(gpu_id, 0, size << PAGE_SHIFT, gpu_addr, likely(category >= 0 && category < KBASE_MEM_COUNT) ? category_str_list[category] : "UNKNOWN"); \
+	} \
+	else { \
+		if (likely(category >= 0 && category < KBASE_MEM_LABEL_COUNT)) atomic_add(size, &kctx->used_pages_categories[category]); \
+		trace_mali_mem_alloc(gpu_id, kctx->kprcs->tgid, size << PAGE_SHIFT, gpu_addr, likely(category >= 0 && category < KBASE_MEM_COUNT) ? category_str_list[category] : "UNKNOWN"); \
+	}
+
 #define kbase_trace_free_pages(gpu_id, kctx, size, gpu_addr, category) \
-	trace_mali_mem_free(gpu_id, (kctx != NULL) ? kctx->kprcs->tgid : 0, size << PAGE_SHIFT, gpu_addr);
+	if (unlikely(kctx == NULL)) { \
+		trace_mali_mem_free(gpu_id, 0, size << PAGE_SHIFT, gpu_addr, likely(category >= 0 && category < KBASE_MEM_COUNT) ? category_str_list[category] : "UNKNOWN"); \
+	} \
+	else { \
+		if (likely(category >= 0 && category < KBASE_MEM_LABEL_COUNT)) atomic_sub(size, &kctx->used_pages_categories[category]); \
+		trace_mali_mem_free(gpu_id, kctx->kprcs->tgid, size << PAGE_SHIFT, gpu_addr, likely(category >= 0 && category < KBASE_MEM_COUNT) ? category_str_list[category] : "UNKNOWN"); \
+	}
+
 #define kbase_trace_update_pages(gpu_id, kctx, size_a, size_b, gpu_addr, category) \
-	trace_mali_mem_update(gpu_id, (kctx != NULL) ? kctx->kprcs->tgid : 0, size_a << PAGE_SHIFT, size_b << PAGE_SHIFT, gpu_addr);
+	if (likely(kctx != NULL && category >= 0 && category < KBASE_MEM_LABEL_COUNT)) { \
+		if (size_a > size_b) \
+			atomic_add(size_a - size_b, &kctx->used_pages_categories[category]); \
+		else if (size_a < size_b) \
+			atomic_sub(size_b - size_a, &kctx->used_pages_categories[category]); \
+	} \
+	trace_mali_mem_update(gpu_id, likely(kctx != NULL) ? kctx->kprcs->tgid : 0, size_a << PAGE_SHIFT, size_b << PAGE_SHIFT, gpu_addr, likely(category >= 0 && category < KBASE_MEM_COUNT) ? category_str_list[category] : "UNKNOWN"); \
+
 #endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 #endif /* _KBASE_MEM_H_ */

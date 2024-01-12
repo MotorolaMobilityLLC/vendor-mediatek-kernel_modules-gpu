@@ -1748,6 +1748,25 @@ struct kbase_sub_alloc {
 	DECLARE_BITMAP(sub_pages, SZ_2M / SZ_4K);
 };
 
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+enum kbase_memory_category {
+	KBASE_MEM_API,
+	KBASE_MEM_GROW,
+	KBASE_MEM_JIT,
+	KBASE_MEM_MMU,
+	KBASE_MEM_TILER,
+	KBASE_MEM_LABEL_COUNT,
+	KBASE_MEM_CONTEXT = KBASE_MEM_LABEL_COUNT,
+	KBASE_MEM_JM,
+	KBASE_MEM_UNKNOWN,
+	KBASE_MEM_COUNT
+};
+
+/** Max length of the process name */
+#define MAX_PROCESS_NAME_LEN        128
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
+
 /**
  * struct kbase_context - Kernel base context
  *
@@ -2066,6 +2085,11 @@ struct kbase_context {
 	atomic_t used_pages;
 	atomic_t nonmapped_pages;
 	atomic_t permanent_mapped_pages;
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	bool target_mem_profiling;
+	char process_name[MAX_PROCESS_NAME_LEN];
+	atomic_t used_pages_categories[KBASE_MEM_LABEL_COUNT];
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 	struct kbase_mem_pool_group mem_pools;
 
