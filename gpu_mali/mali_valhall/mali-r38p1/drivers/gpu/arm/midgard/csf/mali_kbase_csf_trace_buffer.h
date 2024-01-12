@@ -176,33 +176,6 @@ unsigned int kbase_csf_firmware_trace_buffer_read_data(
 void mtk_kbase_csf_firmware_ke_dump_fwlog(struct kbase_device *kbdev);
 #endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_CSFFWLOG)
-/**
- * mtk_kbase_csf_firmware_dump_fwlog - Dump csf firmware fwlog
- *
- * This function dump fwlog.
- *
- * @kbdev:     Device pointer
- */
-void mtk_kbase_csf_firmware_dump_fwlog(struct kbase_device *kbdev);
-
-/**
- * mtk_kbase_csf_firmware_trace_buffer_is_need_drain - if remain buffer < 0x2000, need to drain
- *
- * @trace_buffer: Trace buffer handle
- *
- * Return: True if the trace buffer remain length <0x2000, or false otherwise.
- */
-bool mtk_kbase_csf_firmware_trace_buffer_is_need_drain(const struct firmware_trace_buffer *trace_buffer);
-
-/**
- * mtk_kbase_csf_firmware_check_drain_fwlog - If fwlog buffer < 0x2000, DDK need drain it.
- *
- * @kbdev:     Device pointer
- */
-void mtk_kbase_csf_firmware_check_drain_fwlog(struct kbase_device *kbdev);
-#endif /* CONFIG_MALI_MTK_CSFFWLOG */
-
 /**
  * kbase_csf_firmware_trace_buffer_get_active_mask64 - Get trace buffer active mask
  *

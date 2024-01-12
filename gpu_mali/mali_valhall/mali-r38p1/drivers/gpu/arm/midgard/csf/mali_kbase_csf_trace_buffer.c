@@ -31,30 +31,10 @@
 #include <linux/version_compat_defs.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
-/* csffw reserved memory */
-#include <linux/of.h>
-#include <linux/of_address.h>
-#include <linux/of_reserved_mem.h>
-
 /* for fwlog get latest 16kb data */
 static u8 g_buf[PAGE_SIZE * 4];
-struct device_node *g_rmem_node = NULL;
-struct reserved_mem *g_fwlogdump = NULL;
-u8 *g_fw_dump_dest = NULL;
+extern u8 *g_fw_dump_dest;
 #endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
-
-#if IS_ENABLED(CONFIG_MALI_MTK_CSFFWLOG)
-/* csffw reserved memory */
-#include <linux/of.h>
-#include <linux/of_address.h>
-#include <linux/of_reserved_mem.h>
-
-/* for fwlog get latest 16kb data */
-#include <linux/kfifo.h>
-static DECLARE_KFIFO(fwlog_fifo, unsigned char, PAGE_SIZE * 4);
-static u8 drain_fwlog_buf[PAGE_SIZE * 4];
-static u8 drain_fwlog_out_buf[PAGE_SIZE * 4];
-#endif /* CONFIG_MALI_MTK_CSFFWLOG */
 
 /**
  * struct firmware_trace_buffer - Trace Buffer within the MCU firmware
@@ -146,11 +126,7 @@ static const struct firmware_trace_buffer_data trace_buffer_data[] = {
 #if MALI_UNIT_TEST
 	{ "fwutf", { 0 }, 1 },
 #endif
-#if IS_ENABLED(CONFIG_MALI_MTK_CSFFWLOG)
-	{ FIRMWARE_LOG_BUF_NAME, { 0x7ff }, 4 },
-#else
 	{ FIRMWARE_LOG_BUF_NAME, { 0 }, 4 },
-#endif /* CONFIG_MALI_MTK_CSFFWLOG */
 	{ "benchmark", { 0 }, 2 },
 	{ "timeline", { 0 }, KBASE_CSF_TL_BUFFER_NR_PAGES },
 };
@@ -584,3 +560,27 @@ int kbase_csf_firmware_trace_buffer_set_active_mask64(struct firmware_trace_buff
 
 	return err;
 }
+
+#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+void mtk_kbase_csf_firmware_ke_dump_fwlog(struct kbase_device *kbdev)
+{
+	unsigned int read_size, total_size = 0;
+	struct firmware_trace_buffer *tb =
+		kbase_csf_firmware_get_trace_buffer(kbdev, FIRMWARE_LOG_BUF_NAME);
+	if (tb == NULL) {
+		dev_vdbg(kbdev->dev, "Can't get the trace buffer, firmware trace dump skipped");
+		return;
+	}
+	while ((read_size = kbase_csf_firmware_trace_buffer_read_data(tb, g_buf, PAGE_SIZE))) {
+		total_size += read_size;
+		if (total_size <= PAGE_SIZE * 4) {
+			memcpy_toio(g_fw_dump_dest, g_buf, read_size);
+			g_fw_dump_dest +=read_size;
+		} else {
+			dev_vdbg(kbdev->dev, "fwlog dump size > 16KB");
+			break;
+		}
+	}
+}
+EXPORT_SYMBOL(mtk_kbase_csf_firmware_ke_dump_fwlog);
+#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
