@@ -27,7 +27,7 @@
 #include <mali_kbase_reset_gpu.h>
 #include <mmu/mali_kbase_mmu.h>
 
-#if !defined(CONFIG_MALI_NO_MALI)
+#if !IS_ENABLED(CONFIG_MALI_NO_MALI)
 void kbase_reg_write(struct kbase_device *kbdev, u32 offset, u32 value)
 {
 	KBASE_DEBUG_ASSERT(kbdev->pm.backend.gpu_powered);
@@ -74,7 +74,7 @@ bool kbase_is_gpu_removed(struct kbase_device *kbdev)
 
 	return val == 0;
 }
-#endif /* !defined(CONFIG_MALI_NO_MALI) */
+#endif /* !IS_ENABLED(CONFIG_MALI_NO_MALI) */
 
 void kbase_gpu_start_cache_clean_nolock(struct kbase_device *kbdev)
 {

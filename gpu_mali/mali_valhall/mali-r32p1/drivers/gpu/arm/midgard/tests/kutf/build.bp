@@ -22,8 +22,9 @@
 bob_kernel_module {
     name: "kutf",
     defaults: [
-        "kernel_defaults",
-        "kutf_includes",
+        "mali_kbase_shared_config_defaults",
+        "kernel_test_configs",
+        "kernel_test_includes",
     ],
     srcs: [
         "Kbuild",
@@ -34,9 +35,8 @@ bob_kernel_module {
         "kutf_suite.c",
         "kutf_utils.c",
     ],
-    kbuild_options: ["CONFIG_MALI_KUTF=y"],
     enabled: false,
-    base_build_kutf: {
+    mali_kutf: {
         enabled: true,
     },
 }

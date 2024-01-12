@@ -377,22 +377,30 @@ void kbase_csf_update_firmware_memory(struct kbase_device *kbdev,
 	u32 gpu_addr, u32 value);
 
 /**
+ * kbase_csf_firmware_early_init() - Early initializatin for the firmware.
+ * @kbdev: Kbase device
+ *
+ * Initialize resources related to the firmware. Must be called at kbase probe.
+ *
+ * Return: 0 if successful, negative error code on failure
+ */
+int kbase_csf_firmware_early_init(struct kbase_device *kbdev);
+
+/**
  * kbase_csf_firmware_init() - Load the firmware for the CSF MCU
+ * @kbdev: Kbase device
  *
  * Request the firmware from user space and load it into memory.
  *
  * Return: 0 if successful, negative error code on failure
- *
- * @kbdev: Kbase device
  */
 int kbase_csf_firmware_init(struct kbase_device *kbdev);
 
 /**
  * kbase_csf_firmware_term() - Unload the firmware
+ * @kbdev: Kbase device
  *
  * Frees the memory allocated by kbase_csf_firmware_init()
- *
- * @kbdev: Kbase device
  */
 void kbase_csf_firmware_term(struct kbase_device *kbdev);
 
@@ -443,12 +451,8 @@ void kbase_csf_enter_protected_mode(struct kbase_device *kbdev);
 
 static inline bool kbase_csf_firmware_mcu_halted(struct kbase_device *kbdev)
 {
-#ifndef CONFIG_MALI_NO_MALI
 	return (kbase_reg_read(kbdev, GPU_CONTROL_REG(MCU_STATUS)) ==
 		MCU_STATUS_HALTED);
-#else
-	return true;
-#endif
 }
 
 /**

@@ -25,7 +25,7 @@
 
 #include <linux/interrupt.h>
 
-#if !defined(CONFIG_MALI_NO_MALI)
+#if !IS_ENABLED(CONFIG_MALI_NO_MALI)
 
 /* GPU IRQ Tags */
 #define	JOB_IRQ_TAG	0
@@ -501,4 +501,4 @@ void kbase_synchronize_irqs(struct kbase_device *kbdev)
 
 KBASE_EXPORT_TEST_API(kbase_synchronize_irqs);
 
-#endif /* !defined(CONFIG_MALI_NO_MALI) */
+#endif /* !IS_ENABLED(CONFIG_MALI_NO_MALI) */

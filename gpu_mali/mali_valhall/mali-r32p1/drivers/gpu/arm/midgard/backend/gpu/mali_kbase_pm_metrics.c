@@ -211,7 +211,7 @@ static void kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 			"Failed to query the increment of GPU_ACTIVE counter: err=%d",
 			err);
 	} else {
-		u64 diff_ns, margin_ns;
+		u64 diff_ns;
 		s64 diff_ns_signed;
 		u32 ns_time;
 		ktime_t diff = ktime_sub(
@@ -224,15 +224,7 @@ static void kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 
 		diff_ns = (u64)diff_ns_signed;
 
-		/* Use a margin value that is approximately 1% of the time
-		 * difference.
-		 */
-		margin_ns = diff_ns >> 6;
-
-		/* Calculate time difference in units of 256ns */
-		ns_time = (u32)(diff_ns >> KBASE_PM_TIME_SHIFT);
-
-#ifndef CONFIG_MALI_NO_MALI
+#if !IS_ENABLED(CONFIG_MALI_NO_MALI)
 		/* The GPU_ACTIVE counter shouldn't clock-up more time than has
 		 * actually elapsed - but still some margin needs to be given
 		 * when doing the comparison. There could be some drift between
@@ -244,6 +236,10 @@ static void kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 		 * time.
 		 */
 		if (!kbdev->pm.backend.metrics.skip_gpu_active_sanity_check) {
+			/* Use a margin value that is approximately 1% of the time
+			 * difference.
+			 */
+			u64 margin_ns = diff_ns >> 6;
 			if (gpu_active_counter > (diff_ns + margin_ns)) {
 				dev_info(
 					kbdev->dev,
@@ -252,9 +248,9 @@ static void kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 					(unsigned long long)diff_ns);
 			}
 		}
-#else
-		CSTD_UNUSED(margin_ns);
 #endif
+		/* Calculate time difference in units of 256ns */
+		ns_time = (u32)(diff_ns >> KBASE_PM_TIME_SHIFT);
 
 		/* Add protected_time to gpu_active_counter so that time in
 		 * protected mode is included in the apparent GPU active time,

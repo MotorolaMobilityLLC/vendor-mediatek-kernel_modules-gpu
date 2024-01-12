@@ -170,7 +170,11 @@ static void on_gpu_lost(struct device *dev)
  *
  * Initialise Kbase Arbiter interface and assign callback functions.
  *
- * Return: 0 on success else a Linux error code
+ * Return:
+ * * 0			- the interface was initialized or was not specified
+ * *			in the device tree.
+ * * -EFAULT		- the interface was specified but failed to initialize.
+ * * -EPROBE_DEFER	- module dependencies are not yet available.
  */
 int kbase_arbif_init(struct kbase_device *kbdev)
 {
@@ -218,8 +222,8 @@ int kbase_arbif_init(struct kbase_device *kbdev)
 	ops.arb_vm_max_config = on_max_config;
 	ops.arb_vm_update_freq = on_update_freq;
 
-
 	kbdev->arb.arb_freq.arb_freq = 0;
+	kbdev->arb.arb_freq.freq_updated = false;
 	mutex_init(&kbdev->arb.arb_freq.arb_freq_lock);
 
 	/* register kbase arbiter_if callbacks */
@@ -229,6 +233,8 @@ int kbase_arbif_init(struct kbase_device *kbdev)
 		if (err) {
 			dev_err(&pdev->dev, "Failed to register with arbiter\n");
 			module_put(pdev->dev.driver->owner);
+			if (err != -EPROBE_DEFER)
+				err = -EFAULT;
 			return err;
 		}
 	}
@@ -307,6 +313,8 @@ void kbase_arbif_gpu_stopped(struct kbase_device *kbdev, u8 gpu_required)
 	if (arb_if && arb_if->vm_ops.vm_arb_gpu_stopped) {
 		dev_dbg(kbdev->dev, "%s\n", __func__);
 		KBASE_TLSTREAM_TL_ARBITER_STOPPED(kbdev, kbdev);
+		if (gpu_required)
+			KBASE_TLSTREAM_TL_ARBITER_REQUESTED(kbdev, kbdev);
 		arb_if->vm_ops.vm_arb_gpu_stopped(arb_if, gpu_required);
 	}
 }

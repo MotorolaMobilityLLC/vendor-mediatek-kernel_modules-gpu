@@ -42,6 +42,10 @@ config MALI_PLATFORM_NAME
 	  include in the build. 'platform/$(MALI_PLATFORM_NAME)/Makefile' must
 	  exist.
 
+config MALI_REAL_HW
+	depends on MALI_MIDGARD
+	def_bool !MALI_NO_MALI
+
 menu "Platform specific options"
 source "drivers/gpu/arm/midgard/platform/Kconfig"
 endmenu
@@ -101,7 +105,7 @@ config MALI_DMA_FENCE
 
 config MALI_ARBITER_SUPPORT
 	bool "Enable arbiter support for Mali"
-	depends on MALI_MIDGARD
+	depends on MALI_MIDGARD && !MALI_CSF_SUPPORT
 	default n
 	help
 	  Enable support for the arbiter interface in the driver.
@@ -194,9 +198,6 @@ config MALI_NO_MALI
 	  All calls to the simulated hardware will complete immediately as if the hardware
 	  completed the task.
 
-config MALI_REAL_HW
-	def_bool !MALI_NO_MALI
-
 config MALI_ERROR_INJECT
 	bool "Enable No Mali error injection"
 	depends on MALI_MIDGARD && MALI_EXPERT && MALI_NO_MALI
@@ -206,7 +207,7 @@ config MALI_ERROR_INJECT
 
 config MALI_GEM5_BUILD
 	bool "Enable build of Mali kernel driver for GEM5"
-	depends on MALI_MIDGARD
+	depends on MALI_MIDGARD && MALI_EXPERT
 	default n
 	help
 	  This option is to do a Mali GEM5 build.
@@ -363,7 +364,19 @@ config MALI_HW_ERRATA_1485982_USE_CLOCK_ALTERNATIVE
 
 endif
 
+config MALI_ARBITRATION
+	bool "Enable Virtualization reference code"
+	depends on MALI_MIDGARD
+	default n
+	help
+	  Enables the build of several reference modules used in the reference
+	  virtualization setup for Mali
+	  If unsure, say N.
+
+if MALI_ARBITRATION
 source "drivers/gpu/arm/midgard/arbitration/Kconfig"
+endif
+
 source "drivers/gpu/arm/midgard/tests/Kconfig"
 
 endif

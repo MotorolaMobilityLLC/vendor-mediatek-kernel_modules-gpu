@@ -28,35 +28,37 @@ src:=$(if $(patsubst /%,,$(src)),$(srctree)/$(src),$(src))
 #
 ifneq ($(CONFIG_ANDROID),n)
 ifeq ($(CONFIG_GPU_TRACEPOINTS),n)
-    $(error CONFIG_GPU_TRACEPOINTS must be set in Kernel configuration))
+    $(error CONFIG_GPU_TRACEPOINTS must be set in Kernel configuration)
 endif
 endif
 
 ifeq ($(CONFIG_DMA_SHARED_BUFFER),n)
-    $(error CONFIG_DMA_SHARED_BUFFER must be set in Kernel configuration))
+    $(error CONFIG_DMA_SHARED_BUFFER must be set in Kernel configuration)
 endif
 
 ifeq ($(CONFIG_PM_DEVFREQ),n)
-    $(error CONFIG_PM_DEVFREQ must be set in Kernel configuration))
+    $(error CONFIG_PM_DEVFREQ must be set in Kernel configuration)
 endif
 
 ifeq ($(CONFIG_DEVFREQ_THERMAL),n)
-    $(error CONFIG_DEVFREQ_THERMAL must be set in Kernel configuration))
+    $(error CONFIG_DEVFREQ_THERMAL must be set in Kernel configuration)
 endif
 
 ifeq ($(CONFIG_DEVFREQ_GOV_SIMPLE_ONDEMAND),n)
-    $(error CONFIG_DEVFREQ_GOV_SIMPLE_ONDEMAND must be set in Kernel configuration))
+    $(error CONFIG_DEVFREQ_GOV_SIMPLE_ONDEMAND must be set in Kernel configuration)
 endif
 
 ifeq ($(CONFIG_MALI_PRFCNT_SET_SELECT_VIA_DEBUG_FS), y)
     ifneq ($(CONFIG_DEBUG_FS), y)
-        $(error CONFIG_MALI_PRFCNT_SET_SELECT_VIA_DEBUG_FS depends on CONFIG_DEBUG_FS to be set in Kernel configuration))
+        $(error CONFIG_MALI_PRFCNT_SET_SELECT_VIA_DEBUG_FS depends on CONFIG_DEBUG_FS to be set in Kernel configuration)
     endif
 endif
 
 ifeq ($(CONFIG_MALI_FENCE_DEBUG), y)
-    ifneq ($(CONFIG_SYNC_FILE), y)
-        $(error CONFIG_MALI_FENCE_DEBUG depends on CONFIG_SYNC_FILE to be set in Kernel configuration))
+    ifneq ($(CONFIG_SYNC), y)
+        ifneq ($(CONFIG_SYNC_FILE), y)
+            $(error CONFIG_MALI_FENCE_DEBUG depends on CONFIG_SYNC || CONFIG_SYNC_FILE to be set in Kernel configuration)
+        endif
     endif
 endif
 
@@ -73,13 +75,19 @@ ccflags-y += -I$(src)/include
 subdir-ccflags-y += -I$(src)/include
 
 # Driver version string which is returned to userspace via an ioctl
-MALI_RELEASE_NAME ?= '"r32p0-00cet0"'
+MALI_RELEASE_NAME ?= '"r32p1-00bet0"'
 # Set up defaults if not defined by build system
-MALI_CUSTOMER_RELEASE ?= 1
-MALI_UNIT_TEST ?= 0
+ifeq ($(CONFIG_MALI_DEBUG), y)
+    MALI_UNIT_TEST = 1
+    MALI_CUSTOMER_RELEASE ?= 0
+else
+    MALI_UNIT_TEST ?= 0
+    MALI_CUSTOMER_RELEASE ?= 1
+endif
 MALI_COVERAGE ?= 0
 
 CONFIG_MALI_PLATFORM_NAME ?= "devicetree"
+
 # Kconfig passes in the name with quotes for in-tree builds - remove them.
 MALI_PLATFORM_DIR := $(shell echo $(CONFIG_MALI_PLATFORM_NAME))
 include $(src)/platform/$(MALI_PLATFORM_DIR)/Kbuild
@@ -235,9 +243,6 @@ else
         mali_kbase_fence.o
 endif
 
-ifeq ($(MALI_CUSTOMER_RELEASE),0)
-    mali_kbase-y += mali_kbase_regs_dump_debugfs.o
-endif
 
 INCLUDE_SUBDIR = \
     $(src)/context/Kbuild \

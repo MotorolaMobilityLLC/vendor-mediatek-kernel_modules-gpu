@@ -25,7 +25,12 @@
 #ifdef CONFIG_MALI_DMA_FENCE
 
 #include <linux/list.h>
+#include <linux/version.h>
+#if (KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE)
 #include <linux/reservation.h>
+#else
+#include <linux/dma-resv.h>
+#endif
 #include <mali_kbase_fence.h>
 
 /* Forward declaration from mali_kbase_defs.h */

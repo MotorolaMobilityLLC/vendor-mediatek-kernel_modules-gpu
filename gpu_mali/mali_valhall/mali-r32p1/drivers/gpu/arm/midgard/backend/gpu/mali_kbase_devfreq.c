@@ -687,6 +687,7 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 #endif
 	if (IS_ERR(kbdev->devfreq)) {
 		err = PTR_ERR(kbdev->devfreq);
+		kbdev->devfreq = NULL;
 		kbase_devfreq_term_core_mask_table(kbdev);
 		kbase_devfreq_term_freq_table(kbdev);
 		dev_err(kbdev->dev, "Fail to add devfreq device(%d)\n", err);
@@ -698,6 +699,7 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 	if (err) {
 		if (devfreq_remove_device(kbdev->devfreq))
 			dev_err(kbdev->dev, "Fail to rm devfreq\n");
+		kbdev->devfreq = NULL;
 		kbase_devfreq_term_core_mask_table(kbdev);
 		dev_err(kbdev->dev, "Fail to init devfreq workqueue\n");
 		return err;
@@ -757,8 +759,8 @@ opp_notifier_failed:
 
 	if (devfreq_remove_device(kbdev->devfreq))
 		dev_err(kbdev->dev, "Failed to terminate devfreq (%d)\n", err);
-	else
-		kbdev->devfreq = NULL;
+
+	kbdev->devfreq = NULL;
 
 	kbase_devfreq_term_core_mask_table(kbdev);
 

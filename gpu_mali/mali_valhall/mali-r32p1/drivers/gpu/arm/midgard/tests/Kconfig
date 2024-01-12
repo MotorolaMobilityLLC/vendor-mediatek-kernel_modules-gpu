@@ -19,31 +19,39 @@
 #
 
 menuconfig MALI_KUTF
-	bool "Mali Kernel Unit Test Framework"
-	depends on MALI_MIDGARD
-	default y
+	bool "Build Mali Kernel Unit Test Framework modules"
+	depends on MALI_MIDGARD && MALI_DEBUG
+	default y if MALI_DEBUG
 	help
-	  Enables MALI testing framework. To compile it as a module,
-	  choose M here - this will generate a single module called kutf.
+	  This option will build the Mali testing framework modules.
 
-config MALI_IRQ_LATENCY
-	bool "Mali GPU IRQ latency measurement"
-	depends on MALI_MIDGARD && MALI_DEBUG && MALI_KUTF
-	default y
-	help
-	  This option will build a test module mali_kutf_irq_test that
-	  can determine the latency of the Mali GPU IRQ on your system.
-	  Choosing M here will generate a single module called mali_kutf_irq_test.
+	  Modules:
+	   - kutf.ko
+	   - kutf_test.ko
 
-config MALI_CLK_RATE_TRACE_PORTAL
-	bool "Mali GPU Clock Trace Test portal"
-	depends on MALI_MIDGARD && MALI_DEBUG && MALI_KUTF
+config MALI_KUTF_IRQ_TEST
+	bool "Build Mali KUTF IRQ test module"
+	depends on MALI_KUTF
 	default y
 	help
-	  This option will build a test module mali_kutf_clk_rate_trace_test_portal
-	  that can test the clocks integration into the platform and exercise some
-	  basic trace test in the system. Choosing M here will generate a single
-	  module called mali_kutf_clk_rate_trace_test_portal.
+	  This option will build the IRQ latency measurement test module.
+	  It can determine the latency of the Mali GPU IRQ on your system.
+
+	  Modules:
+	    - mali_kutf_irq_test.ko
+
+config MALI_KUTF_CLK_RATE_TRACE
+	bool "Build Mali KUTF Clock rate trace test module"
+	depends on MALI_KUTF
+	default y
+	help
+	  This option will build the clock rate trace portal test module.
+	  It can test the clocks integration into the platform and exercise some
+	  basic trace test in the system.
+
+	  Modules:
+	    - mali_kutf_clk_rate_trace_test_portal.ko
+
 
 comment "Enable MALI_DEBUG for KUTF modules support"
 	depends on MALI_MIDGARD && !MALI_DEBUG && MALI_KUTF

@@ -23,20 +23,21 @@ bob_kernel_module {
     name: "mali_kutf_clk_rate_trace_test_portal",
     defaults: [
         "mali_kbase_shared_config_defaults",
+        "kernel_test_configs",
         "kernel_test_includes",
     ],
     srcs: [
-        "../mali_kutf_clk_rate_trace_test.h",
         "Kbuild",
         "mali_kutf_clk_rate_trace_test.c",
+        "../mali_kutf_clk_rate_trace_test.h",
     ],
     extra_symbols: [
         "mali_kbase",
         "kutf",
     ],
     enabled: false,
-    base_build_kutf: {
+    mali_kutf_clk_rate_trace: {
+        kbuild_options: ["CONFIG_MALI_KUTF_CLK_RATE_TRACE=y"],
         enabled: true,
-        kbuild_options: ["CONFIG_MALI_CLK_RATE_TRACE_PORTAL=y"],
     },
 }

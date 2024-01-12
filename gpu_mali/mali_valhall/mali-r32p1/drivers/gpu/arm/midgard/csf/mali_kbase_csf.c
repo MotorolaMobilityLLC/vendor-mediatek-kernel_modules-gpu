@@ -890,6 +890,8 @@ static void unbind_stopped_queue(struct kbase_context *kctx,
 		kbase_csf_scheduler_spin_lock(kctx->kbdev, &flags);
 		bitmap_clear(queue->group->protm_pending_bitmap,
 				queue->csi_index, 1);
+		KBASE_KTRACE_ADD_CSF_GRP_Q(kctx->kbdev, PROTM_PENDING_CLEAR,
+			 queue->group, queue, queue->group->protm_pending_bitmap[0]);
 		queue->group->bound_queues[queue->csi_index] = NULL;
 		queue->group = NULL;
 		kbase_csf_scheduler_spin_unlock(kctx->kbdev, flags);
@@ -2016,6 +2018,7 @@ void kbase_csf_event_signal(struct kbase_context *kctx, bool notify_gpu)
 		spin_lock_irqsave(&kctx->kbdev->hwaccess_lock, flags);
 		if (kctx->kbdev->pm.backend.gpu_powered)
 			kbase_csf_ring_doorbell(kctx->kbdev, CSF_KERNEL_DOORBELL_NR);
+		KBASE_KTRACE_ADD(kctx->kbdev, SYNC_UPDATE_EVENT_NOTIFY_GPU, kctx, 0u);
 		spin_unlock_irqrestore(&kctx->kbdev->hwaccess_lock, flags);
 	}
 
@@ -2354,7 +2357,11 @@ static void protm_event_worker(struct work_struct *data)
 	struct kbase_queue_group *const group =
 		container_of(data, struct kbase_queue_group, protm_event_work);
 
+	KBASE_KTRACE_ADD_CSF_GRP(group->kctx->kbdev, PROTM_EVENT_WORKER_BEGIN,
+				 group, 0u);
 	kbase_csf_scheduler_group_protm_enter(group);
+	KBASE_KTRACE_ADD_CSF_GRP(group->kctx->kbdev, PROTM_EVENT_WORKER_END,
+				 group, 0u);
 }
 
 /**
@@ -2386,13 +2393,16 @@ handle_fault_event(struct kbase_queue *const queue,
 
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 
-	dev_warn(kbdev->dev, "CSI: %d\n"
-			"CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
-			"CS_FAULT.EXCEPTION_DATA: 0x%x\n"
-			"CS_FAULT_INFO.EXCEPTION_DATA: 0x%llx\n",
-			queue->csi_index, cs_fault_exception_type,
-			kbase_gpu_exception_name(cs_fault_exception_type),
-			cs_fault_exception_data, cs_fault_info_exception_data);
+	dev_warn(kbdev->dev,
+		 "Ctx %d_%d Group %d CSG %d CSI: %d\n"
+		 "CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
+		 "CS_FAULT.EXCEPTION_DATA: 0x%x\n"
+		 "CS_FAULT_INFO.EXCEPTION_DATA: 0x%llx\n",
+		 queue->kctx->tgid, queue->kctx->id, queue->group->handle,
+		 queue->group->csg_nr, queue->csi_index,
+		 cs_fault_exception_type,
+		 kbase_gpu_exception_name(cs_fault_exception_type),
+		 cs_fault_exception_data, cs_fault_info_exception_data);
 }
 
 static void report_queue_fatal_error(struct kbase_queue *const queue,
@@ -2499,11 +2509,12 @@ handle_fatal_event(struct kbase_queue *const queue,
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 
 	dev_warn(kbdev->dev,
-		 "CSG: %d, CSI: %d\n"
+		 "Ctx %d_%d Group %d CSG %d CSI: %d\n"
 		 "CS_FATAL.EXCEPTION_TYPE: 0x%x (%s)\n"
 		 "CS_FATAL.EXCEPTION_DATA: 0x%x\n"
 		 "CS_FATAL_INFO.EXCEPTION_DATA: 0x%llx\n",
-		 queue->group->handle, queue->csi_index,
+		 queue->kctx->tgid, queue->kctx->id, queue->group->handle,
+		 queue->group->csg_nr, queue->csi_index,
 		 cs_fatal_exception_type,
 		 kbase_gpu_exception_name(cs_fatal_exception_type),
 		 cs_fatal_exception_data, cs_fatal_info_exception_data);
@@ -2606,23 +2617,28 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 			if ((cs_req & CS_REQ_EXCEPTION_MASK) ^
 			    (cs_ack & CS_ACK_EXCEPTION_MASK)) {
 				KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, CSI_FAULT_INTERRUPT, group, queue, cs_req ^ cs_ack);
-				handle_queue_exception_event(queue, cs_req,
-							     cs_ack);
+				handle_queue_exception_event(queue, cs_req, cs_ack);
 			}
 
 			/* PROTM_PEND and TILER_OOM can be safely ignored
 			 * because they will be raised again if the group
 			 * is assigned a CSG slot in future.
 			 */
-			if (group_suspending)
+			if (group_suspending) {
+				u32 const cs_req_remain = cs_req & ~CS_REQ_EXCEPTION_MASK;
+				u32 const cs_ack_remain = cs_ack & ~CS_ACK_EXCEPTION_MASK;
+
+				KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, CSI_IGNORED_INTERRUPTS_GROUP_SUSPEND,
+							   group, queue, cs_req_remain ^ cs_ack_remain);
 				continue;
+			}
 
 			if (((cs_req & CS_REQ_TILER_OOM_MASK) ^
 			     (cs_ack & CS_ACK_TILER_OOM_MASK))) {
 				get_queue(queue);
-				KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, CSI_TILER_OOM_INTERRUPT, group, queue, cs_req ^ cs_ack);
-				if (WARN_ON(!queue_work(
-					    wq, &queue->oom_event_work))) {
+				KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, CSI_TILER_OOM_INTERRUPT, group, queue,
+							   cs_req ^ cs_ack);
+				if (WARN_ON(!queue_work(wq, &queue->oom_event_work))) {
 					/* The work item shall not have been
 					 * already queued, there can be only
 					 * one pending OoM event for a
@@ -2634,12 +2650,17 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 
 			if ((cs_req & CS_REQ_PROTM_PEND_MASK) ^
 			    (cs_ack & CS_ACK_PROTM_PEND_MASK)) {
+				KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, CSI_PROTM_PEND_INTERRUPT, group, queue,
+							   cs_req ^ cs_ack);
+
 				dev_dbg(kbdev->dev,
 					"Protected mode entry request for queue on csi %d bound to group-%d on slot %d",
 					queue->csi_index, group->handle,
 					group->csg_nr);
 
 				bitmap_set(group->protm_pending_bitmap, i, 1);
+				KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, PROTM_PENDING_SET, group, queue,
+							   group->protm_pending_bitmap[0]);
 				protm_pend = true;
 			}
 		}
@@ -2668,13 +2689,15 @@ static void process_csg_interrupts(struct kbase_device *const kbdev,
 	int const csg_nr)
 {
 	struct kbase_csf_cmd_stream_group_info *ginfo;
-	struct kbase_queue_group *group;
+	struct kbase_queue_group *group = NULL;
 	u32 req, ack, irqreq, irqack;
 
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 
 	if (WARN_ON(csg_nr >= kbdev->csf.global_iface.group_num))
 		return;
+
+	KBASE_KTRACE_ADD(kbdev, CSG_INTERRUPT_PROCESS, NULL, csg_nr);
 
 	ginfo = &kbdev->csf.global_iface.groups[csg_nr];
 	req = kbase_csf_firmware_csg_input_read(ginfo, CSG_REQ);
@@ -2684,7 +2707,7 @@ static void process_csg_interrupts(struct kbase_device *const kbdev,
 
 	/* There may not be any pending CSG/CS interrupts to process */
 	if ((req == ack) && (irqreq == irqack))
-		return;
+		goto out;
 
 	/* Immediately set IRQ_ACK bits to be same as the IRQ_REQ bits before
 	 * examining the CS_ACK & CS_REQ bits. This would ensure that Host
@@ -2705,10 +2728,10 @@ static void process_csg_interrupts(struct kbase_device *const kbdev,
 	 * slot scheduler spinlock is required.
 	 */
 	if (!group)
-		return;
+		goto out;
 
 	if (WARN_ON(kbase_csf_scheduler_group_get_slot_locked(group) != csg_nr))
-		return;
+		goto out;
 
 	if ((req ^ ack) & CSG_REQ_SYNC_UPDATE_MASK) {
 		kbase_csf_firmware_csg_input_mask(ginfo,
@@ -2725,7 +2748,8 @@ static void process_csg_interrupts(struct kbase_device *const kbdev,
 			CSG_REQ_IDLE_MASK);
 
 		set_bit(csg_nr, scheduler->csg_slots_idle_mask);
-
+		KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_SLOT_IDLE_SET, group,
+					 scheduler->csg_slots_idle_mask[0]);
 		KBASE_KTRACE_ADD_CSF_GRP(kbdev,  CSG_IDLE_INTERRUPT, group, req ^ ack);
 		dev_dbg(kbdev->dev, "Idle notification received for Group %u on slot %d\n",
 			 group->handle, csg_nr);
@@ -2741,6 +2765,8 @@ static void process_csg_interrupts(struct kbase_device *const kbdev,
 		kbase_csf_firmware_csg_input_mask(ginfo, CSG_REQ, ack,
 			CSG_REQ_PROGRESS_TIMER_EVENT_MASK);
 
+		KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_PROGRESS_TIMER_INTERRUPT,
+					 group, req ^ ack);
 		dev_info(kbdev->dev,
 			"Timeout notification received for group %u of ctx %d_%d on slot %d\n",
 			group->handle, group->kctx->tgid, group->kctx->id, csg_nr);
@@ -2749,6 +2775,11 @@ static void process_csg_interrupts(struct kbase_device *const kbdev,
 	}
 
 	process_cs_interrupts(group, ginfo, irqreq, irqack);
+
+out:
+	/* group may still be NULL here */
+	KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_INTERRUPT_PROCESS_END, group,
+				 ((u64)req ^ ack) | (((u64)irqreq ^ irqack) << 32));
 }
 
 /**
@@ -2842,6 +2873,7 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
+	KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT, NULL, val);
 	kbase_reg_write(kbdev, JOB_CONTROL_REG(JOB_IRQ_CLEAR), val);
 
 	if (val & JOB_IRQ_GLOBAL_IF) {
@@ -2862,6 +2894,7 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 					global_iface, GLB_REQ);
 			glb_ack = kbase_csf_firmware_global_output(
 					global_iface, GLB_ACK);
+			KBASE_KTRACE_ADD(kbdev, GLB_REQ_ACQ, NULL, glb_req ^ glb_ack);
 
 			if ((glb_req ^ glb_ack) & GLB_REQ_PROTM_EXIT_MASK) {
 				dev_dbg(kbdev->dev, "Protected mode exit interrupt received");
@@ -2869,8 +2902,8 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 						global_iface, GLB_REQ, glb_ack,
 						GLB_REQ_PROTM_EXIT_MASK);
 				WARN_ON(!kbase_csf_scheduler_protected_mode_in_use(kbdev));
+				KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_EXIT_PROTM, scheduler->active_protm_grp, 0u);
 				scheduler->active_protm_grp = NULL;
-				KBASE_KTRACE_ADD(kbdev, SCHEDULER_EXIT_PROTM, NULL, 0u);
 				kbdev->protected_mode = false;
 				kbase_ipa_control_protm_exited(kbdev);
 				kbase_hwcnt_backend_csf_protm_exited(
@@ -2879,13 +2912,20 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 
 			/* Handle IDLE Hysteresis notification event */
 			if ((glb_req ^ glb_ack) & GLB_REQ_IDLE_EVENT_MASK) {
+				int non_idle_offslot_grps;
+				bool can_suspend_on_idle;
 				dev_dbg(kbdev->dev, "Idle-hysteresis event flagged");
 				kbase_csf_firmware_global_input_mask(
 						global_iface, GLB_REQ, glb_ack,
 						GLB_REQ_IDLE_EVENT_MASK);
 
-				if (!atomic_read(&scheduler->non_idle_offslot_grps)) {
-					if (kbase_pm_idle_groups_sched_suspendable(kbdev))
+				non_idle_offslot_grps = atomic_read(&scheduler->non_idle_offslot_grps);
+				can_suspend_on_idle = kbase_pm_idle_groups_sched_suspendable(kbdev);
+				KBASE_KTRACE_ADD(kbdev, SCHEDULER_CAN_IDLE, NULL,
+					((u64)(u32)non_idle_offslot_grps) | (((u64)can_suspend_on_idle) << 32));
+
+				if (!non_idle_offslot_grps) {
+					if (can_suspend_on_idle)
 						queue_work(system_highpri_wq,
 							   &scheduler->gpu_idle_work);
 				} else {
@@ -2910,6 +2950,7 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 
 		if (!remaining) {
 			wake_up_all(&kbdev->csf.event_wait);
+			KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT_END, NULL, val);
 			return;
 		}
 	}
@@ -2924,6 +2965,7 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 
 	wake_up_all(&kbdev->csf.event_wait);
+	KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT_END, NULL, val);
 }
 
 void kbase_csf_doorbell_mapping_term(struct kbase_device *kbdev)
