@@ -4930,8 +4930,13 @@ static bool scheduler_idle_suspendable(struct kbase_device *kbdev)
 	 */
 	if (suspend && (unlikely(atomic_read(&scheduler->gpu_no_longer_idle)) ||
 			unlikely(!all_on_slot_groups_remained_idle(kbdev)))) {
+#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
+		dev_vdbg(kbdev->dev,
+			 "GPU suspension skipped due to active CSGs");
+#else
 		dev_info(kbdev->dev,
 			 "GPU suspension skipped due to active CSGs");
+#endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 		suspend = false;
 	}
 
