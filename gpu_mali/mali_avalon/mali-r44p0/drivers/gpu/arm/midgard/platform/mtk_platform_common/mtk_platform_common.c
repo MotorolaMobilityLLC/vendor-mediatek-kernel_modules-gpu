@@ -533,6 +533,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	MTK_LTR_gpu_pmu_init();
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+	spin_lock_init(&kbdev->reset_force_change);
+#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
 	mtk_debug_irq_trace_init(kbdev);
 #endif /* CONFIG_MALI_MTK_IRQ_TRACE */
