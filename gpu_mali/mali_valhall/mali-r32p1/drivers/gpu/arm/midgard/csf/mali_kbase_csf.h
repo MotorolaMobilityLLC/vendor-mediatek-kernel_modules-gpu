@@ -39,7 +39,7 @@
  */
 #define KBASEP_USER_DB_NR_INVALID ((s8)-1)
 
-#define FIRMWARE_PING_INTERVAL_MS (8000) /* 8 seconds */
+#define FIRMWARE_PING_INTERVAL_MS (15000) /* 15 seconds */
 
 #define FIRMWARE_IDLE_HYSTERESIS_TIME_MS (5) /* Default 10 milliseconds */
 
