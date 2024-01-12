@@ -734,8 +734,8 @@ void kbase_mem_pool_free_locked(struct kbase_mem_pool *pool, struct page *p,
 int kbase_mem_pool_alloc_pages(struct kbase_mem_pool *pool, size_t nr_4k_pages,
 			       struct tagged_addr *pages, bool partial_allowed,
 			       struct task_struct *page_owner) {
-	INIT_ALLOC_PAGES_CTX(apc, nr_4k_pages, pages,
-			     NULL, pool->kbdev->pt_clustering_enable,
+	INIT_ALLOC_PAGES_CTX(apc, nr_4k_pages, pages, NULL,
+			     pool->kbdev ? pool->kbdev->pt_clustering_enable : 0,
 			     pool->kbdev, NULL);
 	int ret;
 
@@ -915,8 +915,8 @@ err_rollback:
 int kbase_mem_pool_alloc_pages_locked(struct kbase_mem_pool *pool,
 				      size_t nr_4k_pages,
 				      struct tagged_addr *pages) {
-	INIT_ALLOC_PAGES_CTX(apc, nr_4k_pages, pages,
-			     NULL, pool->kbdev->pt_clustering_enable,
+	INIT_ALLOC_PAGES_CTX(apc, nr_4k_pages, pages, NULL,
+			     pool->kbdev ? pool->kbdev->pt_clustering_enable : 0,
 			     pool->kbdev, NULL);
 	int ret;
 
