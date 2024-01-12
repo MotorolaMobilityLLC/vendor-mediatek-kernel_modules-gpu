@@ -784,6 +784,14 @@ enum exception_type {
 };
 #endif /* CONFIG_MALI_MTK_TRIGGER_KE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
+enum mmu_dbg_log_config {
+	MMU_DBG_CFG_LOG_DIS = 0,
+	MMU_DBG_CFG_LOG_EN = 1,
+	MMU_DBG_CFG_LOG_BT_EN = 2,
+};
+#endif /* CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG */
+
 /**
  * struct kbase_device   - Object representing an instance of GPU platform device,
  *                         allocated from the probe method of mali driver.
@@ -1478,6 +1486,10 @@ struct kbase_device {
 	struct workqueue_struct *mtk_enop_metadata_dump_workq;
 	struct work_struct mtk_enop_metadata_dump_work;
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
+	u32 mmu_dbg_config_value;
+#endif /* CONFIG_MALI_MTK_TRIGGER_KE */
 
 };
 

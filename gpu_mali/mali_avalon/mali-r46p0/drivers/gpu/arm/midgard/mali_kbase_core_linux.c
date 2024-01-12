@@ -6004,6 +6004,67 @@ static DEVICE_ATTR_RW(mcu_shader_pwroff_timeout_ns);
 
 #endif /* MALI_USE_CSF */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
+/**
+ * mmu_dbg_config_show - Get the KBase MMU debug config value.
+ *
+ * @dev:  The device this sysfs file is for.
+ * @attr: The attributes of the sysfs file.
+ * @buf:  The output buffer for the sysfs file contents
+ *
+ * Get value for configuring MMU debug log
+ *
+ * Return: The number of bytes output to @buf if the
+ *         function succeeded. A Negative value on failure.
+ */
+static ssize_t mmu_dbg_config_show(struct device *dev, struct device_attribute *attr, char * const buf)
+{
+	struct kbase_device *kbdev = dev_get_drvdata(dev);
+	u32 mmu_dbg_config_value;
+
+	if (!kbdev) {
+		pr_info("[KBASE] Bad kbdev!\n");
+		return -ENODEV;
+	}
+
+	mmu_dbg_config_value = kbdev->mmu_dbg_config_value;
+	return scnprintf(buf, PAGE_SIZE, "%u\n", mmu_dbg_config_value);
+}
+
+/**
+ * mmu_dbg_config_store - Set the KBase MMU debug config value.
+ *
+ * @dev:   The device with sysfs file is for
+ * @attr:  The attributes of the sysfs file
+ * @buf:   The value written to the sysfs file
+ * @count: The number of bytes to write to the sysfs file
+ *
+ * The value for configuring MMU debug log
+ *
+ * Return: @count if the function succeeded. An error code on failure.
+ */
+static ssize_t mmu_dbg_config_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct kbase_device *kbdev = dev_get_drvdata(dev);
+	u32 mmu_dbg_config_value;
+
+	if (!kbdev) {
+		pr_info("[KBASE] Bad kbdev!\n");
+		return -ENODEV;
+	}
+
+	if (kstrtouint(buf, 0, &mmu_dbg_config_value))
+		return -EINVAL;
+
+	kbdev->mmu_dbg_config_value = mmu_dbg_config_value;
+	pr_info("[KBASE] mmu_dbg_config_value=%d\n", mmu_dbg_config_value);
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(mmu_dbg_config);
+#endif /* CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG */
+
 static struct attribute *kbase_scheduling_attrs[] = {
 #if !MALI_USE_CSF
 	&dev_attr_serialize_jobs.attr,
@@ -6040,6 +6101,9 @@ static struct attribute *kbase_attrs[] = {
 	&dev_attr_core_mask.attr,
 #if IS_ENABLED(CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM)
 	&dev_attr_force_reclaim.attr,
+#endif /* CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM */
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
+	&dev_attr_mmu_dbg_config.attr,
 #endif /* CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM */
 	&dev_attr_mem_pool_size.attr,
 	&dev_attr_mem_pool_max_size.attr,
