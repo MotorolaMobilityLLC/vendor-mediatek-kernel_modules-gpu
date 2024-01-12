@@ -26,6 +26,10 @@
 #include <linux/highmem.h>
 #include <linux/timer.h>
 
+#if (KERNEL_VERSION(4, 4, 267) < LINUX_VERSION_CODE)
+#include <linux/overflow.h>
+#endif
+
 #if (KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE)
 #include <linux/bits.h>
 #else
@@ -70,17 +74,20 @@ typedef unsigned int __poll_t;
 /* Replace the default definition with CONFIG_LSM_MMAP_MIN_ADDR */
 #undef kbase_mmap_min_addr
 #define kbase_mmap_min_addr CONFIG_LSM_MMAP_MIN_ADDR
-#pragma message "kbase_mmap_min_addr compiled to CONFIG_LSM_MMAP_MIN_ADDR, no runtime update!"
+#define KBASE_COMPILED_MMAP_MIN_ADDR_MSG                                                           \
+	"* MALI kbase_mmap_min_addr compiled to CONFIG_LSM_MMAP_MIN_ADDR, no runtime update possible! *"
 #endif /* (CONFIG_LSM_MMAP_MIN_ADDR > CONFIG_DEFAULT_MMAP_MIN_ADDR) */
 #endif /* CONFIG_LSM_MMAP_MIN_ADDR */
 
 #if (kbase_mmap_min_addr == CONFIG_DEFAULT_MMAP_MIN_ADDR)
-#pragma message "kbase_mmap_min_addr compiled to CONFIG_DEFAULT_MMAP_MIN_ADDR, no runtime update!"
+#define KBASE_COMPILED_MMAP_MIN_ADDR_MSG                                                           \
+	"* MALI kbase_mmap_min_addr compiled to CONFIG_DEFAULT_MMAP_MIN_ADDR, no runtime update possible! *"
 #endif
 
 #else /* CONFIG_MMU */
 #define kbase_mmap_min_addr (0UL)
-#pragma message "kbase_mmap_min_addr compiled to (0UL), no runtime update!"
+#define KBASE_COMPILED_MMAP_MIN_ADDR_MSG                                                           \
+	"* MALI kbase_mmap_min_addr compiled to (0UL), no runtime update possible! *"
 #endif /* CONFIG_MMU */
 #endif /* KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE */
 
@@ -141,5 +148,19 @@ static inline void kbase_kunmap_atomic(void *address)
 	kunmap_atomic(address);
 #endif /* KERNEL_VERSION(5, 11, 0) */
 }
+
+/* Some of the older 4.4 kernel patch versions do
+ * not contain the overflow check functions. However,
+ * they are based on compiler instrinsics, so they
+ * are simple to reproduce.
+ */
+#if (KERNEL_VERSION(4, 4, 267) >= LINUX_VERSION_CODE)
+/* Some of the older 4.4 kernel patch versions do
+ * not contain the overflow check functions. However,
+ * they are based on compiler instrinsics, so they
+ * are simple to reproduce.
+ */
+#define check_mul_overflow(a, b, d) __builtin_mul_overflow(a, b, d)
+#endif
 
 #endif /* _VERSION_COMPAT_DEFS_H_ */

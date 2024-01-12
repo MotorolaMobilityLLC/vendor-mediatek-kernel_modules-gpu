@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2022-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -554,14 +554,12 @@ static int parse_signal_groups(struct coresight_mali_source_drvdata *drvdata)
 
 	for (siggrp_idx = 0; siggrp_idx < CS_ELA_MAX_SIGNAL_GROUPS; siggrp_idx++) {
 		char buf[CS_SG_NAME_MAX_LEN];
-		ssize_t res;
 		const char *name;
 		struct property *prop;
 
-		res = snprintf(buf, CS_SG_NAME_MAX_LEN, "sg%d", siggrp_idx);
-		if (res <= 0) {
+		if (scnprintf(buf, CS_SG_NAME_MAX_LEN, "sg%d", siggrp_idx) == 0)
 			dev_err(drvdata->base.dev,
-				"Signal group name %d snprintf failed unexpectedly", siggrp_idx);
+				"Signal group name %d scnprintf failed unexpectedly", siggrp_idx);
 			return -EINVAL;
 		}
 

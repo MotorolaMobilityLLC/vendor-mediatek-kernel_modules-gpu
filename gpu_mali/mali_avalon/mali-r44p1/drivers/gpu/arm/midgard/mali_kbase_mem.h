@@ -219,6 +219,7 @@ static inline void kbase_process_page_usage_inc(struct kbase_context *kctx,
  * user process, with an upper limit of 4 GB.
  */
 #define KBASE_REG_ZONE_EXEC_VA_MAX_PAGES ((1ULL << 32) >> PAGE_SHIFT) /* 4 GB */
+#define KBASE_REG_ZONE_EXEC_VA_SIZE KBASE_REG_ZONE_EXEC_VA_MAX_PAGES
 
 #if MALI_USE_CSF
 #define KBASE_REG_ZONE_MCU_SHARED_BASE (0x04000000ULL >> PAGE_SHIFT)
@@ -229,8 +230,6 @@ static inline void kbase_process_page_usage_inc(struct kbase_context *kctx,
  */
 #define KBASE_REG_ZONE_EXEC_VA_BASE_64 ((1ULL << 47) >> PAGE_SHIFT)
 #define KBASE_REG_ZONE_EXEC_VA_BASE_32 ((1ULL << 43) >> PAGE_SHIFT)
-#define KBASE_REG_ZONE_EXEC_VA_SIZE KBASE_REG_ZONE_EXEC_VA_MAX_PAGES
-
 /* Executable zone supporting FIXED/FIXABLE allocations.
  * It is always 4GB in size.
  */
@@ -1403,18 +1402,19 @@ int kbase_region_tracker_init_exec(struct kbase_context *kctx, u64 exec_va_pages
 void kbase_region_tracker_term(struct kbase_context *kctx);
 
 /**
- * kbase_region_tracker_term_rbtree - Free memory for a region tracker
+ * kbase_region_tracker_erase_rbtree - Free memory for a region tracker
  *
  * @rbtree: Region tracker tree root
  *
  * This will free all the regions within the region tracker
  */
-void kbase_region_tracker_term_rbtree(struct rb_root *rbtree);
+void kbase_region_tracker_erase_rbtree(struct rb_root *rbtree);
 
 struct kbase_va_region *kbase_region_tracker_find_region_enclosing_address(
 		struct kbase_context *kctx, u64 gpu_addr);
 struct kbase_va_region *kbase_find_region_enclosing_address(
 		struct rb_root *rbtree, u64 gpu_addr);
+void kbase_region_tracker_insert(struct kbase_va_region *new_reg);
 
 /**
  * kbase_region_tracker_find_region_base_address - Check that a pointer is
@@ -1431,9 +1431,11 @@ struct kbase_va_region *kbase_region_tracker_find_region_base_address(
 struct kbase_va_region *kbase_find_region_base_address(struct rb_root *rbtree,
 		u64 gpu_addr);
 
-struct kbase_va_region *kbase_alloc_free_region(struct kbase_device *kbdev, struct rb_root *rbtree,
-						u64 start_pfn, size_t nr_pages,
-						enum kbase_memory_zone zone);
+struct kbase_va_region *kbase_alloc_free_region(struct kbase_reg_zone *zone, u64 start_pfn,
+						size_t nr_pages);
+struct kbase_va_region *kbase_ctx_alloc_free_region(struct kbase_context *kctx,
+						    enum kbase_memory_zone id, u64 start_pfn,
+						    size_t nr_pages);
 void kbase_free_alloced_region(struct kbase_va_region *reg);
 int kbase_add_va_region(struct kbase_context *kctx, struct kbase_va_region *reg,
 		u64 addr, size_t nr_pages, size_t align);
@@ -1911,7 +1913,7 @@ static inline struct kbase_page_metadata *kbase_page_private(struct page *p)
 
 static inline dma_addr_t kbase_dma_addr(struct page *p)
 {
-	if (kbase_page_migration_enabled)
+	if (kbase_is_page_migration_enabled())
 		return kbase_page_private(p)->dma_addr;
 
 	return kbase_dma_addr_as_priv(p);
@@ -2515,25 +2517,39 @@ static inline struct kbase_reg_zone *kbase_ctx_reg_zone_get(struct kbase_context
 }
 
 /**
- * kbase_ctx_reg_zone_init - initialize a zone in @kctx
- * @kctx: Pointer to kbase context
- * @zone: Memory zone identifier
+ * kbase_reg_zone_init - Initialize a zone in @kctx
+ * @kbdev: Pointer to kbase device in order to initialize the VA region cache
+ * @zone: Memory zone
+ * @id: Memory zone identifier to facilitate lookups
  * @base_pfn: Page Frame Number in GPU virtual address space for the start of
  *            the Zone
  * @va_size_pages: Size of the Zone in pages
+ *
+ * Return:
+ * * 0 on success
+ * * -ENOMEM on error
  */
-static inline void kbase_ctx_reg_zone_init(struct kbase_context *kctx, enum kbase_memory_zone zone,
-					   u64 base_pfn, u64 va_size_pages)
+static inline int kbase_reg_zone_init(struct kbase_device *kbdev, struct kbase_reg_zone *zone,
+				      enum kbase_memory_zone id, u64 base_pfn, u64 va_size_pages)
 {
-	struct kbase_reg_zone *reg_zone;
+	struct kbase_va_region *reg;
 
-	lockdep_assert_held(&kctx->reg_lock);
-	WARN_ON(!kbase_is_ctx_reg_zone(zone));
+	*zone = (struct kbase_reg_zone){ .reg_rbtree = RB_ROOT,
+					 .base_pfn = base_pfn,
+					 .va_size_pages = va_size_pages,
+					 .id = id,
+					 .cache = kbdev->va_region_slab };
 
-	reg_zone = kbase_ctx_reg_zone_get(kctx, zone);
-	*reg_zone = (struct kbase_reg_zone){ .base_pfn = base_pfn,
-					     .va_size_pages = va_size_pages,
-					     .id = zone };
+	if (unlikely(!va_size_pages))
+		return 0;
+
+	reg = kbase_alloc_free_region(zone, base_pfn, va_size_pages);
+	if (unlikely(!reg))
+		return -ENOMEM;
+
+	kbase_region_tracker_insert(reg);
+
+	return 0;
 }
 
 /**
@@ -2545,6 +2561,15 @@ static inline void kbase_ctx_reg_zone_init(struct kbase_context *kctx, enum kbas
 static inline u64 kbase_reg_zone_end_pfn(struct kbase_reg_zone *zone)
 {
 	return zone->base_pfn + zone->va_size_pages;
+}
+
+/**
+ * kbase_reg_zone_term - Terminate the memory zone tracker
+ * @zone: Memory zone
+ */
+static inline void kbase_reg_zone_term(struct kbase_reg_zone *zone)
+{
+	kbase_region_tracker_erase_rbtree(&zone->reg_rbtree);
 }
 
 /**

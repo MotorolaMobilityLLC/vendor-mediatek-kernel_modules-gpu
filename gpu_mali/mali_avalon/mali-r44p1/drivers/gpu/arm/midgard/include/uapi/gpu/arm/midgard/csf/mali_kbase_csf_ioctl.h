@@ -86,10 +86,14 @@
  *   - Add Neural Engine support in queue_group_create IOCTL fields
  *   - Previous version retained as KBASE_IOCTL_CS_QUEUE_GROUP_CREATE_1_18 for
  *     backward compatibility.
+ * 1.20:
+ * - Restrict child process from doing supported file operations (like mmap, ioctl,
+ *   read, poll) on the file descriptor of mali device file that was inherited
+ *   from the parent process.
  */
 
 #define BASE_UK_VERSION_MAJOR 1
-#define BASE_UK_VERSION_MINOR 19
+#define BASE_UK_VERSION_MINOR 20
 
 /**
  * struct kbase_ioctl_version_check - Check version compatibility between

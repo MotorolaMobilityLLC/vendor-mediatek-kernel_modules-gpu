@@ -78,15 +78,3 @@ void kbase_amba_set_memory_cache_support(struct kbase_device *kbdev,
 		WARN(1, "memory_cache_support not supported");
 	}
 }
-
-void kbase_amba_set_invalidate_hint(struct kbase_device *kbdev, bool enable)
-{
-	if (kbasep_amba_register_present(kbdev)) {
-		u32 val = kbase_reg_read(kbdev, GPU_CONTROL_REG(AMBA_ENABLE));
-
-		val = AMBA_ENABLE_INVALIDATE_HINT_SET(val, enable);
-		kbase_reg_write(kbdev, GPU_CONTROL_REG(AMBA_ENABLE), val);
-	} else {
-		WARN(1, "invalidate_hint not supported");
-	}
-}

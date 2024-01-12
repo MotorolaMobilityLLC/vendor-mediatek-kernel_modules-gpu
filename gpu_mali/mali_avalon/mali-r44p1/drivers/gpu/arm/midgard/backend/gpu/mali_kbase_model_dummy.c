@@ -1402,13 +1402,13 @@ void midgard_model_write_reg(void *h, u32 addr, u32 value)
 		}
 	}
 #endif
-	else if (addr == MMU_REG(MMU_IRQ_MASK)) {
+	else if (addr == MMU_CONTROL_REG(MMU_IRQ_MASK)) {
 		hw_error_status.mmu_irq_mask = value;
-	} else if (addr == MMU_REG(MMU_IRQ_CLEAR)) {
+	} else if (addr == MMU_CONTROL_REG(MMU_IRQ_CLEAR)) {
 		hw_error_status.mmu_irq_rawstat &= (~value);
-	} else if ((addr >= MMU_AS_REG(0, AS_TRANSTAB_LO)) && (addr <= MMU_AS_REG(15, AS_STATUS))) {
-		int mem_addr_space = (addr - MMU_AS_REG(0, AS_TRANSTAB_LO))
-									>> 6;
+	} else if ((addr >= MMU_STAGE1_REG(MMU_AS_REG(0, AS_TRANSTAB_LO))) &&
+		   (addr <= MMU_STAGE1_REG(MMU_AS_REG(15, AS_STATUS)))) {
+		int mem_addr_space = (addr - MMU_STAGE1_REG(MMU_AS_REG(0, AS_TRANSTAB_LO))) >> 6;
 
 		switch (addr & 0x3F) {
 		case AS_COMMAND:
@@ -1919,10 +1919,9 @@ void midgard_model_read_reg(void *h, u32 addr, u32 *const value)
 	} else if (addr >= GPU_CONTROL_REG(CYCLE_COUNT_LO)
 				&& addr <= GPU_CONTROL_REG(TIMESTAMP_HI)) {
 		*value = 0;
-	} else if (addr >= MMU_AS_REG(0, AS_TRANSTAB_LO)
-				&& addr <= MMU_AS_REG(15, AS_STATUS)) {
-		int mem_addr_space = (addr - MMU_AS_REG(0, AS_TRANSTAB_LO))
-									>> 6;
+	} else if (addr >= MMU_STAGE1_REG(MMU_AS_REG(0, AS_TRANSTAB_LO)) &&
+		   addr <= MMU_STAGE1_REG(MMU_AS_REG(15, AS_STATUS))) {
+		int mem_addr_space = (addr - MMU_STAGE1_REG(MMU_AS_REG(0, AS_TRANSTAB_LO))) >> 6;
 
 		switch (addr & 0x3F) {
 		case AS_TRANSTAB_LO:
@@ -1966,11 +1965,11 @@ void midgard_model_read_reg(void *h, u32 addr, u32 *const value)
 			*value = 0;
 			break;
 		}
-	} else if (addr == MMU_REG(MMU_IRQ_MASK)) {
+	} else if (addr == MMU_CONTROL_REG(MMU_IRQ_MASK)) {
 		*value = hw_error_status.mmu_irq_mask;
-	} else if (addr == MMU_REG(MMU_IRQ_RAWSTAT)) {
+	} else if (addr == MMU_CONTROL_REG(MMU_IRQ_RAWSTAT)) {
 		*value = hw_error_status.mmu_irq_rawstat;
-	} else if (addr == MMU_REG(MMU_IRQ_STATUS)) {
+	} else if (addr == MMU_CONTROL_REG(MMU_IRQ_STATUS)) {
 		*value = hw_error_status.mmu_irq_mask &
 						hw_error_status.mmu_irq_rawstat;
 	}
@@ -1978,8 +1977,7 @@ void midgard_model_read_reg(void *h, u32 addr, u32 *const value)
 	else if (addr == IPA_CONTROL_REG(STATUS)) {
 		*value = (ipa_control_timer_enabled << 31);
 	} else if ((addr >= IPA_CONTROL_REG(VALUE_CSHW_REG_LO(0))) &&
-		   (addr <= IPA_CONTROL_REG(VALUE_CSHW_REG_HI(
-				    IPA_CTL_MAX_VAL_CNT_IDX)))) {
+		   (addr <= IPA_CONTROL_REG(VALUE_CSHW_REG_HI(IPA_CTL_MAX_VAL_CNT_IDX)))) {
 		u32 counter_index =
 			(addr - IPA_CONTROL_REG(VALUE_CSHW_REG_LO(0))) >> 3;
 		bool is_low_word =
@@ -1988,8 +1986,7 @@ void midgard_model_read_reg(void *h, u32 addr, u32 *const value)
 		*value = gpu_model_get_prfcnt_value(KBASE_IPA_CORE_TYPE_CSHW,
 						    counter_index, is_low_word);
 	} else if ((addr >= IPA_CONTROL_REG(VALUE_MEMSYS_REG_LO(0))) &&
-		   (addr <= IPA_CONTROL_REG(VALUE_MEMSYS_REG_HI(
-				    IPA_CTL_MAX_VAL_CNT_IDX)))) {
+		   (addr <= IPA_CONTROL_REG(VALUE_MEMSYS_REG_HI(IPA_CTL_MAX_VAL_CNT_IDX)))) {
 		u32 counter_index =
 			(addr - IPA_CONTROL_REG(VALUE_MEMSYS_REG_LO(0))) >> 3;
 		bool is_low_word =
@@ -1998,8 +1995,7 @@ void midgard_model_read_reg(void *h, u32 addr, u32 *const value)
 		*value = gpu_model_get_prfcnt_value(KBASE_IPA_CORE_TYPE_MEMSYS,
 						    counter_index, is_low_word);
 	} else if ((addr >= IPA_CONTROL_REG(VALUE_TILER_REG_LO(0))) &&
-		   (addr <= IPA_CONTROL_REG(VALUE_TILER_REG_HI(
-				    IPA_CTL_MAX_VAL_CNT_IDX)))) {
+		   (addr <= IPA_CONTROL_REG(VALUE_TILER_REG_HI(IPA_CTL_MAX_VAL_CNT_IDX)))) {
 		u32 counter_index =
 			(addr - IPA_CONTROL_REG(VALUE_TILER_REG_LO(0))) >> 3;
 		bool is_low_word =
@@ -2008,8 +2004,7 @@ void midgard_model_read_reg(void *h, u32 addr, u32 *const value)
 		*value = gpu_model_get_prfcnt_value(KBASE_IPA_CORE_TYPE_TILER,
 						    counter_index, is_low_word);
 	} else if ((addr >= IPA_CONTROL_REG(VALUE_SHADER_REG_LO(0))) &&
-		   (addr <= IPA_CONTROL_REG(VALUE_SHADER_REG_HI(
-				    IPA_CTL_MAX_VAL_CNT_IDX)))) {
+		   (addr <= IPA_CONTROL_REG(VALUE_SHADER_REG_HI(IPA_CTL_MAX_VAL_CNT_IDX)))) {
 		u32 counter_index =
 			(addr - IPA_CONTROL_REG(VALUE_SHADER_REG_LO(0))) >> 3;
 		bool is_low_word =
@@ -2206,17 +2201,4 @@ int gpu_model_control(void *model,
 	spin_unlock_irqrestore(&hw_error_status.access_lock, flags);
 
 	return 0;
-}
-
-/**
- * kbase_is_gpu_removed - Has the GPU been removed.
- * @kbdev:    Kbase device pointer
- *
- * This function would return true if the GPU has been removed.
- * It is stubbed here
- * Return: Always false
- */
-bool kbase_is_gpu_removed(struct kbase_device *kbdev)
-{
-	return false;
 }

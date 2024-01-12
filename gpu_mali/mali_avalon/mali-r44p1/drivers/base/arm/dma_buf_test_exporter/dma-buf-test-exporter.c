@@ -31,6 +31,9 @@
 #include <linux/mm.h>
 #include <linux/highmem.h>
 #include <linux/dma-mapping.h>
+#if KERNEL_VERSION(5, 5, 0) <= LINUX_VERSION_CODE
+#include <linux/dma-resv.h>
+#endif
 #include <linux/version_compat_defs.h>
 
 #define DMA_BUF_TE_VER_MAJOR 1
@@ -66,6 +69,9 @@ struct dma_buf_te_alloc {
 	bool contiguous;
 	dma_addr_t contig_dma_addr;
 	void *contig_cpu_addr;
+
+	/* @lock: Used internally to serialize list manipulation, attach/detach etc. */
+	struct mutex lock;
 };
 
 struct dma_buf_te_attachment {
@@ -92,8 +98,9 @@ static int dma_buf_te_attach(struct dma_buf *buf, struct dma_buf_attachment *att
 	if (!attachment->priv)
 		return -ENOMEM;
 
-	/* dma_buf is externally locked during call */
+	mutex_lock(&alloc->lock);
 	alloc->nr_attached_devices++;
+	mutex_unlock(&alloc->lock);
 	return 0;
 }
 
@@ -108,11 +115,12 @@ static void dma_buf_te_detach(struct dma_buf *buf, struct dma_buf_attachment *at
 	struct dma_buf_te_alloc *alloc = buf->priv;
 	struct dma_buf_te_attachment *pa = attachment->priv;
 
-	/* dma_buf is externally locked during call */
+	mutex_lock(&alloc->lock);
 
 	WARN(pa->attachment_mapped, "WARNING: dma-buf-test-exporter detected detach with open device mappings");
 
 	alloc->nr_attached_devices--;
+	mutex_unlock(&alloc->lock);
 
 	kfree(pa);
 }
@@ -146,14 +154,14 @@ static struct sg_table *dma_buf_te_map(struct dma_buf_attachment *attachment, en
 		return ERR_PTR(-ENOMEM);
 
 	/* from here we access the allocation object, so lock the dmabuf pointing to it */
-	mutex_lock(&attachment->dmabuf->lock);
+	mutex_lock(&alloc->lock);
 
 	if (alloc->contiguous)
 		ret = sg_alloc_table(sg, 1, GFP_KERNEL);
 	else
 		ret = sg_alloc_table(sg, alloc->nr_pages, GFP_KERNEL);
 	if (ret) {
-		mutex_unlock(&attachment->dmabuf->lock);
+		mutex_unlock(&alloc->lock);
 		kfree(sg);
 		return ERR_PTR(ret);
 	}
@@ -168,7 +176,7 @@ static struct sg_table *dma_buf_te_map(struct dma_buf_attachment *attachment, en
 	}
 
 	if (!dma_map_sg(attachment->dev, sg->sgl, sg->nents, direction)) {
-		mutex_unlock(&attachment->dmabuf->lock);
+		mutex_unlock(&alloc->lock);
 		sg_free_table(sg);
 		kfree(sg);
 		return ERR_PTR(-ENOMEM);
@@ -177,7 +185,7 @@ static struct sg_table *dma_buf_te_map(struct dma_buf_attachment *attachment, en
 	alloc->nr_device_mappings++;
 	pa->attachment_mapped = true;
 	pa->sg = sg;
-	mutex_unlock(&attachment->dmabuf->lock);
+	mutex_unlock(&alloc->lock);
 	return sg;
 }
 
@@ -189,14 +197,14 @@ static void dma_buf_te_unmap(struct dma_buf_attachment *attachment,
 
 	alloc = attachment->dmabuf->priv;
 
-	mutex_lock(&attachment->dmabuf->lock);
+	mutex_lock(&alloc->lock);
 
 	WARN(!pa->attachment_mapped, "WARNING: Unmatched unmap of attachment.");
 
 	alloc->nr_device_mappings--;
 	pa->attachment_mapped = false;
 	pa->sg = NULL;
-	mutex_unlock(&attachment->dmabuf->lock);
+	mutex_unlock(&alloc->lock);
 
 	dma_unmap_sg(attachment->dev, sg->sgl, sg->nents, direction);
 	sg_free_table(sg);
@@ -210,6 +218,7 @@ static void dma_buf_te_release(struct dma_buf *buf)
 
 	alloc = buf->priv;
 	/* no need for locking */
+	mutex_destroy(&alloc->lock);
 
 	if (alloc->contiguous) {
 		dma_free_attrs(te_device.this_device,
@@ -234,8 +243,17 @@ static int dma_buf_te_sync(struct dma_buf *dmabuf,
 			bool start_cpu_access)
 {
 	struct dma_buf_attachment *attachment;
+	struct dma_buf_te_alloc *alloc = dmabuf->priv;
 
+	/* Use the kernel lock to prevent the concurrent update of dmabuf->attachments */
+#if KERNEL_VERSION(5, 5, 0) <= LINUX_VERSION_CODE
+	dma_resv_lock(dmabuf->resv, NULL);
+#else
 	mutex_lock(&dmabuf->lock);
+#endif
+
+	/* Use the internal lock to block the concurrent attach/detach calls */
+	mutex_lock(&alloc->lock);
 
 	list_for_each_entry(attachment, &dmabuf->attachments, node) {
 		struct dma_buf_te_attachment *pa = attachment->priv;
@@ -257,7 +275,14 @@ static int dma_buf_te_sync(struct dma_buf *dmabuf,
 		}
 	}
 
+	mutex_unlock(&alloc->lock);
+
+#if KERNEL_VERSION(5, 5, 0) <= LINUX_VERSION_CODE
+	dma_resv_unlock(dmabuf->resv);
+#else
 	mutex_unlock(&dmabuf->lock);
+#endif
+
 	return 0;
 }
 
@@ -281,9 +306,9 @@ static void dma_buf_te_mmap_open(struct vm_area_struct *vma)
 	dma_buf = vma->vm_private_data;
 	alloc = dma_buf->priv;
 
-	mutex_lock(&dma_buf->lock);
+	mutex_lock(&alloc->lock);
 	alloc->nr_cpu_mappings++;
-	mutex_unlock(&dma_buf->lock);
+	mutex_unlock(&alloc->lock);
 }
 
 static void dma_buf_te_mmap_close(struct vm_area_struct *vma)
@@ -294,10 +319,10 @@ static void dma_buf_te_mmap_close(struct vm_area_struct *vma)
 	dma_buf = vma->vm_private_data;
 	alloc = dma_buf->priv;
 
+	mutex_lock(&alloc->lock);
 	BUG_ON(alloc->nr_cpu_mappings <= 0);
-	mutex_lock(&dma_buf->lock);
 	alloc->nr_cpu_mappings--;
-	mutex_unlock(&dma_buf->lock);
+	mutex_unlock(&alloc->lock);
 }
 
 #if KERNEL_VERSION(4, 11, 0) > LINUX_VERSION_CODE
@@ -523,6 +548,8 @@ static int do_dma_buf_te_ioctl_alloc(struct dma_buf_te_ioctl_alloc __user *buf, 
 		}
 	}
 
+	mutex_init(&alloc->lock);
+
 	/* alloc ready, let's export it */
 	{
 		struct dma_buf_export_info export_info = {
@@ -556,6 +583,7 @@ no_fd:
 	dma_buf_put(dma_buf);
 no_export:
 	/* i still valid */
+	mutex_destroy(&alloc->lock);
 no_page:
 	if (contiguous) {
 		dma_free_attrs(te_device.this_device,
@@ -603,11 +631,11 @@ static int do_dma_buf_te_ioctl_status(struct dma_buf_te_ioctl_status __user *arg
 	alloc = dmabuf->priv;
 
 	/* lock while reading status to take a snapshot */
-	mutex_lock(&dmabuf->lock);
+	mutex_lock(&alloc->lock);
 	status.attached_devices = alloc->nr_attached_devices;
 	status.device_mappings = alloc->nr_device_mappings;
 	status.cpu_mappings = alloc->nr_cpu_mappings;
-	mutex_unlock(&dmabuf->lock);
+	mutex_unlock(&alloc->lock);
 
 	if (copy_to_user(arg, &status, sizeof(status)))
 		goto err_have_dmabuf;
@@ -641,11 +669,11 @@ static int do_dma_buf_te_ioctl_set_failing(struct dma_buf_te_ioctl_set_failing _
 	/* ours, set the fail modes */
 	alloc = dmabuf->priv;
 	/* lock to set the fail modes atomically */
-	mutex_lock(&dmabuf->lock);
+	mutex_lock(&alloc->lock);
 	alloc->fail_attach = f.fail_attach;
 	alloc->fail_map    = f.fail_map;
 	alloc->fail_mmap   = f.fail_mmap;
-	mutex_unlock(&dmabuf->lock);
+	mutex_unlock(&alloc->lock);
 
 	/* success */
 	res = 0;

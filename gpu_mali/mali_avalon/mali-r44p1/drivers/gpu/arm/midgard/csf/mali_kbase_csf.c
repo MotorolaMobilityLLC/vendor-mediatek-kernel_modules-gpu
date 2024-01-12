@@ -186,19 +186,19 @@ static int get_user_pages_mmap_handle(struct kbase_context *kctx,
 
 static void init_user_io_pages(struct kbase_queue *queue)
 {
-	u32 *input_addr = (u32 *)(queue->user_io_addr);
-	u32 *output_addr = (u32 *)(queue->user_io_addr + PAGE_SIZE);
+	u64 *input_addr = queue->user_io_addr;
+	u64 *output_addr64 = queue->user_io_addr + PAGE_SIZE / sizeof(u64);
+	u32 *output_addr32 = (u32 *)(queue->user_io_addr + PAGE_SIZE / sizeof(u64));
 
-	input_addr[CS_INSERT_LO/4] = 0;
-	input_addr[CS_INSERT_HI/4] = 0;
-
-	input_addr[CS_EXTRACT_INIT_LO/4] = 0;
-	input_addr[CS_EXTRACT_INIT_HI/4] = 0;
-
-	output_addr[CS_EXTRACT_LO/4] = 0;
-	output_addr[CS_EXTRACT_HI/4] = 0;
-
-	output_addr[CS_ACTIVE/4] = 0;
+	/*
+	 * CS_INSERT and CS_EXTRACT registers contain 64-bit memory addresses which
+	 * should be accessed atomically. Here we update them 32-bits at a time, but
+	 * as this is initialisation code, non-atomic accesses are safe.
+	 */
+	input_addr[CS_INSERT_LO / sizeof(*input_addr)] = 0;
+	input_addr[CS_EXTRACT_INIT_LO / sizeof(*input_addr)] = 0;
+	output_addr64[CS_EXTRACT_LO / sizeof(*output_addr64)] = 0;
+	output_addr32[CS_ACTIVE / sizeof(*output_addr32)] = 0;
 }
 
 static void kernel_unmap_user_io_pages(struct kbase_context *kctx,
@@ -220,7 +220,7 @@ static int kernel_map_user_io_pages(struct kbase_context *kctx,
 	struct page *page_list[2];
 	pgprot_t cpu_map_prot;
 	unsigned long flags;
-	char *user_io_addr;
+	uint64_t *user_io_addr;
 	int ret = 0;
 	size_t i;
 
@@ -1996,9 +1996,6 @@ static void report_tiler_oom_error(struct kbase_queue_group *group)
 
 static void flush_gpu_cache_on_fatal_error(struct kbase_device *kbdev)
 {
-	int err;
-	const unsigned int cache_flush_wait_timeout_ms = 2000;
-
 	kbase_pm_lock(kbdev);
 	/* With the advent of partial cache flush, dirty cache lines could
 	 * be left in the GPU L2 caches by terminating the queue group here
@@ -2008,17 +2005,12 @@ static void flush_gpu_cache_on_fatal_error(struct kbase_device *kbdev)
 	 */
 	if (kbdev->pm.backend.gpu_powered) {
 		kbase_gpu_start_cache_clean(kbdev, GPU_COMMAND_CACHE_CLN_INV_L2_LSC);
-		err = kbase_gpu_wait_cache_clean_timeout(kbdev, cache_flush_wait_timeout_ms);
-
-		if (err) {
+		if (kbase_gpu_wait_cache_clean_timeout(kbdev,
+						       kbdev->mmu_or_gpu_cache_op_wait_time_ms))
 			dev_warn(
 				kbdev->dev,
-				"[%llu] Timeout waiting for cache clean to complete after fatal error",
+				"[%llu] Timeout waiting for CACHE_CLN_INV_L2_LSC to complete after fatal error",
 				kbase_backend_get_cycle_cnt(kbdev));
-
-			if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
-				kbase_reset_gpu(kbdev);
-		}
 	}
 
 	kbase_pm_unlock(kbdev);
