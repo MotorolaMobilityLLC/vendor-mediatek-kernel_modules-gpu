@@ -5507,7 +5507,7 @@ void kbase_device_debugfs_term(struct kbase_device *kbdev)
 #endif /* CONFIG_DEBUG_FS */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-static u32 config_system_coherency = 0;
+static u32 config_system_coherency = 31;
 module_param(config_system_coherency, uint, 0444);
 MODULE_PARM_DESC(config_system_coherency, "System Coherency");
 #endif /* CONFIG_MALI_MTK_DEBUG */
@@ -5521,7 +5521,9 @@ int kbase_device_coherency_init(struct kbase_device *kbdev)
 	bool dma_coherent;
 	u32 override_coherency, gpu_id;
 	unsigned int prod_id;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+	config_system_coherency = 0;
+#endif /* CONFIG_MALI_MTK_ACP_DSU_REQ */
 	gpu_id = kbdev->gpu_props.props.raw_props.gpu_id;
 	gpu_id &= GPU_ID_VERSION_PRODUCT_ID;
 	prod_id = gpu_id >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT;
