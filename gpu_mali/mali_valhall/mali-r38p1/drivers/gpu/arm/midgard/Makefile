@@ -93,6 +93,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_ACP_SVP_WA := y
         CONFIG_MALI_MTK_ACP_DSU_REQ := y
         CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE := y
+        CONFIG_MALI_MTK_GLB_PWROFF_TIMEOUT:= y
     endif ## mt6985 ##
 endif
 
