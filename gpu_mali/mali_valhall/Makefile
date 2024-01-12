@@ -11,8 +11,9 @@
 # GNU General Public License for more details.
 #
 
-ifneq ($(CONFIG_MTK_GPU_VERSION),"")
-MTK_GPU_VERSION = $(subst ",,$(CONFIG_MTK_GPU_VERSION))
+UNQUOTE_CONFIG_MTK_GPU_VERSION = $(subst ",,$(CONFIG_MTK_GPU_VERSION))
+ifneq ($(UNQUOTE_CONFIG_MTK_GPU_VERSION),)
+MTK_GPU_VERSION = $(UNQUOTE_CONFIG_MTK_GPU_VERSION)
 endif
 
 ifneq ($(word 3,$(MTK_GPU_VERSION)),)

@@ -273,13 +273,14 @@ subdir-ccflags-y += $(ccflags-y)
 #obj-$(CONFIG_MALI_MIDGARD) += mali_kbase.o
 
 # MTK: Tell the Linux build system from which .o file to create the kernel module
+UNQUOTE_CONFIG_MTK_GPU_VERSION = $(subst ",,$(CONFIG_MTK_GPU_VERSION))
 # LD1.0
-ifneq ($(CONFIG_MTK_GPU_VERSION),"")
-obj-$(CONFIG_MALI_MIDGARD) += mali_kbase.o
+ifneq ($(UNQUOTE_CONFIG_MTK_GPU_VERSION),)
+    obj-$(CONFIG_MALI_MIDGARD) += mali_kbase.o
 # LD2.0
 else ifneq ($(wildcard $(KO_CODE_PATH)/platform/$(MTK_PLATFORM)),)
-obj-$(CONFIG_MALI_MIDGARD) += mali_kbase_$(MTK_PLATFORM).o
-mali_kbase_$(MTK_PLATFORM)-y := mali_kbase.o
+    obj-$(CONFIG_MALI_MIDGARD) += mali_kbase_$(MTK_PLATFORM).o
+    mali_kbase_$(MTK_PLATFORM)-y := mali_kbase.o
 endif
 
 ifeq ($(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM), y)
