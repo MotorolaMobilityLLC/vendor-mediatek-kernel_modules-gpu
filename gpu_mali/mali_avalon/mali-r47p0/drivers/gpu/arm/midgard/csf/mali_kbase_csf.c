@@ -1728,6 +1728,10 @@ void kbase_csf_ctx_handle_fault(struct kbase_context *kctx, struct kbase_fault *
 		if (group && group->run_state != KBASE_CSF_GROUP_TERMINATED) {
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 			dev_info(kbdev->dev, "Terminate ctx %d_%d, group %d, kbase_csf_ctx_handle_fault", group->kctx->tgid, group->kctx->id, group->handle);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"Terminate ctx %d_%d, group %d, kbase_csf_ctx_handle_fault\n", group->kctx->tgid, group->kctx->id, group->handle);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 			term_queue_group(group);
 			/* This would effectively be a NOP if the fatal error was already added to
@@ -2048,6 +2052,10 @@ static void kbase_queue_oom_event(struct kbase_queue *const queue)
 		kbase_csf_scheduler_unlock(kbdev);
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 		dev_info(kbdev->dev, "Terminate ctx %d_%d, group %d, kbase_queue_oom_event", group->kctx->tgid, group->kctx->id, group->handle);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Terminate ctx %d_%d, group %d, kbase_queue_oom_event\n", group->kctx->tgid, group->kctx->id, group->handle);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		term_queue_group(group);
 		flush_gpu_cache_on_fatal_error(kbdev);
@@ -2136,6 +2144,10 @@ static void timer_event_worker(struct work_struct *data)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	dev_info(kbdev->dev, "Terminate ctx %d_%d, group %d, timer_event_worker", group->kctx->tgid, group->kctx->id, group->handle);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		"Terminate ctx %d_%d, group %d, timer_event_worker\n", group->kctx->tgid, group->kctx->id, group->handle);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	mutex_lock(&kctx->csf.lock);
@@ -2468,6 +2480,10 @@ static void cs_error_worker(struct work_struct *const data)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 		dev_info(kbdev->dev, "Terminate ctx %d_%d, group %d, cs_error_worker", group->kctx->tgid, group->kctx->id, group->handle);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Terminate ctx %d_%d, group %d, cs_error_worker\n", group->kctx->tgid, group->kctx->id, group->handle);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	term_queue_group(group);
