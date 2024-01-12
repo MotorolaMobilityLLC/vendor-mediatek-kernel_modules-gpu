@@ -81,10 +81,6 @@
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
-#define MAX_COHERENT_REGION 1024
-#define DEFAULT_COHERENT_REGION_SIZE 64
-#endif
 
 /** Number of milliseconds before we time out on a GPU soft/hard reset */
 #define RESET_TIMEOUT           500
@@ -2083,11 +2079,6 @@ struct kbase_context {
 
 #if !MALI_USE_CSF
 	void *platform_data;
-#endif
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
-		struct mutex coherenct_region_lock;
-		struct kbase_va_region **coherenct_regions;
-		unsigned int coherent_region_nr;
 #endif
 	struct task_struct *task;
 
