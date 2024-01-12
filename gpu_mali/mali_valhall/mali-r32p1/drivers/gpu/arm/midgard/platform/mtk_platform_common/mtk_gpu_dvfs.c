@@ -25,9 +25,16 @@ void mtk_common_ged_dvfs_commit(unsigned long ui32NewFreqID,
                                 GED_DVFS_COMMIT_TYPE eCommitType,
                                 int *pbCommited)
 {
-	int ret = mtk_common_gpufreq_commit(ui32NewFreqID);
-	if (pbCommited) {
-		*pbCommited = (ret == 0) ? true : false;
+	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+	int ret;
+
+	if (!IS_ERR_OR_NULL(kbdev)) {
+		if (kbdev->pm.backend.gpu_ready) {
+			ret = mtk_common_gpufreq_commit(ui32NewFreqID);
+			if (pbCommited) {
+				*pbCommited = (ret == 0) ? true : false;
+			}
+		}
 	}
 }
 #endif
@@ -194,8 +201,10 @@ void MTKGPUFreq_change_notify(u32 clk_idx, u32 gpufreq)
 {
 	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
 
-	if (mtk_common_rate_change_notify_fp)
-		mtk_common_rate_change_notify_fp(kbdev, clk_idx, gpufreq);
+	if (!IS_ERR_OR_NULL(kbdev)) {
+		if (mtk_common_rate_change_notify_fp && kbdev->pm.backend.gpu_ready)
+			mtk_common_rate_change_notify_fp(kbdev, clk_idx, gpufreq);
+	}
 }
 #endif
 #endif
