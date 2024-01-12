@@ -346,7 +346,7 @@ static int wait_ready(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-		"AS_ACTIVE bit stuck for MCU AS. Might be caused by unstable GPU clk/pwr or faulty system");
+		"AS_ACTIVE bit stuck for MCU AS. Might be caused by unstable GPU clk/pwr or faulty system\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
@@ -1686,7 +1686,7 @@ static int wait_for_global_request_with_timeout(struct kbase_device *const kbdev
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"Timeout (%d ms) waiting for global request %x to complete",
+			"Timeout (%d ms) waiting for global request %x to complete\n",
 			timeout_ms, req_mask);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
