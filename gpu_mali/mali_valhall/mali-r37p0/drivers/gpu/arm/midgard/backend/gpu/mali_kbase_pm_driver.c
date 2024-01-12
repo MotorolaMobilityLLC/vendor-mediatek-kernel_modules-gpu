@@ -60,6 +60,17 @@
 
 #include <linux/of.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <mtk_gpufreq.h>
+#include "platform/mtk_platform_common.h"
+#include <ged_dcs.h>
+#include <ged_log.h>
+#if IS_ENABLED(CONFIG_MTK_IRQ_DBG)
+#include <linux/of_irq.h>
+extern void mt_irq_dump_status(int irq);
+#endif /* CONFIG_MTK_IRQ_DBG */
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 #ifdef CONFIG_MALI_CORESTACK
 bool corestack_driver_control = true;
 #else
@@ -2831,6 +2842,10 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 {
 	struct kbasep_reset_timeout_data rtdata;
 	int ret;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG) && IS_ENABLED(CONFIG_MTK_IRQ_DBG)
+	int i;
+	unsigned int irq;
+#endif
 
 	KBASE_KTRACE_ADD(kbdev, CORE_GPU_SOFT_RESET, NULL, 0);
 
@@ -2880,6 +2895,26 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		 * interrupts are not getting to the CPU
 		 */
 		dev_err(kbdev->dev, "Reset interrupt didn't reach CPU. Check interrupt assignments.\n");
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		dev_info(kbdev->dev, "GPU_IRQ_RAWSTAT=0x%08x GPU_IRQ_MASK=0x%08x GPU_IRQ_STATUS=0x%08x\n",
+						kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_RAWSTAT)),
+						kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_MASK)),
+						kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_STATUS)));
+#if IS_ENABLED(CONFIG_MTK_IRQ_DBG)
+		for (i = 0; i < 3; i++) {
+			// 0: GPU, 1: MMU, 2: JOB
+			irq = irq_of_parse_and_map(kbdev->dev->of_node, i);
+			if (irq)
+				mt_irq_dump_status(irq);
+		}
+#endif /* CONFIG_MTK_IRQ_DBG */
+		mtk_common_debug_dump();
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+		gpufreq_dump_infra_status();
+#else
+		mt_gpufreq_dump_infra_status();
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+#endif /* CONFIG_MALI_MTK_DEBUG */
 		/* If interrupts aren't working we can't continue. */
 		destroy_hrtimer_on_stack(&rtdata.timer);
 		return -EINVAL;
@@ -2932,6 +2967,10 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 
 int kbase_pm_protected_mode_enable(struct kbase_device *const kbdev)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	if (is_gpu_ged_log_enable())
+		pr_info("[gpu_debug]%s", __func__);
+#endif
 	kbase_reg_write(kbdev, GPU_CONTROL_REG(GPU_COMMAND),
 		GPU_COMMAND_SET_PROTECTED_MODE);
 	return 0;
@@ -2940,6 +2979,11 @@ int kbase_pm_protected_mode_enable(struct kbase_device *const kbdev)
 int kbase_pm_protected_mode_disable(struct kbase_device *const kbdev)
 {
 	lockdep_assert_held(&kbdev->pm.lock);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	if (is_gpu_ged_log_enable())
+		pr_info("[gpu_debug]%s", __func__);
+#endif
 
 	return kbase_pm_do_reset(kbdev);
 }

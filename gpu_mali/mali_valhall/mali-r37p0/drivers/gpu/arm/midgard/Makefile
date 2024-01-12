@@ -27,9 +27,11 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_DEBUG := y
         CONFIG_MALI_MIDGARD_DVFS := y
         CONFIG_MALI_DEVFREQ := y
+        CONFIG_MALI_MTK_DEBUG := y
         CONFIG_MALI_MTK_DEVFREQ := y
         CONFIG_MALI_PMU_LP4 := y
         CONFIG_MALI_SCMI_ENABLE := y
+        CONFIG_MALI_MTK_FENCE_DEBUG := y
     endif
 endif
 

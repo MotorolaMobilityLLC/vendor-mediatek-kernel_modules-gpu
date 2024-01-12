@@ -184,6 +184,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	ged_dvfs_set_gpu_core_mask_fp = mtk_set_core_mask;
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_gpu_fence_debug_dump_fp = mtk_common_gpu_fence_debug_dump;
+#endif
+
 	return 0;
 }
 

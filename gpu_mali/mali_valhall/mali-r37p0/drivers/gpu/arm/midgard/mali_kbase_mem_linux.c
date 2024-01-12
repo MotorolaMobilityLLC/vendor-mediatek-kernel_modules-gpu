@@ -671,12 +671,21 @@ unsigned long kbase_mem_evictable_reclaim_count_objects(struct shrinker *s,
 
 	kctx = container_of(s, struct kbase_context, reclaim);
 
+	// MTK add to prevent false alarm
+	lockdep_off();
+
+#if !IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	// avoid to report when shrinking for mtk_iova_dbg_alloc
 	WARN((sc->gfp_mask & __GFP_ATOMIC),
 	     "Shrinkers cannot be called for GFP_ATOMIC allocations. Check kernel mm for problems. gfp_mask==%x\n",
 	     sc->gfp_mask);
 	WARN(in_atomic(),
 	     "Shrinker called whilst in atomic context. The caller must switch to using GFP_ATOMIC or similar. gfp_mask==%x\n",
 	     sc->gfp_mask);
+#endif
+
+	// MTK add to prevent false alarm
+	lockdep_on();
 
 	return atomic_read(&kctx->evict_nents);
 }
