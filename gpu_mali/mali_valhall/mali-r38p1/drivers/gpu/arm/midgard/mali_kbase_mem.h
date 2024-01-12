@@ -93,6 +93,13 @@ struct kbase_aliased {
 #define KBASE_MEM_PHY_ALLOC_ACCESSED_CACHED  (1u << 0)
 #define KBASE_MEM_PHY_ALLOC_LARGE            (1u << 1)
 
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+/*
+ * Default value for struct kbase_device::jit_reclaim_timeout_ms.
+ */
+#define JIT_RECLAIM_DEFAULT_TIMEOUT_MS (1000)    /* 1 sec */
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
+
 /* struct kbase_mem_phy_alloc - Physical pages tracking object.
  *
  * Set up to track N pages.
@@ -322,6 +329,10 @@ static inline struct kbase_mem_phy_alloc *kbase_mem_phy_alloc_put(struct kbase_m
  *              JIT usage report, at any point in time it is allowed to take a
  *              random value that is no greater than va_pages (e.g. it may be
  *              greater than gpu_alloc->nents)
+ * @last_used_ts: Timestamp when this JIT mem was marked reclaimable.
+ *                This field was used with @kbdev->jit_reclaim_timeout_ms to
+ *                determine how long we should delay its reclaimation,
+ *                which may be prematurely done and lead to kswapd thrashing.
  */
 struct kbase_va_region {
 	struct rb_node rblink;
@@ -566,7 +577,11 @@ struct kbase_va_region {
 #endif /* MALI_JIT_PRESSURE_LIMIT_BASE */
 
 	int    va_refcnt;
+
 	int no_user_free_refcnt;
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	u64 last_used_ts;
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 };
 
 /**

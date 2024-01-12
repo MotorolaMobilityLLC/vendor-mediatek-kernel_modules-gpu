@@ -971,6 +971,9 @@ struct kbase_process {
  *                          memory handler.
  * @mmu_as_inactive_wait_time_ms: Maximum waiting time in ms for the completion of
  *                          a MMU operation
+ * @jit_reclaim_timeout_ms: This timeout value determines how long we should kept
+ *                          reclaimable jit mem from being reclaimed by shrinker
+ *                          prematurely, which causes kswapd thrashing.
  */
 struct kbase_device {
 	u32 hw_quirks_sc;
@@ -1259,6 +1262,10 @@ struct kbase_device {
 	bool reset_force_hard_reset;
 	spinlock_t reset_force_change;
 #endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	u32 jit_reclaim_timeout_ms;
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 };
 
 /**
