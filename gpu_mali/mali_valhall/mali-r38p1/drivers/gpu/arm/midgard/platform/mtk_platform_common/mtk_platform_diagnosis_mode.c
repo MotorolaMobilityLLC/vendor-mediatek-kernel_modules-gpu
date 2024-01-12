@@ -13,7 +13,7 @@
 
 
 static u64 g_diagnosis_mode = 0;
-static u64 g_diagnosis_dump_mask = 0x00000000;
+static u64 g_diagnosis_dump_mask = 0x0000000000000000;
 static int g_enable_diagnosis_node = 0;
 
 u64 mtk_diagnosis_mode_get_mode() {
@@ -65,7 +65,7 @@ static ssize_t diagnosis_dump_mask_show(struct device * const dev,
 	if (!kbdev)
 		return -ENODEV;
 
-	err = scnprintf(buf, PAGE_SIZE, "0x%08llx\n", g_diagnosis_dump_mask);
+	err = scnprintf(buf, PAGE_SIZE, "0x%016llx\n", g_diagnosis_dump_mask);
 
 	return err;
 }
@@ -78,9 +78,9 @@ static ssize_t diagnosis_dump_mask_store(struct device * const dev,
 	if (!kbdev)
 		return -ENODEV;
 
-	if (count == 11) {
+	if (count == 19) {
 		if (kstrtoull(buf, 0, &g_diagnosis_dump_mask) == 0) {
-			dev_info(kbdev->dev, "diagnosis_dump_mask set to 0x%08llx\n\r", g_diagnosis_dump_mask);
+			dev_info(kbdev->dev, "diagnosis_dump_mask set to 0x%016llx\n\r", g_diagnosis_dump_mask);
 		}
 	}
 
