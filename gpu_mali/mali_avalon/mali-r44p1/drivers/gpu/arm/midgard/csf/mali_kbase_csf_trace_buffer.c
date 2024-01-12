@@ -607,7 +607,7 @@ void mtk_kbase_csf_firmware_ke_dump_fwlog(struct kbase_device *kbdev)
 {
 	unsigned int read_size, total_size = 0;
 	struct firmware_trace_buffer *tb =
-		kbase_csf_firmware_get_trace_buffer(kbdev, FIRMWARE_LOG_BUF_NAME);
+		kbase_csf_firmware_get_trace_buffer(kbdev, KBASE_CSFFW_LOG_BUF_NAME);
 	if (tb == NULL || g_fw_dump_dest == NULL) {
 		dev_info(kbdev->dev, "Can't get the trace buffer, firmware trace dump skipped");
 		return;
