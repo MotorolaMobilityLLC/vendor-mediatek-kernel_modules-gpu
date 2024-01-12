@@ -30,6 +30,11 @@
 #include <csf/ipa_control/mali_kbase_csf_ipa_control.h>
 #include <mali_kbase_reset_gpu.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <mtk_gpufreq.h>
+#include "platform/mtk_platform_common.h"
+#endif
+
 /* Waiting timeout for GPU reset to complete */
 #define GPU_RESET_TIMEOUT_MS (5000) /* 5 seconds */
 #define DUMP_DWORDS_PER_LINE (4)
@@ -425,6 +430,15 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev,
 
 	if (WARN_ON(err)) {
 		kbase_csf_hwcnt_on_reset_error(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		if (!mtk_common_gpufreq_bringup()) {
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+			gpufreq_dump_infra_status();
+#else
+			mt_gpufreq_dump_infra_status();
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+		}
+#endif
 		return err;
 	}
 
@@ -445,6 +459,15 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev,
 
 	if (WARN_ON(err)) {
 		kbase_csf_hwcnt_on_reset_error(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		if (!mtk_common_gpufreq_bringup()) {
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+			gpufreq_dump_infra_status();
+#else
+			mt_gpufreq_dump_infra_status();
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+		}
+#endif
 		return err;
 	}
 
