@@ -35,6 +35,19 @@ static int mtk_logbuffer_regular_show(struct seq_file *m, void *v)
 }
 DEFINE_PROC_SHOW_ATTRIBUTE(mtk_logbuffer_regular);
 
+static int mtk_logbuffer_critical_show(struct seq_file *m, void *v)
+{
+	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return -1;
+
+	mtk_logbuffer_dump(&kbdev->logbuf_critical, m);
+
+	return 0;
+}
+DEFINE_PROC_SHOW_ATTRIBUTE(mtk_logbuffer_critical);
+
 static int mtk_logbuffer_exception_show(struct seq_file *m, void *v)
 {
 	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
@@ -56,6 +69,9 @@ int mtk_logbuffer_procfs_init(struct kbase_device *kbdev, struct proc_dir_entry 
 	if (kbdev->logbuf_regular.entries)
 		proc_create(kbdev->logbuf_regular.name, 0440, parent, &mtk_logbuffer_regular_proc_ops);
 
+	if (kbdev->logbuf_critical.entries)
+		proc_create(kbdev->logbuf_critical.name, 0440, parent, &mtk_logbuffer_critical_proc_ops);
+
 	if (kbdev->logbuf_exception.entries)
 		proc_create(kbdev->logbuf_exception.name, 0440, parent, &mtk_logbuffer_exception_proc_ops);
 
@@ -69,6 +85,9 @@ int mtk_logbuffer_procfs_term(struct kbase_device *kbdev, struct proc_dir_entry 
 
 	if (kbdev->logbuf_regular.entries)
 		remove_proc_entry(kbdev->logbuf_regular.name, parent);
+
+	if (kbdev->logbuf_critical.entries)
+		remove_proc_entry(kbdev->logbuf_critical.name, parent);
 
 	if (kbdev->logbuf_exception.entries)
 		remove_proc_entry(kbdev->logbuf_exception.name, parent);
@@ -332,6 +351,9 @@ void mtk_logbuffer_type_print(struct kbase_device *const kbdev, enum mtk_logbuff
 	if (logType == MTK_LOGBUFFER_TYPE_ALL || logType == MTK_LOGBUFFER_TYPE_REGULAR)
 		__mtk_logbuffer_print(&kbdev->logbuf_regular, buffer);
 
+	if (logType == MTK_LOGBUFFER_TYPE_ALL || logType == MTK_LOGBUFFER_TYPE_CRITICAL)
+		__mtk_logbuffer_print(&kbdev->logbuf_critical, buffer);
+
 	if (logType == MTK_LOGBUFFER_TYPE_ALL || logType == MTK_LOGBUFFER_TYPE_EXCEPTION)
 		__mtk_logbuffer_print(&kbdev->logbuf_exception, buffer);
 }
@@ -369,7 +391,7 @@ void mtk_logbuffer_dump(struct mtk_logbuffer_info *logbuf, struct seq_file *seq)
 
 static void mtk_logbuffer_init_internal(struct kbase_device *kbdev, struct mtk_logbuffer_info *logbuf,
                                         uint8_t *rmem_virt, size_t rmem_size, size_t offset, size_t size,
-                                        bool is_circular, bool has_timestamp, const char *name)
+                                        bool is_circular, const char *name)
 {
 	logbuf->fallback = (!rmem_virt || size > rmem_size) ? true : false;
 
@@ -379,7 +401,6 @@ static void mtk_logbuffer_init_internal(struct kbase_device *kbdev, struct mtk_l
 		logbuf->head = 0;
 		logbuf->name[0] = '\0';
 		logbuf->is_circular = is_circular;
-		logbuf->has_timestamp = has_timestamp;
 		logbuf->size = size;
 
 		if (!logbuf->fallback)
@@ -447,7 +468,7 @@ int mtk_logbuffer_init(struct kbase_device *kbdev)
 	         __func__, reserved_mem_phys, reserved_mem_size, reserved_mem_virt);
 
 	/* Create a circular buffer for regular logs */
-	logbuf_size = 1024 * 1536;
+	logbuf_size = 1024 * 1024;
 	mtk_logbuffer_init_internal(kbdev,
 	                            &kbdev->logbuf_regular,      /* logbuf */
 	                            (uint8_t *)reserved_mem_virt /* rmem_va */,
@@ -455,8 +476,19 @@ int mtk_logbuffer_init(struct kbase_device *kbdev)
 	                            0                            /* offset */,
 	                            (size_t)logbuf_size          /* size */,
 	                            true                         /* is_circular */,
-	                            true                         /* has_timestamp */,
 	                            "logbuf_regular"             /* name */);
+	rmem_remaining_size -= logbuf_size;
+
+	/* Create a circular buffer for critical logs */
+	logbuf_size = 1024 * 512;
+	mtk_logbuffer_init_internal(kbdev,
+	                            &kbdev->logbuf_critical,     /* logbuf */
+	                            (uint8_t *)reserved_mem_virt /* rmem_va */,
+	                            (size_t)rmem_remaining_size  /* rmem_size */,
+	                            1024 * 1024                  /* offset */,
+	                            (size_t)logbuf_size          /* size */,
+	                            true                         /* is_circular */,
+	                            "logbuf_critical"            /* name */);
 	rmem_remaining_size -= logbuf_size;
 
 	/* Create a non-circular buffer for exception logs */
@@ -468,7 +500,6 @@ int mtk_logbuffer_init(struct kbase_device *kbdev)
 	                            1024 * 1536                  /* offset */,
 	                            (size_t)logbuf_size          /* size */,
 	                            false                        /* is_circular */,
-	                            false                        /* has_timestamp */,
 	                            "logbuf_exception"           /* name */);
 	rmem_remaining_size -= logbuf_size;
 
