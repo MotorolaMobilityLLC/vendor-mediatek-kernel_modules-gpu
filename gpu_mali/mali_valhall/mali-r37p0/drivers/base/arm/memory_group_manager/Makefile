@@ -27,4 +27,5 @@ ifeq ($(CONFIG_MALI_MEMORY_GROUP_MANAGER), y)
 #obj-m := memory_group_manager.o
 obj-m += mali_mgm.o
 mali_mgm-y := memory_group_manager.o
+ccflags-y += -DCONFIG_MTK_MODIFY
 endif
