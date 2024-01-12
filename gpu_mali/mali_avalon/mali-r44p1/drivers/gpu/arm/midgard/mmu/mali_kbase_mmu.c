@@ -3080,6 +3080,14 @@ static int mmu_teardown_pages(struct kbase_device *kbdev, struct kbase_mmu_table
 
 	mutex_unlock(&mmut->mmu_lock);
 
+	/* This log is for local debug only */
+#if 0 && IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	dev_info(kbdev->dev, "Unmapped %zu pages from GPU at VA %llx for ctx %d_%d (as_nr %d), imported %d",
+		nr_phys_pages, vpfn << PAGE_SHIFT,
+		mmut->kctx ? mmut->kctx->tgid : 0, mmut->kctx ? mmut->kctx->id : 0, as_nr,
+		ignore_page_migration);
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+
 	return err;
 }
 
@@ -3479,6 +3487,14 @@ int kbase_mmu_migrate_page(struct tagged_addr old_phys, struct tagged_addr new_p
 
 		ret = kbase_mmu_hw_do_lock(kbdev, as, &op_param);
 		if (!ret) {
+			/* This log is for local debug only */
+#if 0 && MALI_USE_CSF && !defined(MALI_ONLY_INCLUDE_RELEASED_GPUS) && IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+			if (mmu_flush_cache_on_gpu_ctrl(kbdev))
+				ret = kbase_gpu_cache_flush_pa_range_and_busy_wait(
+					kbdev, as_phys_addr_t(old_phys), PAGE_SIZE,
+					GPU_COMMAND_FLUSH_PA_RANGE_CLN_INV_L2_LSC);
+			else
+#endif /* MALI_USE_CSF && !MALI_ONLY_INCLUDE_RELEASED_GPUS && CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 				ret = kbase_gpu_cache_flush_and_busy_wait(
 					kbdev, GPU_COMMAND_CACHE_CLN_INV_L2_LSC);
 		}
