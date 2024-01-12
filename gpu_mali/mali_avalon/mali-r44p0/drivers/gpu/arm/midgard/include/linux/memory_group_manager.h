@@ -37,6 +37,7 @@ typedef int vm_fault_t;
 #define GPU_ONLY_PBHA 6
 #define GPU_TO_OVL_GID 7
 #define GPU_TO_OVL_PBHA 7
+#define GPU_TLS_PBHA 9
 #endif
 
 struct memory_group_manager_device;
