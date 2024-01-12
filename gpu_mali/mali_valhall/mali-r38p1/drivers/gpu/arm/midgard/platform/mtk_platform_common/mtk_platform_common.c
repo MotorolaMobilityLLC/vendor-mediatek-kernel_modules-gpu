@@ -144,6 +144,9 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 		mtk_debug_csf_dump_groups_and_queues(kbdev, pid);
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_CSFFWLOG)
+		mtk_kbase_csf_firmware_dump_fwlog(kbdev); /* dump fwlog, reserve 16k for fwlog*/
+#endif /* CONFIG_MALI_MTK_CSFFWLOG */
 		BUG_ON(1);
 #endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
 		break;
