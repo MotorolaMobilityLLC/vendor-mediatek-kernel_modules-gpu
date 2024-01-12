@@ -1838,7 +1838,9 @@ static void kcpu_queue_force_fence_signal(struct kbase_kcpu_command_queue *kcpu_
 				kbase_get_timeout_ms(kctx->kbdev, KCPU_FENCE_SIGNAL_TIMEOUT);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
+			mutex_unlock(&kcpu_queue->lock);
 			mutex_lock(&recovery_lock);
+			mutex_lock(&kcpu_queue->lock);
 #endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
 
 			dev_info(kctx->kbdev->dev,
@@ -1851,14 +1853,17 @@ static void kcpu_queue_force_fence_signal(struct kbase_kcpu_command_queue *kcpu_
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			kcpu_force_signal_fence(kcpu_queue);
 
+			mutex_unlock(&kcpu_queue->lock);
 #if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
 			mutex_unlock(&recovery_lock);
 #endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
+		} else {
+			mutex_unlock(&kcpu_queue->lock);
 		}
 #else /* CONFIG_MALI_MTK_FENCE_DEBUG */
 		kcpu_force_signal_fence(kcpu_queue);
-#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 		mutex_unlock(&kcpu_queue->lock);
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 	}
 }
 
