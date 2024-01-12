@@ -1,0 +1,23 @@
+load("//kernel_device_modules-5.15:mgk_ko.bzl", "define_mgk_ko")
+
+package(
+    default_visibility = [
+        "//visibility:public",
+    ],
+)
+
+define_mgk_ko(
+    name = "gpu",
+    srcs = glob(["**"]),
+    outs = [
+        "mt6983/mali_valhall/mali-r38p0/drivers/base/arm/memory_group_manager/mali_mgm_mt6983.ko",
+        "mt6983/mali_valhall/mali-r38p0/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6983.ko",
+        "mt6983/mali_valhall/mali-r38p0/drivers/gpu/arm/midgard/mali_kbase_mt6983.ko",
+        "mt6985/mali_valhall/mali-r38p1/drivers/base/arm/memory_group_manager/mali_mgm_mt6985.ko",
+        "mt6985/mali_valhall/mali-r38p1/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6985.ko",
+        "mt6985/mali_valhall/mali-r38p1/drivers/gpu/arm/midgard/mali_kbase_mt6985.ko",
+        "mt6886/mali_valhall/mali-r38p1/drivers/base/arm/memory_group_manager/mali_mgm_mt6886.ko",
+        "mt6886/mali_valhall/mali-r38p1/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6886.ko",
+        "mt6886/mali_valhall/mali-r38p1/drivers/gpu/arm/midgard/mali_kbase_mt6886.ko",
+    ],
+)
