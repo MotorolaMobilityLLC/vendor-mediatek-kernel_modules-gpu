@@ -21,9 +21,53 @@
 /*
  * memory dump for command stream buffers and mem_view
  */
-#define MTK_DEBUG_MEM_DUMP_DISABLE    0
-#define MTK_DEBUG_MEM_DUMP_CB_ONLY    1  /* dump command stream buffers only */
-#define MTK_DEBUG_MEM_DUMP_FULL       2  /* dump full mem_view */
+#define MTK_DEBUG_MEM_DUMP_DISABLE	0
+#define MTK_DEBUG_MEM_DUMP_CB_ONLY	1			/* dump command stream buffers only */
+
+#define MTK_DEBUG_MEM_DUMP_HEADER	0x574549565f4d454d	/* magic number for packet header */
+#define MTK_DEBUG_MEM_DUMP_FAIL		0x4c4941465f50414d	/* magic number for map fail */
+
+#define MTK_DEBUG_MEM_DUMP_OVERFLOW	0x0001
+
+/* keep size of packet_header == PAGE_SIZE * N */
+#define MTK_DEBUG_MEM_DUMP_NODE_PAGES	1
+#define MTK_DEBUG_MEM_DUMP_NODE_NUM	((MTK_DEBUG_MEM_DUMP_NODE_PAGES * PAGE_SIZE - 32) / 8)
+
+struct mtk_debug_mem_view_node_info {
+	u64 addr: 48;
+	u64 nr_pages: 16;
+};
+
+struct mtk_debug_mem_view_packet_header {
+	u64 tag;
+	u32 tgid;
+	u32 id;
+	u32 nr_nodes;
+	u32 nr_pages;
+	u64 flags;
+	struct mtk_debug_mem_view_node_info nodes[MTK_DEBUG_MEM_DUMP_NODE_NUM];
+};
+
+struct mtk_debug_mem_view_node {
+	struct kbase_mem_phy_alloc *alloc;
+	u64 start_pfn;
+	unsigned long flags;
+	int nr_pages;
+};
+
+struct mtk_debug_mem_view_dump_data {
+	struct kbase_device *kbdev;
+	struct kbase_context *kctx_prev;/* previous used kctx for dump */
+	struct kbase_context *kctx;	/* current used kctx for dump */
+
+	struct mtk_debug_mem_view_packet_header packet_header;
+	int node_count;			/* total region nodes of the kctx */
+	int page_count;			/* total pages of the kctx */
+
+	int node_idx;			/* used to control packet header or node output index */
+	int page_offset;		/* used to control page offset in a node */
+	struct mtk_debug_mem_view_node mem_view_nodes[MTK_DEBUG_MEM_DUMP_NODE_NUM];
+};
 
 /*
  * Dump command stream buffers that associated with command queue groups.
