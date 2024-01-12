@@ -278,13 +278,18 @@ void mtk_debug_dump_pm_status(struct kbase_device *kbdev)
 }
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+#define USING_ZLIB_COMPRESSING		1
 #define MAX_CS_DUMP_NUM_KCTX		16
 #define MAX_CS_DUMP_NUM_CSG		(MAX_CS_DUMP_NUM_KCTX * 2)
 #define MAX_CS_DUMP_NUM_CSI_PER_CSG	5
 #define MAX_CS_DUMP_QUEUE_MEM		(MAX_CS_DUMP_NUM_CSG * MAX_CS_DUMP_NUM_CSI_PER_CSG)
 #define MAX_CS_DUMP_NUM_GPU_PAGES	256
 #define MAX_CS_DUMP_COUNT_PER_CSI	128
+#if USING_ZLIB_COMPRESSING && IS_ENABLED(CONFIG_ZLIB_DEFLATE)
+#define MAX_CSI_DUMP_CACHE_LINES	1024
+#else
 #define MAX_CSI_DUMP_CACHE_LINES	512
+#endif /* USING_ZLIB_COMPRESSING && CONFIG_ZLIB_DEFLATE */
 
 static struct mtk_debug_cs_queue_mem_data *cs_dump_queue_mem;
 static int cs_dump_queue_mem_ptr;
@@ -528,6 +533,90 @@ static struct mtk_debug_cs_queue_dump_record_gpu_addr *mtk_debug_cs_queue_dump_r
 	return gpu_addr_node;
 }
 
+#if USING_ZLIB_COMPRESSING && IS_ENABLED(CONFIG_ZLIB_DEFLATE)
+#include <linux/zlib.h>
+#include <linux/zutil.h>
+
+#define STREAM_END_SPACE 0
+#define ZLIB_OUT_SIZE ((uint32_t)PAGE_SIZE)
+
+static z_stream def_strm;
+static bool mtk_debug_cs_using_zlib = 1;
+static unsigned char *mtk_debug_cs_zlib_out;
+
+static int mtk_debug_cs_alloc_workspaces(struct kbase_device *kbdev)
+{
+	int workspacesize = zlib_deflate_workspacesize(MAX_WBITS, MAX_MEM_LEVEL);
+
+	def_strm.workspace = vmalloc(workspacesize);
+	if (!def_strm.workspace) {
+		mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+			"Allocat %d bytes for deflate workspace failed!", workspacesize);
+		return -ENOMEM;
+	}
+
+	mtk_debug_cs_zlib_out = kmalloc(ZLIB_OUT_SIZE, GFP_KERNEL);
+	if (!mtk_debug_cs_zlib_out) {
+		mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+			"Allocat %u bytes for deflate output buffer failed!", ZLIB_OUT_SIZE);
+		vfree(def_strm.workspace);
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+
+static void mtk_debug_cs_free_workspaces(void)
+{
+	kfree(mtk_debug_cs_zlib_out);
+	vfree(def_strm.workspace);
+}
+
+static int mtk_debug_cs_zlib_compress(unsigned char *data_in, unsigned char *cpage_out,
+	uint32_t *sourcelen, uint32_t *dstlen)
+{
+	int ret;
+
+	if (*dstlen <= STREAM_END_SPACE)
+		return -1;
+
+	if (zlib_deflateInit(&def_strm, Z_DEFAULT_COMPRESSION) != Z_OK)
+		return -1;
+
+	def_strm.next_in = data_in;
+	def_strm.total_in = 0;
+
+	def_strm.next_out = cpage_out;
+	def_strm.total_out = 0;
+
+	while (def_strm.total_out < *dstlen - STREAM_END_SPACE && def_strm.total_in < *sourcelen) {
+		def_strm.avail_out = *dstlen - (def_strm.total_out + STREAM_END_SPACE);
+		def_strm.avail_in = min_t(unsigned long,
+			(*sourcelen - def_strm.total_in), def_strm.avail_out);
+		ret = zlib_deflate(&def_strm, Z_PARTIAL_FLUSH);
+		if (ret != Z_OK) {
+			zlib_deflateEnd(&def_strm);
+			return -1;
+		}
+	}
+	def_strm.avail_out += STREAM_END_SPACE;
+	def_strm.avail_in = 0;
+	ret = zlib_deflate(&def_strm, Z_FINISH);
+	zlib_deflateEnd(&def_strm);
+
+	if (ret != Z_STREAM_END)
+		return -1;
+
+	if (def_strm.total_out >= def_strm.total_in)
+		return -1;
+
+	*dstlen = def_strm.total_out;
+	*sourcelen = def_strm.total_in;
+
+	return 0;
+}
+#endif /* USING_ZLIB_COMPRESSING && CONFIG_ZLIB_DEFLATE */
+
 static void *mtk_debug_cs_queue_mem_map_and_dump_once(struct kbase_device *kbdev,
 				struct mtk_debug_cs_queue_mem_data *queue_mem,
 				u64 gpu_addr, u64 offset, u64 size)
@@ -540,6 +629,10 @@ static void *mtk_debug_cs_queue_mem_map_and_dump_once(struct kbase_device *kbdev
 	const u64 end = offset + size;
 	const int rows_per_map = sizeof(gpu_addr_node->bitmap[0]) * BITS_PER_BYTE;
 	unsigned int i, col;
+#if USING_ZLIB_COMPRESSING && IS_ENABLED(CONFIG_ZLIB_DEFLATE)
+	unsigned char *zlib_ptr = NULL;
+	uint32_t srclen;
+#endif /* USING_ZLIB_COMPRESSING && CONFIG_ZLIB_DEFLATE */
 
 	gpu_addr_node = mtk_debug_cs_queue_dump_record_map(queue_mem->kctx, gpu_addr);
 	if (!gpu_addr_node)
@@ -579,21 +672,96 @@ static void *mtk_debug_cs_queue_mem_map_and_dump_once(struct kbase_device *kbdev
 				bitmap_chk <<= 1;
 		}
 
-		/* The dump unit is cache line size (64bytes) but the actual */
-		/* printed size is 32 bytes per line, so we need dump twice. */
-		/* skip the line that all the values in it are zero */
-		for (col = 0; col < num_cols; col += 4) {
-			for (i = col; i < col + 4; i++)
-				if (ptr[i])
-					break;
-			if (i == col + 4)
-				continue;
-			mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+#if USING_ZLIB_COMPRESSING && IS_ENABLED(CONFIG_ZLIB_DEFLATE)
+		if (!mtk_debug_cs_using_zlib)
+#endif /* USING_ZLIB_COMPRESSING && CONFIG_ZLIB_DEFLATE */
+		{
+			/* The dump unit is cache line size (64bytes) but the actual */
+			/* printed size is 32 bytes per line, so we need dump twice. */
+			/* skip the line that all the values in it are zero */
+			for (col = 0; col < num_cols; col += 4) {
+				for (i = col; i < col + 4; i++)
+					if (ptr[i])
+						break;
+				if (i == col + 4)
+					continue;
+				mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+						"%016llx: %016llx %016llx %016llx %016llx",
+						gpu_addr + offset + col * sizeof(*ptr),
+						ptr[col + 0], ptr[col + 1], ptr[col + 2], ptr[col + 3]);
+			}
+			continue;
+		}
+
+#if USING_ZLIB_COMPRESSING && IS_ENABLED(CONFIG_ZLIB_DEFLATE)
+		if (zlib_ptr) {
+			if (zlib_ptr + srclen == (unsigned char *)ptr)
+				srclen += 64;
+			else {
+				typeof(ptr) ptr_cpu;
+				u64 ptr_gpu = gpu_addr + (((u64)zlib_ptr) & ~PAGE_MASK);
+				uint32_t dstlen = ZLIB_OUT_SIZE;
+				int ret;
+
+				ret = mtk_debug_cs_zlib_compress(zlib_ptr, mtk_debug_cs_zlib_out, &srclen, &dstlen);
+				if (ret) {
+					ptr_cpu = (typeof(ptr_cpu))zlib_ptr;
+					for (col = 0; col < srclen / sizeof(*ptr); col += 4) {
+						mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+							"%016llx: %016llx %016llx %016llx %016llx",
+							ptr_gpu + col * sizeof(*ptr),
+							ptr_cpu[col + 0], ptr_cpu[col + 1],
+							ptr_cpu[col + 2], ptr_cpu[col + 3]);
+					}
+				} else {
+					ptr_cpu = (typeof(ptr_cpu))mtk_debug_cs_zlib_out;
+					for (col = 0; col < (dstlen + sizeof(*ptr) - 1) / sizeof(*ptr); col += 4) {
+						mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+							"%010llx(%02lx/%03x/%02x): %016llx %016llx %016llx %016llx",
+							ptr_gpu, (col * sizeof(*ptr)) / 32, dstlen, srclen / 64,
+							ptr_cpu[col + 0], ptr_cpu[col + 1],
+							ptr_cpu[col + 2], ptr_cpu[col + 3]);
+					}
+				}
+				zlib_ptr = (unsigned char *)ptr;
+				srclen = 64;
+			}
+		} else {
+			zlib_ptr = (unsigned char *)ptr;
+			srclen = 64;
+		}
+#endif /* USING_ZLIB_COMPRESSING && CONFIG_ZLIB_DEFLATE */
+	}
+
+#if USING_ZLIB_COMPRESSING && IS_ENABLED(CONFIG_ZLIB_DEFLATE)
+	if (mtk_debug_cs_using_zlib && zlib_ptr) {
+		typeof(ptr) ptr_cpu;
+		u64 ptr_gpu = gpu_addr + (((u64)zlib_ptr) & ~PAGE_MASK);
+		uint32_t dstlen = ZLIB_OUT_SIZE;
+		int ret;
+
+		ret = mtk_debug_cs_zlib_compress(zlib_ptr, mtk_debug_cs_zlib_out, &srclen, &dstlen);
+		if (ret) {
+			ptr_cpu = (typeof(ptr_cpu))zlib_ptr;
+			for (col = 0; col < srclen / sizeof(*ptr); col += 4) {
+				mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
 					"%016llx: %016llx %016llx %016llx %016llx",
-					gpu_addr + offset + col * sizeof(*ptr),
-					ptr[col + 0], ptr[col + 1], ptr[col + 2], ptr[col + 3]);
+					ptr_gpu + col * sizeof(*ptr),
+					ptr_cpu[col + 0], ptr_cpu[col + 1],
+					ptr_cpu[col + 2], ptr_cpu[col + 3]);
+			}
+		} else {
+			ptr_cpu = (typeof(ptr_cpu))mtk_debug_cs_zlib_out;
+			for (col = 0; col < (dstlen + sizeof(*ptr) - 1) / sizeof(*ptr); col += 4) {
+				mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+					"%010llx(%02lx/%03x/%02x): %016llx %016llx %016llx %016llx",
+					ptr_gpu, (col * sizeof(*ptr)) / 32, dstlen, srclen / 64,
+					ptr_cpu[col + 0], ptr_cpu[col + 1],
+					ptr_cpu[col + 2], ptr_cpu[col + 3]);
+			}
 		}
 	}
+#endif /* USING_ZLIB_COMPRESSING && CONFIG_ZLIB_DEFLATE */
 
 	return gpu_addr_node->cpu_addr;
 }
@@ -1845,8 +2013,13 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 	else
 		dump_queue_data = 0;
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-	if (dump_queue_data)
+	if (dump_queue_data) {
 		INIT_LIST_HEAD(&cs_queue_data.queue_list);
+#if USING_ZLIB_COMPRESSING && IS_ENABLED(CONFIG_ZLIB_DEFLATE)
+		if (mtk_debug_cs_using_zlib && mtk_debug_cs_alloc_workspaces(kbdev) != 0)
+			mtk_debug_cs_using_zlib = 0;
+#endif /* USING_ZLIB_COMPRESSING && CONFIG_ZLIB_DEFLATE */
+	}
 
 	do {
 		struct kbase_context *kctx, *kctx_dump;
@@ -1981,8 +2154,13 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 		}
 	} while (0);
 
-	if (dump_queue_data)
+	if (dump_queue_data) {
+#if USING_ZLIB_COMPRESSING && IS_ENABLED(CONFIG_ZLIB_DEFLATE)
+		if (mtk_debug_cs_using_zlib)
+			mtk_debug_cs_free_workspaces();
+#endif /* USING_ZLIB_COMPRESSING && CONFIG_ZLIB_DEFLATE */
 		mtk_debug_cs_queue_free_memory();
+	}
 }
 #endif
 
