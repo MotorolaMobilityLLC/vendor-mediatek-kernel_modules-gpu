@@ -2093,6 +2093,10 @@ struct kbase_context {
 	struct task_struct *task;
 
 	char comm[TASK_COMM_LEN];
+
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	char group_leader_comm[TASK_COMM_LEN];
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 };
 
 #ifdef CONFIG_MALI_CINSTR_GWT
