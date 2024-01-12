@@ -262,7 +262,7 @@ static void print_group_queues_data(struct kbase_queue_group *const group)
 	for (i = 0; i < 5; i++) {
 		struct kbase_queue *queue =
 				group->bound_queues[i];
-		if (queue) {
+		if (queue && queue->user_io_addr) {
 			u64 *input_addr = (u64 *)queue->user_io_addr;
 			u64 *output_addr = (u64 *)(queue->user_io_addr + PAGE_SIZE / sizeof(u64));
 
@@ -610,6 +610,7 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 
 	dump_hwif_registers(kbdev, as_no);
 	dump_iterator_registers(kbdev);
+	mutex_lock(&kctx->csf.lock);
 	for (csg_nr = 0; csg_nr < kbdev->csf.global_iface.group_num; csg_nr++) {
 		struct kbase_queue_group *const group =
 			kbdev->csf.scheduler.csg_slots[csg_nr].resident_group;
@@ -628,6 +629,7 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		print_group_queues_data(group);
 	}
+	mutex_unlock(&kctx->csf.lock);
 
 	kbdev->bypass_register_check = false;
 	mutex_unlock(&kbdev->register_check_lock);
