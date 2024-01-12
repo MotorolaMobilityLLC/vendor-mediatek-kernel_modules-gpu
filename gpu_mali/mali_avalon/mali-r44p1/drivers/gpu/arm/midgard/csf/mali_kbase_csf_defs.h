@@ -637,12 +637,20 @@ struct kbase_csf_kcpu_queue_context {
  * @buffer:     Buffer containing CPU queue information provided by Userspace.
  * @buffer_size: The size of @buffer.
  * @dump_req_status:  Indicates the current status for CPU queues dump request.
+ * @lock:             Serializes accesses to all members, MTK modified for cross_queue_sync_recovery
+ * @dump_cmd:         CPUQ dump command, MTK modified for cross_queue_sync_recovery
  * @dump_cmp:         Dumping cpu queue completion event.
  */
 struct kbase_csf_cpu_queue_context {
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY) || IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
+	struct mutex lock;
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY || CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT */
 	char *buffer;
 	size_t buffer_size;
 	atomic_t dump_req_status;
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
+	u8 dump_cmd;
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
 	struct completion dump_cmp;
 };
 
@@ -868,9 +876,9 @@ struct kbase_csf_context {
 	struct workqueue_struct *wq;
 	struct list_head link;
 	struct kbase_csf_scheduler_context sched;
-#if IS_ENABLED(CONFIG_DEBUG_FS)
+#if IS_ENABLED(CONFIG_DEBUG_FS) || IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
 	struct kbase_csf_cpu_queue_context cpu_queue;
-#endif
+#endif /* CONFIG_DEBUG_FS || CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
 	struct kbase_csf_user_reg_context user_reg;
 };
 

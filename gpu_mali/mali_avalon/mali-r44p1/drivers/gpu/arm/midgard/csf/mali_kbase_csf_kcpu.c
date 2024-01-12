@@ -48,6 +48,10 @@ static DEFINE_SPINLOCK(kbase_csf_fence_lock);
 #include <mali_kbase_reset_gpu.h>
 #endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
+#include <platform/mtk_platform_common/mtk_platform_qinspect_recovery.h>
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
+
 #ifdef CONFIG_MALI_FENCE_DEBUG
 #define FENCE_WAIT_TIMEOUT_MS 3000
 #endif
@@ -1827,9 +1831,56 @@ static void kcpu_queue_force_fence_signal(struct kbase_kcpu_command_queue *kcpu_
 	if (memcmp(kctx->comm, buff, sizeof(buff))) {
 		mutex_lock(&kcpu_queue->lock);
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
-		if (kcpu_queue->fence_signal_command_timeout_counter == 12)
+		if (kcpu_queue->fence_signal_command_timeout_counter == 12) {
+			unsigned int fence_signal_command_timeout_ms;
+			int i = 0;
+
+			fence_signal_command_timeout_ms = kcpu_queue->fence_signal_command_timeout_counter *
+				kbase_get_timeout_ms(kctx->kbdev, KCPU_FENCE_SIGNAL_TIMEOUT);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
+			mutex_lock(&recovery_lock);
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+			for (i = 0; i < 3; i++) {
+				if (!kbase_reset_gpu_try_prevent(kctx->kbdev))
+					break;
+			}
+#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
+
+			if (i != 3) {
+				dev_info(kctx->kbdev->dev,
+					"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms)! Trigger force signal fence",
+					kctx->tgid, kctx->id, kcpu_queue->id, fence_signal_command_timeout_ms);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+					"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms)! Trigger force signal fence\n",
+					kctx->tgid, kctx->id, kcpu_queue->id, fence_signal_command_timeout_ms);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+				kcpu_force_signal_fence(kcpu_queue);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+				kbase_reset_gpu_allow(kctx->kbdev);
+			} else {
+				dev_info(kctx->kbdev->dev,
+					"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms)! Prevent gpu reset fail, skip force signal fence",
+					kctx->tgid, kctx->id, kcpu_queue->id, fence_signal_command_timeout_ms);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+					"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms)! Prevent gpu reset fail, skip force signal fence\n",
+					kctx->tgid, kctx->id, kcpu_queue->id, fence_signal_command_timeout_ms);
+			}
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
+			mutex_unlock(&recovery_lock);
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
+		}
+#else /* CONFIG_MALI_MTK_FENCE_DEBUG */
+		kcpu_force_signal_fence(kcpu_queue);
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
-			kcpu_force_signal_fence(kcpu_queue);
 		mutex_unlock(&kcpu_queue->lock);
 	}
 }
@@ -2102,6 +2153,9 @@ static void kcpu_queue_dump(struct kbase_kcpu_command_queue *queue)
 #endif
 	struct kbase_sync_fence_info info;
 	size_t i;
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	unsigned int fence_signal_command_timeout_ms;
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	mutex_lock(&queue->lock);
 
@@ -2159,11 +2213,11 @@ static void kcpu_queue_dump(struct kbase_kcpu_command_queue *queue)
 		queue->fence_signal_command_timeout_counter = 1;
 	}
 
+	fence_signal_command_timeout_ms =
+		queue->fence_signal_command_timeout_counter * kbase_get_timeout_ms(kctx->kbdev, KCPU_FENCE_SIGNAL_TIMEOUT);
+
 	/* Dump when timeout 3s, 4s */
 	if ((queue->fence_signal_command_timeout_counter == 3) || (queue->fence_signal_command_timeout_counter == 4)) {
-		unsigned int fence_signal_command_timeout_ms =
-			queue->fence_signal_command_timeout_counter * kbase_get_timeout_ms(kctx->kbdev, KCPU_FENCE_SIGNAL_TIMEOUT);
-
 		dev_info(kctx->kbdev->dev,
 			"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms) on fence[%pK] context#seqno:%s (driver=%s, timeline=%s)",
 			kctx->tgid, kctx->id, queue->id,
@@ -2214,8 +2268,6 @@ static void kcpu_queue_dump(struct kbase_kcpu_command_queue *queue)
 		}
 #endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
 	} else if ((queue->fence_signal_command_timeout_counter % 5) == 0) {
-		unsigned int fence_signal_command_timeout_ms =
-			queue->fence_signal_command_timeout_counter * kbase_get_timeout_ms(kctx->kbdev, KCPU_FENCE_SIGNAL_TIMEOUT);
 		dev_info(kctx->kbdev->dev,
 			"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms) on fence[%pK] context#seqno:%s (driver=%s, timeline=%s)",
 			kctx->tgid, kctx->id, queue->id,
@@ -2236,6 +2288,50 @@ static void kcpu_queue_dump(struct kbase_kcpu_command_queue *queue)
 		kbase_fence_put(fence);
 		mutex_unlock(&queue->lock);
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
+	if (queue->fence_signal_command_timeout_counter == 5 || queue->fence_signal_command_timeout_counter == 6
+		|| queue->fence_signal_command_timeout_counter == 7 || queue->fence_signal_command_timeout_counter == 8
+		|| queue->fence_signal_command_timeout_counter == 9 || queue->fence_signal_command_timeout_counter == 10) {
+		int i = 0;
+
+		mutex_lock(&recovery_lock);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+		for (i = 0; i < 3; i++) {
+			if (!kbase_reset_gpu_try_prevent(kctx->kbdev))
+				break;
+		}
+#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
+
+		if (i != 3) {
+			dev_info(kctx->kbdev->dev,
+				"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms)! Trigger cross queue sync recovery",
+				kctx->tgid, kctx->id, queue->id, fence_signal_command_timeout_ms);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms)! Trigger cross queue sync recovery\n",
+				kctx->tgid, kctx->id, queue->id, fence_signal_command_timeout_ms);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+			mtk_qinspect_recovery(kctx, QINSPECT_KCPU_QUEUE, queue);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+			kbase_reset_gpu_allow(kctx->kbdev);
+		} else {
+			dev_info(kctx->kbdev->dev,
+				"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms)! Prevent gpu reset fail, skip recovery",
+				kctx->tgid, kctx->id, queue->id, fence_signal_command_timeout_ms);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms)! Prevent gpu reset fail, skip recovery\n",
+				kctx->tgid, kctx->id, queue->id, fence_signal_command_timeout_ms);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
+		}
+
+		mutex_unlock(&recovery_lock);
+	}
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
 #else /* CONFIG_MALI_MTK_FENCE_DEBUG */
 	dev_warn(kctx->kbdev->dev, "------------------------------------------------\n");
 	dev_warn(kctx->kbdev->dev, "KCPU Fence signal timeout detected for ctx:%d_%d\n", kctx->tgid,

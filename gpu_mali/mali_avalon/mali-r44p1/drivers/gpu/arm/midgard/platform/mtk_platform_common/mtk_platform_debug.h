@@ -68,13 +68,6 @@ struct mtk_debug_cs_queue_dump_record {
 	struct list_head record_list;
 };
 
-/* Value of CsfSourceEncoding.register_index must be less than or equal to 95 */
-#define MTK_DEBUG_CSF_REG_NUM 96
-union mtk_debug_csf_register_file {
-	u32 reg32[MTK_DEBUG_CSF_REG_NUM];
-	u64 reg64[MTK_DEBUG_CSF_REG_NUM / 2];
-};
-
 union mtk_debug_csf_instruction {
 	struct {
 		u64 pad: 56;
