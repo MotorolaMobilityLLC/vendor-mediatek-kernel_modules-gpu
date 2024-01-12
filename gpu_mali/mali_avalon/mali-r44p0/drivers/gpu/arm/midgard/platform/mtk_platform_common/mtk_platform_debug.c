@@ -891,16 +891,18 @@ static void *mtk_debug_cs_queue_mem_map_and_dump_once(struct kbase_device *kbdev
 	return gpu_addr_node->cpu_addr;
 }
 
-static void mtk_debug_cs_mem_dump(struct kbase_device *kbdev,
+static int mtk_debug_cs_mem_dump(struct kbase_device *kbdev,
 				struct mtk_debug_cs_queue_mem_data *queue_mem,
 				union mtk_debug_csf_register_file *rf,
 				int depth, u64 start, u64 end, bool skippable);
 
-static void mtk_debug_cs_mem_dump_linear(struct kbase_device *kbdev,
+static int mtk_debug_cs_mem_dump_linear(struct kbase_device *kbdev,
 				struct mtk_debug_cs_queue_mem_data *queue_mem,
 				union mtk_debug_csf_register_file *rf,
 				int depth, u64 buffer, u64 size, bool skippable)
 {
+	int ret;
+
 	if (skippable) {
 		if (size > PAGE_SIZE) {
 			/* dump last page */
@@ -908,37 +910,71 @@ static void mtk_debug_cs_mem_dump_linear(struct kbase_device *kbdev,
 
 			memset(rf, 0, sizeof(*rf));
 			if (buffer_end & ~PAGE_MASK) {
-				mtk_debug_cs_mem_dump(kbdev, queue_mem, rf,
-					depth, buffer_end & PAGE_SIZE, buffer_end, skippable);
 				mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
 						"%016llx: size of linear buffer > 1 pages, dump from 0x%016llx",
 						buffer, buffer_end & PAGE_SIZE);
+				ret = mtk_debug_cs_mem_dump(kbdev, queue_mem, rf,
+					depth, buffer_end & PAGE_SIZE, buffer_end, skippable);
+				if (ret != 0) {
+					mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+						"%016llx: mtk_debug_cs_mem_dump failed (%d,%llx,%llx,%d)!",
+						buffer, depth, buffer_end & PAGE_SIZE, buffer_end, skippable);
+					return ret;
+				}
 			} else {
-				mtk_debug_cs_mem_dump(kbdev, queue_mem, rf,
-					depth, buffer_end - PAGE_SIZE, buffer_end, skippable);
 				mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
 						"%016llx: size of linear buffer > 1 pages, dump from 0x%016llx",
 						buffer, buffer_end - PAGE_SIZE);
+				ret = mtk_debug_cs_mem_dump(kbdev, queue_mem, rf,
+					depth, buffer_end - PAGE_SIZE, buffer_end, skippable);
+				if (ret != 0) {
+					mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+						"%016llx: mtk_debug_cs_mem_dump failed (%d,%llx,%llx,%d)!",
+						buffer, depth, buffer_end - PAGE_SIZE, buffer_end, skippable);
+					return ret;
+				}
 			}
-		} else
-			mtk_debug_cs_mem_dump(kbdev, queue_mem, rf,
+		} else {
+			ret = mtk_debug_cs_mem_dump(kbdev, queue_mem, rf,
 				depth, buffer, buffer + size, skippable);
+			if (ret != 0) {
+				mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+					"%016llx: mtk_debug_cs_mem_dump failed (%d,%llx,%llx,%d)!",
+					buffer, depth, buffer, buffer + size, skippable);
+				return ret;
+			}
+		}
 	} else {
 		if (size > 16 * PAGE_SIZE) {
 			/* dump first 16 pages */
 			mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
 					"%016llx: size of linear buffer > 16 pages", buffer);
 			size = 16 * PAGE_SIZE;
-			mtk_debug_cs_mem_dump(kbdev, queue_mem, rf,
+			ret = mtk_debug_cs_mem_dump(kbdev, queue_mem, rf,
 				depth, buffer, (buffer + size) & PAGE_MASK, skippable);
 			memset(rf, 0, sizeof(*rf));
-		} else
-			mtk_debug_cs_mem_dump(kbdev, queue_mem, rf,
+			if (ret != 0) {
+				mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+					"%016llx: mtk_debug_cs_mem_dump failed (%d,%llx,%llx,%d)!",
+					buffer, depth, buffer, (buffer + size) & PAGE_MASK, skippable);
+				return ret;
+			}
+		} else {
+			ret = mtk_debug_cs_mem_dump(kbdev, queue_mem, rf,
 				depth, buffer, buffer + size, skippable);
+			if (ret != 0) {
+				mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+					"%016llx: mtk_debug_cs_mem_dump failed (%d,%llx,%llx,%d)!",
+					buffer, depth, buffer, buffer + size, skippable);
+				return ret;
+			}
+		}
 	}
+
+	return 0;
 }
 
-static void mtk_debug_cs_decode_inst(struct kbase_device *kbdev,
+static int mtk_debug_cs_decode_inst(struct kbase_device *kbdev,
 				struct mtk_debug_cs_queue_mem_data *queue_mem,
 				union mtk_debug_csf_register_file *rf,
 				int depth, u64 start, u64 end, bool skippable)
@@ -946,6 +982,7 @@ static void mtk_debug_cs_decode_inst(struct kbase_device *kbdev,
 	union mtk_debug_csf_instruction *inst = (union mtk_debug_csf_instruction *)start;
 	int reg;
 	u64 size, buffer, buffer_end;
+	int ret;
 
 	for (; (u64)inst < end; inst++) {
 		switch (inst->inst.opcode) {
@@ -974,15 +1011,23 @@ static void mtk_debug_cs_decode_inst(struct kbase_device *kbdev,
 			size = rf->reg32[reg];
 			if (!size || size & (8 - 1))
 				break;
-			mtk_debug_cs_mem_dump_linear(kbdev, queue_mem, rf, depth + 1, buffer, size, skippable);
+			ret = mtk_debug_cs_mem_dump_linear(kbdev, queue_mem, rf, depth + 1, buffer, size, skippable);
+			if (ret != 0) {
+				mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+					"%016llx: mtk_debug_cs_mem_dump_linear failed (%d,%llx,%llx,%d)!",
+					buffer, depth + 1, buffer, size, skippable);
+				return ret;
+			}
 			break;
 		default:
 			break;
 		}
 	}
+
+	return 0;
 }
 
-static void mtk_debug_cs_mem_dump(struct kbase_device *kbdev,
+static int mtk_debug_cs_mem_dump(struct kbase_device *kbdev,
 				struct mtk_debug_cs_queue_mem_data *queue_mem,
 				union mtk_debug_csf_register_file *rf,
 				int depth, u64 start, u64 end, bool skippable)
@@ -998,9 +1043,13 @@ static void mtk_debug_cs_mem_dump(struct kbase_device *kbdev,
 	u64 page_addr;
 	u64 cpu_addr;
 	u64 offset, size, chunk_size;
+	int ret;
 
-	if (depth >= MAXIMUM_CALL_STACK_DEPTH)
-		return;
+	if (depth >= MAXIMUM_CALL_STACK_DEPTH) {
+		mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+				"%s: Hit MAXIMUM_CALL_STACK_DEPTH (%d)!", __func__, MAXIMUM_CALL_STACK_DEPTH);
+		return -1;
+	}
 
 	/* dump buffers, using page as the dump unit */
 	page_addr = start & PAGE_MASK;
@@ -1010,26 +1059,39 @@ static void mtk_debug_cs_mem_dump(struct kbase_device *kbdev,
 	while (size) {
 		if (chunk_size > size)
 			chunk_size = size;
+
 		if (depth)	/* linear buffer */
 			cpu_addr = (u64)mtk_debug_cs_queue_mem_map_and_dump_once(kbdev, queue_mem,
 				page_addr, offset, chunk_size);
 		else		/* ring buffer, adjust page_addr */
 			cpu_addr = (u64)mtk_debug_cs_queue_mem_map_and_dump_once(kbdev, queue_mem,
 				(queue_mem->base_addr + (page_addr % queue_mem->size)), offset, chunk_size);
-		if (cpu_addr)
-			mtk_debug_cs_decode_inst(kbdev, queue_mem, rf, depth,
-				cpu_addr + offset, cpu_addr + offset + chunk_size, skippable);
+		if (!cpu_addr)
+			return -2;
+
+		ret = mtk_debug_cs_decode_inst(kbdev, queue_mem, rf, depth,
+			cpu_addr + offset, cpu_addr + offset + chunk_size, skippable);
+		if (ret != 0) {
+			mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+				"%s: mtk_debug_cs_decode_inst failed (%d,%llx,%llx,%d)!", __func__,
+				depth, cpu_addr + offset, cpu_addr + offset + chunk_size, skippable);
+			return ret;
+		}
+
 		page_addr += PAGE_SIZE;
 		offset = 0;
 		size -= chunk_size;
 		chunk_size = PAGE_SIZE;
 	}
+
+	return 0;
 }
 
 static void mtk_debug_cs_queue_dump(struct kbase_device *kbdev, struct mtk_debug_cs_queue_mem_data *queue_mem)
 {
 	union mtk_debug_csf_register_file rf;
 	u64 addr_start;
+	int rc;
 
 	if (queue_mem->group_type == 0) {
 		mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
@@ -1064,10 +1126,28 @@ static void mtk_debug_cs_queue_dump(struct kbase_device *kbdev, struct mtk_debug
 		addr_start = 0;
 
 	memset(&rf, 0, sizeof(rf));
-	if (addr_start < queue_mem->cs_extract)
-		mtk_debug_cs_mem_dump(kbdev, queue_mem, &rf, 0, addr_start, queue_mem->cs_extract, true);
-	if (queue_mem->cs_extract < queue_mem->cs_insert)
-		mtk_debug_cs_mem_dump(kbdev, queue_mem, &rf, 0, queue_mem->cs_extract, queue_mem->cs_insert, false);
+	if (addr_start < queue_mem->cs_extract) {
+		rc = mtk_debug_cs_mem_dump(kbdev, queue_mem, &rf,
+			0, addr_start, queue_mem->cs_extract, true);
+		if (rc != 0) {
+			mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+				"%016llx: mtk_debug_cs_mem_dump failed (%d,%llx,%llx,%d)!",
+				queue_mem->base_addr + (addr_start % queue_mem->size),
+				0, addr_start, queue_mem->cs_extract, true);
+			return;
+		}
+	}
+	if (queue_mem->cs_extract < queue_mem->cs_insert) {
+		rc = mtk_debug_cs_mem_dump(kbdev, queue_mem, &rf,
+			0, queue_mem->cs_extract, queue_mem->cs_insert, false);
+		if (rc != 0) {
+			mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+				"%016llx: mtk_debug_cs_mem_dump failed (%d,%llx,%llx,%d)!",
+				queue_mem->base_addr + (queue_mem->cs_extract % queue_mem->size),
+				0, queue_mem->cs_extract, queue_mem->cs_insert, false);
+			return;
+		}
+	}
 }
 
 static void mtk_debug_cs_queue_data_dump(struct kbase_device *kbdev, struct mtk_debug_cs_queue_data *cs_queue_data)
