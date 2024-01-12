@@ -1908,13 +1908,11 @@ u32 kbase_csf_firmware_get_mcu_core_pwroff_time(struct kbase_device *kbdev)
 
 u32 kbase_csf_firmware_set_mcu_core_pwroff_time(struct kbase_device *kbdev, u32 dur)
 {
-	unsigned long flags;
 	const u32 pwroff = convert_dur_to_core_pwroff_count(kbdev, dur);
 
-	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	lockdep_assert_held(&kbdev->hwaccess_lock);
 	kbdev->csf.mcu_core_pwroff_dur_us = dur;
 	kbdev->csf.mcu_core_pwroff_dur_count = pwroff;
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	dev_dbg(kbdev->dev, "MCU shader Core Poweroff input update: 0x%.8x", pwroff);
 
