@@ -469,7 +469,11 @@ static void _mtk_mfg_init_counter(void)
 	/* Default doesn't enable all HWC */
 	info.bitmask[0] = 0x157; /* JM */
 	info.bitmask[1] = 0x2; /* Tiler */
+#if defined(CONFIG_GPU_MT6897)
+	info.bitmask[2] = 0x0; /* Shader */
+#else
 	info.bitmask[2] = 0xffff; /* Shader */
+#endif
 	info.bitmask[3] = 0x1FCF; /* L2 & MMU */
 	handle = kbase_gator_hwcnt_init(&info);
 	if (!handle) {
@@ -585,6 +589,7 @@ static int _mtk_mfg_update_counter(void)
 			}
 		}
 
+#if !defined(CONFIG_GPU_MT6897)
 		for (i = 0; i < MFG_MTK_COUNTER_SIZE; i++) {
 			mali_pmus[cnt].id = cnt;
 			if (mfg_mtk_counters[i].read) {
@@ -598,6 +603,7 @@ static int _mtk_mfg_update_counter(void)
 			}
 			cnt++;
 		}
+#endif
 
 	}
 FINISH:
