@@ -5920,8 +5920,6 @@ static ssize_t mcu_shader_pwroff_timeout_store(struct device *dev, struct device
 	const struct kbase_pm_policy *current_policy;
 	bool always_on;
 
-	unsigned long flags;
-
 	if (!kbdev)
 		return -ENODEV;
 
