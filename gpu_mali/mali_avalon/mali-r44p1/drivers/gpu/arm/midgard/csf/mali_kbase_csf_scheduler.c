@@ -567,7 +567,6 @@ void kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev)
 					enqueue_gpu_idle_work(scheduler);
 				} else {
 					if (!hrtimer_active(&scheduler->apo_idle_timer)) {
-						kbase_pm_disable_db_mirror_interrupt(kbdev);
 						expiry_time = HR_TIMER_DELAY_NSEC(
 							ged_get_power_duration_ns() + 1000000);
 						hrtimer_start(&scheduler->apo_idle_timer,
