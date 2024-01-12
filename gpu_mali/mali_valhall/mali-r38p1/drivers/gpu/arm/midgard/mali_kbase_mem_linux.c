@@ -3385,7 +3385,9 @@ KBASE_EXPORT_TEST_API(kbase_vunmap);
 
 static void kbasep_add_mm_counter(struct mm_struct *mm, int member, long value)
 {
-#if (KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE)
+#if (KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE)
+	percpu_counter_add(&mm->rss_stat[member], value);
+#elif (KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE)
 	/* To avoid the build breakage due to an unexported kernel symbol
 	 * 'mm_trace_rss_stat' from later kernels, i.e. from V4.19.0 onwards,
 	 * we inline here the equivalent of 'add_mm_counter()' from linux
