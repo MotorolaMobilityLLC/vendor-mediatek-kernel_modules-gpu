@@ -25,6 +25,7 @@ GPU_OPTS += CONFIG_MALI_DEBUG=y
 GPU_OPTS += CONFIG_MALI_MIDGARD_DVFS=y
 GPU_OPTS += CONFIG_MALI_DEVFREQ=y
 GPU_OPTS += CONFIG_MALI_MTK_DEBUG=y
+GPU_OPTS += CONFIG_MALI_MTK_MEM_TRACK=y
 GPU_OPTS += CONFIG_MALI_MTK_NO_THERMAL=y
 include $(LOCAL_PATH_B)/gpu_$(word 1,$(subst _, ,$(LOCAL_MTK_GPU_VERSION)))/mali_$(word 2,$(subst _, ,$(LOCAL_MTK_GPU_VERSION)))/mali-$(word 3,$(subst _, ,$(LOCAL_MTK_GPU_VERSION)))/drivers/gpu/arm/midgard/Android.mk
 
