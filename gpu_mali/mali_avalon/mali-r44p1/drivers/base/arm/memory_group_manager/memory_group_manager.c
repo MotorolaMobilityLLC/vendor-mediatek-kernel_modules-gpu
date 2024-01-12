@@ -48,6 +48,7 @@
 #include <mtk_heap.h>
 #include <slbc_ops.h>
 #endif
+#include "mtk_platform_utils.h" /* MTK_INLINE */
 
 #if (KERNEL_VERSION(4, 20, 0) > LINUX_VERSION_CODE)
 static inline vm_fault_t vmf_insert_pfn_prot(struct vm_area_struct *vma,
@@ -669,7 +670,7 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 			return p;
 		}
 		else
-			dev_info(data->dev, "Impossible! This is a bug\n");
+			dev_err(data->dev, "Impossible! This is a bug\n");
 	}
 	spin_unlock(&data->free_4K_lst_lk);
 
@@ -945,10 +946,10 @@ static struct page *example_mgm_alloc_page(
 
 		if (data->gfp_mask != gfp_mask && ((data->gfp_mask | __GFP_NOWARN) != gfp_mask)) {
 			dev_info(data->dev, "Change gfp_mask, drop all cached pool\n");
-			mtk_mgm_pool_flush(data, 0, 0, 0, 0);
-			mtk_mgm_pool_flush(data, 0, 1, 0, 0);
 			mtk_mgm_pool_flush(data, 9, 0, 0, 0);
 			mtk_mgm_pool_flush(data, 9, 1, 0, 0);
+			mtk_mgm_pool_flush(data, 0, 0, 0, 0);
+			mtk_mgm_pool_flush(data, 0, 1, 0, 0);
 			data->gfp_mask = gfp_mask;
 		}
 
