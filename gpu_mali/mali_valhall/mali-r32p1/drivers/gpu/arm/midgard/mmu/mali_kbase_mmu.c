@@ -1610,7 +1610,11 @@ static void kbase_mmu_flush_invalidate_as(struct kbase_device *kbdev,
 	}
 
 	/* Make sure L2 cache is powered up */
-	kbase_pm_wait_for_desired_state(kbdev);
+	err = kbase_pm_wait_for_l2_powered(kbdev);
+	if (err) {
+		dev_err(kbdev->dev, "Wait for L2 power up failed on MMU flush for as %d sync %d",
+			as->number, sync);
+	}
 
 	/* AS transaction begin */
 	mutex_lock(&kbdev->mmu_hw_mutex);
