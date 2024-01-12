@@ -134,10 +134,10 @@ endif
 ccflags-y += \
     -I$(srctree)/include/linux \
     -I$(srctree)/drivers/staging/android \
-    -I$(src) \
-    -I$(src)/platform/$(MALI_PLATFORM_DIR) \
-    -I$(src)/../../../base \
-    -I$(src)/../../../../include
+    -I$(srctree)/$(src) \
+    -I$(srctree)/$(src)/platform/$(MALI_PLATFORM_DIR) \
+    -I$(srctree)/$(src)/../../../base \
+    -I$(srctree)/$(src)/../../../../include
 
 subdir-ccflags-y += $(ccflags-y)
 

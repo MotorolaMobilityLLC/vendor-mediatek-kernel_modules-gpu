@@ -260,7 +260,7 @@ ccflags-y += \
 	-I$(srctree)/drivers/gpu/mediatek/mt-plat \
 	-I$(srctree)/drivers/gpu/mediatek/gpufreq \
 	-I$(srctree)/drivers/gpu/mediatek/gpu_bm \
-	-I$(srctree)/drivers/misc/mediatek/include/mt-plat
+	-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat
 
 obj-$(CONFIG_MTK_GPU_SUPPORT) += pvrsrvkm_$(MTK_PLATFORM).o
 pvrsrvkm_$(MTK_PLATFORM)-y := $(pvrsrvkm-y) $(pvrsrvkm-m)

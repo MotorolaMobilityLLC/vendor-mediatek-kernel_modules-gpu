@@ -1,3 +1,10 @@
+# Support GKI mixed build
+ifeq ($(DEVICE_MODULES_PATH),)
+DEVICE_MODULES_PATH = $(srctree)
+else
+LINUXINCLUDE := $(DEVCIE_MODULES_INCLUDE) $(LINUXINCLUDE)
+endif
+
 include $(src)/Kbuild-mtk-custom-env
 
 curr := platform/mtk_platform_common

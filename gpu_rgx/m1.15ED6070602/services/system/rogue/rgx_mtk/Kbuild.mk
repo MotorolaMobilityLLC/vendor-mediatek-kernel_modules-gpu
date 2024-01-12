@@ -40,7 +40,7 @@ ccflags-y += \
 	-I$(TOP)/services/system/rogue/common/env/linux \
 	-I$(TOP)/services/linux/include \
 	-I$(TOP)/kernel/drivers/staging/imgtec \
-	-I$(srctree)/drivers/misc/mediatek/include/mt-plat \
+	-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat \
 	-I$(srctree)/drivers/staging/android/ion \
 	-I$(srctree)/drivers/staging/android/ion/mtk
 
@@ -54,8 +54,8 @@ ccflags-y += \
 	-I$(srctree)/drivers/gpu/mediatek/gpufreq/$(MTK_PLATFORM)
 else
 ccflags-y += \
-	-I$(srctree)/drivers/misc/mediatek/gpu/ged/include \
-	-I$(srctree)/drivers/misc/mediatek/include/mt-plat \
-	-I$(srctree)/drivers/misc/mediatek/gpu/gpu_bm \
-	-I$(srctree)/drivers/misc/mediatek/base/power/$(MTK_PLATFORM)
+	-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/gpu/ged/include \
+	-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat \
+	-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/gpu/gpu_bm \
+	-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/base/power/$(MTK_PLATFORM)
 endif

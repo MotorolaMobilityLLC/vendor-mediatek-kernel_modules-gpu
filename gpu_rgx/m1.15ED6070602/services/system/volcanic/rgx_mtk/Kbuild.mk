@@ -35,7 +35,7 @@ ccflags-y += \
 	-I$(TOP)/services/system/$(PVR_ARCH)/common/env/linux \
 	-I$(TOP)/services/linux/include \
 	-I$(TOP)/kernel/drivers/staging/imgtec \
-	-I$(srctree)/drivers/misc/mediatek/include/mt-plat \
+	-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat \
 	-I$(srctree)/drivers/staging/android/ion \
 	-I$(srctree)/drivers/staging/android/ion/mtk \
 	-I$(srctree)/drivers/gpu/mediatek \
