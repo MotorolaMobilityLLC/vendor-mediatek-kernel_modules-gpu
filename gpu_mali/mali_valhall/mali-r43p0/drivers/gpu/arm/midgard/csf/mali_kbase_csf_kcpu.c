@@ -246,7 +246,7 @@ static int kbase_kcpu_jit_allocate_process(
 	for (i = 0; i < count; i++, info++) {
 		/* The JIT ID is still in use so fail the allocation */
 		if (kctx->jit_alloc[info->id]) {
-			dev_dbg(kctx->kbdev->dev, "JIT ID still in use");
+			dev_vdbg(kctx->kbdev->dev, "JIT ID still in use");
 			ret = -EINVAL;
 			goto fail;
 		}
@@ -373,7 +373,7 @@ static int kbase_kcpu_jit_allocate_prepare(
 	lockdep_assert_held(&kcpu_queue->lock);
 
 	if (!kbase_mem_allow_alloc(kctx)) {
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Invalid attempt to allocate JIT memory by %s/%d for ctx %d_%d",
 			current->comm, current->pid, kctx->tgid, kctx->id);
 		ret = -EINVAL;
@@ -509,7 +509,7 @@ static int kbase_kcpu_jit_free_process(struct kbase_kcpu_command_queue *queue,
 		int item_err = 0;
 
 		if (!kctx->jit_alloc[ids[i]]) {
-			dev_dbg(kctx->kbdev->dev, "invalid JIT free ID");
+			dev_vdbg(kctx->kbdev->dev, "invalid JIT free ID");
 			rc = -EINVAL;
 			item_err = rc;
 		} else {
@@ -1085,7 +1085,7 @@ static int kbase_kcpu_cqs_wait_operation_process(struct kbase_device *kbdev,
 				sig_set = val > cqs_wait_operation->objs[i].val;
 				break;
 			default:
-				dev_dbg(kbdev->dev,
+				dev_vdbg(kbdev->dev,
 					"Unsupported CQS wait operation %d", cqs_wait_operation->objs[i].operation);
 
 				kbase_phy_alloc_mapping_put(queue->kctx, mapping);
@@ -1201,7 +1201,7 @@ static void kbasep_kcpu_cqs_do_set_operation_32(struct kbase_kcpu_command_queue 
 		*(u32 *)evt = val;
 		break;
 	default:
-		dev_dbg(kbdev->dev, "Unsupported CQS set operation %d", operation);
+		dev_vdbg(kbdev->dev, "Unsupported CQS set operation %d", operation);
 		queue->has_error = true;
 		break;
 	}
@@ -1220,7 +1220,7 @@ static void kbasep_kcpu_cqs_do_set_operation_64(struct kbase_kcpu_command_queue 
 		*(u64 *)evt = val;
 		break;
 	default:
-		dev_dbg(kbdev->dev, "Unsupported CQS set operation %d", operation);
+		dev_vdbg(kbdev->dev, "Unsupported CQS set operation %d", operation);
 		queue->has_error = true;
 		break;
 	}
@@ -1793,7 +1793,7 @@ static int delete_queue(struct kbase_context *kctx, u32 id)
 
 		kfree(queue);
 	} else {
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Attempt to delete a non-existent KCPU queue");
 		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 		err = -EINVAL;
@@ -1983,7 +1983,7 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 
 				if (meta == NULL) {
 					queue->has_error = true;
-					dev_dbg(
+					dev_vdbg(
 						kbdev->dev,
 						"failed to map an external resource");
 				}
@@ -2005,7 +2005,7 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 
 			if (!ret) {
 				queue->has_error = true;
-				dev_dbg(kbdev->dev,
+				dev_vdbg(kbdev->dev,
 						"failed to release the reference. resource not found");
 			}
 
@@ -2026,7 +2026,7 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 
 			if (!ret) {
 				queue->has_error = true;
-				dev_dbg(kbdev->dev,
+				dev_vdbg(kbdev->dev,
 						"failed to release the reference. resource not found");
 			}
 
@@ -2112,7 +2112,7 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 		}
 #endif
 		default:
-			dev_dbg(kbdev->dev,
+			dev_vdbg(kbdev->dev,
 				"Unrecognized command type");
 			break;
 		} /* switch */
@@ -2262,7 +2262,7 @@ static void KBASE_TLSTREAM_TL_KBASE_KCPUQUEUE_ENQUEUE_COMMAND(
 		break;
 #endif
 	default:
-		dev_dbg(kbdev->dev, "Unknown command type %u", cmd->type);
+		dev_vdbg(kbdev->dev, "Unknown command type %u", cmd->type);
 		break;
 	}
 }
@@ -2291,7 +2291,7 @@ int kbase_csf_kcpu_queue_enqueue(struct kbase_context *kctx,
 	 * in the set.
 	 */
 	if (enq->nr_commands != 1) {
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"More than one commands enqueued");
 		return -EINVAL;
 	}
@@ -2314,7 +2314,7 @@ int kbase_csf_kcpu_queue_enqueue(struct kbase_context *kctx,
 	mutex_lock(&kctx->csf.kcpu_queues.lock);
 	queue = kctx->csf.kcpu_queues.array[enq->id];
 	if (queue == NULL) {
-		dev_dbg(kctx->kbdev->dev, "Invalid KCPU queue (id:%u)", enq->id);
+		dev_vdbg(kctx->kbdev->dev, "Invalid KCPU queue (id:%u)", enq->id);
 		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 		return -EINVAL;
 	}
@@ -2350,7 +2350,7 @@ int kbase_csf_kcpu_queue_enqueue(struct kbase_context *kctx,
 
 		for (j = 0; j < sizeof(command.padding); j++) {
 			if (command.padding[j] != 0) {
-				dev_dbg(kctx->kbdev->dev,
+				dev_vdbg(kctx->kbdev->dev,
 					"base_kcpu_command padding not 0\n");
 				ret = -EINVAL;
 				goto out;
@@ -2425,7 +2425,7 @@ int kbase_csf_kcpu_queue_enqueue(struct kbase_context *kctx,
 			break;
 #endif
 		default:
-			dev_dbg(queue->kctx->kbdev->dev,
+			dev_vdbg(queue->kctx->kbdev->dev,
 				"Unknown command type %u", command.type);
 			ret = -EINVAL;
 			break;

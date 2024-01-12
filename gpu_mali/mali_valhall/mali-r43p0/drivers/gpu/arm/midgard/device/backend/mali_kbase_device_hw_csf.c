@@ -148,7 +148,7 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 	if (val & DOORBELL_MIRROR) {
 		unsigned long flags;
 
-		dev_dbg(kbdev->dev, "Doorbell mirror interrupt received");
+		dev_vdbg(kbdev->dev, "Doorbell mirror interrupt received");
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 		kbase_pm_disable_db_mirror_interrupt(kbdev);
 		kbdev->pm.backend.exit_gpu_sleep_mode = true;
@@ -220,7 +220,7 @@ void kbase_reg_write(struct kbase_device *kbdev, u32 offset, u32 value)
 		kbase_io_history_add(&kbdev->io_history, kbdev->reg + offset,
 				     value, 1);
 #endif /* CONFIG_DEBUG_FS */
-	dev_dbg(kbdev->dev, "w: reg %08x val %08x", offset, value);
+	dev_vdbg(kbdev->dev, "w: reg %08x val %08x", offset, value);
 }
 KBASE_EXPORT_TEST_API(kbase_reg_write);
 
@@ -244,7 +244,7 @@ u32 kbase_reg_read(struct kbase_device *kbdev, u32 offset)
 		kbase_io_history_add(&kbdev->io_history, kbdev->reg + offset,
 				     val, 0);
 #endif /* CONFIG_DEBUG_FS */
-	dev_dbg(kbdev->dev, "r: reg %08x val %08x", offset, val);
+	dev_vdbg(kbdev->dev, "r: reg %08x val %08x", offset, val);
 
 	return val;
 }

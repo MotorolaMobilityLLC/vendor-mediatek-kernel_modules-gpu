@@ -82,7 +82,7 @@ static int kbase_csf_firmware_log_enable_mask_write(void *data, u64 val)
 	/* Ignore unsupported types */
 	enable_bits_count = kbase_csf_firmware_trace_buffer_get_trace_enable_bits_count(tb);
 	if (enable_bits_count > 64) {
-		dev_dbg(kbdev->dev, "Limit enabled bits count from %u to 64", enable_bits_count);
+		dev_vdbg(kbdev->dev, "Limit enabled bits count from %u to 64", enable_bits_count);
 		enable_bits_count = 64;
 	}
 	new_mask = val & (UINT64_MAX >> (64 - enable_bits_count));
@@ -98,7 +98,7 @@ static int kbasep_csf_firmware_log_debugfs_open(struct inode *in, struct file *f
 	struct kbase_device *kbdev = in->i_private;
 
 	file->private_data = kbdev;
-	dev_dbg(kbdev->dev, "Opened firmware trace buffer dump debugfs file");
+	dev_vdbg(kbdev->dev, "Opened firmware trace buffer dump debugfs file");
 
 	return 0;
 }
@@ -265,7 +265,7 @@ void kbase_csf_firmware_log_dump_buffer(struct kbase_device *kbdev)
 		kbase_csf_firmware_get_trace_buffer(kbdev, FIRMWARE_LOG_BUF_NAME);
 
 	if (tb == NULL) {
-		dev_dbg(kbdev->dev, "Can't get the trace buffer, firmware trace dump skipped");
+		dev_vdbg(kbdev->dev, "Can't get the trace buffer, firmware trace dump skipped");
 		return;
 	}
 
@@ -373,7 +373,7 @@ static void toggle_logging_calls_in_loaded_image(struct kbase_device *kbdev, boo
 			bl_instruction |= imm10;
 
 			/* Patch logging func calls in their load location */
-			dev_dbg(kbdev->dev, "FW log patch 0x%x: 0x%x\n", calling_address,
+			dev_vdbg(kbdev->dev, "FW log patch 0x%x: 0x%x\n", calling_address,
 					bl_instruction);
 			kbase_csf_update_firmware_memory_exe(kbdev, calling_address,
 					bl_instruction);
@@ -403,7 +403,7 @@ int kbase_csf_firmware_log_toggle_logging_calls(struct kbase_device *kbdev, u32 
 		return -EBUSY;
 
 	/* Suspend all the active CS groups */
-	dev_dbg(kbdev->dev, "Suspend all the active CS groups");
+	dev_vdbg(kbdev->dev, "Suspend all the active CS groups");
 
 	kbase_csf_scheduler_lock(kbdev);
 	while (scheduler->state != SCHED_SUSPENDED) {
@@ -436,7 +436,7 @@ int kbase_csf_firmware_log_toggle_logging_calls(struct kbase_device *kbdev, u32 
 
 	/* Toggle FW logging call in the loaded FW image */
 	toggle_logging_calls_in_loaded_image(kbdev, val);
-	dev_dbg(kbdev->dev, "FW logging: %s", val ? "enabled" : "disabled");
+	dev_vdbg(kbdev->dev, "FW logging: %s", val ? "enabled" : "disabled");
 
 out:
 	kbase_csf_scheduler_unlock(kbdev);

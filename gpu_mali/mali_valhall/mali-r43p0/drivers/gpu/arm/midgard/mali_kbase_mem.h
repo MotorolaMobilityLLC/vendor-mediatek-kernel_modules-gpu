@@ -763,7 +763,7 @@ static inline struct kbase_va_region *kbase_va_region_alloc_get(
 	WARN_ON(!kbase_refcount_read(&region->va_refcnt));
 	WARN_ON(kbase_refcount_read(&region->va_refcnt) == INT_MAX);
 
-	dev_dbg(kctx->kbdev->dev, "va_refcnt %d before get %pK\n",
+	dev_vdbg(kctx->kbdev->dev, "va_refcnt %d before get %pK\n",
 		kbase_refcount_read(&region->va_refcnt), (void *)region);
 	kbase_refcount_inc(&region->va_refcnt);
 
@@ -779,7 +779,7 @@ static inline struct kbase_va_region *kbase_va_region_alloc_put(
 	if (kbase_refcount_dec_and_test(&region->va_refcnt))
 		kbase_region_refcnt_free(kctx->kbdev, region);
 
-	dev_dbg(kctx->kbdev->dev, "va_refcnt %d after put %pK\n",
+	dev_vdbg(kctx->kbdev->dev, "va_refcnt %d after put %pK\n",
 		kbase_refcount_read(&region->va_refcnt), (void *)region);
 
 	return NULL;
@@ -1402,7 +1402,7 @@ bool kbase_check_import_flags(unsigned long flags);
 static inline bool kbase_import_size_is_valid(struct kbase_device *kbdev, u64 va_pages)
 {
 	if (va_pages > KBASE_MEM_ALLOC_MAX_SIZE) {
-		dev_dbg(
+		dev_vdbg(
 			kbdev->dev,
 			"Import attempted with va_pages==%lld larger than KBASE_MEM_ALLOC_MAX_SIZE!",
 			(unsigned long long)va_pages);
@@ -1415,7 +1415,7 @@ static inline bool kbase_import_size_is_valid(struct kbase_device *kbdev, u64 va
 static inline bool kbase_alias_size_is_valid(struct kbase_device *kbdev, u64 va_pages)
 {
 	if (va_pages > KBASE_MEM_ALLOC_MAX_SIZE) {
-		dev_dbg(
+		dev_vdbg(
 			kbdev->dev,
 			"Alias attempted with va_pages==%lld larger than KBASE_MEM_ALLOC_MAX_SIZE!",
 			(unsigned long long)va_pages);

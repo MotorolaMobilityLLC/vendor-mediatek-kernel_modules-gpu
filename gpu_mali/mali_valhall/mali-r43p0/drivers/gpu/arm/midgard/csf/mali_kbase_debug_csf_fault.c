@@ -45,7 +45,7 @@ static bool kbasep_fault_occurred(struct kbase_device *kbdev)
 void kbase_debug_csf_fault_wait_completion(struct kbase_device *kbdev)
 {
 	if (likely(!kbase_debug_csf_fault_dump_enabled(kbdev))) {
-		dev_dbg(kbdev->dev, "No userspace client for dumping exists");
+		dev_vdbg(kbdev->dev, "No userspace client for dumping exists");
 		return;
 	}
 

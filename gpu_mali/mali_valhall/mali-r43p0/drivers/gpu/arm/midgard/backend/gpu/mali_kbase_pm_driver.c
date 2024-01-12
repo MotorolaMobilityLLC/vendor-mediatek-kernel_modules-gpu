@@ -573,14 +573,14 @@ static void kbase_pm_l2_config_override(struct kbase_device *kbdev)
 		val |= (0x1 << L2_CONFIG_ASN_HASH_ENABLE_SHIFT);
 
 		for (i = 0; i < ASN_HASH_COUNT; i++) {
-			dev_dbg(kbdev->dev, "Program 0x%x to ASN_HASH[%d]\n",
+			dev_vdbg(kbdev->dev, "Program 0x%x to ASN_HASH[%d]\n",
 				kbdev->l2_hash_values[i], i);
 			kbase_reg_write(kbdev, GPU_CONTROL_REG(ASN_HASH(i)),
 					kbdev->l2_hash_values[i]);
 		}
 	}
 
-	dev_dbg(kbdev->dev, "Program 0x%x to L2_CONFIG\n", val);
+	dev_vdbg(kbdev->dev, "Program 0x%x to L2_CONFIG\n", val);
 	kbase_reg_write(kbdev, GPU_CONTROL_REG(L2_CONFIG), val);
 }
 
@@ -1112,7 +1112,7 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 		}
 
 		if (backend->mcu_state != prev_state) {
-			dev_dbg(kbdev->dev, "MCU state transition: %s to %s\n",
+			dev_vdbg(kbdev->dev, "MCU state transition: %s to %s\n",
 				kbase_mcu_state_to_string(prev_state),
 				kbase_mcu_state_to_string(backend->mcu_state));
 			kbase_ktrace_log_mcu_state(kbdev, backend->mcu_state);
@@ -1273,7 +1273,7 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 			if (backend->hwcnt_disabled) {
 				backend->l2_state = KBASE_L2_OFF;
 				KBASE_KTRACE_ADD(kbdev, PM_L2_OFF, NULL, backend->l2_state);
-				dev_dbg(kbdev->dev, "GPU lost has occurred - L2 off\n");
+				dev_vdbg(kbdev->dev, "GPU lost has occurred - L2 off\n");
 			}
 			break;
 		}
@@ -1583,7 +1583,7 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 		}
 
 		if (backend->l2_state != prev_state) {
-			dev_dbg(kbdev->dev, "L2 state transition: %s to %s\n",
+			dev_vdbg(kbdev->dev, "L2 state transition: %s to %s\n",
 				kbase_l2_core_state_to_string(prev_state),
 				kbase_l2_core_state_to_string(
 					backend->l2_state));
@@ -1716,7 +1716,7 @@ static int kbase_pm_shaders_update_state(struct kbase_device *kbdev)
 #endif
 			backend->shaders_state =
 				KBASE_SHADERS_OFF_CORESTACK_OFF;
-			dev_dbg(kbdev->dev, "GPU lost has occurred - shaders off\n");
+			dev_vdbg(kbdev->dev, "GPU lost has occurred - shaders off\n");
 			break;
 		}
 
@@ -2025,7 +2025,7 @@ static int kbase_pm_shaders_update_state(struct kbase_device *kbdev)
 		}
 
 		if (backend->shaders_state != prev_state)
-			dev_dbg(kbdev->dev, "Shader state transition: %s to %s\n",
+			dev_vdbg(kbdev->dev, "Shader state transition: %s to %s\n",
 				kbase_shader_core_state_to_string(prev_state),
 				kbase_shader_core_state_to_string(
 					backend->shaders_state));
@@ -2599,7 +2599,7 @@ static void update_user_reg_page_mapping(struct kbase_device *kbdev)
 		unmap_mapping_range(kbdev->csf.user_reg.filp->f_inode->i_mapping,
 				    kctx->csf.user_reg.file_offset << PAGE_SHIFT, PAGE_SIZE, 1);
 		list_del_init(&kctx->csf.user_reg.link);
-		dev_dbg(kbdev->dev, "Updated USER Reg page mapping of ctx %d_%d", kctx->tgid,
+		dev_vdbg(kbdev->dev, "Updated USER Reg page mapping of ctx %d_%d", kctx->tgid,
 			kctx->id);
 	}
 	mutex_unlock(&kbdev->csf.reg_lock);
@@ -3048,7 +3048,7 @@ void kbase_pm_cache_snoop_enable(struct kbase_device *kbdev)
 		if (kbdev->snoop_enable_smc != 0)
 			kbase_invoke_smc_fid(kbdev->snoop_enable_smc, 0, 0, 0);
 #endif /* CONFIG_ARM64 */
-		dev_dbg(kbdev->dev, "MALI - CCI Snoops - Enabled\n");
+		dev_vdbg(kbdev->dev, "MALI - CCI Snoops - Enabled\n");
 		kbdev->cci_snoop_enabled = true;
 	}
 }
@@ -3062,7 +3062,7 @@ void kbase_pm_cache_snoop_disable(struct kbase_device *kbdev)
 			kbase_invoke_smc_fid(kbdev->snoop_disable_smc, 0, 0, 0);
 		}
 #endif /* CONFIG_ARM64 */
-		dev_dbg(kbdev->dev, "MALI - CCI Snoops Disabled\n");
+		dev_vdbg(kbdev->dev, "MALI - CCI Snoops Disabled\n");
 		kbdev->cci_snoop_enabled = false;
 	}
 }
@@ -3141,7 +3141,7 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 	}
 
 	if (kbase_is_gpu_removed(kbdev)) {
-		dev_dbg(kbdev->dev, "GPU has been removed, reset no longer needed.\n");
+		dev_vdbg(kbdev->dev, "GPU has been removed, reset no longer needed.\n");
 		destroy_hrtimer_on_stack(&rtdata.timer);
 		return -EINVAL;
 	}

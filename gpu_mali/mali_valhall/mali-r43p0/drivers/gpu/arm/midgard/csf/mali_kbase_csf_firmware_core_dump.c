@@ -472,7 +472,7 @@ static int fw_core_dump_write_elf_header(struct seq_file *m)
 
 	/* Prepare ELF note of PRSTATUS type. */
 	if (fw_get_core_dump_mcu(kbdev, &regs))
-		dev_dbg(kbdev->dev, "MCU Registers not available, all registers set to zero");
+		dev_vdbg(kbdev->dev, "MCU Registers not available, all registers set to zero");
 	/* Even if MCU Registers are not available the ELF prstatus is still
 	 * filled with the registers equal to zero.
 	 */

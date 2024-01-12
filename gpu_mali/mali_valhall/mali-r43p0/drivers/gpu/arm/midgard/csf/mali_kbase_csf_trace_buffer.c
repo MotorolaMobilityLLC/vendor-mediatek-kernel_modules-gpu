@@ -133,7 +133,7 @@ int kbase_csf_firmware_trace_buffers_init(struct kbase_device *kbdev)
 	const u32 cache_line_alignment = kbase_get_cache_line_alignment(kbdev);
 
 	if (list_empty(&kbdev->csf.firmware_trace_buffers.list)) {
-		dev_dbg(kbdev->dev, "No trace buffers to initialise\n");
+		dev_vdbg(kbdev->dev, "No trace buffers to initialise\n");
 		return 0;
 	}
 
@@ -293,9 +293,9 @@ int kbase_csf_firmware_parse_trace_buffer_entry(struct kbase_device *kbdev,
 
 	if (i < ARRAY_SIZE(trace_buffer_data)) {
 		list_add(&trace_buffer->node, &kbdev->csf.firmware_trace_buffers.list);
-		dev_dbg(kbdev->dev, "Trace buffer '%s'", trace_buffer->name);
+		dev_vdbg(kbdev->dev, "Trace buffer '%s'", trace_buffer->name);
 	} else {
-		dev_dbg(kbdev->dev, "Unknown trace buffer '%s'", trace_buffer->name);
+		dev_vdbg(kbdev->dev, "Unknown trace buffer '%s'", trace_buffer->name);
 		kfree(trace_buffer);
 	}
 

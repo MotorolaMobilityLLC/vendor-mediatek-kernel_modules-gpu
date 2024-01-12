@@ -124,7 +124,7 @@ unsigned int kbase_get_timeout_ms(struct kbase_device *kbdev,
 	const char *selector_str = "(unknown)";
 
 	if (!kbdev->lowest_gpu_freq_khz) {
-		dev_dbg(kbdev->dev,
+		dev_vdbg(kbdev->dev,
 			"Lowest frequency uninitialized! Using reference frequency for scaling");
 		freq_khz = DEFAULT_REF_TIMEOUT_FREQ_KHZ;
 	} else {

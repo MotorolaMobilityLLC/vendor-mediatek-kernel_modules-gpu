@@ -207,7 +207,7 @@ static int write_cmd(struct kbase_device *kbdev, int as_nr, u32 cmd)
 	if (likely(status == 0))
 		kbase_reg_write(kbdev, MMU_AS_REG(as_nr, AS_COMMAND), cmd);
 	else if (status == -EBUSY) {
-		dev_dbg(kbdev->dev,
+		dev_vdbg(kbdev->dev,
 			"Skipped the wait for AS_ACTIVE bit for as %u, before sending MMU command %u",
 			as_nr, cmd);
 	} else {

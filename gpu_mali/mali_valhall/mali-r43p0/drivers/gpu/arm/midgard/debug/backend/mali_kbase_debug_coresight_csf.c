@@ -161,7 +161,7 @@ static int execute_op(struct kbase_device *kbdev, struct kbase_debug_coresight_c
 	int result = -EINVAL;
 	u32 reg;
 
-	dev_dbg(kbdev->dev, "Execute operation %d", op->type);
+	dev_vdbg(kbdev->dev, "Execute operation %d", op->type);
 
 	switch (op->type) {
 	case KBASE_DEBUG_CORESIGHT_CSF_OP_TYPE_NOP:
@@ -232,7 +232,7 @@ static int coresight_config_enable(struct kbase_device *kbdev,
 		ret = execute_op(kbdev, &config->enable_seq->ops[i]);
 
 	if (!ret) {
-		dev_dbg(kbdev->dev, "Coresight config (0x%pK) state transition: %s to %s", config,
+		dev_vdbg(kbdev->dev, "Coresight config (0x%pK) state transition: %s to %s", config,
 			coresight_state_to_string(config->state),
 			coresight_state_to_string(KBASE_DEBUG_CORESIGHT_CSF_ENABLED));
 		config->state = KBASE_DEBUG_CORESIGHT_CSF_ENABLED;
@@ -262,7 +262,7 @@ static int coresight_config_disable(struct kbase_device *kbdev,
 		ret = execute_op(kbdev, &config->disable_seq->ops[i]);
 
 	if (!ret) {
-		dev_dbg(kbdev->dev, "Coresight config (0x%pK) state transition: %s to %s", config,
+		dev_vdbg(kbdev->dev, "Coresight config (0x%pK) state transition: %s to %s", config,
 			coresight_state_to_string(config->state),
 			coresight_state_to_string(KBASE_DEBUG_CORESIGHT_CSF_DISABLED));
 		config->state = KBASE_DEBUG_CORESIGHT_CSF_DISABLED;
@@ -683,7 +683,7 @@ void kbase_debug_coresight_csf_disable_pmode_enter(struct kbase_device *kbdev)
 {
 	unsigned long flags;
 
-	dev_dbg(kbdev->dev, "Coresight state %s before protected mode enter",
+	dev_vdbg(kbdev->dev, "Coresight state %s before protected mode enter",
 		coresight_state_to_string(KBASE_DEBUG_CORESIGHT_CSF_ENABLED));
 
 	lockdep_assert_held(&kbdev->csf.scheduler.lock);
@@ -704,7 +704,7 @@ void kbase_debug_coresight_csf_disable_pmode_enter(struct kbase_device *kbdev)
 
 void kbase_debug_coresight_csf_enable_pmode_exit(struct kbase_device *kbdev)
 {
-	dev_dbg(kbdev->dev, "Coresight state %s after protected mode exit",
+	dev_vdbg(kbdev->dev, "Coresight state %s after protected mode exit",
 		coresight_state_to_string(KBASE_DEBUG_CORESIGHT_CSF_DISABLED));
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
@@ -724,7 +724,7 @@ void kbase_debug_coresight_csf_state_request(struct kbase_device *kbdev,
 	if (unlikely(!kbdev->csf.coresight.workq))
 		return;
 
-	dev_dbg(kbdev->dev, "Coresight state %s requested", coresight_state_to_string(state));
+	dev_vdbg(kbdev->dev, "Coresight state %s requested", coresight_state_to_string(state));
 
 	switch (state) {
 	case KBASE_DEBUG_CORESIGHT_CSF_DISABLED:
@@ -746,7 +746,7 @@ bool kbase_debug_coresight_csf_state_check(struct kbase_device *kbdev,
 	unsigned long flags;
 	bool success = true;
 
-	dev_dbg(kbdev->dev, "Coresight check for state: %s", coresight_state_to_string(state));
+	dev_vdbg(kbdev->dev, "Coresight check for state: %s", coresight_state_to_string(state));
 
 	spin_lock_irqsave(&kbdev->csf.coresight.lock, flags);
 
@@ -771,7 +771,7 @@ bool kbase_debug_coresight_csf_state_wait(struct kbase_device *kbdev,
 	unsigned long flags;
 	bool success = true;
 
-	dev_dbg(kbdev->dev, "Coresight wait for state: %s", coresight_state_to_string(state));
+	dev_vdbg(kbdev->dev, "Coresight wait for state: %s", coresight_state_to_string(state));
 
 	spin_lock_irqsave(&kbdev->csf.coresight.lock, flags);
 

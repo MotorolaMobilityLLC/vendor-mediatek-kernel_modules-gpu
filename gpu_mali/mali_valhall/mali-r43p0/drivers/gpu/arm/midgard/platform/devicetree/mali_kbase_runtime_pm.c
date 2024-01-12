@@ -81,7 +81,7 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 	int error;
 	unsigned long flags;
 
-	dev_dbg(kbdev->dev, "%s %pK\n", __func__, (void *)kbdev->dev->pm_domain);
+	dev_vdbg(kbdev->dev, "%s %pK\n", __func__, (void *)kbdev->dev->pm_domain);
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	WARN_ON(kbdev->pm.backend.gpu_powered);
@@ -106,7 +106,7 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 		 */
 		ret = 0;
 	}
-	dev_dbg(kbdev->dev, "pm_runtime_get_sync returned %d\n", error);
+	dev_vdbg(kbdev->dev, "pm_runtime_get_sync returned %d\n", error);
 #else
 	enable_gpu_power_control(kbdev);
 #endif /* KBASE_PM_RUNTIME */
@@ -120,7 +120,7 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 {
 	unsigned long flags;
 
-	dev_dbg(kbdev->dev, "%s\n", __func__);
+	dev_vdbg(kbdev->dev, "%s\n", __func__);
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	WARN_ON(kbdev->pm.backend.gpu_powered);
@@ -164,7 +164,7 @@ static void pm_callback_runtime_gpu_active(struct kbase_device *kbdev)
 
 	if (pm_runtime_status_suspended(kbdev->dev)) {
 		error = pm_runtime_get_sync(kbdev->dev);
-		dev_dbg(kbdev->dev, "pm_runtime_get_sync returned %d", error);
+		dev_vdbg(kbdev->dev, "pm_runtime_get_sync returned %d", error);
 	} else {
 		/* Call the async version here, otherwise there could be
 		 * a deadlock if the runtime suspend operation is ongoing.
@@ -173,7 +173,7 @@ static void pm_callback_runtime_gpu_active(struct kbase_device *kbdev)
 		 * will also try to acquire the same lock(s).
 		 */
 		error = pm_runtime_get(kbdev->dev);
-		dev_dbg(kbdev->dev, "pm_runtime_get returned %d", error);
+		dev_vdbg(kbdev->dev, "pm_runtime_get returned %d", error);
 	}
 
 	kbdev->pm.runtime_active = true;
@@ -185,7 +185,7 @@ static void pm_callback_runtime_gpu_idle(struct kbase_device *kbdev)
 
 	lockdep_assert_held(&kbdev->pm.lock);
 
-	dev_dbg(kbdev->dev, "%s", __func__);
+	dev_vdbg(kbdev->dev, "%s", __func__);
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	WARN_ON(!kbdev->pm.backend.gpu_powered);
@@ -205,7 +205,7 @@ static int kbase_device_runtime_init(struct kbase_device *kbdev)
 {
 	int ret = 0;
 
-	dev_dbg(kbdev->dev, "%s\n", __func__);
+	dev_vdbg(kbdev->dev, "%s\n", __func__);
 
 	pm_runtime_set_autosuspend_delay(kbdev->dev, AUTO_SUSPEND_DELAY);
 	pm_runtime_use_autosuspend(kbdev->dev);
@@ -228,7 +228,7 @@ static int kbase_device_runtime_init(struct kbase_device *kbdev)
 
 static void kbase_device_runtime_disable(struct kbase_device *kbdev)
 {
-	dev_dbg(kbdev->dev, "%s\n", __func__);
+	dev_vdbg(kbdev->dev, "%s\n", __func__);
 
 	if (atomic_read(&kbdev->dev->power.usage_count))
 		dev_warn(kbdev->dev,
@@ -241,7 +241,7 @@ static void kbase_device_runtime_disable(struct kbase_device *kbdev)
 
 static int pm_callback_runtime_on(struct kbase_device *kbdev)
 {
-	dev_dbg(kbdev->dev, "%s\n", __func__);
+	dev_vdbg(kbdev->dev, "%s\n", __func__);
 
 #if !MALI_USE_CSF
 	enable_gpu_power_control(kbdev);
@@ -251,7 +251,7 @@ static int pm_callback_runtime_on(struct kbase_device *kbdev)
 
 static void pm_callback_runtime_off(struct kbase_device *kbdev)
 {
-	dev_dbg(kbdev->dev, "%s\n", __func__);
+	dev_vdbg(kbdev->dev, "%s\n", __func__);
 
 #if !MALI_USE_CSF
 	disable_gpu_power_control(kbdev);

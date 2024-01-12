@@ -47,7 +47,7 @@ static u64 sub_alloc(struct kbase_csf_heap_context_allocator *const ctx_alloc)
 		MAX_TILER_HEAPS);
 
 	if (unlikely(heap_nr >= MAX_TILER_HEAPS)) {
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"No free tiler heap contexts in the pool");
 		return 0;
 	}
@@ -69,7 +69,7 @@ static u64 sub_alloc(struct kbase_csf_heap_context_allocator *const ctx_alloc)
 
 	bitmap_set(ctx_alloc->in_use, heap_nr, 1);
 
-	dev_dbg(kctx->kbdev->dev, "Allocated tiler heap context %lu (0x%llX)\n",
+	dev_vdbg(kctx->kbdev->dev, "Allocated tiler heap context %lu (0x%llX)\n",
 		heap_nr, heap_gpu_va);
 
 	return heap_gpu_va;
@@ -140,7 +140,7 @@ static void sub_free(struct kbase_csf_heap_context_allocator *const ctx_alloc,
 	evict_heap_context(ctx_alloc, heap_gpu_va);
 
 	heap_nr = ctx_offset / ctx_alloc->heap_context_size_aligned;
-	dev_dbg(kctx->kbdev->dev,
+	dev_vdbg(kctx->kbdev->dev,
 		"Freed tiler heap context %d (0x%llX)\n", heap_nr, heap_gpu_va);
 
 	bitmap_clear(ctx_alloc->in_use, heap_nr, 1);
@@ -165,7 +165,7 @@ int kbase_csf_heap_context_allocator_init(
 	mutex_init(&ctx_alloc->lock);
 	bitmap_zero(ctx_alloc->in_use, MAX_TILER_HEAPS);
 
-	dev_dbg(kctx->kbdev->dev,
+	dev_vdbg(kctx->kbdev->dev,
 		"Initialized a tiler heap context allocator\n");
 
 	return 0;
@@ -176,7 +176,7 @@ void kbase_csf_heap_context_allocator_term(
 {
 	struct kbase_context *const kctx = ctx_alloc->kctx;
 
-	dev_dbg(kctx->kbdev->dev,
+	dev_vdbg(kctx->kbdev->dev,
 		"Terminating tiler heap context allocator\n");
 
 	if (ctx_alloc->region) {
@@ -217,7 +217,7 @@ u64 kbase_csf_heap_context_allocator_alloc(
 
 	/* If the pool still isn't allocated then an error occurred. */
 	if (unlikely(!ctx_alloc->region))
-		dev_dbg(kctx->kbdev->dev, "Failed to allocate a pool of tiler heap contexts");
+		dev_vdbg(kctx->kbdev->dev, "Failed to allocate a pool of tiler heap contexts");
 	else
 		heap_gpu_va = sub_alloc(ctx_alloc);
 
