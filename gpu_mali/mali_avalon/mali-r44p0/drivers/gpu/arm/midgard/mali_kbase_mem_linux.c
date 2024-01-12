@@ -52,6 +52,10 @@
 #include <mtk_heap.h>
 #endif /* CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM && CONFIG_MTK_GZ_KREE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if ((KERNEL_VERSION(5, 3, 0) <= LINUX_VERSION_CODE) || \
 	(KERNEL_VERSION(5, 0, 0) > LINUX_VERSION_CODE))
 /* Enable workaround for ion for kernels prior to v5.0.0 and from v5.3.0
@@ -1303,10 +1307,17 @@ int kbase_mem_do_sync_imported(struct kbase_context *kctx,
 		break;
 	}
 
-	if (unlikely(ret))
+	if (unlikely(ret)) {
 		dev_warn(kctx->kbdev->dev,
 			 "Failed to sync mem region %pK at GPU VA %llx: %d\n",
 			 reg, reg->start_pfn, ret);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
+			 "Failed to sync mem region %pK at GPU VA %llx: %d\n",
+			 reg, reg->start_pfn, ret);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	}
+
 
 	return ret;
 }

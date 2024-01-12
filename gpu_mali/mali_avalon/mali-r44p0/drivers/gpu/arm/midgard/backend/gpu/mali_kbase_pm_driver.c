@@ -65,6 +65,10 @@
 #include <platform/mtk_platform_common/mtk_platform_irq_trace.h>
 #endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG) || IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
 #include <mtk_gpufreq.h>
 #include <ged_dcs.h>
@@ -2418,6 +2422,66 @@ static void kbase_pm_timed_out(struct kbase_device *kbdev)
 					L2_PWRTRANS_HI)),
 			kbase_reg_read(kbdev, GPU_CONTROL_REG(
 					L2_PWRTRANS_LO)));
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		"Power transition timed out (%d ms) unexpectedly\n",
+		kbase_get_timeout_ms(kbdev, CSF_PM_TIMEOUT));
+
+#if !MALI_USE_CSF
+	CSTD_UNUSED(flags);
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		"Desired state :\n");
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		"\tShader=%016llx\n",
+			kbdev->pm.backend.shaders_desired ? kbdev->pm.backend.shaders_avail : 0);
+#else
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		"\tMCU desired = %d\n",
+		kbase_pm_is_mcu_desired(kbdev));
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		"\tMCU sw state = %d\n",
+		kbdev->pm.backend.mcu_state);
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+#endif
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL, "Current state :\n");
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL, "\tShader=%08x%08x\n",
+			kbase_reg_read(kbdev,
+				GPU_CONTROL_REG(SHADER_READY_HI)),
+			kbase_reg_read(kbdev,
+				GPU_CONTROL_REG(SHADER_READY_LO)));
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL, "\tTiler =%08x%08x\n",
+			kbase_reg_read(kbdev,
+				GPU_CONTROL_REG(TILER_READY_HI)),
+			kbase_reg_read(kbdev,
+				GPU_CONTROL_REG(TILER_READY_LO)));
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL, "\tL2    =%08x%08x\n",
+			kbase_reg_read(kbdev,
+				GPU_CONTROL_REG(L2_READY_HI)),
+			kbase_reg_read(kbdev,
+				GPU_CONTROL_REG(L2_READY_LO)));
+#if MALI_USE_CSF
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL, "\tMCU status = %d\n",
+		kbase_reg_read(kbdev, GPU_CONTROL_REG(MCU_STATUS)));
+#endif
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL, "Cores transitioning :\n");
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL, "\tShader=%08x%08x\n",
+			kbase_reg_read(kbdev, GPU_CONTROL_REG(
+					SHADER_PWRTRANS_HI)),
+			kbase_reg_read(kbdev, GPU_CONTROL_REG(
+					SHADER_PWRTRANS_LO)));
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL, "\tTiler =%08x%08x\n",
+			kbase_reg_read(kbdev, GPU_CONTROL_REG(
+					TILER_PWRTRANS_HI)),
+			kbase_reg_read(kbdev, GPU_CONTROL_REG(
+					TILER_PWRTRANS_LO)));
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL, "\tL2    =%08x%08x\n",
+			kbase_reg_read(kbdev, GPU_CONTROL_REG(
+					L2_PWRTRANS_HI)),
+			kbase_reg_read(kbdev, GPU_CONTROL_REG(
+					L2_PWRTRANS_LO)));
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_PM_TIMEOUT);

@@ -77,14 +77,14 @@ int mtk_logbuffer_procfs_term(struct kbase_device *kbdev, struct proc_dir_entry 
 }
 #endif
 
-u64 mtk_logbuffer_get_timestamp(struct kbase_device *kbdev, struct mtk_logbuffer_info *logbuf)
+u64 mtk_logbuffer_get_timestamp(struct kbase_device *kbdev)
 {
 	u64 val;
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
 	enum kbase_mcu_state mcu_state;
 #endif
 
-	if (IS_ERR_OR_NULL(kbdev) || !logbuf->has_timestamp)
+	if (IS_ERR_OR_NULL(kbdev))
 		return 0;
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)

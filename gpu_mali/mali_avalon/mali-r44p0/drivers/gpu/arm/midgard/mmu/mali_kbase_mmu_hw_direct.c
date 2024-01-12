@@ -207,6 +207,11 @@ static int wait_ready(struct kbase_device *kbdev, unsigned int as_nr)
 	dev_err(kbdev->dev,
 		"AS_ACTIVE bit stuck for as %u. Might be caused by unstable GPU clk/pwr or faulty system",
 		as_nr);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		"AS_ACTIVE bit stuck for as %u. Might be caused by unstable GPU clk/pwr or faulty system",
+		as_nr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	kbdev->as[as_nr].is_unresponsive = true;
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_NA);
@@ -233,6 +238,11 @@ static int write_cmd(struct kbase_device *kbdev, int as_nr, u32 cmd)
 		dev_err(kbdev->dev,
 			"Wait for AS_ACTIVE bit failed for as %u, before sending MMU command %u",
 			as_nr, cmd);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+			"Wait for AS_ACTIVE bit failed for as %u, before sending MMU command %u",
+			as_nr, cmd);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 
 	return status;
@@ -312,6 +322,10 @@ static int apply_hw_issue_GPU2019_3901_wa(struct kbase_device *kbdev, u32 *mmu_c
 
 		ret = wait_cores_power_trans_complete(kbdev);
 		if (unlikely(ret)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+				"wait_cores_power_trans_complete fail, try to do reset\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			if (kbase_prepare_to_reset_gpu_locked(kbdev,
 							      RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
 				kbase_reset_gpu_locked(kbdev);

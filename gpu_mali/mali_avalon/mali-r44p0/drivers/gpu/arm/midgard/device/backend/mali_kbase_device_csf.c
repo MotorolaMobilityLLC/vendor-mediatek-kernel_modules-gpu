@@ -43,6 +43,10 @@
 
 #include <platform/mtk_platform_common.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
 #define FWLOG_CONTENT_LEN 64
 extern u8 *g_fw_dump_dest;
@@ -521,6 +525,11 @@ int kbase_device_firmware_init_once(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 		dev_info(kbdev->dev, "CSF firmware was successfully initialized by process '%s'", current->comm);
 #endif /* CONFIG_MALI_MTK_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_EXCEPTION,
+			 "[%llxt] CSF firmware was successfully initialized by process '%s'",
+			 mtk_logbuffer_get_timestamp(kbdev), current->comm);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
 	ts_nsec = local_clock();
@@ -529,7 +538,7 @@ int kbase_device_firmware_init_once(struct kbase_device *kbdev)
 		"[%5lu.%06lu] [%llxt]====fwlog End Of File====\n",
 		(unsigned long)ts_nsec,
 		(unsigned long)rem_nsec / 1000,
-		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_regular));
+		mtk_logbuffer_get_timestamp(kbdev));
 
 	if (g_fw_dump_dest != NULL)
 		memcpy(g_fw_dump_dest, fw_content, FWLOG_CONTENT_LEN);

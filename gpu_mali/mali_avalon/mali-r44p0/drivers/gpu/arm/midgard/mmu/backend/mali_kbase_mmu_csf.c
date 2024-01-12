@@ -34,6 +34,10 @@
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 void kbase_mmu_get_as_setup(struct kbase_mmu_table *mmut,
 		struct kbase_mmu_setup * const setup)
 {
@@ -124,6 +128,19 @@ void kbase_mmu_report_mcu_as_fault_and_reset(struct kbase_device *kbdev,
 		exception_type, kbase_gpu_exception_name(exception_type),
 		access_type, kbase_gpu_access_type_name(fault->status),
 		source_id);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		"Unexpected Page fault in firmware address space at VA 0x%016llX\n"
+		"raw fault status: 0x%X\n"
+		"exception type 0x%X: %s\n"
+		"access type 0x%X: %s\n"
+		"source id 0x%X\n",
+		fault->addr,
+		fault->status,
+		exception_type, kbase_gpu_exception_name(exception_type),
+		access_type, kbase_gpu_access_type_name(fault->status),
+		source_id);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_MMU_UNEXPECTEDPAGEFAULT);
@@ -176,7 +193,23 @@ void kbase_gpu_report_bus_fault_and_kill(struct kbase_context *kctx,
 		access_type, kbase_gpu_access_type_name(access_type),
 		source_id,
 		kctx->pid);
-
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		"GPU bus fault in AS%d at PA %pK\n"
+		"PA_VALID: %s\n"
+		"raw fault status: 0x%X\n"
+		"exception type 0x%X: %s\n"
+		"access type 0x%X: %s\n"
+		"source id 0x%X\n"
+		"pid: %d\n",
+		as_no, (void *)fault_addr,
+		addr_valid,
+		status,
+		exception_type, kbase_gpu_exception_name(exception_type),
+		access_type, kbase_gpu_access_type_name(access_type),
+		source_id,
+		kctx->pid);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, kctx->pid, MTK_DBG_HOOK_MMU_BUSFAULT);
 #endif /* CONFIG_MALI_MTK_DEBUG */
@@ -249,7 +282,23 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 		access_type, kbase_gpu_access_type_name(status),
 		source_id,
 		kctx->pid);
-
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		"Unhandled Page fault in AS%d at VA 0x%016llX\n"
+		"Reason: %s\n"
+		"raw fault status: 0x%X\n"
+		"exception type 0x%X: %s\n"
+		"access type 0x%X: %s\n"
+		"source id 0x%X\n"
+		"pid: %d\n",
+		as_no, fault->addr,
+		reason_str,
+		status,
+		exception_type, kbase_gpu_exception_name(exception_type),
+		access_type, kbase_gpu_access_type_name(status),
+		source_id,
+		kctx->pid);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);

@@ -859,9 +859,10 @@ void mtk_debug_dump_pm_status(struct kbase_device *kbdev)
 			 kbdev->csf.firmware_reloaded,
 			 kbdev->csf.firmware_reload_needed,
 			 kbdev->csf.interrupt_received);
-	dev_info(kbdev->dev, "[CSF] firmware_hctl_core_pwr=%d glb_init_request_pending=%d",
+	dev_info(kbdev->dev, "[CSF] firmware_hctl_core_pwr=%d glb_init_request_pending=%d scheduler.pm_active_count=%d",
 			 kbdev->csf.firmware_hctl_core_pwr,
-			 kbdev->csf.glb_init_request_pending);
+			 kbdev->csf.glb_init_request_pending,
+			 kbdev->csf.scheduler.pm_active_count);
 	dev_info(kbdev->dev, "[PM] in_reset=%d reset_done=%d gpu_powered=%d gpu_ready=%d mcu_state=%s l2_state=%s mcu_desired=%d l2_desired=%d l2_always_on=%d",
 			 kbdev->pm.backend.in_reset,
 			 kbdev->pm.backend.reset_done,
@@ -880,6 +881,9 @@ void mtk_debug_dump_pm_status(struct kbase_device *kbdev)
 			 kbdev->pm.backend.invoke_poweroff_wait_wq_when_l2_off,
 			 kbdev->pm.backend.poweron_required,
 			 kbdev->pm.debug_core_mask_en);
+	dev_info(kbdev->dev, "[PM] policy_change_clamp_state_to_off=%d csf_pm_sched_flsgs=%d",
+			 kbdev->pm.backend.policy_change_clamp_state_to_off,
+			 kbdev->pm.backend.csf_pm_sched_flags);
 #else
 	dev_info(kbdev->dev, "[PM] hwcnt_desired=%d hwcnt_disabled=%d poweroff_wait_in_progress=%d invoke_poweroff_wait_wq_when_l2_off=%d poweron_required=%d",
 			 kbdev->pm.backend.hwcnt_desired,
@@ -2605,8 +2609,7 @@ static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int tim
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-		"[%llxt] %s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d\n",
-		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
+		"%s: mali fence timeouts(%d ms)! fence_fd=%d pid=%d\n",
 		fence_timeout_type_to_string(type),
 		timeouts,
 		fd,
@@ -2639,8 +2642,7 @@ static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int tim
 		dev_info(kbdev->dev, "External fence timeouts(%d ms)! Cancel soft job", timeouts);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"[%llxt] External fence timeouts(%d ms)! Cancel soft job\n",
-			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
+			"External fence timeouts(%d ms)! Cancel soft job\n",
 			timeouts);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		mutex_lock(&kbdev->kctx_list_lock);
@@ -2661,8 +2663,7 @@ static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int tim
 			dev_info(kbdev->dev, "External fence timeouts(%d ms)! Trigger GPU reset", timeouts);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 				mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-					"[%llxt] External fence timeouts(%d ms)! Trigger GPU reset\n",
-					mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
+					"External fence timeouts(%d ms)! Trigger GPU reset\n",
 					timeouts);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			kbase_reset_gpu(kbdev);
@@ -2670,8 +2671,7 @@ static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int tim
 			dev_info(kbdev->dev, "External fence timeouts(%d ms)! Other threads are already resetting the GPU", timeouts);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 				mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-					"[%llxt] External fence timeouts(%d ms)! Other threads are already resetting the GPU\n",
-					mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
+					"External fence timeouts(%d ms)! Other threads are already resetting the GPU\n",
 					timeouts);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		}
