@@ -278,7 +278,8 @@ static bool gpu_metrics_read_event(struct kbase_device *kbdev, struct kbase_cont
  */
 static void emit_gpu_metrics_to_frontend(struct kbase_device *kbdev)
 {
-	const u64 ts_before_drain = ktime_get_raw_ns();
+	u64 system_time = 0;
+	u64 ts_before_drain;
 	u64 ts = 0;
 
 	lockdep_assert_held(&kbdev->csf.scheduler.lock);
@@ -286,6 +287,12 @@ static void emit_gpu_metrics_to_frontend(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_NO_MALI)
 	return;
 #endif
+
+	if (WARN_ON_ONCE(kbdev->csf.scheduler.state == SCHED_SUSPENDED))
+		return;
+
+	kbase_backend_get_gpu_time_norequest(kbdev, NULL, &system_time, NULL);
+	ts_before_drain = kbase_backend_time_convert_gpu_to_cpu(kbdev, system_time);
 
 	while (!kbase_csf_firmware_trace_buffer_is_empty(kbdev->csf.scheduler.gpu_metrics_tb)) {
 		struct kbase_context *kctx;
