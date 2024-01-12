@@ -351,6 +351,10 @@ int kbase_mem_init(struct kbase_device *kbdev)
 		err = kbase_mem_pool_group_init(&kbdev->mem_pools, kbdev, &mem_pool_defaults, NULL);
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	kbdev->jit_reclaim_timeout_ms = JIT_RECLAIM_DEFAULT_TIMEOUT_MS;
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
 	if (mtk_emicen_get_rk_cnt() == 2) {
 		kbdev->rank_boundary = MTK_EMI_DRAM_OFFSET + mtk_emicen_get_rk_size(0);
@@ -3543,6 +3547,11 @@ void kbase_jit_free(struct kbase_context *kctx, struct kbase_va_region *reg)
 	 */
 	if (kbase_is_page_migration_enabled())
 		kbase_set_phy_alloc_page_status(reg->gpu_alloc, NOT_MOVABLE);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	reg->last_used_ts = ktime_get_raw_ns();
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
+
 	mutex_unlock(&kctx->jit_evict_lock);
 }
 

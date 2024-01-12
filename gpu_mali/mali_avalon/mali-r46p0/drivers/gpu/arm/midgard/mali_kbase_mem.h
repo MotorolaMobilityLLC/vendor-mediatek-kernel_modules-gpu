@@ -337,6 +337,13 @@ struct kbase_aliased {
 #define KBASE_MEM_PHY_ALLOC_ACCESSED_CACHED (1u << 0)
 #define KBASE_MEM_PHY_ALLOC_LARGE (1u << 1)
 
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+/*
+ * Default value for struct kbase_device::jit_reclaim_timeout_ms.
+ */
+#define JIT_RECLAIM_DEFAULT_TIMEOUT_MS (1000)    /* 1 sec */
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
+
 /* enum kbase_user_buf_state - State of a USER_BUF handle.
  * @KBASE_USER_BUF_STATE_EMPTY: Empty handle with no resources.
  * @KBASE_USER_BUF_STATE_PINNED: Physical pages have been pinned.
@@ -734,6 +741,10 @@ struct kbase_va_region {
 
 	kbase_refcount_t va_refcnt;
 	atomic_t no_user_free_count;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	u64 last_used_ts;
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 };
 
 /* Special marker for failed JIT allocations that still must be marked as
