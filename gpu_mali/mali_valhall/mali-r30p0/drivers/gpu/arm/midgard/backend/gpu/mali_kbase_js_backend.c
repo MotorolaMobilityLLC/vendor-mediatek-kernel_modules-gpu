@@ -206,6 +206,8 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 					if (!mtk_common_gpufreq_bringup()) {
 #if defined(CONFIG_MTK_GPUFREQ_V2)
 						gpufreq_dump_infra_status();
+
+						gpufreq_hardstop_dump_slog();
 #else
 						mt_gpufreq_dump_infra_status();
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
@@ -266,6 +268,8 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 					if (!mtk_common_gpufreq_bringup()) {
 #if defined(CONFIG_MTK_GPUFREQ_V2)
 						gpufreq_dump_infra_status();
+
+						gpufreq_hardstop_dump_slog();
 #else
 						mt_gpufreq_dump_infra_status();
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
