@@ -758,6 +758,8 @@ unsigned long kbase_mem_evictable_reclaim_count_objects(struct shrinker *s,
 #if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
 	now_ns = ktime_get_raw_ns();
 
+	mutex_lock(&kctx->jit_evict_lock);
+
 	list_for_each_entry_safe(alloc, tmp, &kctx->evict_list, evict_node) {
 		if (!alloc->reg)
 			continue;
@@ -772,6 +774,8 @@ unsigned long kbase_mem_evictable_reclaim_count_objects(struct shrinker *s,
 		/* exclude those recently used jit mem */
 		evict_nents -= alloc->reg->gpu_alloc->nents;
 	}
+
+	mutex_unlock(&kctx->jit_evict_lock);
 
 	trace_mali_mem_evictable_count(kctx, evict_nents);
 #endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
