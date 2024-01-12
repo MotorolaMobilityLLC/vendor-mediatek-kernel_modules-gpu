@@ -46,12 +46,17 @@
 #include <mmu/mali_kbase_mmu.h>
 #include <asm/arch_timer.h>
 
-#define MALI_MAX_FIRMWARE_NAME_LEN ((size_t)20)
+#define MALI_MAX_FIRMWARE_NAME_LEN ((size_t)30)
 
-
+// for same_process_hal_file label (First device_open)
 static char fw_name[MALI_MAX_FIRMWARE_NAME_LEN] = "mali_csffw.bin";
 module_param_string(fw_name, fw_name, sizeof(fw_name), 0644);
 MODULE_PARM_DESC(fw_name, "firmware image");
+
+// for vendor_file label (Resetting GPU)
+static char reload_fw_name[MALI_MAX_FIRMWARE_NAME_LEN] = "mali_csffw_reload.bin";
+module_param_string(reload_fw_name, reload_fw_name, sizeof(reload_fw_name), 0644);
+MODULE_PARM_DESC(reload_fw_name, "reloaded firmware image");
 
 /* The waiting time for firmware to boot */
 static unsigned int csf_firmware_boot_timeout_ms = 500;
@@ -418,10 +423,10 @@ static int reload_fw_data_sections(struct kbase_device *kbdev)
 	const struct firmware *firmware;
 	int ret = 0;
 
-	if (request_firmware(&firmware, fw_name, kbdev->dev) != 0) {
+	if (request_firmware(&firmware, reload_fw_name, kbdev->dev) != 0) {
 		dev_err(kbdev->dev,
 			"Failed to reload firmware image '%s'\n",
-			fw_name);
+			reload_fw_name);
 		return -ENOENT;
 	}
 
