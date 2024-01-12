@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2012-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2012-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -31,6 +31,7 @@
 #include <linux/mm.h>
 #include <linux/highmem.h>
 #include <linux/dma-mapping.h>
+#include <linux/version_compat_defs.h>
 
 #define DMA_BUF_TE_VER_MAJOR 1
 #define DMA_BUF_TE_VER_MINOR 0
@@ -374,7 +375,7 @@ static void *dma_buf_te_kmap(struct dma_buf *buf, unsigned long page_num)
 	if (page_num >= alloc->nr_pages)
 		return NULL;
 
-	return kmap(alloc->pages[page_num]);
+	return kbase_kmap(alloc->pages[page_num]);
 }
 static void dma_buf_te_kunmap(struct dma_buf *buf,
 		unsigned long page_num, void *addr)
@@ -385,7 +386,7 @@ static void dma_buf_te_kunmap(struct dma_buf *buf,
 	if (page_num >= alloc->nr_pages)
 		return;
 
-	kunmap(alloc->pages[page_num]);
+	kbase_kunmap(alloc->pages[page_num], addr);
 }
 
 static struct dma_buf_ops dma_buf_te_ops = {

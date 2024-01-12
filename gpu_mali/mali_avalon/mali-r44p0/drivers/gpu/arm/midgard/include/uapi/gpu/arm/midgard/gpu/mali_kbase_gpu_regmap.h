@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2019-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -28,6 +28,17 @@
 #include "backend/mali_kbase_gpu_regmap_jm.h"
 #endif /* !MALI_USE_CSF */
 
+/* GPU_U definition */
+#ifdef __ASSEMBLER__
+#define GPU_U(x) x
+#define GPU_UL(x) x
+#define GPU_ULL(x) x
+#else
+#define GPU_U(x) x##u
+#define GPU_UL(x) x##ul
+#define GPU_ULL(x) x##ull
+#endif /* __ASSEMBLER__ */
+
 /* Begin Register Offsets */
 /* GPU control registers */
 
@@ -38,6 +49,18 @@
 
 #define GPU_IRQ_CLEAR           0x024   /* (WO) */
 #define GPU_IRQ_STATUS          0x02C   /* (RO) */
+
+#define GPU_STATUS              0x034   /* (RO) */
+
+/* GPU_STATUS values */
+#define GPU_STATUS_PRFCNT_ACTIVE            (1 << 2)    /* Set if the performance counters are active. */
+#define GPU_STATUS_CYCLE_COUNT_ACTIVE       (1 << 6)    /* Set if the cycle counter is active. */
+#define GPU_STATUS_PROTECTED_MODE_ACTIVE    (1 << 7)    /* Set if protected mode is active */
+
+#define L2_CONFIG               0x048   /* (RW) Level 2 cache configuration */
+
+#define TILER_PRESENT_LO        0x110   /* (RO) Tiler core present bitmap, low word */
+#define TILER_PRESENT_HI        0x114   /* (RO) Tiler core present bitmap, high word */
 
 #define SHADER_READY_LO         0x140   /* (RO) Shader core ready bitmap, low word */
 #define SHADER_READY_HI         0x144   /* (RO) Shader core ready bitmap, high word */
@@ -50,6 +73,8 @@
 
 #define SHADER_PWRON_LO         0x180   /* (WO) Shader core power on bitmap, low word */
 #define SHADER_PWRON_HI         0x184   /* (WO) Shader core power on bitmap, high word */
+
+#define SHADER_PWRFEATURES      0x188   /* (RW) Shader core power features */
 
 #define TILER_PWRON_LO          0x190   /* (WO) Tiler core power on bitmap, low word */
 #define TILER_PWRON_HI          0x194   /* (WO) Tiler core power on bitmap, high word */
@@ -69,9 +94,8 @@
 
 /* MMU control registers */
 
-#define MEMORY_MANAGEMENT_BASE  0x2000
-
-#define MMU_REG(r)              (MEMORY_MANAGEMENT_BASE + (r))
+#define MMU_CONTROL_BASE        0x2000
+#define MMU_REG(r)              (MMU_CONTROL_BASE + (r))
 
 #define MMU_IRQ_RAWSTAT         0x000   /* (RW) Raw interrupt status register */
 #define MMU_IRQ_CLEAR           0x004   /* (WO) Interrupt clear register */

@@ -187,11 +187,7 @@ int kbase_context_common_init(struct kbase_context *kctx)
 		if (unlikely(err))
 			return err;
 
-		/* This merely takes a reference on the mm_struct and not on the
-		 * address space and so won't block the freeing of address space
-		 * on process exit.
-		 */
-		mmgrab(current->mm);
+		kbase_mem_mmgrab();
 		kctx->process_mm = current->mm;
 	}
 

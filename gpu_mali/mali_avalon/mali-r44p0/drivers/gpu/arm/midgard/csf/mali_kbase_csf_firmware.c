@@ -52,6 +52,8 @@
 #include <mmu/mali_kbase_mmu.h>
 #include <asm/arch_timer.h>
 #include <linux/delay.h>
+#include <linux/version_compat_defs.h>
+
 #include <ged_base.h>
 #include <ged_type.h>
 
@@ -59,10 +61,10 @@
 #include "platform/mtk_platform_common.h"
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
-#define MALI_MAX_FIRMWARE_NAME_LEN ((size_t)20)
+#define MALI_MAX_DEFAULT_FIRMWARE_NAME_LEN ((size_t)20)
 
-static char fw_name[MALI_MAX_FIRMWARE_NAME_LEN] = "mali_csffw.bin";
-module_param_string(fw_name, fw_name, sizeof(fw_name), 0644);
+static char default_fw_name[MALI_MAX_DEFAULT_FIRMWARE_NAME_LEN] = "mali_csffw.bin";
+module_param_string(fw_name, default_fw_name, sizeof(default_fw_name), 0644);
 MODULE_PARM_DESC(fw_name, "firmware image");
 
 /* The waiting time for firmware to boot */
@@ -208,7 +210,7 @@ static int setup_shared_iface_static_region(struct kbase_device *kbdev)
 		return -EINVAL;
 
 	reg = kbase_alloc_free_region(kbdev, &kbdev->csf.shared_reg_rbtree, 0,
-				      interface->num_pages_aligned, KBASE_REG_ZONE_MCU_SHARED);
+				      interface->num_pages_aligned, MCU_SHARED_ZONE);
 	if (reg) {
 		mutex_lock(&kbdev->csf.reg_lock);
 		ret = kbase_add_va_region_rbtree(kbdev, reg,
@@ -472,7 +474,7 @@ static void load_fw_image_section(struct kbase_device *kbdev, const u8 *data,
 
 	for (page_num = 0; page_num < page_limit; ++page_num) {
 		struct page *const page = as_page(phys[page_num]);
-		char *const p = kmap_atomic(page);
+		char *const p = kbase_kmap_atomic(page);
 		u32 const copy_len = min_t(u32, PAGE_SIZE, data_len);
 
 		if (copy_len > 0) {
@@ -489,7 +491,7 @@ static void load_fw_image_section(struct kbase_device *kbdev, const u8 *data,
 
 		kbase_sync_single_for_device(kbdev, kbase_dma_addr_from_tagged(phys[page_num]),
 					     PAGE_SIZE, DMA_TO_DEVICE);
-		kunmap_atomic(p);
+		kbase_kunmap_atomic(p);
 	}
 }
 
@@ -1325,7 +1327,7 @@ static inline void access_firmware_memory_common(struct kbase_device *kbdev,
 	u32 page_num = offset_bytes >> PAGE_SHIFT;
 	u32 offset_in_page = offset_bytes & ~PAGE_MASK;
 	struct page *target_page = as_page(interface->phys[page_num]);
-	uintptr_t cpu_addr = (uintptr_t)kmap_atomic(target_page);
+	uintptr_t cpu_addr = (uintptr_t)kbase_kmap_atomic(target_page);
 	u32 *addr = (u32 *)(cpu_addr + offset_in_page);
 
 	if (read) {
@@ -1340,7 +1342,7 @@ static inline void access_firmware_memory_common(struct kbase_device *kbdev,
 			sizeof(u32), DMA_BIDIRECTIONAL);
 	}
 
-	kunmap_atomic((u32 *)cpu_addr);
+	kbase_kunmap_atomic((u32 *)cpu_addr);
 }
 
 static inline void access_firmware_memory(struct kbase_device *kbdev,
@@ -2394,6 +2396,7 @@ int kbase_csf_firmware_load_init(struct kbase_device *kbdev)
 	u32 entry_end_offset;
 	u32 entry_offset;
 	int ret;
+	const char *fw_name = default_fw_name;
 
 	lockdep_assert_held(&kbdev->fw_load_lock);
 
@@ -2416,6 +2419,33 @@ int kbase_csf_firmware_load_init(struct kbase_device *kbdev)
 			"Failed to setup the rb tree for managing shared interface segment\n");
 		goto err_out;
 	}
+
+#if IS_ENABLED(CONFIG_OF)
+	/* If we can't read CSF firmware name from DTB,
+	 * fw_name is not modified and remains the default.
+	 */
+	ret = of_property_read_string(kbdev->dev->of_node, "firmware-name", &fw_name);
+	if (ret == -EINVAL) {
+		/* Property doesn't exist in DTB, and fw_name already points to default FW name
+		 * so just reset return value and continue.
+		 */
+		ret = 0;
+	} else if (ret == -ENODATA) {
+		dev_warn(kbdev->dev,
+			 "\"firmware-name\" DTB property contains no data, using default FW name");
+		/* Reset return value so FW does not fail to load */
+		ret = 0;
+	} else if (ret == -EILSEQ) {
+		/* This is reached when the size of the fw_name buffer is too small for the string
+		 * stored in the DTB and the null terminator.
+		 */
+		dev_warn(kbdev->dev,
+			 "\"firmware-name\" DTB property value too long, using default FW name.");
+		/* Reset return value so FW does not fail to load */
+		ret = 0;
+	}
+
+#endif /* IS_ENABLED(CONFIG_OF) */
 
 	if (request_firmware(&firmware, fw_name, kbdev->dev) != 0) {
 		dev_err(kbdev->dev,
@@ -2531,6 +2561,8 @@ int kbase_csf_firmware_load_init(struct kbase_device *kbdev)
 	if (ret != 0)
 		goto err_out;
 
+	kbase_csf_pending_gpuq_kicks_init(kbdev);
+
 	ret = kbase_csf_scheduler_init(kbdev);
 	if (ret != 0)
 		goto err_out;
@@ -2547,6 +2579,12 @@ int kbase_csf_firmware_load_init(struct kbase_device *kbdev)
 	if (ret != 0)
 		goto err_out;
 
+	ret = kbase_csf_firmware_log_init(kbdev);
+	if (ret != 0) {
+		dev_err(kbdev->dev, "Failed to initialize FW trace (err %d)", ret);
+		goto err_out;
+	}
+
 	ret = kbase_csf_firmware_cfg_init(kbdev);
 	if (ret != 0)
 		goto err_out;
@@ -2554,12 +2592,6 @@ int kbase_csf_firmware_load_init(struct kbase_device *kbdev)
 	ret = kbase_device_csf_iterator_trace_init(kbdev);
 	if (ret != 0)
 		goto err_out;
-
-	ret = kbase_csf_firmware_log_init(kbdev);
-	if (ret != 0) {
-		dev_err(kbdev->dev, "Failed to initialize FW trace (err %d)", ret);
-		goto err_out;
-	}
 
 	if (kbdev->csf.fw_core_dump.available)
 		kbase_csf_firmware_core_dump_init(kbdev);
@@ -2586,15 +2618,17 @@ void kbase_csf_firmware_unload_term(struct kbase_device *kbdev)
 
 	WARN(ret, "failed to wait for GPU reset");
 
-	kbase_csf_firmware_log_term(kbdev);
-
 	kbase_csf_firmware_cfg_term(kbdev);
+
+	kbase_csf_firmware_log_term(kbdev);
 
 	kbase_csf_timeout_term(kbdev);
 
 	kbase_csf_free_dummy_user_reg_page(kbdev);
 
 	kbase_csf_scheduler_term(kbdev);
+
+	kbase_csf_pending_gpuq_kicks_term(kbdev);
 
 	kbase_csf_doorbell_mapping_term(kbdev);
 
@@ -3156,7 +3190,7 @@ int kbase_csf_firmware_mcu_shared_mapping_init(
 		goto vmap_error;
 
 	va_reg = kbase_alloc_free_region(kbdev, &kbdev->csf.shared_reg_rbtree, 0, num_pages,
-					 KBASE_REG_ZONE_MCU_SHARED);
+					 MCU_SHARED_ZONE);
 	if (!va_reg)
 		goto va_region_alloc_error;
 

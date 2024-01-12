@@ -34,7 +34,6 @@
 #include <mali_kbase.h>
 #include <backend/gpu/mali_kbase_irq_internal.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
-#include <backend/gpu/mali_kbase_js_internal.h>
 #include <backend/gpu/mali_kbase_clk_rate_trace_mgr.h>
 #include <csf/mali_kbase_csf_csg_debugfs.h>
 #include <hwcnt/mali_kbase_hwcnt_virtualizer.h>
@@ -91,10 +90,6 @@ static int kbase_backend_late_init(struct kbase_device *kbdev)
 	err = kbase_hwaccess_pm_powerup(kbdev, PM_HW_ISSUES_DETECT);
 	if (err)
 		goto fail_pm_powerup;
-
-	err = kbase_backend_timer_init(kbdev);
-	if (err)
-		goto fail_timer;
 
 #ifdef CONFIG_MALI_DEBUG
 #if IS_ENABLED(CONFIG_MALI_REAL_HW)
@@ -156,8 +151,6 @@ fail_interrupt_test:
 #endif /* IS_ENABLED(CONFIG_MALI_REAL_HW) */
 #endif /* CONFIG_MALI_DEBUG */
 
-	kbase_backend_timer_term(kbdev);
-fail_timer:
 	kbase_pm_context_idle(kbdev);
 	kbase_hwaccess_pm_halt(kbdev);
 fail_pm_powerup:

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2021-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -21,6 +21,17 @@
 
 #ifndef _UAPI_KBASE_GPU_REGMAP_CSF_H_
 #define _UAPI_KBASE_GPU_REGMAP_CSF_H_
+
+/* GPU control registers */
+#define MCU_CONTROL 0x700
+
+#define L2_CONFIG_PBHA_HWU_SHIFT GPU_U(12)
+#define L2_CONFIG_PBHA_HWU_MASK (GPU_U(0xF) << L2_CONFIG_PBHA_HWU_SHIFT)
+#define L2_CONFIG_PBHA_HWU_GET(reg_val)                                                            \
+	(((reg_val)&L2_CONFIG_PBHA_HWU_MASK) >> L2_CONFIG_PBHA_HWU_SHIFT)
+#define L2_CONFIG_PBHA_HWU_SET(reg_val, value)                                                     \
+	(((reg_val) & ~L2_CONFIG_PBHA_HWU_MASK) |                                                  \
+	 (((value) << L2_CONFIG_PBHA_HWU_SHIFT) & L2_CONFIG_PBHA_HWU_MASK))
 
 /* IPA control registers */
 #define IPA_CONTROL_BASE 0x40000

@@ -214,6 +214,12 @@ enum {
  */
 #define CSF_FIRMWARE_PING_TIMEOUT_CYCLES (600000000ull)
 
+/* Waiting timeout for a KCPU queue's fence signal blocked to long, in clock cycles.
+ *
+ * Based on 10s timeout at 100MHz, scaled from a 50MHz GPU system.
+ */
+#define KCPU_FENCE_SIGNAL_TIMEOUT_CYCLES (1000000000ull)
+
 #else /* MALI_USE_CSF */
 
 /* A default timeout in clock cycles to be used when an invalid timeout
@@ -280,4 +286,6 @@ enum {
  * It corresponds to 0.5s in GPU @ 100Mhz.
  */
 #define MMU_AS_INACTIVE_WAIT_TIMEOUT_CYCLES ((u64)50 * 1024 * 1024)
+
+
 #endif /* _KBASE_CONFIG_DEFAULTS_H_ */

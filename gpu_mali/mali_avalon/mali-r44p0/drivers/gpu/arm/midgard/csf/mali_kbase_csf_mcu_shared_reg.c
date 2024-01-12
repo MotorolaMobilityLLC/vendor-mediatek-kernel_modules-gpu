@@ -614,7 +614,7 @@ static int shared_mcu_csg_reg_init(struct kbase_device *kbdev,
 
 	INIT_LIST_HEAD(&csg_reg->link);
 	reg = kbase_alloc_free_region(kbdev, &kbdev->csf.shared_reg_rbtree, 0, nr_csg_reg_pages,
-				      KBASE_REG_ZONE_MCU_SHARED);
+				      MCU_SHARED_ZONE);
 
 	if (!reg) {
 		dev_err(kbdev->dev, "%s: Failed to allocate a MCU shared region for %zu pages\n",

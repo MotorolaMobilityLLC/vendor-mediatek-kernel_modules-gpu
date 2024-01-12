@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2019-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -36,8 +36,8 @@ struct kbase_va_region;
  * A pointer to this type is passed down from the outer-most callers in the kbase
  * module - where the information resides as to the synchronous / asynchronous
  * nature of the call flow, with respect to MMU operations. ie - does the call flow relate to
- * existing GPU work does it come from requests (like ioctl) from user-space, power management,
- * etc.
+ * existing GPU work or does it come from requests (like ioctl) from user-space, power
+ * management, etc.
  *
  * @CALLER_MMU_UNSET_SYNCHRONICITY: default value must be invalid to avoid accidental choice
  *                                  of a 'valid' value
@@ -198,7 +198,7 @@ int kbase_mmu_insert_single_aliased_page(struct kbase_context *kctx, u64 vpfn,
  * @ignore_page_migration: Whether page migration metadata should be ignored.
  *
  * We actually discard the ATE and free the page table pages if no valid entries
- * exist in PGD.
+ * exist in the PGD.
  *
  * IMPORTANT: This uses kbasep_js_runpool_release_ctx() when the context is
  * currently scheduled into the runpool, and so potentially uses a lot of locks.
@@ -208,7 +208,7 @@ int kbase_mmu_insert_single_aliased_page(struct kbase_context *kctx, u64 vpfn,
  *
  * The @p phys pointer to physical pages is not necessary for unmapping virtual memory,
  * but it is used for fine-grained GPU cache maintenance. If @p phys is NULL,
- * GPU cache maintenance will be done as usual, that is invalidating the whole GPU caches
+ * GPU cache maintenance will be done as usual; that is, invalidating the whole GPU caches
  * instead of specific physical address ranges.
  *
  * Return: 0 on success, otherwise an error code.

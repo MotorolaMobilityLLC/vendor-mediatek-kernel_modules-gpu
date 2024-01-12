@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -47,6 +47,7 @@
 
 #include <uapi/gpu/arm/midgard/mali_base_kernel.h>
 #include <mali_kbase_linux.h>
+#include <linux/version_compat_defs.h>
 
 /*
  * Include mali_kbase_defs.h first as this provides types needed by other local
@@ -56,9 +57,7 @@
 
 #include "debug/mali_kbase_debug_ktrace.h"
 #include "context/mali_kbase_context.h"
-#include "mali_kbase_strings.h"
 #include "mali_kbase_mem_lowlevel.h"
-#include "mali_kbase_utility.h"
 #include "mali_kbase_mem.h"
 #include "mmu/mali_kbase_mmu.h"
 #include "mali_kbase_gpu_memory_debugfs.h"
@@ -81,6 +80,9 @@
 #endif
 
 #include "mali_linux_trace.h"
+
+#define KBASE_DRV_NAME "mali"
+#define KBASE_TIMELINE_NAME KBASE_DRV_NAME ".timeline"
 
 #if MALI_USE_CSF
 #include "csf/mali_kbase_csf.h"
