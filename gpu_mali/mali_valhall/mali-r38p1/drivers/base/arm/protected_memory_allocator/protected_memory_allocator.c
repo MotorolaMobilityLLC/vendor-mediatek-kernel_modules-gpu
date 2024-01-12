@@ -675,7 +675,7 @@ static int mtk_protected_memory_allocator_probe(struct platform_device *pdev)
 	rmem_size = rmem_size >> PAGE_SHIFT;
 
 	dev_info(&pdev->dev,
-		"addr(%llx), size: %u pages\n", rmem_base, rmem_size);
+		"addr(%llx), size: %zu pages\n", rmem_base, rmem_size);
 
 	devm_iounmap(&pdev->dev, gpueb_base);
 

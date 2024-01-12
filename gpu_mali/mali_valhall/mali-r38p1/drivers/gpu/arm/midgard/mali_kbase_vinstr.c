@@ -1257,7 +1257,7 @@ static inline void format_gpu_data(char *buf, u64 size, u64 *gpu_data, u32 lens)
 
 	ptr += snprintf(ptr, buffer_end - ptr, "ARRAY[");
 	for (i = 0; i < lens; i++) {
-		ptr += snprintf(ptr, buffer_end - ptr, "%02x, %02x, %02x, %02x, %02x, %02x, %02x, %02x, ",
+		ptr += snprintf(ptr, buffer_end - ptr, "%02llx, %02llx, %02llx, %02llx, %02llx, %02llx, %02llx, %02llx, ",
 				(*(gpu_data+i)) & 0xff, (*(gpu_data+i) >> 8) & 0xff,
 				(*(gpu_data+i) >> 16) & 0xff, (*(gpu_data+i) >> 24) & 0xff,
 				(*(gpu_data+i) >> 32) & 0xff, (*(gpu_data+i) >> 40) & 0xff,

@@ -477,7 +477,7 @@ static void mgm_term_data(struct mgm_groups *data)
 #if IS_ENABLED(CONFIG_MTK_MODIFY)
 		if (atomic_read(&data->groups[i].size) != 0)
 			dev_warn(data->dev,
-				"%zu 0-order pages in group(%d) leaked\n",
+				"%d 0-order pages in group(%d) leaked\n",
 				atomic_read(&data->groups[i].size), i);
 #else
 		if (data->groups[i].size != 0)

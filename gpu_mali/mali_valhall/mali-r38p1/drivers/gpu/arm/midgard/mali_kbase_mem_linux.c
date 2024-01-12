@@ -520,8 +520,8 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 				if (!kctx->coherenct_regions[r_index]) {  //array element empty
 					kctx->coherenct_regions[r_index] = reg;
 					kctx->coherent_region_nr++;
-					dev_vdbg(dev, "Add coherent region in index %d, reg 0x%p, starting Page 0x%llx flags: 0x%x, tgid %d, reg_nr: %u",
-						r_index, reg ,reg->cpu_alloc->pages[0], reg->flags, kctx->tgid, kctx->coherent_region_nr);
+					//dev_vdbg(dev, "Add coherent region in index %d, reg 0x%lx, starting Page 0x%lx flags: 0x%lx, tgid %d, reg_nr: %u",
+					//	r_index, reg , reg->cpu_alloc->pages[0], reg->flags, kctx->tgid, kctx->coherent_region_nr);
 					break;
 				}
 			}

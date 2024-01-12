@@ -390,8 +390,8 @@ int kbase_csf_firmware_log_init(struct kbase_device *kbdev)
 		return -ENOMEM;
 	}
 	g_fw_dump_dest = ioremap_wc(g_fwlogdump->base, g_fwlogdump->size);
-	dev_info(kbdev->dev, "[me_CSFFWLOG_reserved] phys = 0x%x, size = %d, virt = 0x%llx\n",
-			g_fwlogdump->base, g_fwlogdump->size, g_fw_dump_dest);
+	dev_info(kbdev->dev, "[me_CSFFWLOG_reserved] phys = 0x%llx, size = %llu, virt = 0x%lx\n",
+			g_fwlogdump->base, g_fwlogdump->size, (unsigned long)g_fw_dump_dest);
 
 	/* printf "======CSF fwlog is empy! ======" at START of SYS_MALI_CSFFW_LOG */
 	memcpy(g_fw_dump_dest, fw_default_content, FWLOG_DEFAULT_CONTENT_LEN);

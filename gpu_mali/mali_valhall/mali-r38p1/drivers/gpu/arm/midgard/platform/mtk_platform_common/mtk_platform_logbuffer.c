@@ -283,7 +283,7 @@ static void mtk_logbuffer_init_internal(struct kbase_device *kbdev, struct mtk_l
 		snprintf(logbuf->name, MTK_LOG_BUFFER_NAME_LEN, "%s", name);
 
 	dev_info(kbdev->dev,
-	         "@%s: name='%s' entries=0x%p size=%u is_circular=%d rmem_virt=0x%p rmem_size=%u fallback=%d",
+	         "@%s: name='%s' entries=0x%p size=%u is_circular=%d rmem_virt=0x%p rmem_size=%zu fallback=%d",
 	         __func__, logbuf->name, logbuf->entries, logbuf->size,
 	         logbuf->is_circular, rmem_virt, rmem_size, logbuf->fallback);
 }

@@ -24,7 +24,7 @@ static ssize_t etm_show(struct device * const dev,
 	if (IS_ERR_OR_NULL(kbdev))
 		return -ENODEV;
 
-	err = scnprintf(buf, PAGE_SIZE, "%llu\n", g_etm);
+	err = scnprintf(buf, PAGE_SIZE, "%u\n", g_etm);
 
 	return err;
 }

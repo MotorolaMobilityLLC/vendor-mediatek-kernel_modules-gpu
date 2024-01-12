@@ -495,7 +495,7 @@ static int mtk_debug_dump_kcpu_queues(struct seq_file *file, void *data)
 							   kctx->tgid,
 							   kctx->id);
 					seq_printf(file,
-							   "[%d_%d] %9lu(  %s ), %7d,      None, (command index out of size limits %d)\n",
+							   "[%d_%d] %9lu(  %s ), %7d,      None, (command index out of size limits %zu)\n",
 							   kctx->tgid,
 							   kctx->id,
 							   idx,
@@ -1168,7 +1168,7 @@ static void *mtk_debug_cs_queue_mem_map_and_dump_once(struct kbase_device *kbdev
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			} else {
 				if (mtk_debug_cs_dump_mode)
-					dev_info(dev, "%016llx: %08x %08x %08x %08x",
+					dev_info(dev, "%016llx: %08llx %08llx %08llx %08llx",
 						gpu_addr + i, ptr[0], ptr[1], ptr[2], ptr[3]);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 				mtk_logbuffer_print(&kbdev->logbuf_regular,
@@ -1950,7 +1950,7 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 							         kctx->tgid,
 							         kctx->id);
 							dev_info(kbdev->dev,
-							         "[%d_%d] %9lu(  %s ), %7d,      None, (command index out of size limits %d)",
+							         "[%d_%d] %9lu(  %s ), %7d,      None, (command index out of size limits %zu)",
 							         kctx->tgid,
 							         kctx->id,
 							         idx,
