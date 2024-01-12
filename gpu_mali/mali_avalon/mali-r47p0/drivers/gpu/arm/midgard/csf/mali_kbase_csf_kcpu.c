@@ -2138,25 +2138,22 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 
 	/* 4. Dump the group information when timeout 2s, 3s */
 	if ((fence_signal_command_timeout_counter == 2) || (fence_signal_command_timeout_counter == 3)) {
-		kbasep_print(kbpr, "------------------------------------------------\n");
-		kbasep_print(kbpr, "KCPU Fence signal timeout detected for ctx:%d_%d\n", kctx->tgid,
-				kctx->id);
-		kbasep_print(kbpr, "------------------------------------------------\n");
-		kbasep_print(kbpr, "Kcpu queue:%u still waiting for fence[%pK] context#seqno:%s\n",
-				queue->id, fence, info.name);
-		kbasep_print(kbpr, "Fence metadata timeline name: %s\n",
-				kcpu_fence->metadata->timeline_name);
+		//kbasep_print(kbpr, "------------------------------------------------\n");
+		//kbasep_print(kbpr, "KCPU Fence signal timeout detected for ctx:%d_%d\n", kctx->tgid, kctx->id);
+		//kbasep_print(kbpr, "------------------------------------------------\n");
+		//kbasep_print(kbpr, "Kcpu queue:%u still waiting for fence[%pK] context#seqno:%s\n", queue->id, fence, info.name);
+		//kbasep_print(kbpr, "Fence metadata timeline name: %s\n", kcpu_fence->metadata->timeline_name);
 
 		kbase_fence_put(fence);
 		mutex_unlock(&queue->lock);
 
-		kbasep_csf_csg_active_dump_print(kctx->kbdev, kbpr);
-		kbasep_csf_csg_dump_print(kctx, kbpr);
-		kbasep_csf_sync_gpu_dump_print(kctx, kbpr);
+		//kbasep_csf_csg_active_dump_print(kctx->kbdev, kbpr);
+		//kbasep_csf_csg_dump_print(kctx, kbpr);
+		//kbasep_csf_sync_gpu_dump_print(kctx, kbpr);
 		kbasep_csf_sync_kcpu_dump_print(kctx, kbpr);
 		kbasep_csf_cpu_queue_dump_print(kctx, kbpr);
 
-		kbasep_print(kbpr, "-----------------------------------------------\n");
+		//kbasep_print(kbpr, "-----------------------------------------------\n");
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, kctx->tgid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, kctx->tgid, MTK_DBG_HOOK_MALI_FENCE_SIGNAL_TIMEOUT);
