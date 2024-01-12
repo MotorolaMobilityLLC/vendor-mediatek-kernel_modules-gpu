@@ -130,6 +130,16 @@
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+#include <gpu_bm.h>
+#if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
+#include <sspm_reservedmem_define.h>
+static phys_addr_t rec_phys_addr, rec_virt_addr;
+static unsigned long long rec_size;
+struct v1_data *gpu_info_ref;
+#endif /* CONFIG_MTK_TINYSYS_SSPM_SUPPORT */
+#endif /* CONFIG_MALI_MTK_GPU_BM_JM */
+
 #if defined(CONFIG_MALI_MTK_GPU_BM_CSF)
 #include <ged_gpu_bm.h>
 #endif /* CONFIG_MALI_MTK_GPU_BM_CSF */
@@ -188,6 +198,49 @@ static const struct mali_kbase_capability_def kbase_caps_table[MALI_KBASE_NUM_CA
 /* Mutex to synchronize the probe of multiple kbase instances */
 static struct mutex kbase_probe_mutex;
 #endif
+
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+static void get_rec_addr(void)
+{
+	int i;
+	unsigned char *ptr;
+
+	pr_info("%s: [GPU_QOS] start to get sspm reserved memory\n", __func__);
+	/* get sspm reserved mem */
+	rec_phys_addr = sspm_reserve_mem_get_phys(GPU_MEM_ID);
+	rec_virt_addr = sspm_reserve_mem_get_virt(GPU_MEM_ID);
+	rec_size = sspm_reserve_mem_get_size(GPU_MEM_ID);
+
+	/* clear */
+	ptr = (unsigned char *)(uintptr_t)rec_virt_addr;
+	for (i = 0; i < rec_size; i++)
+		ptr[i] = 0x0;
+
+	gpu_info_ref = (struct v1_data *)(uintptr_t)rec_virt_addr;
+}
+
+static int mtk_bandwith_resource_init(struct kbase_device *kbdev)
+{
+	int err = 0;
+
+	pr_info("%s: [GPU_QOS] try to get rec addr\n", __func__);
+
+#if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
+	get_rec_addr();
+
+	if(gpu_info_ref == NULL) {
+		err = -1;
+		pr_info("%s: [GPU_QOS] get sspm reserved memory fail\n", __func__);
+		return err;
+	}
+	kbdev->v1 = gpu_info_ref;
+	kbdev->v1->version = 1;
+	kbdev->job_status_addr.phyaddr = rec_phys_addr;
+	MTKGPUQoS_setup(kbdev->v1, kbdev->job_status_addr.phyaddr, rec_size);
+#endif /* CONFIG_MTK_TINYSYS_SSPM_SUPPORT */
+	return err;
+}
+#endif /* CONFIG_MALI_MTK_GPU_BM_JM */
 
 /**
  * mali_kbase_supports_cap - Query whether a kbase capability is supported
@@ -5786,6 +5839,13 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		mutex_unlock(&kbase_probe_mutex);
 #endif
 	} else {
+
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+		err = mtk_bandwith_resource_init(kbdev);
+		if (err)
+			pr_info("@%s: GPU BM init failed (JM)\n", __func__);
+#endif /* CONFIG_MALI_MTK_GPU_BM_JM */
+
 #if defined(CONFIG_MALI_MTK_GPU_BM_CSF)
 		err = mtk_bandwidth_resource_init();
 		if (err)
