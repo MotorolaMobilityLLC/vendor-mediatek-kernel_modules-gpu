@@ -21,12 +21,10 @@ struct mtk_logbuffer_info {
 	bool fallback;
 };
 
-enum mtk_logbuffer_type {
-	MTK_LOGBUFFER_TYPE_ALL,
-	MTK_LOGBUFFER_TYPE_REGULAR,
-	MTK_LOGBUFFER_TYPE_CRITICAL,
-	MTK_LOGBUFFER_TYPE_EXCEPTION,
-};
+
+#define MTK_LOGBUFFER_TYPE_REGULAR       ((u32)0x1<<1)
+#define MTK_LOGBUFFER_TYPE_CRITICAL      ((u32)0x1<<2)
+#define MTK_LOGBUFFER_TYPE_EXCEPTION     ((u32)0x1<<3)
 
 int mtk_logbuffer_init(struct kbase_device *kbdev);
 int mtk_logbuffer_term(struct kbase_device *kbdev);
@@ -36,7 +34,7 @@ bool mtk_logbuffer_is_empty(struct mtk_logbuffer_info *logbuf);
 bool mtk_logbuffer_is_full(struct mtk_logbuffer_info *logbuf);
 void mtk_logbuffer_clear(struct mtk_logbuffer_info *logbuf);
 void mtk_logbuffer_print(struct mtk_logbuffer_info *logbuf, const char *fmt, ...);
-void mtk_logbuffer_type_print(struct kbase_device *const kbdev, enum mtk_logbuffer_type logType, const char *fmt, ...);
+void mtk_logbuffer_type_print(struct kbase_device *const kbdev, uint32_t logType, const char *fmt, ...);
 void mtk_logbuffer_dump(struct mtk_logbuffer_info *logbuf, struct seq_file *seq);
 u64 mtk_logbuffer_get_timestamp(struct kbase_device *kbdev);
 

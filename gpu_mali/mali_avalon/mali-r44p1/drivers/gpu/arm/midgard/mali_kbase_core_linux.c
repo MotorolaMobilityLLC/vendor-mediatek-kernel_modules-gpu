@@ -1890,7 +1890,7 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 	         fence_wait->flags,
 	         fence_wait->pid);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			 "Internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u\n",
 	         fence_wait->time_in_microseconds,
 	         fence_wait->flags,
@@ -1919,7 +1919,7 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 			dev_info(kctx->kbdev->dev, "Internal fence timeouts(%llu ms)! Trigger GPU reset",
 					 fence_wait->time_in_microseconds);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
+				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 					"Internal fence timeouts(%llu ms)! Trigger GPU reset\n",
 					fence_wait->time_in_microseconds);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
@@ -1928,7 +1928,7 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 			dev_info(kctx->kbdev->dev, "Internal fence timeouts(%llu ms)! Other threads are already resetting the GPU",
 					 fence_wait->time_in_microseconds);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
+				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 					"Internal fence timeouts(%llu ms)! Other threads are already resetting the GPU\n",
 					fence_wait->time_in_microseconds);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */

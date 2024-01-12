@@ -693,7 +693,7 @@ void kbase_csf_queue_terminate(struct kbase_context *kctx,
 			"Unsuccessful GPU reset detected when terminating queue (buffer_addr=0x%.16llx), attempting to terminate regardless",
 			term->buffer_gpu_addr);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"Unsuccessful GPU reset detected when terminating queue (buffer_addr=0x%.16llx), attempting to terminate regardless\n",
 			term->buffer_gpu_addr);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
@@ -1542,7 +1542,7 @@ void kbase_csf_queue_group_terminate(struct kbase_context *kctx,
 			"Unsuccessful GPU reset detected when terminating group %d, attempting to terminate regardless",
 			group_handle);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"Unsuccessful GPU reset detected when terminating group %d, attempting to terminate regardless\n",
 			group_handle);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
@@ -2375,7 +2375,7 @@ handle_fault_event(struct kbase_queue *const queue, const u32 cs_ack)
 		kbase_gpu_exception_name(cs_fault_exception_type),
 		cs_fault_exception_data, cs_fault_info_exception_data);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 		"Ctx %d_%d Group %d CSG %d CSI: %d\n"
 		"CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
 		"CS_FAULT.EXCEPTION_DATA: 0x%x\n"
@@ -2477,7 +2477,7 @@ static void cs_error_worker(struct work_struct *const data)
 			kbdev->dev,
 			"Unsuccessful GPU reset detected when terminating group to handle fatal event, attempting to terminate regardless");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"Unsuccessful GPU reset detected when terminating group to handle fatal event, attempting to terminate regardless\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -2494,7 +2494,7 @@ static void cs_error_worker(struct work_struct *const data)
 		dev_warn(kbdev->dev, "queue not bound when handling fatal event");
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 		"queue not bound when handling fatal event\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -2587,7 +2587,7 @@ handle_fatal_event(struct kbase_queue *const queue,
 		 kbase_gpu_exception_name(cs_fatal_exception_type),
 		 cs_fatal_exception_data, cs_fatal_info_exception_data);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 		"Ctx %d_%d Group %d CSG %d CSI: %d\n"
 		 "CS_FATAL.EXCEPTION_TYPE: 0x%x (%s)\n"
 		 "CS_FATAL.EXCEPTION_DATA: 0x%x\n"
@@ -2727,7 +2727,7 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 						queue->csi_index, group->handle, queue->kctx->tgid,
 						queue->kctx->id);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-					mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+					mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 						"Tiler OOM work pending: queue %d group %d (ctx %d_%d)\n",
 						queue->csi_index, group->handle, queue->kctx->tgid,
 						queue->kctx->id);
@@ -2906,7 +2906,7 @@ static void process_csg_interrupts(struct kbase_device *const kbdev, int const c
 			kbase_backend_get_cycle_cnt(kbdev), group->handle, group->kctx->tgid,
 			group->kctx->id, csg_nr);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"Iterator PROGRESS_TIMER timeout notification received for group %u of ctx %d_%d on slot %d\n",
 			group->handle, group->kctx->tgid,
 			group->kctx->id, csg_nr);

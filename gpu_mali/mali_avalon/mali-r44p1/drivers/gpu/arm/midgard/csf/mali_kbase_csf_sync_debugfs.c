@@ -438,7 +438,7 @@ static void kbasep_csf_sync_kcpu_debugfs_print_queue(struct kbase_context *kctx,
 		length += snprintf(buffer + length, CSF_SYNC_DUMP_SIZE - length, "\n");
 		kbasep_print(kctx, file, buffer);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL, "%s", buffer);
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "%s", buffer);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 
