@@ -2108,6 +2108,7 @@ void remove_group_from_runnable(struct kbase_csf_scheduler *const scheduler,
 					 scheduler->active_protm_grp, 0u);
 		scheduler->apply_pmode_exit_wa = true;
 		scheduler->active_protm_grp = NULL;
+		scheduler->active_protm_grp_bkup = NULL; //+JT
 	}
 	spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 
@@ -4092,6 +4093,12 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 							 0u);
 
 				kbase_csf_enter_protected_mode(kbdev);
+
+				/* protm gets entered. Deactivate the timer for protm schedule timeout */
+				if (timer_pending(&input_grp->protm_sched_timeout))
+					del_timer(&input_grp->protm_sched_timeout);
+				input_grp->protm_boost = false;
+
 				/* Set the pending protm seq number to the next one */
 				protm_enter_set_next_pending_seq(kbdev);
 
@@ -4221,6 +4228,53 @@ static void scheduler_apply(struct kbase_device *kbdev)
 
 	/* Dealing with groups currently going through suspend */
 	program_suspending_csg_slots(kbdev);
+}
+
+static void scheduler_ctx_scan_groups_prio_boost(struct kbase_device *kbdev,
+		struct kbase_context *kctx, int priority)
+{
+	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
+	struct kbase_queue_group *group, *tmp;;
+
+	lockdep_assert_held(&scheduler->lock);
+	lockdep_assert_held(&scheduler->interrupt_lock);
+	if (WARN_ON(priority < 0) ||
+	    WARN_ON(priority >= KBASE_QUEUE_GROUP_PRIORITY_COUNT))
+		return;
+
+	if (!kctx_as_enabled(kctx))
+		return;
+
+	list_for_each_entry_safe(group, tmp, &kctx->csf.sched.runnable_groups[priority],
+			    link)
+	{
+		if (WARN_ON(!list_empty(&group->link_to_schedule)))
+			/* This would be a bug */
+			list_del_init(&group->link_to_schedule);
+
+		if (unlikely(group->faulted))
+			continue;
+
+		// Enter protect mode
+		if (group->prio_boost == 0)
+		{
+			if (group->protm_boost && (*(group->protm_pending_bitmap) != 0))
+			{
+				list_del_init(&group->link);
+
+				group->prio_boost = 1; // 0 --> 1 enter protm
+				list_add_tail(&group->link,
+							  &kctx->csf.sched.runnable_groups[KBASE_QUEUE_GROUP_PRIORITY_REALTIME]);
+			}
+		}
+		else if (group->prio_boost == 2) // Leave protect mode
+		{
+			list_del_init(&group->link);
+			group->prio_boost = 0; // 2 --> 0 return to normal mode
+			list_add_tail(&group->link,
+						  &kctx->csf.sched.runnable_groups[group->priority]);
+		}
+	}
 }
 
 static void scheduler_ctx_scan_groups(struct kbase_device *kbdev,
@@ -4941,6 +4995,13 @@ static int scheduler_prepare(struct kbase_device *kbdev)
 	bitmap_zero(scheduler->csg_slots_prio_update, MAX_SUPPORTED_CSGS);
 
 	spin_lock_irqsave(&scheduler->interrupt_lock, flags);
+
+	for (i = 1; i < KBASE_QUEUE_GROUP_PRIORITY_COUNT; ++i) {
+		struct kbase_context *kctx;
+		list_for_each_entry(kctx, &scheduler->runnable_kctxs, csf.link)
+			scheduler_ctx_scan_groups_prio_boost(kbdev, kctx, i);
+	}
+
 	scheduler->tick_protm_pending_seq =
 		KBASEP_TICK_PROTM_PEND_SCAN_SEQ_NR_INVALID;
 	/* Scan out to run groups */
@@ -5103,6 +5164,10 @@ static void schedule_actions(struct kbase_device *kbdev, bool is_tick)
 	skip_idle_slots_update = kbase_csf_scheduler_protected_mode_in_use(kbdev);
 	skip_scheduling_actions =
 			!skip_idle_slots_update && kbdev->protected_mode;
+	if(scheduler->active_protm_grp_bkup != NULL && scheduler->active_protm_grp_bkup->prio_boost == 1){
+		scheduler->active_protm_grp_bkup->prio_boost = 2;
+		scheduler->active_protm_grp_bkup = NULL;
+	}
 	spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 
 	/* Skip scheduling actions as GPU reset hasn't been performed yet to
@@ -5722,6 +5787,7 @@ static void scheduler_inner_reset(struct kbase_device *kbdev)
 		scheduler->apply_pmode_exit_wa = true;
 	}
 	scheduler->active_protm_grp = NULL;
+	scheduler->active_protm_grp_bkup = NULL; //+JT
 	memset(kbdev->csf.scheduler.csg_slots, 0,
 	       num_groups * sizeof(struct kbase_csf_csg_slot));
 	bitmap_zero(kbdev->csf.scheduler.csg_inuse_bitmap, num_groups);
@@ -6486,6 +6552,7 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 	scheduler->top_grp = NULL;
 	scheduler->last_schedule = 0;
 	scheduler->active_protm_grp = NULL;
+	scheduler->active_protm_grp_bkup = NULL; //+JT
 	scheduler->apply_pmode_exit_wa = false;
 	scheduler->csg_scheduling_period_ms = CSF_SCHEDULER_TIME_TICK_MS;
 	scheduler_doorbell_init(kbdev);
