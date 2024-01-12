@@ -163,4 +163,18 @@ static inline void kbase_kunmap_atomic(void *address)
 #define check_mul_overflow(a, b, d) __builtin_mul_overflow(a, b, d)
 #endif
 
+#if (KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE)
+static inline void vm_flags_set(struct vm_area_struct *vma,
+				vm_flags_t flags)
+{
+	vma->vm_flags |= flags;
+}
+
+static inline void vm_flags_clear(struct vm_area_struct *vma,
+				  vm_flags_t flags)
+{
+	vma->vm_flags &= ~flags;
+}
+#endif
+
 #endif /* _VERSION_COMPAT_DEFS_H_ */
