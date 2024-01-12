@@ -6,6 +6,7 @@
 #include <mali_kbase_defs.h>
 #include <platform/mtk_platform_common.h>
 #include <platform/mtk_platform_common/mtk_platform_irq_trace.h>
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 
 struct mtk_irq_trace_recorder mtk_irq_trace_recorders[KBASE_IRQ_NUM][MAX_PHASE_NUM];
 struct mtk_irq_trace_recorder mtk_l2_trace_recorders[MAX_PHASE_NUM];
@@ -89,15 +90,18 @@ static void mtk_debug_irq_trace_show(void)
 	return;
 }
 
-void mtk_debug_irq_trace_check_timeout(enum KBASE_IRQ_ID irq_id, unsigned int phase_id)
+void mtk_debug_irq_trace_check_timeout(struct kbase_device *kbdev, enum KBASE_IRQ_ID irq_id, unsigned int phase_id)
 {
 	long long int interval = 0;
 
 	interval = mtk_irq_trace_recorders[irq_id][phase_id].end_record_time_ns -
 				mtk_irq_trace_recorders[irq_id][phase_id].start_record_time_ns;
 
-	if ((interval / 1000000) >= irq_monitor_override_threshold_ms)
+	if ((interval / 1000000) >= irq_monitor_override_threshold_ms) {
+		mtk_logbuffer_print(&kbdev->logbuf_exception, "[GODZILLA] irq: %d timeout, interval: %lld \n",
+			irq_id, (interval / 1000000));
 		mtk_debug_irq_trace_show();
+	}
 
 	return;
 }

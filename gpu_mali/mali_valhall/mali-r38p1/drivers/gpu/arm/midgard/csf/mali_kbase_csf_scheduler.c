@@ -507,12 +507,22 @@ void kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev)
 
 	if (!non_idle_offslot_grps) {
 		if (can_suspend_on_idle) {
+			/* fast_gpu_idle_handling is protected by the
+			 * interrupt_lock, which would prevent this from being
+			 * updated whilst gpu_idle_worker() is executing.
+			 */
+			scheduler->fast_gpu_idle_handling =
+				(kbdev->csf.gpu_idle_hysteresis_ms == 0) ||
+				!kbase_csf_scheduler_all_csgs_idle(kbdev);
+
 			/* The GPU idle worker relies on update_on_slot_queues_offsets() to have
 			 * finished. It's queued before to reduce the time it takes till execution
 			 * but it'll eventually be blocked by the scheduler->interrupt_lock.
 			 */
 			enqueue_gpu_idle_work(scheduler);
-			update_on_slot_queues_offsets(kbdev);
+			/* The extract offsets are unused in fast GPU idle handling */
+			if (!scheduler->fast_gpu_idle_handling)
+				update_on_slot_queues_offsets(kbdev);
 		}
 	} else {
 		/* Advance the scheduling tick to get the non-idle suspended groups loaded soon */
@@ -893,10 +903,11 @@ static void scheduler_wakeup(struct kbase_device *kbdev, bool kick)
 	if (scheduler->state == SCHED_SUSPENDED) {
 		dev_vdbg(kbdev->dev,
 			"Re-activating the Scheduler after suspend");
+/* Reduce log in log buffer
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_regular,
 			"Re-activating the Scheduler after suspend\n");
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif *//* CONFIG_MALI_MTK_LOG_BUFFER */
 		ret = scheduler_pm_active_handle_suspend(kbdev,
 				KBASE_PM_SUSPEND_HANDLER_DONT_REACTIVATE);
 	} else {
@@ -905,10 +916,6 @@ static void scheduler_wakeup(struct kbase_device *kbdev, bool kick)
 
 		dev_vdbg(kbdev->dev,
 			"Re-activating the Scheduler out of sleep");
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kbdev->logbuf_regular,
-			"Re-activating the Scheduler out of sleep\n");
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 		ret = scheduler_pm_active_after_sleep(kbdev, flags);
 		/* hwaccess_lock is released in the previous function call. */
@@ -2062,12 +2069,13 @@ void insert_group_to_runnable(struct kbase_csf_scheduler *const scheduler,
 	} else
 		schedule_in_cycle(group, false);
 
+/* Reduce log in log buffer
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	if (scheduler->state == SCHED_SUSPENDED)
 		mtk_logbuffer_print(&kbdev->logbuf_regular,
 			"[%d_%d] Wake-up scheduler for process '%s'\n",
 			kctx->tgid, kctx->id, current->comm);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif *//* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	/* Since a new group has become runnable, check if GPU needs to be
 	 * powered up.
@@ -2821,13 +2829,13 @@ static void program_csg_slot(struct kbase_queue_group *group, s8 slot,
 
 	dev_vdbg(kbdev->dev, "Starting group %d of context %d_%d on slot %d with priority %u\n",
 		group->handle, kctx->tgid, kctx->id, slot, prio);
-
+/* Reduce log in log buffer
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_regular,
 		"[%d_%d] Starting group %d on slot %d with priority %u, as_nr %u, group_uid %u, priority %u, req_state %u\n",
 		kctx->tgid, kctx->id, group->handle, slot, prio,
 		kctx->as_nr, group->group_uid, group->priority, state);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif *//* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_SLOT_START_REQ, group,
 				 (((u64)ep_cfg) << 32) | ((((u32)kctx->as_nr) & 0xF) << 16) |
@@ -4898,6 +4906,21 @@ static bool scheduler_idle_suspendable(struct kbase_device *kbdev)
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	spin_lock(&scheduler->interrupt_lock);
+
+	if (scheduler->fast_gpu_idle_handling) {
+		scheduler->fast_gpu_idle_handling = false;
+
+		if (scheduler->total_runnable_grps) {
+			suspend = !atomic_read(&scheduler->non_idle_offslot_grps) &&
+				  kbase_pm_idle_groups_sched_suspendable(kbdev);
+		} else
+			suspend = kbase_pm_no_runnables_sched_suspendable(kbdev);
+		spin_unlock(&scheduler->interrupt_lock);
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+		return suspend;
+	}
+
 	if (scheduler->total_runnable_grps) {
 
 		/* Check both on-slots and off-slots groups idle status */
@@ -4915,10 +4938,11 @@ static bool scheduler_idle_suspendable(struct kbase_device *kbdev)
 			unlikely(!all_on_slot_groups_remained_idle(kbdev)))) {
 		dev_vdbg(kbdev->dev,
 			 "GPU suspension skipped due to active CSGs");
+/* Reduce log in log buffer
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_regular,
 			"GPU suspension skipped due to active CSGs\n");
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif *//* CONFIG_MALI_MTK_LOG_BUFFER */
 		suspend = false;
 	}
 
@@ -4982,10 +5006,11 @@ static bool scheduler_suspend_on_idle(struct kbase_device *kbdev)
 	dev_vdbg(kbdev->dev, "Scheduler to be suspended on GPU becoming idle");
 	scheduler_suspend(kbdev);
 	cancel_tick_timer(kbdev);
+/* Reduce log in log buffer
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_regular,
 		"Scheduler was suspended on GPU becoming idle\n");
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif *//* CONFIG_MALI_MTK_LOG_BUFFER */
 	return true;
 }
 
@@ -5590,7 +5615,7 @@ static int wait_csg_slots_suspend(struct kbase_device *kbdev,
 
 	remaining = kbase_csf_timeout_in_jiffies(timeout_ms * 9 / 10);
 #endif /* CONFIG_MALI_MTK_CSG_DOORBELL_RECOVERY */
-	
+
 	while (!bitmap_empty(slot_mask_local, MAX_SUPPORTED_CSGS)
 		&& remaining) {
 		DECLARE_BITMAP(changed, MAX_SUPPORTED_CSGS);
@@ -6666,6 +6691,7 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 
 	INIT_WORK(&scheduler->gpu_idle_work, gpu_idle_worker);
 	INIT_WORK(&scheduler->pmode_exit_wa_work, pmode_exit_wa_worker);
+	scheduler->fast_gpu_idle_handling = false;
 	atomic_set(&scheduler->gpu_no_longer_idle, false);
 	atomic_set(&scheduler->non_idle_offslot_grps, 0);
 

@@ -157,21 +157,15 @@ static bool mmu_flush_cache_on_gpu_ctrl(struct kbase_device *kbdev)
 static void mmu_invalidate(struct kbase_device *kbdev, struct kbase_context *kctx, int as_nr,
 			   const struct kbase_mmu_hw_op_param *op_param)
 {
-	int err = 0;
 	unsigned long flags;
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 	if (kbdev->pm.backend.gpu_powered && (!kctx || kctx->as_nr >= 0)) {
 		as_nr = kctx ? kctx->as_nr : as_nr;
-		err = kbase_mmu_hw_do_unlock(kbdev, &kbdev->as[as_nr], op_param);
-	}
-
-	if (err) {
-		dev_err(kbdev->dev,
-			"Invalidate after GPU page table update did not complete. Issuing GPU soft-reset to recover");
-		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
-			kbase_reset_gpu(kbdev);
+		if (kbase_mmu_hw_do_unlock(kbdev, &kbdev->as[as_nr], op_param))
+			dev_err(kbdev->dev,
+				"Invalidate after GPU page table update did not complete");
 	}
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
@@ -205,7 +199,6 @@ static void mmu_invalidate(struct kbase_device *kbdev, struct kbase_context *kct
 static void mmu_flush_invalidate(struct kbase_device *kbdev, struct kbase_context *kctx, int as_nr,
 				const struct kbase_mmu_hw_op_param *op_param)
 {
-	int err = 0;
 	unsigned long flags;
 
 	/* Early out if there is nothing to do */
@@ -219,17 +212,8 @@ static void mmu_flush_invalidate(struct kbase_device *kbdev, struct kbase_contex
 	if (kbdev->pm.backend.gpu_powered && (!kctx || kctx->as_nr >= 0)) {
 		struct kbase_as *as = &kbdev->as[kctx ? kctx->as_nr : as_nr];
 
-		err = kbase_mmu_hw_do_flush_locked(kbdev, as, op_param);
-	}
-
-	if (err) {
-		/* Flush failed to complete, assume the GPU has hung and
-		 * perform a reset to recover.
-		 */
-		dev_err(kbdev->dev, "Flush for GPU page table update did not complete. Issuing GPU soft-reset to recover");
-
-		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
-			kbase_reset_gpu(kbdev);
+		if (kbase_mmu_hw_do_flush_locked(kbdev, as, op_param))
+			dev_err(kbdev->dev, "Flush for GPU page table update did not complete");
 	}
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
@@ -252,7 +236,6 @@ static void mmu_flush_invalidate(struct kbase_device *kbdev, struct kbase_contex
 static void mmu_flush_invalidate_on_gpu_ctrl(struct kbase_device *kbdev, struct kbase_context *kctx,
 					int as_nr, const struct kbase_mmu_hw_op_param *op_param)
 {
-	int err = 0;
 	unsigned long flags;
 
 	/* AS transaction begin */
@@ -261,24 +244,9 @@ static void mmu_flush_invalidate_on_gpu_ctrl(struct kbase_device *kbdev, struct 
 
 	if (kbdev->pm.backend.gpu_powered && (!kctx || kctx->as_nr >= 0)) {
 		as_nr = kctx ? kctx->as_nr : as_nr;
-		err = kbase_mmu_hw_do_flush_on_gpu_ctrl(kbdev, &kbdev->as[as_nr],
-							op_param);
-	}
+		if (kbase_mmu_hw_do_flush_on_gpu_ctrl(kbdev, &kbdev->as[as_nr], op_param))
+			dev_err(kbdev->dev, "Flush for GPU page table update did not complete");
 
-	if (err) {
-		/* Flush failed to complete, assume the GPU has hung and
-		 * perform a reset to recover.
-		 */
-		dev_err(kbdev->dev,
-			"Flush for GPU page table update did not complete. Issuing GPU soft-reset to recover\n");
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kbdev->logbuf_exception,
-			"[%llxt] Flush for GPU page table update did not complete. Issuing GPU soft-reset to recover\n",
-			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception));
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-
-		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
-			kbase_reset_gpu(kbdev);
 	}
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
@@ -509,13 +477,13 @@ static void kbase_gpu_mmu_handle_write_faulting_as(struct kbase_device *kbdev,
 						   u64 start_pfn, size_t nr,
 						   u32 kctx_id, u64 dirty_pgds)
 {
-	int err;
 
 	/* Calls to this function are inherently synchronous, with respect to
 	 * MMU operations.
 	 */
 	const enum kbase_caller_mmu_sync_info mmu_sync_info = CALLER_MMU_SYNC;
 	struct kbase_mmu_hw_op_param op_param;
+	int ret = 0;
 
 	mutex_lock(&kbdev->mmu_hw_mutex);
 
@@ -534,16 +502,19 @@ static void kbase_gpu_mmu_handle_write_faulting_as(struct kbase_device *kbdev,
 		spin_lock_irqsave(&kbdev->hwaccess_lock, irq_flags);
 		op_param.flush_skip_levels =
 				pgd_level_to_skip_flush(dirty_pgds);
-		err = kbase_mmu_hw_do_flush_on_gpu_ctrl(kbdev, faulting_as,
-							&op_param);
+		ret = kbase_mmu_hw_do_flush_on_gpu_ctrl(kbdev, faulting_as, &op_param);
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, irq_flags);
 	} else {
 		mmu_hw_operation_begin(kbdev);
-		err = kbase_mmu_hw_do_flush(kbdev, faulting_as, &op_param);
+		ret = kbase_mmu_hw_do_flush(kbdev, faulting_as, &op_param);
 		mmu_hw_operation_end(kbdev);
 	}
 
 	mutex_unlock(&kbdev->mmu_hw_mutex);
+
+	if (ret)
+		dev_err(kbdev->dev,
+			"Flush for GPU page fault due to write access did not complete");
 
 	kbase_mmu_hw_enable_fault(kbdev, faulting_as,
 			KBASE_MMU_FAULT_TYPE_PAGE);

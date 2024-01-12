@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2014-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -24,6 +24,7 @@
 #include <mali_kbase.h>
 #include <mali_kbase_ctx_sched.h>
 #include <mali_kbase_mem.h>
+#include <mali_kbase_reset_gpu.h>
 #include <mmu/mali_kbase_mmu_hw.h>
 #include <tl/mali_kbase_tracepoints.h>
 #include <linux/delay.h>
@@ -152,88 +153,70 @@ static int lock_region(struct kbase_gpu_props const *gpu_props, u64 *lockaddr,
 	return 0;
 }
 
-static int wait_ready(struct kbase_device *kbdev,
-		unsigned int as_nr)
+/**
+ * wait_ready() - Wait for previously issued MMU command to complete.
+ *
+ * @kbdev:        Kbase device to wait for a MMU command to complete.
+ * @as_nr:        Address space to wait for a MMU command to complete.
+ *
+ * Reset GPU if the wait for previously issued command fails.
+ *
+ * Return: 0 on successful completion. negative error on failure.
+ */
+static int wait_ready(struct kbase_device *kbdev, unsigned int as_nr)
 {
-	u64 wait_loop_start = ktime_get_raw();
+	const ktime_t wait_loop_start = ktime_get_raw();
+	const u32 mmu_as_inactive_wait_time_ms = kbdev->mmu_as_inactive_wait_time_ms;
+	s64 diff;
 
+	if (unlikely(kbdev->as[as_nr].is_unresponsive))
+		return -EBUSY;
+ 
 	do {
-		u64 diff;
 		unsigned int i;
-
+ 
 		for (i = 0; i < 1000; i++) {
-			u32 val = kbase_reg_read(kbdev, MMU_AS_REG(as_nr, AS_STATUS));
 			/* Wait for the MMU status to indicate there is no active command */
-			if (!(val & AS_STATUS_AS_ACTIVE))
+			if (!(kbase_reg_read(kbdev, MMU_AS_REG(as_nr, AS_STATUS)) &
+			      AS_STATUS_AS_ACTIVE))
 				return 0;
 		}
 
-#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
-		if (kbdev->reset_force_mmu_not_ready) {
-			// if reset_force_mmu_not_ready is true, just return to do gpu reset
-			dev_info(kbdev->dev, "reset_force_mmu_not_ready, 1000 timeout return");
-			return -1;
-		}
-#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
-
 		diff = ktime_to_ms(ktime_sub(ktime_get_raw(), wait_loop_start));
-		if (diff > kbdev->mmu_as_inactive_wait_time_ms) {
-			dev_err(kbdev->dev,
-				"AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty system",
-			as_nr);
+	} while (diff < mmu_as_inactive_wait_time_ms);
+
+	dev_err(kbdev->dev,
+		"AS_ACTIVE bit stuck for as %u. Might be caused by unstable GPU clk/pwr or faulty system",
+		as_nr);
+	kbdev->as[as_nr].is_unresponsive = true;
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_print(&kbdev->logbuf_exception,
-				"[%llxt] AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty system\n",
-				mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception), as_nr);
+	mtk_logbuffer_print(&kbdev->logbuf_exception,
+		"[%llxt] AS_ACTIVE bit stuck for as %u. Might be caused by unstable GPU clk/pwr or faulty system",
+		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception), as_nr);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-			mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_NA);
-			mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
-			if (!kbdev->reset_force_mmu_not_ready) {
-				spin_lock(&kbdev->reset_force_change);
-				kbdev->reset_force_evict_group_work = true;
-				kbdev->reset_force_hard_reset = true;
-				kbdev->reset_force_mmu_not_ready = true;
-				spin_unlock(&kbdev->reset_force_change);
-				if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE)) {
-					dev_info(kbdev->dev, "Trigger GPU reset for MMU as command timeouts");
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-					mtk_logbuffer_print(&kbdev->logbuf_exception,
-						"[%llxt] Trigger GPU reset for MMU as command timeouts\n",
-						mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception));
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-					kbase_reset_gpu(kbdev);
-				} else {
-					dev_info(kbdev->dev, "MMU as command timeouts! Other threads are already resetting the GPU");
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-					mtk_logbuffer_print(&kbdev->logbuf_exception,
-						"[%llxt] MMU as command timeouts! Other threads are already resetting the GPU\n",
-						mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception));
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-				}
-			}
-#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_NA);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
-			return -1;
-		}
-	} while (1);
+	if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
+		kbase_reset_gpu_locked(kbdev);
 
-	return 0;
+	return -ETIMEDOUT;
 }
 
 static int write_cmd(struct kbase_device *kbdev, int as_nr, u32 cmd)
 {
-	int status;
+	const int status = wait_ready(kbdev, as_nr);
 
-	/* write AS_COMMAND when MMU is ready to accept another command */
-	status = wait_ready(kbdev, as_nr);
-	if (status == 0)
+	if (likely(status == 0))
 		kbase_reg_write(kbdev, MMU_AS_REG(as_nr, AS_COMMAND), cmd);
-	else {
+	else if (status == -EBUSY) {
+		dev_dbg(kbdev->dev,
+			"Skipped the wait for AS_ACTIVE bit for as %u, before sending MMU command %u",
+			as_nr, cmd);
+	} else {
 		dev_err(kbdev->dev,
 			"Wait for AS_ACTIVE bit failed for as %u, before sending MMU command %u",
 			as_nr, cmd);
@@ -316,17 +299,25 @@ static int apply_hw_issue_GPU2019_3901_wa(struct kbase_device *kbdev,
 
 		/* Wait for the LOCK MMU command to complete, issued by the caller */
 		ret = wait_ready(kbdev, as_nr);
-		if (ret)
+		if (unlikely(ret))
 			goto unlock;
 
 		ret = kbase_gpu_cache_flush_and_busy_wait(kbdev,
 				GPU_COMMAND_CACHE_CLN_INV_LSC);
-		if (ret)
+		if (unlikely(ret))
 			goto unlock;
 
 		ret = wait_cores_power_trans_complete(kbdev);
-		if (ret)
+		if (unlikely(ret)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_print(&kbdev->logbuf_exception,
+				"wait_cores_power_trans_complete fail, try to do reset\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+			if (kbase_prepare_to_reset_gpu_locked(kbdev,
+							      RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
+				kbase_reset_gpu_locked(kbdev);
 			goto unlock;
+		}
 
 		/* As LSC is guaranteed to have been flushed we can use FLUSH_PT
 		 * MMU command to only flush the L2.
@@ -458,12 +449,21 @@ static int mmu_hw_do_lock_no_wait(struct kbase_device *kbdev, struct kbase_as *a
 
 	ret = mmu_hw_set_lock_addr(kbdev, as->number, lock_addr, op_param);
 
-	if (!ret)
-		write_cmd(kbdev, as->number, AS_COMMAND_LOCK);
+	if (likely(!ret))
+		ret = write_cmd(kbdev, as->number, AS_COMMAND_LOCK);
 
 	return ret;
 }
 
+/**
+ * mmu_hw_do_lock - Issue LOCK command to the MMU and wait for its completion.
+ *
+ * @kbdev:      Kbase device to issue the MMU operation on.
+ * @as:         Address space to issue the MMU operation on.
+ * @op_param:   Pointer to a struct containing information about the MMU operation.
+ *
+ * Return: 0 if issuing the LOCK command was successful, otherwise an error code.
+ */
 static int mmu_hw_do_lock(struct kbase_device *kbdev, struct kbase_as *as,
 			  const struct kbase_mmu_hw_op_param *op_param)
 {
@@ -496,10 +496,10 @@ int kbase_mmu_hw_do_unlock_no_addr(struct kbase_device *kbdev, struct kbase_as *
 	ret = write_cmd(kbdev, as->number, AS_COMMAND_UNLOCK);
 
 	/* Wait for UNLOCK command to complete */
-	if (!ret)
+	if (likely(!ret))
 		ret = wait_ready(kbdev, as->number);
 
-	if (!ret) {
+	if (likely(!ret)) {
 		u64 lock_addr = 0x0;
 		/* read MMU_AS_CONTROL.LOCKADDR register */
 		lock_addr |= (u64)kbase_reg_read(kbdev, MMU_AS_REG(as->number, AS_LOCKADDR_HI))
@@ -531,6 +531,16 @@ int kbase_mmu_hw_do_unlock(struct kbase_device *kbdev, struct kbase_as *as,
 	return ret;
 }
 
+/**
+ * mmu_hw_do_flush - Flush MMU and wait for its completion.
+ *
+ * @kbdev:           Kbase device to issue the MMU operation on.
+ * @as:              Address space to issue the MMU operation on.
+ * @op_param:        Pointer to a struct containing information about the MMU operation.
+ * @hwaccess_locked: Flag to indicate if the lock has been held.
+ *
+ * Return: 0 if flushing MMU was successful, otherwise an error code.
+ */
 static int mmu_hw_do_flush(struct kbase_device *kbdev, struct kbase_as *as,
 	const struct kbase_mmu_hw_op_param *op_param, bool hwaccess_locked)
 {
@@ -574,12 +584,13 @@ static int mmu_hw_do_flush(struct kbase_device *kbdev, struct kbase_as *as,
 	}
 #endif
 
-	write_cmd(kbdev, as->number, mmu_cmd);
+	ret = write_cmd(kbdev, as->number, mmu_cmd);
 
 	/* Wait for the command to complete */
-	ret = wait_ready(kbdev, as->number);
+	if (likely(!ret))
+		ret = wait_ready(kbdev, as->number);
 
-	if (!ret)
+	if (likely(!ret))
 		mmu_command_instr(kbdev, op_param->kctx_id, mmu_cmd, lock_addr,
 				  op_param->mmu_sync_info);
 

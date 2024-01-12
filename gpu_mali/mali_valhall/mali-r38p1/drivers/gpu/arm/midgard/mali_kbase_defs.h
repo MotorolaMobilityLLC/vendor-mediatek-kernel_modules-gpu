@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2011-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2011-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1242,7 +1242,7 @@ struct kbase_device {
 
 	struct notifier_block oom_notifier_block;
 
-	u64 mmu_as_inactive_wait_time_ms;
+	u32 mmu_as_inactive_wait_time_ms;
 
 #if defined(CONFIG_MALI_MTK_GPU_BM_JM)
 	struct job_status_qos job_status_addr;
@@ -1257,7 +1257,6 @@ struct kbase_device {
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
 	bool reset_force_evict_group_work;
 	bool reset_force_hard_reset;
-	bool reset_force_mmu_not_ready;
 	spinlock_t reset_force_change;
 #endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
 };
@@ -2020,6 +2019,4 @@ static inline u64 kbase_get_lock_region_min_size_log2(struct kbase_gpu_props con
 #define KBASE_AS_INACTIVE_MAX_LOOPS     100000000
 /* Maximum number of loops polling the GPU PRFCNT_ACTIVE bit before we assume the GPU has hung */
 #define KBASE_PRFCNT_ACTIVE_MAX_LOOPS   100000000
-/* Maximum waiting time in ms for the completion of a MMU operation */
-#define KBASE_MMU_AS_INACTIVE_WAIT_TIME_MS    500
 #endif /* _KBASE_DEFS_H_ */

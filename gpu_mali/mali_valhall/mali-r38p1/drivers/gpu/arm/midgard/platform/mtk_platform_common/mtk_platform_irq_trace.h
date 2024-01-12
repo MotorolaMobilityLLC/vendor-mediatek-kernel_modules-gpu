@@ -30,7 +30,7 @@ struct mtk_irq_trace_recorder {
 void mtk_debug_irq_trace_record_start(enum KBASE_IRQ_ID irq_id, unsigned int phase_id);
 void mtk_debug_irq_trace_record_end(enum KBASE_IRQ_ID irq_id, unsigned int phase_id);
 void mtk_debug_irq_trace_record_data(unsigned int data_id, unsigned long long data);
-void mtk_debug_irq_trace_check_timeout(enum KBASE_IRQ_ID irq_id, unsigned int phase_id);
+void mtk_debug_irq_trace_check_timeout(struct kbase_device *kbdev, enum KBASE_IRQ_ID irq_id, unsigned int phase_id);
 void mtk_debug_irq_trace_l2_record(unsigned long long start_time, unsigned int from_state,
     unsigned int to_state);
 int mtk_debug_irq_trace_init(struct kbase_device *kbdev);

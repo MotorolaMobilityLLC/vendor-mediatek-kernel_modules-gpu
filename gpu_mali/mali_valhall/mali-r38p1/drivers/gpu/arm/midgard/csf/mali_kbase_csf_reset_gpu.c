@@ -491,7 +491,7 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 	if (!silent) {
 		dev_err(kbdev->dev, "Reset complete");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kbdev->logbuf_exception,
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
 			"[%llxt] Reset complete\n",
 			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
@@ -550,13 +550,6 @@ static void kbase_csf_reset_gpu_worker(struct work_struct *data)
 		err = kbase_csf_reset_gpu_now(kbdev, firmware_inited, silent);
 		kbase_pm_context_idle(kbdev);
 	}
-
-#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
-	spin_lock(&kbdev->reset_force_change);
-	kbdev->reset_force_mmu_not_ready = false;
-	spin_unlock(&kbdev->reset_force_change);
-#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
-
 	kbase_disjoint_state_down(kbdev);
 
 	/* Allow other threads to once again use the GPU */
@@ -601,7 +594,7 @@ void kbase_reset_gpu(struct kbase_device *kbdev)
 	dev_err(kbdev->dev, "Preparing to soft-reset GPU\n");
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_print(&kbdev->logbuf_exception,
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
 		"[%llxt] Preparing to soft-reset GPU\n",
 		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
