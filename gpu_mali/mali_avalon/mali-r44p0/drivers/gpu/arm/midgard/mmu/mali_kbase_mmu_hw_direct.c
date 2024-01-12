@@ -652,6 +652,10 @@ int kbase_mmu_hw_do_flush_on_gpu_ctrl(struct kbase_device *kbdev, struct kbase_a
 	if (op_param->op != KBASE_MMU_OP_FLUSH_PT &&
 	    op_param->op != KBASE_MMU_OP_FLUSH_MEM) {
 		dev_err(kbdev->dev, "Unexpected flush operation received");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+			"Unexpected flush operation received\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return -EINVAL;
 	}
 

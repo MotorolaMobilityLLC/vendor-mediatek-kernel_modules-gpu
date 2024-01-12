@@ -51,6 +51,10 @@
 #include <mali_kbase_trace_gpu_mem.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 /* Threshold used to decide whether to flush full caches or just a physical range */
 #define KBASE_PA_RANGE_THRESHOLD_NR_PAGES 20
 #define MGM_DEFAULT_PTE_GROUP (0)
@@ -155,11 +159,20 @@ static void mmu_flush_pa_range(struct kbase_device *kbdev, phys_addr_t phys, siz
 		flush_op = GPU_COMMAND_FLUSH_PA_RANGE_CLN_INV_L2_LSC;
 	else {
 		dev_warn(kbdev->dev, "Invalid flush request (op = %d)", op);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+			"Invalid flush request (op = %d)\n", op);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return;
 	}
 
-	if (kbase_gpu_cache_flush_pa_range_and_busy_wait(kbdev, phys, nr_bytes, flush_op))
+	if (kbase_gpu_cache_flush_pa_range_and_busy_wait(kbdev, phys, nr_bytes, flush_op)) {
 		dev_err(kbdev->dev, "Flush for physical address range did not complete");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+			"Flush for physical address range did not complete\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	}
 }
 #endif
 
@@ -286,8 +299,13 @@ static void mmu_flush_invalidate_on_gpu_ctrl(struct kbase_device *kbdev, struct 
 
 	if (kbdev->pm.backend.gpu_powered && (!kctx || kctx->as_nr >= 0)) {
 		as_nr = kctx ? kctx->as_nr : as_nr;
-		if (kbase_mmu_hw_do_flush_on_gpu_ctrl(kbdev, &kbdev->as[as_nr], op_param))
+		if (kbase_mmu_hw_do_flush_on_gpu_ctrl(kbdev, &kbdev->as[as_nr], op_param)) {
 			dev_err(kbdev->dev, "Flush for GPU page table update did not complete");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
+				"Flush for GPU page table update did not complete\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		}
 	}
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
