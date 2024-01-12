@@ -910,32 +910,33 @@ bool kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev)
 		 */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
-			/* Bypass enqueue */
-			if (kbdev->csf.scheduler.apo_support &&
-				kbdev->csf.scheduler.state != SCHED_SLEEPING &&
-				ged_gpu_apo_notify()) {
-				kbase_pm_enable_db_mirror_interrupt(kbdev);
-				if (!ged_gpu_predict_apo_notify()) {
-					kbase_pm_disable_db_mirror_interrupt(kbdev);
-					enqueue_gpu_idle_work(scheduler);
-				} else {
-					if (!hrtimer_active(&scheduler->apo_idle_timer)) {
-						expiry_time = HR_TIMER_DELAY_NSEC(
-							ged_get_apo_wakeup_ns());
-						hrtimer_start(&scheduler->apo_idle_timer,
-							expiry_time,
-							HRTIMER_MODE_REL);
-					}
-				}
-			/* Handle enqueue */
-			} else {
-				ged_check_predict_power_duration(); // call for autosuspend_delay setting
+		/* Bypass enqueue */
+		if (kbdev->csf.scheduler.apo_support &&
+			kbdev->csf.scheduler.state != SCHED_SLEEPING &&
+			ged_gpu_apo_notify()) {
+			kbase_pm_enable_db_mirror_interrupt(kbdev);
+			if (!ged_gpu_predict_apo_notify()) {
+				kbase_pm_disable_db_mirror_interrupt(kbdev);
 				enqueue_gpu_idle_work(scheduler);
+			} else {
+				if (!hrtimer_active(&scheduler->apo_idle_timer)) {
+					expiry_time = HR_TIMER_DELAY_NSEC(
+						ged_get_apo_wakeup_ns());
+					hrtimer_start(&scheduler->apo_idle_timer,
+						expiry_time,
+						HRTIMER_MODE_REL);
+				}
 			}
+		/* Handle enqueue */
+		} else {
+			ged_check_predict_power_duration(); // call for autosuspend_delay setting
+			enqueue_gpu_idle_work(scheduler);
+		}
 #else
 		enqueue_gpu_idle_work(scheduler);
-	}
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
+	}
+
 	/* The extract offsets are unused in fast GPU idle handling */
 	if (!scheduler->fast_gpu_idle_handling)
 		update_on_slot_queues_offsets(kbdev);
