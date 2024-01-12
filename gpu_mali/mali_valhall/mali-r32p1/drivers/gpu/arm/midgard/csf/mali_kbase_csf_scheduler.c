@@ -2692,6 +2692,15 @@ static void program_suspending_csg_slots(struct kbase_device *kbdev)
 					group->handle, group->kctx->tgid,
 					group->kctx->id, i);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+				if (!mtk_common_gpufreq_bringup()) {
+					mtk_common_debug_dump();
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+					gpufreq_dump_infra_status();
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+				}
+#endif
+
 				/* The group has failed suspension, stop
 				 * further examination.
 				 */
@@ -3801,8 +3810,6 @@ static void schedule_actions(struct kbase_device *kbdev)
 			mtk_common_debug_dump();
 #if defined(CONFIG_MTK_GPUFREQ_V2)
 			gpufreq_dump_infra_status();
-#else
-			mt_gpufreq_dump_infra_status();
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
 		}
 #endif
