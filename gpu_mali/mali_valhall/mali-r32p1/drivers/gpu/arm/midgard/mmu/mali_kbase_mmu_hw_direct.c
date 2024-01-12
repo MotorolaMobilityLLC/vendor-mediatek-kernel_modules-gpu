@@ -151,6 +151,7 @@ static int wait_ready(struct kbase_device *kbdev,
 			mt_gpufreq_dump_infra_status();
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
 		}
+		return -1;
 	}
 #else
 	if (max_loops == 0) {
