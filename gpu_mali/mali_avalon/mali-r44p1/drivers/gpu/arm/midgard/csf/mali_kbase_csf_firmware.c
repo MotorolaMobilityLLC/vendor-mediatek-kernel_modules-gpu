@@ -593,6 +593,9 @@ static inline bool entry_find_large_page_to_reuse(struct kbase_device *kbdev,
 	if (force_small_page)
 		goto out;
 
+	if (kbdev->pagesize_2mb != true)
+		goto out;
+
 	/* If the section starts at 2MB aligned boundary,
 	 * then use 2MB page(s) for it.
 	 */
