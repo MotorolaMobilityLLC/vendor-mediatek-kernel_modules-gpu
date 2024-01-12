@@ -1717,7 +1717,7 @@ bool kbase_kcpu_command_fence_has_force_signaled(struct kbase_kcpu_command_fence
 {
 	return fence_info->fence_has_force_signaled;
 }
-#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+
 static int kbase_kcpu_fence_force_signal_process(
 		struct kbase_kcpu_command_queue *kcpu_queue,
 		struct kbase_kcpu_command_fence_info *fence_info)
@@ -1884,7 +1884,7 @@ static void kcpu_queue_force_fence_signal(struct kbase_kcpu_command_queue *kcpu_
 		mutex_unlock(&kcpu_queue->lock);
 	}
 }
-#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
+
 /**
  * fence_signal_timeout_cb() - Timeout callback function for fence-signal-wait
  *
