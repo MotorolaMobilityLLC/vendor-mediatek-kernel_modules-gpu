@@ -728,11 +728,6 @@ static int parse_memory_setup_entry(struct kbase_device *kbdev,
 		return 0;
 	}
 
-#if IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
-	/* Use small prot/normal pages */
-	force_small_page = true;
-#endif /* CONFIG_MALI_MTK_PROTECTED_PATCH */
-
 	num_pages = (virtual_end - virtual_start)
 		>> PAGE_SHIFT;
 
