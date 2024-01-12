@@ -1852,8 +1852,8 @@ struct kbase_context {
 #endif /* CONFIG_DEBUG_FS */
 	struct kbase_va_region *jit_alloc[1 + BASE_JIT_ALLOC_COUNT];
 	u8 jit_max_allocations;
-	u8 jit_current_allocations;
-	u8 jit_current_allocations_per_bin[256];
+	atomic_t jit_current_allocations;
+	atomic_t jit_current_allocations_per_bin[256];
 	u8 jit_version;
 	u8 jit_group_id;
 #if MALI_JIT_PRESSURE_LIMIT_BASE
