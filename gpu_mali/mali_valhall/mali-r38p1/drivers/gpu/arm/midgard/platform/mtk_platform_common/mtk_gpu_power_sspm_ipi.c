@@ -224,14 +224,16 @@ bool MTKGPUAdaptive_power_notify(void){
 
 int MTKGPUPower_model_init(void) {
 #ifdef CONFIG_MALI_SCMI_ENABLE
-	int ret;
 	_tinfo = get_scmi_tinysys_info();
-	ret = of_property_read_u32(_tinfo->sdev->dev.of_node, "scmi-gpupm",
-			&gpu_pm_id);
-	ipi_register_flag = true;
-	if (ret) {
-		pr_info("get scmi-gpupm fail, ret %d\n", ret);
-		ipi_register_flag = false;
+	if(_tinfo){
+		if (!of_property_read_u32(_tinfo->sdev->dev.of_node, "scmi-gpupm",&gpu_pm_id)){
+			ipi_register_flag = true;
+		}else{
+			pr_info("get scmi-gpupm fail\n");
+			ipi_register_flag = false;
+		}
+	}else{
+		pr_info("get_scmi_tinysys_info fail\n");
 	}
 #endif
 
