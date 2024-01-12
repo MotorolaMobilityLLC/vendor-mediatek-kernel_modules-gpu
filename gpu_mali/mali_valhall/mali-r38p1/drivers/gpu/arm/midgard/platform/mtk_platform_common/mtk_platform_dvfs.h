@@ -22,6 +22,9 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 void mtk_common_ged_dvfs_commit(unsigned long ui32NewFreqID,
                                 GED_DVFS_COMMIT_TYPE eCommitType,
                                 int *pbCommited);
+void mtk_common_ged_dvfs_dual_commit(unsigned long gpuNewFreqID,
+                                unsigned long stackNewFreqID,
+                                int *pbCommited);
 void mtk_common_update_gpu_utilization(void);
 int mtk_common_get_util_active(void);
 int mtk_common_get_util_3d(void);
@@ -40,6 +43,8 @@ extern void (*ged_dvfs_cal_gpu_utilization_fp)(unsigned int *pui32Loading,
 #endif
 extern void (*ged_dvfs_gpu_freq_commit_fp)(unsigned long ui32NewFreqID,
              GED_DVFS_COMMIT_TYPE eCommitType, int *pbCommited);
+extern void (*ged_dvfs_gpu_freq_dual_commit_fp)(unsigned long gpuNewFreqID,
+             unsigned long stackNewFreqID, int *pbCommited);
 #endif
 
 void MTKGPUFreq_change_notify(u32 clk_idx, u32 gpufreq);
