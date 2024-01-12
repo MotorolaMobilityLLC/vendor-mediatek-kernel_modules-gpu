@@ -167,6 +167,7 @@ int kbasep_pm_metrics_init(struct kbase_device *kbdev)
 	perf_counter[5].type           = KBASE_IPA_CORE_TYPE_CSHW;
 	perf_counter[5].idx            = MCU_ACTIVE_IDX;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)
 	/* *
 	 * add 3 counters for dvfs async ratio
 	 * */
@@ -187,6 +188,7 @@ int kbasep_pm_metrics_init(struct kbase_device *kbdev)
 	perf_counter[8].gpu_norm       = true;
 	perf_counter[8].type           = KBASE_IPA_CORE_TYPE_MEMSYS;
 	perf_counter[8].idx            = L2_EXT_READ_IDX;
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_ASYNC */
 
 	err = kbase_ipa_control_register(
 		kbdev, perf_counter, NUM_PERF_COUNTERS,
