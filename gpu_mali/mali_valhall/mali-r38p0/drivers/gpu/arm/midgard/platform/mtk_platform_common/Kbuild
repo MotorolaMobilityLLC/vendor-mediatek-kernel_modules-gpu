@@ -7,6 +7,7 @@ mali_kbase-y += $(curr)/mtk_platform_debug.o
 
 ifeq ($(CONFIG_MALI_MTK_DEVFREQ),y)
     mali_kbase-y += $(curr)/mtk_gpu_dvfs.o
+    mali_kbase-y += $(curr)/mtk_gpu_devfreq_governor.o
 endif ## CONFIG_MALI_MTK_DEVFREQ ##
 
 ccflags-y += -I$(srctree)/drivers/devfreq/
