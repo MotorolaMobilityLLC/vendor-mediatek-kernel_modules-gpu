@@ -1374,10 +1374,10 @@ static void fence_timeout_callback(struct timer_list *timer)
 			 kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name,
 			 fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
 			"[%llxt] fence has not yet signalled in %ums\n",
 			mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception), FENCE_WAIT_TIMEOUT_MS);
-		mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
 			"[%llxt] ctx:%d_%d kcpu queue:%u still waiting for fence[%pK] context#seqno:%s (driver=%s, timeline=%s)\n",
 			mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
 			kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name,
@@ -1396,7 +1396,7 @@ static void fence_timeout_callback(struct timer_list *timer)
 		mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
 			"[%llxt] fence has got error\n",
 			mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception));
-		mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
 			"[%llxt] ctx:%d_%d kcpu queue:%u faulty fence[%pK] context#seqno:%s error(%d) (driver=%s, timeline=%s)\n",
 			mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
 			kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name, info.status,
@@ -1653,7 +1653,7 @@ static void kcpu_queue_cmds_timeout_worker(struct work_struct *data)
 		 COMMAND_TIMEOUT_MS, kctx->tgid, kctx->id, kcpu_queue->id, cmd->type, kcpu_queue->start_offset);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_print(&kctx->kbdev->logbuf_regular,
+	mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
 		"%s: KCPU queue fence command timeouts(%d ms)! ctx=%d_%d queue_idx=%u cmd_type=%u start_offset=%u\n",
 		__func__,  COMMAND_TIMEOUT_MS, kctx->tgid, kctx->id, kcpu_queue->id, cmd->type, kcpu_queue->start_offset);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
@@ -1676,19 +1676,19 @@ static void kcpu_queue_cmds_timeout_worker(struct work_struct *data)
 		if (kbase_prepare_to_reset_gpu(kctx->kbdev, RESET_FLAGS_NONE)) {
 			dev_info(kctx->kbdev->dev, "KCPU queue command timeouts(%d ms)! Trigger GPU reset", COMMAND_TIMEOUT_MS);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
-				"[%llxt] KCPU queue command timeouts(%d ms)! Trigger GPU reset\n",
-				mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
-				COMMAND_TIMEOUT_MS);
+				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
+					"[%llxt] KCPU queue command timeouts(%d ms)! Trigger GPU reset\n",
+					mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
+					COMMAND_TIMEOUT_MS);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			kbase_reset_gpu(kctx->kbdev);
 		} else {
 			dev_info(kctx->kbdev->dev, "KCPU queue command timeouts(%d ms)! Other threads are already resetting the GPU", COMMAND_TIMEOUT_MS);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
-				"[%llxt] KCPU queue command timeouts(%d ms)! Other threads are already resetting the GPU\n",
-				mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
-				COMMAND_TIMEOUT_MS);
+				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
+					"[%llxt] KCPU queue command timeouts(%d ms)! Other threads are already resetting the GPU\n",
+					mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
+					COMMAND_TIMEOUT_MS);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		}
 	}
@@ -1710,7 +1710,7 @@ static void kcpu_queue_timeout_worker(struct work_struct *data)
 	         kctx->tgid);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
+	mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
 		"[%llxt] mali fence timeouts(%d ms)! kcpu_queue=%u pid=%d\n",
 		mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
 		FENCE_WAIT_TIMEOUT_MS,

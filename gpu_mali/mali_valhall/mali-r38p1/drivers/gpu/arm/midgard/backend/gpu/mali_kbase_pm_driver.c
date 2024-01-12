@@ -3166,7 +3166,7 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		destroy_hrtimer_on_stack(&rtdata.timer);
 		dev_info(kbdev->dev, "GPU soft reset completed");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kbdev->logbuf_exception,
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
 			"[%llxt] GPU soft reset completed\n",
 			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */

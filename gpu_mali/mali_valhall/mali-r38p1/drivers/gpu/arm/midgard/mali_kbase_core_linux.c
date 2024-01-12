@@ -1754,7 +1754,7 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 	         fence_wait->pid);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
+	mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
 		"[%llxt] Internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u\n",
 		mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
 		fence_wait->time_in_microseconds,
@@ -1790,20 +1790,20 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 			dev_info(kctx->kbdev->dev, "Internal fence timeouts(%llu ms)! Trigger GPU reset",
 					 fence_wait->time_in_microseconds);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
-				"[%llxt] Internal fence timeouts(%llu ms)! Trigger GPU reset\n",
-				mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
-				fence_wait->time_in_microseconds);
+				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
+					"[%llxt] Internal fence timeouts(%llu ms)! Trigger GPU reset\n",
+					mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
+					fence_wait->time_in_microseconds);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			kbase_reset_gpu(kctx->kbdev);
 		} else {
 			dev_info(kctx->kbdev->dev, "Internal fence timeouts(%llu ms)! Other threads are already resetting the GPU",
 					 fence_wait->time_in_microseconds);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
-				"[%llxt] Internal fence timeouts(%llu ms)! Other threads are already resetting the GPU\n",
-				mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
-				fence_wait->time_in_microseconds);
+				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
+					"[%llxt] Internal fence timeouts(%llu ms)! Other threads are already resetting the GPU\n",
+					mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
+					fence_wait->time_in_microseconds);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		}
 	}
