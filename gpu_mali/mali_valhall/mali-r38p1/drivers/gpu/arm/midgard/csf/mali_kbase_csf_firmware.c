@@ -2130,7 +2130,7 @@ int kbase_csf_firmware_late_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME)
 	node = of_find_compatible_node(NULL, NULL, "arm,mali-valhall");
 	if (node) {
-		if (!of_property_read_u32(node, "firmware_idle_hytseresis_time_ms",
+		if (!of_property_read_u32(node, "firmware-idle-hysteresis-time-ms",
 			&gpu_idle_time))
 			kbdev->csf.gpu_idle_hysteresis_ms = gpu_idle_time;
 	}
