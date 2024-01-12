@@ -3814,6 +3814,7 @@ int kbase_jit_init(struct kbase_context *kctx)
 	INIT_WORK(&kctx->jit_work, kbase_jit_destroy_worker);
 
 #if MALI_USE_CSF
+	spin_lock_init(&kctx->csf.kcpu_queues.jit_lock);
 	INIT_LIST_HEAD(&kctx->csf.kcpu_queues.jit_cmds_head);
 	INIT_LIST_HEAD(&kctx->csf.kcpu_queues.jit_blocked_queues);
 #else /* !MALI_USE_CSF */
@@ -4251,9 +4252,7 @@ static bool jit_allow_allocate(struct kbase_context *kctx,
 		const struct base_jit_alloc_info *info,
 		bool ignore_pressure_limit)
 {
-#if MALI_USE_CSF
-	lockdep_assert_held(&kctx->csf.kcpu_queues.lock);
-#else
+#if !MALI_USE_CSF
 	lockdep_assert_held(&kctx->jctx.lock);
 #endif
 
@@ -4346,9 +4345,7 @@ struct kbase_va_region *kbase_jit_allocate(struct kbase_context *kctx,
 	 */
 	const enum kbase_caller_mmu_sync_info mmu_sync_info = CALLER_MMU_SYNC;
 
-#if MALI_USE_CSF
-	lockdep_assert_held(&kctx->csf.kcpu_queues.lock);
-#else
+#if !MALI_USE_CSF
 	lockdep_assert_held(&kctx->jctx.lock);
 #endif
 
