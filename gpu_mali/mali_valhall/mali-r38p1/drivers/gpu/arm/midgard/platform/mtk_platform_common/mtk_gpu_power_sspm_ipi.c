@@ -78,13 +78,13 @@ static void MTKGPUPower_model_kbase_setup(int flag, unsigned int interval_ns) {
 }
 
 void MTKGPUPower_model_sspm_enable(void) {
-	int pm_tool = MTK_get_mtk_pm();
+	/*int pm_tool = MTK_get_mtk_pm();
 
 	if (pm_tool == pm_non)
 		MTKGPUPower_model_kbase_setup(pm_swpm, 0);
 
 	MTKGPUPower_model_kbase_setup(pm_swpm, 0);
-
+	*/
 	gpu_send_enable_ipi(GPU_PM_SWITCH, 1);
 	init_flag = gpm_sspm_side;
 }
@@ -98,15 +98,15 @@ void MTKGPUPower_model_start(unsigned int interval_ns) {
 	mutex_lock(&gpu_pmu_info_lock);
 	if (pm_tool == pm_swpm) {
 		//gpu stall counter on
-		mtk_gpu_stall_create_subfs();
-		mtk_gpu_stall_start();
+		//mtk_gpu_stall_create_subfs();
+		//mtk_gpu_stall_start();
 		MTK_kbasep_vinstr_hwcnt_set_interval(0);
 		MTK_update_mtk_pm(pm_ltr);
 		MTK_kbasep_vinstr_hwcnt_set_interval(interval_ns);
 	} else {
 		//gpu stall counter on
-		mtk_gpu_stall_create_subfs();
-		mtk_gpu_stall_start();
+		//mtk_gpu_stall_create_subfs();
+		//mtk_gpu_stall_start();
 		MTKGPUPower_model_kbase_setup(pm_ltr, interval_ns);
 	}
 	if (init_flag != gpm_sspm_side)
