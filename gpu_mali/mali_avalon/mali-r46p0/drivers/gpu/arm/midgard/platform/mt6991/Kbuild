@@ -19,7 +19,7 @@
 #
 #
 
-include $(src)/Kbuild-mtk-custom-env
+include $(srctree)/$(src)/Kbuild-mtk-custom-env
 
 mali_kbase-y += \
 	platform/$(MALI_PLATFORM_DIR)/mali_kbase_config_mt6991.o

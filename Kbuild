@@ -24,3 +24,4 @@ ifneq ($(wildcard $(KO_CODE_PATH)/mt6991),)
         obj-m += mt6991/
 endif
 
+endif
