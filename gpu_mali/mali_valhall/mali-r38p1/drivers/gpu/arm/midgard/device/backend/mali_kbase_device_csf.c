@@ -46,6 +46,7 @@
 #include <tl/mali_kbase_timeline.h>
 
 #include <platform/mtk_platform_common.h>
+#include <linux/sched/clock.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>

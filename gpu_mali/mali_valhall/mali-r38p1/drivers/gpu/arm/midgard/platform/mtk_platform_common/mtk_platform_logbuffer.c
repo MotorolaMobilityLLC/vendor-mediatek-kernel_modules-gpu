@@ -6,6 +6,7 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_reserved_mem.h>
+#include <linux/sched/clock.h>
 #include <linux/seq_file.h>
 #if IS_ENABLED(CONFIG_PROC_FS)
 #include <linux/proc_fs.h>
