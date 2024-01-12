@@ -1936,6 +1936,7 @@ struct kbase_sub_alloc {
  *                        that created the Kbase context. It would be set only for the
  *                        contexts created by the Userspace and not for the contexts
  *                        created internally by the Kbase.
+ * @comm:                 Record the process name
  *
  * A kernel base context is an entity among which the GPU is scheduled.
  * Each context has its own GPU address space.
@@ -2087,6 +2088,7 @@ struct kbase_context {
 #endif
 	struct task_struct *task;
 
+	char comm[TASK_COMM_LEN];
 };
 
 #ifdef CONFIG_MALI_CINSTR_GWT

@@ -142,6 +142,8 @@ static void kbasep_csf_sync_print_kcpu_fence_wait_or_signal(char *buffer, int *l
 	bool is_signaled = false;
 
 	fence_info = &cmd->info.fence;
+	if (kbase_kcpu_command_fence_has_force_signaled(fence_info))
+		return;
 
 	fence = kbase_fence_get(fence_info);
 	if (WARN_ON(!fence))
