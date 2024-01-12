@@ -2314,9 +2314,7 @@ int kbase_csf_firmware_early_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_GLB_PWROFF_TIMEOUT)
 	node = of_find_compatible_node(NULL, NULL, "arm,mali-valhall");
 	if (node) {
-		if (segment_id == MT6985W_CZA_SEGMENT)
-			kbdev->csf.mcu_core_pwroff_dur_us = DEFAULT_GLB_PWROFF_TIMEOUT_US;
-		else if (!of_property_read_u32(node, "default-glb-pwroff-timeout-us",
+		if (!of_property_read_u32(node, "default-glb-pwroff-timeout-us",
 			&gpu_glb_time))
 			kbdev->csf.mcu_core_pwroff_dur_us = gpu_glb_time;
 
