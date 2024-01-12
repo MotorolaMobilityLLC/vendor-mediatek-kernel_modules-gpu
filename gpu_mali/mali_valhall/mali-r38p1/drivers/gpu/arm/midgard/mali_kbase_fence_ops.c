@@ -21,7 +21,7 @@
 
 #include <linux/atomic.h>
 #include <linux/list.h>
-#include <mali_kbase_fence_defs.h>
+#include <mali_kbase_fence.h>
 #include <mali_kbase.h>
 
 static const char *
@@ -68,6 +68,19 @@ kbase_fence_fence_value_str(struct dma_fence *fence, char *str, int size)
 #endif
 }
 
+#if MALI_USE_CSF
+static void
+#if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
+kbase_fence_release(struct fence *fence)
+#else
+kbase_fence_release(struct dma_fence *fence)
+#endif
+{
+	struct kbase_kcpu_dma_fence *kcpu_fence = (struct kbase_kcpu_dma_fence *)fence;
+	kfree(kcpu_fence);
+}
+#endif
+
 #if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
 extern const struct fence_ops kbase_fence_ops; /* silence checker warning */
 const struct fence_ops kbase_fence_ops = {
@@ -80,6 +93,11 @@ const struct dma_fence_ops kbase_fence_ops = {
 	.get_driver_name = kbase_fence_get_driver_name,
 	.get_timeline_name = kbase_fence_get_timeline_name,
 	.enable_signaling = kbase_fence_enable_signaling,
+#if MALI_USE_CSF
+	.fence_value_str = kbase_fence_fence_value_str,
+	.release = kbase_fence_release
+#else
 	.fence_value_str = kbase_fence_fence_value_str
+#endif
 };
 
