@@ -61,7 +61,7 @@
 
 #include <linux/of.h>
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG) || IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
 #include <mtk_gpufreq.h>
 #include <platform/mtk_platform_common.h>
 #include <ged_dcs.h>
@@ -70,7 +70,7 @@
 #include <linux/of_irq.h>
 extern void mt_irq_dump_status(int irq);
 #endif /* CONFIG_MTK_IRQ_DBG */
-#endif /* CONFIG_MALI_MTK_DEBUG */
+#endif /* CONFIG_MALI_MTK_DEBUG || CONFIG_MALI_MTK_PROTECTED_PATCH */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
@@ -3409,6 +3409,10 @@ int kbase_pm_apply_pmode_entry_wa(struct kbase_device *kbdev)
 	kbase_pm_lock(kbdev);
 
 	/* Call to update the core_mask can be added here */
+#if IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
+	/* 1. disable dcs */
+	dcs_enable(0);
+#endif /* CONFIG_MALI_MTK_PROTECTED_PATCH */
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
@@ -3437,6 +3441,12 @@ int kbase_pm_apply_pmode_entry_wa(struct kbase_device *kbdev)
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	/* Can switch to ARM backup PDCA here */
+#if IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
+	/* 2. fake pwr on mfg2~18 */
+	gpufreq_fake_mtcmos_control(1);
+	/* 3. disable pdcv2 */
+	gpufreq_pdca_config(0);
+#endif /* CONFIG_MALI_MTK_PROTECTED_PATCH */
 
 	kbase_pm_unlock(kbdev);
 
@@ -3452,6 +3462,12 @@ void kbase_pm_apply_pmode_exit_wa(struct kbase_device *kbdev)
 	WARN_ON(!kbdev->pm.backend.gpu_powered);
 
 	/* Can switch back to MTK PDCA here */
+#if IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
+	/* 1. enable pdcv2 */
+	gpufreq_pdca_config(1);
+	/* 2. enable dcs */
+	dcs_enable(1);
+#endif /* CONFIG_MALI_MTK_PROTECTED_PATCH */
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	if (!kbase_pm_no_mcu_core_pwroff(kbdev)) {
