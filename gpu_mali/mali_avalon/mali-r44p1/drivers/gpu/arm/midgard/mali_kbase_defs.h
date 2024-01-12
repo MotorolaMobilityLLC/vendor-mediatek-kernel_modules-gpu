@@ -1439,6 +1439,11 @@ struct kbase_device {
 	bool bypass_register_check;
 	struct mutex register_check_lock;
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)
+	bool bit_stuck;
+	bool trans_timeout;
+#endif /* CONFIG_MALI_MTK_TRIGGER_KE */
 };
 
 /**

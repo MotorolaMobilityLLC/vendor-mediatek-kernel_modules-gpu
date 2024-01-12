@@ -2516,6 +2516,10 @@ static void kbase_pm_timed_out(struct kbase_device *kbdev, const char *timeout_m
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_PM_TIMEOUT);
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_PM_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)
+	if (kbdev->trans_timeout)
+		BUG_ON(1);
+#endif /* CONFIG_MALI_MTK_TRIGGER_KE */
 
 	dev_err(kbdev->dev, "Sending reset to GPU - all running jobs will be lost\n");
 	if (kbase_prepare_to_reset_gpu(kbdev,
