@@ -319,8 +319,15 @@ unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_stack_idx(void)
 #endif
 }
 
-unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_idx_test(int commit_idx)
-{
+unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_dual(void) {
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+		return (unsigned long)ged_dvfs_write_sysram_last_commit_dual();
+#else
+		return -1;
+#endif
+}
+
+unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_idx_test(int commit_idx) {
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	return (unsigned long)ged_dvfs_write_sysram_last_commit_idx_test(commit_idx);
 #else
@@ -345,6 +352,16 @@ unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_stack_idx_test(int co
 	return -1;
 #endif
 }
+
+unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_dual_test(int top_idx, int stack_idx)
+{
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	return (unsigned long)ged_dvfs_write_sysram_last_commit_dual_test(top_idx, stack_idx);
+#else
+	return -1;
+#endif
+}
+
 
 #if IS_ENABLED(CONFIG_PROC_FS)
 static void mtk_common_procfs_init(struct kbase_device *kbdev)
