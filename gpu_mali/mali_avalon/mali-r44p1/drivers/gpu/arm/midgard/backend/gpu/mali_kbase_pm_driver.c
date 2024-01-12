@@ -560,8 +560,9 @@ static void kbase_pm_l2_config_override(struct kbase_device *kbdev)
 #if MALI_USE_CSF
 	if (kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_PBHA_HWU)) {
 		val = kbase_reg_read(kbdev, GPU_CONTROL_REG(L2_CONFIG));
+		/* force propagate PBHA bit without dts configuration */
 		kbase_reg_write(kbdev, GPU_CONTROL_REG(L2_CONFIG),
-				L2_CONFIG_PBHA_HWU_SET(val, kbdev->pbha_propagate_bits));
+				L2_CONFIG_PBHA_HWU_SET(val, 0xF));
 	}
 #endif /* MALI_USE_CSF */
 
