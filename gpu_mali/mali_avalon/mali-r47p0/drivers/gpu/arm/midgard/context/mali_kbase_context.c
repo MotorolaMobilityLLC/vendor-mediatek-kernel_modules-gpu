@@ -190,6 +190,11 @@ int kbase_context_common_init(struct kbase_context *kctx)
 
 	kctx->id = (u32)atomic_add_return(1, &(kctx->kbdev->ctx_num)) - 1;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kctx->target_mem_profiling = false;
+	snprintf(kctx->process_name, sizeof(char) * MAX_PROCESS_NAME_LEN, "~%s", (NULL == kctx->task) ? "[null task]" : kctx->task->comm);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
+
 	mutex_lock(&kctx->kbdev->kctx_list_lock);
 	err = kbase_insert_kctx_to_process(kctx);
 	mutex_unlock(&kctx->kbdev->kctx_list_lock);

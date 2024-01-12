@@ -196,8 +196,13 @@ u64 kbase_csf_heap_context_allocator_alloc(struct kbase_csf_heap_context_allocat
 	 * allocate it.
 	 */
 	if (!ctx_alloc->region) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+		ctx_alloc->region = kbase_mem_alloc(kctx, nr_pages, nr_pages, 0, &flags,
+						    &ctx_alloc->gpu_va, mmu_sync_info, KBASE_MEM_TILER);
+#else
 		ctx_alloc->region = kbase_mem_alloc(kctx, nr_pages, nr_pages, 0, &flags,
 						    &ctx_alloc->gpu_va, mmu_sync_info);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 	}
 
 	/* If the pool still isn't allocated then an error occurred. */

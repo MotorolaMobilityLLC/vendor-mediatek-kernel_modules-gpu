@@ -47,12 +47,19 @@ struct kbase_hwc_dma_mapping {
  *                virtual address space. If the BASE_MEM_FLAG_MAP_FIXED is set
  *                then this parameter shall be provided by the caller.
  * @mmu_sync_info: Indicates whether this call is synchronous wrt MMU ops.
+ * @category: Memory profiling category.
  *
  * Return: 0 on success or error code
  */
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages, u64 commit_pages,
+					u64 extension, u64 *flags, u64 *gpu_va,
+					enum kbase_caller_mmu_sync_info mmu_sync_info, enum kbase_memory_category category);
+#else
 struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages, u64 commit_pages,
 					u64 extension, u64 *flags, u64 *gpu_va,
 					enum kbase_caller_mmu_sync_info mmu_sync_info);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 /**
  * kbase_mem_query - Query properties of a GPU memory region
