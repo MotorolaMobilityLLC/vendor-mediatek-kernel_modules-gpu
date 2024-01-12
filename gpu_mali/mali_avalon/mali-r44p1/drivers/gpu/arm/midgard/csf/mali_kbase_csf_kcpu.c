@@ -1954,7 +1954,7 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 	struct kbase_kcpu_command_queue *queue =
 		container_of(data, struct kbase_kcpu_command_queue, dump_work);
 	struct kbase_context *kctx = queue->kctx;
-	struct kbase_kcpu_command *cmd;
+	struct kbase_kcpu_command *cmd = &queue->commands[queue->start_offset];
 	struct kbase_kcpu_command_fence_info *fence_info;
 	struct kbase_kcpu_dma_fence *kcpu_fence;
 #if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
@@ -1966,20 +1966,18 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 	size_t i;
 
 	mutex_lock(&kctx->csf.kcpu_queues.lock);
-	mutex_lock(&queue->lock);
 
 	/* Find the next fence signal command in the queue */
-	for (i = 0; i != queue->num_pending_cmds; i++) {
-		cmd = &queue->commands[(u8)(queue->start_offset + i)];
+	for (i = 0; i < queue->num_pending_cmds - 1; i++) {
 		if (cmd->type == BASE_KCPU_COMMAND_TYPE_FENCE_SIGNAL)
 			break;
+		cmd++;
 	}
 
-	if (i == queue->num_pending_cmds) {
+	if (cmd->type != BASE_KCPU_COMMAND_TYPE_FENCE_SIGNAL) {
 		dev_err(kctx->kbdev->dev,
 			"%s: No fence signal command found in ctx:%d_%d kcpu queue:%u", __func__,
 			kctx->tgid, kctx->id, queue->id);
-		mutex_unlock(&queue->lock);
 		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 		return;
 	}
@@ -1990,7 +1988,6 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 	if (!fence) {
 		dev_err(kctx->kbdev->dev, "no fence found in ctx:%d_%d kcpu queue:%u", kctx->tgid,
 			kctx->id, queue->id);
-		mutex_unlock(&queue->lock);
 		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 		return;
 	}
@@ -2000,7 +1997,6 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 		dev_err(kctx->kbdev->dev, "no fence metadata found in ctx:%d_%d kcpu queue:%u",
 			kctx->tgid, kctx->id, queue->id);
 		kbase_fence_put(fence);
-		mutex_unlock(&queue->lock);
 		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 		return;
 	}
@@ -2083,11 +2079,10 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 	dev_warn(kctx->kbdev->dev, "Fence metadata timeline name: %s\n",
 		 kcpu_fence->metadata->timeline_name);
 
-	mutex_unlock(&queue->lock);
-
 	kbasep_csf_sync_kcpu_dump_locked(kctx, NULL);
 
 	dev_warn(kctx->kbdev->dev, "-----------------------------------------------\n");
+
 	kbase_fence_put(fence);
 	mutex_unlock(&kctx->csf.kcpu_queues.lock);
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
