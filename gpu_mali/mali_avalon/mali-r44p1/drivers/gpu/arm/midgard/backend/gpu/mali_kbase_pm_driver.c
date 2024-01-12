@@ -1568,7 +1568,10 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 						ged_get_idle_time();
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 #if defined(CONFIG_MTK_GPUFREQ_V2) && IS_ENABLED(CONFIG_MALI_MTK_MFG2_BACKDOOR)
-					gpufreq_set_mfgsys_config(CONFIG_MFG2_BEFORE_OFF, CONFIG_VAL_IGNORE);
+					/* only notify when L2 is power-on */
+					if (kbase_reg_read(kbdev, GPU_CONTROL_REG(L2_READY_LO)))
+						gpufreq_set_mfgsys_config(CONFIG_MFG2_BEFORE_OFF,
+							CONFIG_VAL_IGNORE);
 #endif /* CONFIG_MTK_GPUFREQ_V2 && CONFIG_MALI_MTK_MFG2_BACKDOOR */
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)
 					mtk_common_ged_dvfs_write_sysram_last_commit_dual();
@@ -3285,6 +3288,11 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 
 	KBASE_TLSTREAM_JD_GPU_SOFT_RESET(kbdev, kbdev);
 
+#if defined(CONFIG_MTK_GPUFREQ_V2) && IS_ENABLED(CONFIG_MALI_MTK_MFG2_BACKDOOR)
+	/* only notify when L2 is power-on */
+	if (kbase_reg_read(kbdev, GPU_CONTROL_REG(L2_READY_LO)))
+		gpufreq_set_mfgsys_config(CONFIG_MFG2_BEFORE_OFF, CONFIG_VAL_IGNORE);
+#endif /* CONFIG_MTK_GPUFREQ_V2 && CONFIG_MALI_MTK_MFG2_BACKDOOR */
 	if (kbdev->pm.backend.callback_soft_reset) {
 		ret = kbdev->pm.backend.callback_soft_reset(kbdev);
 		if (ret < 0)

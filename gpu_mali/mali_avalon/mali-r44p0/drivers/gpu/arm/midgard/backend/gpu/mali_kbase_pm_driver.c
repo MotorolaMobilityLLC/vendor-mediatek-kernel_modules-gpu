@@ -30,6 +30,7 @@
 #include <mali_kbase_pm.h>
 #include <mali_kbase_config_defaults.h>
 #include <mali_kbase_smc.h>
+#include <mtk_gpufreq.h>
 
 #if MALI_USE_CSF
 #include <csf/ipa_control/mali_kbase_csf_ipa_control.h>
@@ -70,7 +71,6 @@
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG) || IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
-#include <mtk_gpufreq.h>
 #include <ged_dcs.h>
 #include <ged_log.h>
 #endif /* CONFIG_MALI_MTK_DEBUG || CONFIG_MALI_MTK_PROTECTED_PATCH */
@@ -1559,6 +1559,12 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 					ged_get_idle_time();
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
+#if defined(CONFIG_MTK_GPUFREQ_V2) && IS_ENABLED(CONFIG_MALI_MTK_MFG2_BACKDOOR)
+					/* only notify when L2 is power-on */
+					if (kbase_reg_read(kbdev, GPU_CONTROL_REG(L2_READY_LO)))
+						gpufreq_set_mfgsys_config(CONFIG_MFG2_BEFORE_OFF,
+							CONFIG_VAL_IGNORE);
+#endif /* CONFIG_MTK_GPUFREQ_V2 && CONFIG_MALI_MTK_MFG2_BACKDOOR */
 					kbase_pm_invoke(kbdev, KBASE_PM_CORE_L2,
 							l2_present,
 							ACTION_PWROFF);
@@ -3231,6 +3237,11 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 
 	KBASE_TLSTREAM_JD_GPU_SOFT_RESET(kbdev, kbdev);
 
+#if defined(CONFIG_MTK_GPUFREQ_V2) && IS_ENABLED(CONFIG_MALI_MTK_MFG2_BACKDOOR)
+	/* only notify when L2 is power-on */
+	if (kbase_reg_read(kbdev, GPU_CONTROL_REG(L2_READY_LO)))
+		gpufreq_set_mfgsys_config(CONFIG_MFG2_BEFORE_OFF, CONFIG_VAL_IGNORE);
+#endif /* CONFIG_MTK_GPUFREQ_V2 && CONFIG_MALI_MTK_MFG2_BACKDOOR */
 	if (kbdev->pm.backend.callback_soft_reset) {
 		ret = kbdev->pm.backend.callback_soft_reset(kbdev);
 		if (ret < 0)
