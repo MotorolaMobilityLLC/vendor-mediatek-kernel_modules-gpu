@@ -124,8 +124,9 @@ static size_t mtk_memtrack_gpu_pool_total(void)
 		return 0;
 
 	cache_pool_pages = atomic_read(&(kbdev->memdev.cache_pool_pages));
-#if 0
-	cache_pool_pages += kbdev->mgm_dev->ops.mgm_mtk_cache_pool_size(kbdev->mgm_dev);
+#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
+	if (kbdev->mgm_dev && kbdev->mgm_dev->ops.mgm_mtk_cache_pool_size)
+		cache_pool_pages += kbdev->mgm_dev->ops.mgm_mtk_cache_pool_size(kbdev->mgm_dev);
 #endif
 
 	return cache_pool_pages << PAGE_SHIFT;

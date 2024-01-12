@@ -172,6 +172,9 @@ struct memory_group_manager_device kbase_native_mgm_dev = {
 		.mgm_vmf_insert_pfn_prot = kbase_native_mgm_vmf_insert_pfn_prot,
 		.mgm_update_gpu_pte = kbase_native_mgm_update_gpu_pte,
 		.mgm_pte_to_original_pte = kbase_native_mgm_pte_to_original_pte,
+#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
+		.mgm_mtk_cache_pool_size = NULL,
+#endif
 	},
 	.data = NULL
 };
