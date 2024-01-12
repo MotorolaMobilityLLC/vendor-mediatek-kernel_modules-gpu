@@ -6640,8 +6640,11 @@ static int kbase_csf_scheduler_kthread(void *data)
 		} else if (atomic_read(&scheduler->pending_tock_work)) {
 			schedule_on_tock(kbdev);
 		}
-
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		dev_vdbg(kbdev->dev, "Waking up for event after a scheduling iteration.");
+#else
 		dev_dbg(kbdev->dev, "Waking up for event after a scheduling iteration.");
+#endif /* CONFIG_MALI_MTK_DEBUG */
 		wake_up_all(&kbdev->csf.event_wait);
 	}
 
