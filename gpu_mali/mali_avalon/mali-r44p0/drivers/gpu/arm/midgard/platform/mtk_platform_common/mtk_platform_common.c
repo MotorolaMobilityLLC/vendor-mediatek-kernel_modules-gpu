@@ -247,6 +247,25 @@ int mtk_common_gpufreq_commit(int opp_idx)
 	return ret;
 }
 
+int mtk_common_gpufreq_dual_commit(int gpu_oppidx, int stack_oppidx)
+{
+	int ret = -1;
+
+	mutex_lock(&mfg_pm_lock);
+	if (stack_oppidx >= 0 && mtk_common_pm_is_mfg_active()) {
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+		ret = mtk_common_gpufreq_bringup() ?
+			-1 : gpufreq_dual_commit(gpu_oppidx, stack_oppidx);
+#else
+		ret = mtk_common_gpufreq_bringup() ?
+			-1 : mt_gpufreq_target(stack_oppidx, KIR_POLICY);
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+	}
+	mutex_unlock(&mfg_pm_lock);
+
+	return ret;
+}
+
 int mtk_common_ged_dvfs_get_last_commit_idx(void)
 {
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
