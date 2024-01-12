@@ -404,6 +404,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	mtk_debug_init(kbdev);
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_init(kbdev);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_GOVERNOR)
 	mtk_devfreq_governor_init(kbdev);
 #endif /* CONFIG_MALI_MTK_DEVFREQ_GOVERNOR */
@@ -441,6 +445,10 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	mtk_debug_term(kbdev);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_term(kbdev);
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_GOVERNOR)

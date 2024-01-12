@@ -8,7 +8,7 @@
 
 #define MAX_PHASE_NUM 20
 #define MAX_DATA_NUM 100
-#define MAX_IRQ_PROCESSING_TIME 50 /* 50ms */
+#define DEFAULT_IRQ_MONITOR_OVERRIDE_TH1_MS 50 /* 50ms */
 
 enum KBASE_IRQ_ID {
     KBASE_IRQ_JOB,
