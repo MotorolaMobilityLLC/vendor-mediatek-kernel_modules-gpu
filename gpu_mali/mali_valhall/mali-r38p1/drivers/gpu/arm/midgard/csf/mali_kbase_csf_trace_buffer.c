@@ -697,15 +697,15 @@ static ssize_t kbasep_csf_firmware_trace_debugfs_read(struct file *file,
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_CSFFWLOG)
-	dev_info(kbdev->dev, "FIFO:fifo_avail_length=%d\n", kfifo_avail(&fwlog_fifo));
+	/* dev_info(kbdev->dev, "FIFO:fifo_avail_length=%d\n", kfifo_avail(&fwlog_fifo)); */
 	if (n_read > kfifo_avail(&fwlog_fifo)) { /* fifo is not enough full, need to prepare enough space */
 		n_old_read = kfifo_out(&fwlog_fifo, old_pbyte, (n_read - kfifo_avail(&fwlog_fifo)));
-		dev_info(kbdev->dev, "FIFO:fifo_length=%d\n", kfifo_len(&fwlog_fifo));
+		/* dev_info(kbdev->dev, "FIFO:fifo_length=%d\n", kfifo_len(&fwlog_fifo)); */
 	}
 	fifo_io_size = kfifo_in(&fwlog_fifo, pbyte, n_read);
-	dev_info(kbdev->dev, "FIFO: IN fifo_io_size=%d, n_read=%d\n", fifo_io_size, n_read);
+	/* dev_info(kbdev->dev, "FIFO: IN fifo_io_size=%d, n_read=%d\n", fifo_io_size, n_read); */
 	fifo_io_size = kfifo_out(&fwlog_fifo, pbyte, mem);
-	dev_info(kbdev->dev, "FIFO: OUT fifo_io_size=%d, n_read=%d, fifo_length=%d\n", fifo_io_size, mem, kfifo_len(&fwlog_fifo));
+	/* dev_info(kbdev->dev, "FIFO: OUT fifo_io_size=%d, n_read=%d, fifo_length=%d\n", fifo_io_size, mem, kfifo_len(&fwlog_fifo)); */
 	n_read = fifo_io_size;
 #endif /* CONFIG_MALI_MTK_CSFFWLOG */
 
