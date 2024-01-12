@@ -95,7 +95,10 @@ struct mgm_groups {
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	struct dentry *mgm_debugfs_root;
 #endif
+
+#if IS_ENABLED(CONFIG_MTK_MODIFY)
 	int default_group_id;
+#endif /* CONFIG_MTK_MODIFY */
 };
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
@@ -136,6 +139,7 @@ static int mgm_update_gpu_pte_get(void *data, u64 *val)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_MTK_MODIFY)
 static int mgm_default_group_get(void *data, u64 *val)
 {
 	int default_group_id = *(int*)data;
@@ -151,13 +155,15 @@ static int mgm_default_group_set(void *data, u64 val)
 
 	return 0;
 }
+#endif /* CONFIG_MTK_MODIFY */
 
 DEFINE_DEBUGFS_ATTRIBUTE(fops_mgm_size, mgm_size_get, NULL, "%llu\n");
 DEFINE_DEBUGFS_ATTRIBUTE(fops_mgm_lp_size, mgm_lp_size_get, NULL, "%llu\n");
 DEFINE_DEBUGFS_ATTRIBUTE(fops_mgm_insert_pfn, mgm_insert_pfn_get, NULL, "%llu\n");
 DEFINE_DEBUGFS_ATTRIBUTE(fops_mgm_update_gpu_pte, mgm_update_gpu_pte_get, NULL, "%llu\n");
+#if IS_ENABLED(CONFIG_MTK_MODIFY)
 DEFINE_DEBUGFS_ATTRIBUTE(fops_mgm_default_group, mgm_default_group_get, mgm_default_group_set, "%llu\n");
-
+#endif /* CONFIG_MTK_MODIFY */
 
 static void mgm_term_debugfs(struct mgm_groups *data)
 {
@@ -226,12 +232,14 @@ static int mgm_initialize_debugfs(struct mgm_groups *mgm_data)
 		}
 	}
 
+#if IS_ENABLED(CONFIG_MTK_MODIFY)
 	e = debugfs_create_file("default_group", 0444, mgm_data->mgm_debugfs_root, &mgm_data->default_group_id,
 			&fops_mgm_default_group);
 	if (IS_ERR_OR_NULL(e)) {
 		dev_vdbg(mgm_data->dev, "fail to create default_group\n");
 		goto remove_debugfs;
 	}
+#endif /* CONFIG_MTK_MODIFY */
 
 	return 0;
 
@@ -357,6 +365,7 @@ static u64 example_mgm_update_gpu_pte(
 	struct mgm_groups *const data = mgm_dev->data;
 	const u32 pbha_bit_pos = 59; /* bits 62:59 */
 	const u32 pbha_bit_mask = 0xf; /* 4-bit */
+#if IS_ENABLED(CONFIG_MTK_MODIFY)
 	int default_group_id = data->default_group_id != 0?data->default_group_id:6;
 
 	dev_vdbg(data->dev,
@@ -370,6 +379,19 @@ static u64 example_mgm_update_gpu_pte(
 	pte |= ((u64)default_group_id & pbha_bit_mask) << pbha_bit_pos;
 
 	data->groups[default_group_id].update_gpu_pte++;
+#else
+	dev_vdbg(data->dev,
+		"%s(mgm_dev=%p, group_id=%d, mmu_level=%d, pte=0x%llx)\n",
+		__func__, (void *)mgm_dev, group_id, mmu_level, pte);
+
+	if (WARN_ON(group_id < 0) ||
+		WARN_ON(group_id >= MEMORY_GROUP_MANAGER_NR_GROUPS))
+		return pte;
+
+	pte |= ((u64)group_id & pbha_bit_mask) << pbha_bit_pos;
+
+	data->groups[group_id].update_gpu_pte++;
+#endif /* CONFIG_MTK_MODIFY */
 
 	return pte;
 }
