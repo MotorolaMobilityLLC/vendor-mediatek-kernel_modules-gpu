@@ -259,7 +259,7 @@ static struct page *example_mgm_alloc_page(
 	struct mgm_groups *const data = mgm_dev->data;
 	struct page *p;
 
-	dev_dbg(data->dev, "%s(mgm_dev=%p, group_id=%d gfp_mask=0x%x order=%u\n",
+	dev_vdbg(data->dev, "%s(mgm_dev=%p, group_id=%d gfp_mask=0x%x order=%u\n",
 		__func__, (void *)mgm_dev, group_id, gfp_mask, order);
 
 	if (WARN_ON(group_id < 0) ||
@@ -285,7 +285,7 @@ static void example_mgm_free_page(
 {
 	struct mgm_groups *const data = mgm_dev->data;
 
-	dev_dbg(data->dev, "%s(mgm_dev=%p, group_id=%d page=%p order=%u\n",
+	dev_vdbg(data->dev, "%s(mgm_dev=%p, group_id=%d page=%p order=%u\n",
 		__func__, (void *)mgm_dev, group_id, (void *)page, order);
 
 	if (WARN_ON(group_id < 0) ||
@@ -303,7 +303,7 @@ static int example_mgm_get_import_memory_id(
 {
 	struct mgm_groups *const data = mgm_dev->data;
 
-	dev_dbg(data->dev, "%s(mgm_dev=%p, import_data=%p (type=%d)\n",
+	dev_vdbg(data->dev, "%s(mgm_dev=%p, import_data=%p (type=%d)\n",
 		__func__, (void *)mgm_dev, (void *)import_data,
 		(int)import_data->type);
 
@@ -323,7 +323,7 @@ static u64 example_mgm_update_gpu_pte(
 {
 	struct mgm_groups *const data = mgm_dev->data;
 
-	dev_dbg(data->dev,
+	dev_vdbg(data->dev,
 		"%s(mgm_dev=%p, group_id=%d, mmu_level=%d, pte=0x%llx)\n",
 		__func__, (void *)mgm_dev, group_id, mmu_level, pte);
 
@@ -360,7 +360,7 @@ static vm_fault_t example_mgm_vmf_insert_pfn_prot(
 	struct mgm_groups *const data = mgm_dev->data;
 	vm_fault_t fault;
 
-	dev_dbg(data->dev,
+	dev_vdbg(data->dev,
 		"%s(mgm_dev=%p, group_id=%d, vma=%p, addr=0x%lx, pfn=0x%lx, prot=0x%llx)\n",
 		__func__, (void *)mgm_dev, group_id, (void *)vma, addr, pfn,
 		(unsigned long long) pgprot_val(prot));

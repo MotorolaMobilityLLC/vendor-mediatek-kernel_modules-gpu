@@ -29,7 +29,7 @@
  *
  * KTrace can be recorded in one or more of the following targets:
  * - KBASE_KTRACE_TARGET_RBUF: low overhead ringbuffer protected by an
- *   irq-spinlock, output available via dev_dbg() and debugfs file
+ *   irq-spinlock, output available via dev_vdbg() and debugfs file
  * - KBASE_KTRACE_TARGET_FTRACE: ftrace based tracepoints under 'mali' events
  */
 
@@ -116,7 +116,7 @@ void kbasep_ktrace_add(struct kbase_device *kbdev, enum kbase_ktrace_code code,
 void kbasep_ktrace_clear(struct kbase_device *kbdev);
 
 /**
- * kbasep_ktrace_dump - dump ktrace ringbuffer to dev_dbg(), then clear it
+ * kbasep_ktrace_dump - dump ktrace ringbuffer to dev_vdbg(), then clear it
  * @kbdev: kbase device
  *
  * PRIVATE: do not use directly. Use KBASE_KTRACE_DUMP() instead.

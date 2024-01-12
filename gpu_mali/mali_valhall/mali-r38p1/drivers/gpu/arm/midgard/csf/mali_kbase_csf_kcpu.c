@@ -241,7 +241,7 @@ static int kbase_kcpu_jit_allocate_process(
 	for (i = 0; i < count; i++, info++) {
 		/* The JIT ID is still in use so fail the allocation */
 		if (kctx->jit_alloc[info->id]) {
-			dev_dbg(kctx->kbdev->dev, "JIT ID still in use");
+			dev_vdbg(kctx->kbdev->dev, "JIT ID still in use");
 			return -EINVAL;
 		}
 	}
@@ -479,7 +479,7 @@ static int kbase_kcpu_jit_free_process(struct kbase_kcpu_command_queue *queue,
 		int item_err = 0;
 
 		if (!kctx->jit_alloc[ids[i]]) {
-			dev_dbg(kctx->kbdev->dev, "invalid JIT free ID");
+			dev_vdbg(kctx->kbdev->dev, "invalid JIT free ID");
 			rc = -EINVAL;
 			item_err = rc;
 		} else {
@@ -984,7 +984,7 @@ static int kbase_kcpu_cqs_wait_operation_process(struct kbase_device *kbdev,
 				sig_set = *evt > cqs_wait_operation->objs[i].val;
 				break;
 			default:
-				dev_dbg(kbdev->dev,
+				dev_vdbg(kbdev->dev,
 					"Unsupported CQS wait operation %d", cqs_wait_operation->objs[i].operation);
 
 				kbase_phy_alloc_mapping_put(queue->kctx, mapping);
@@ -996,7 +996,7 @@ static int kbase_kcpu_cqs_wait_operation_process(struct kbase_device *kbdev,
 			/* Increment evt up to the error_state value depending on the CQS data type */
 			switch (cqs_wait_operation->objs[i].data_type) {
 			default:
-				dev_dbg(kbdev->dev, "Unreachable data_type=%d", cqs_wait_operation->objs[i].data_type);
+				dev_vdbg(kbdev->dev, "Unreachable data_type=%d", cqs_wait_operation->objs[i].data_type);
 				/* Fallthrough - hint to compiler that there's really only 2 options at present */
 				fallthrough;
 			case BASEP_CQS_DATA_TYPE_U32:
@@ -1121,7 +1121,7 @@ static void kbase_kcpu_cqs_set_operation_process(
 				*evt = cqs_set_operation->objs[i].val;
 				break;
 			default:
-				dev_dbg(kbdev->dev,
+				dev_vdbg(kbdev->dev,
 					"Unsupported CQS set operation %d", cqs_set_operation->objs[i].operation);
 				queue->has_error = true;
 				break;
@@ -1130,7 +1130,7 @@ static void kbase_kcpu_cqs_set_operation_process(
 			/* Increment evt up to the error_state value depending on the CQS data type */
 			switch (cqs_set_operation->objs[i].data_type) {
 			default:
-				dev_dbg(kbdev->dev, "Unreachable data_type=%d", cqs_set_operation->objs[i].data_type);
+				dev_vdbg(kbdev->dev, "Unreachable data_type=%d", cqs_set_operation->objs[i].data_type);
 				/* Fallthrough - hint to compiler that there's really only 2 options at present */
 				fallthrough;
 			case BASEP_CQS_DATA_TYPE_U32:
@@ -1581,7 +1581,7 @@ static int delete_queue(struct kbase_context *kctx, u32 id)
 
 		kfree(queue);
 	} else {
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Attempt to delete a non-existent KCPU queue");
 		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 		err = -EINVAL;
@@ -1773,7 +1773,7 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 
 				if (meta == NULL) {
 					queue->has_error = true;
-					dev_dbg(
+					dev_vdbg(
 						kbdev->dev,
 						"failed to map an external resource");
 				}
@@ -1795,7 +1795,7 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 
 			if (!ret) {
 				queue->has_error = true;
-				dev_dbg(kbdev->dev,
+				dev_vdbg(kbdev->dev,
 						"failed to release the reference. resource not found");
 			}
 
@@ -1816,7 +1816,7 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 
 			if (!ret) {
 				queue->has_error = true;
-				dev_dbg(kbdev->dev,
+				dev_vdbg(kbdev->dev,
 						"failed to release the reference. resource not found");
 			}
 
@@ -1899,7 +1899,7 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 			break;
 		}
 		default:
-			dev_dbg(kbdev->dev,
+			dev_vdbg(kbdev->dev,
 				"Unrecognized command type");
 			break;
 		} /* switch */
@@ -2030,7 +2030,7 @@ static void KBASE_TLSTREAM_TL_KBASE_KCPUQUEUE_ENQUEUE_COMMAND(
 			cmd->info.suspend_buf_copy.group_handle);
 		break;
 	default:
-		dev_dbg(kbdev->dev, "Unknown command type %u", cmd->type);
+		dev_vdbg(kbdev->dev, "Unknown command type %u", cmd->type);
 		break;
 	}
 }
@@ -2057,7 +2057,7 @@ int kbase_csf_kcpu_queue_enqueue(struct kbase_context *kctx,
 	 * in the set.
 	 */
 	if (enq->nr_commands != 1) {
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"More than one commands enqueued");
 		return -EINVAL;
 	}
@@ -2100,7 +2100,7 @@ int kbase_csf_kcpu_queue_enqueue(struct kbase_context *kctx,
 
 		for (j = 0; j < sizeof(command.padding); j++) {
 			if (command.padding[j] != 0) {
-				dev_dbg(kctx->kbdev->dev,
+				dev_vdbg(kctx->kbdev->dev,
 					"base_kcpu_command padding not 0\n");
 				ret = -EINVAL;
 				goto out;
@@ -2173,7 +2173,7 @@ int kbase_csf_kcpu_queue_enqueue(struct kbase_context *kctx,
 					kcpu_cmd);
 			break;
 		default:
-			dev_dbg(queue->kctx->kbdev->dev,
+			dev_vdbg(queue->kctx->kbdev->dev,
 				"Unknown command type %u", command.type);
 			ret = -EINVAL;
 			break;

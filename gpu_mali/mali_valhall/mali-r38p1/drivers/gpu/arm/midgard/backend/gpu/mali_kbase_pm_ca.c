@@ -119,7 +119,7 @@ void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
 	}
 #endif
 
-	dev_dbg(kbdev->dev, "Devfreq policy : new core mask=%llX\n",
+	dev_vdbg(kbdev->dev, "Devfreq policy : new core mask=%llX\n",
 			pm_backend->ca_cores_enabled);
 
 	return;
