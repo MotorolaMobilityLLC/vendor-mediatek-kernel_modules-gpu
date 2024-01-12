@@ -23,6 +23,7 @@
 #include "mali_kbase_csf.h"
 #include "mali_kbase_csf_tiler_heap.h"
 #include "mali_kbase_csf_tiler_heap_reclaim.h"
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 /* Tiler heap shrinker seek value, needs to be higher than jit and memory pools */
 #define HEAP_SHRINKER_SEEKS (DEFAULT_SEEKS + 2)
@@ -71,7 +72,7 @@ static void detach_ctx_from_heap_reclaim_mgr(struct kbase_context *kctx)
 			WARN_ON(atomic_sub_return(remaining, &scheduler->reclaim_mgr.unused_pages) <
 				0);
 
-		dev_vdbg(kctx->kbdev->dev,
+		dev_dbg(kctx->kbdev->dev,
 			"Reclaim_mgr_detach: ctx_%d_%d, est_pages=0%u, freed_pages=%u", kctx->tgid,
 			kctx->id, info->nr_est_unused_pages, info->nr_freed_pages);
 	}
@@ -97,7 +98,7 @@ static void attach_ctx_to_heap_reclaim_mgr(struct kbase_context *kctx)
 	/* Accumulate the estimated pages to the manager total field */
 	atomic_add(info->nr_est_unused_pages, &scheduler->reclaim_mgr.unused_pages);
 
-	dev_vdbg(kctx->kbdev->dev, "Reclaim_mgr_attach: ctx_%d_%d, est_count_pages=%u", kctx->tgid,
+	dev_dbg(kctx->kbdev->dev, "Reclaim_mgr_attach: ctx_%d_%d, est_count_pages=%u", kctx->tgid,
 		kctx->id, info->nr_est_unused_pages);
 }
 
@@ -111,7 +112,7 @@ void kbase_csf_tiler_heap_reclaim_sched_notify_grp_active(struct kbase_queue_gro
 	info->on_slot_grps++;
 	/* If the kctx has an on-slot change from 0 => 1, detach it from reclaim_mgr */
 	if (info->on_slot_grps == 1) {
-		dev_vdbg(kctx->kbdev->dev, "CSG_%d_%d_%d on-slot, remove kctx from reclaim manager",
+		dev_dbg(kctx->kbdev->dev, "CSG_%d_%d_%d on-slot, remove kctx from reclaim manager",
 			group->kctx->tgid, group->kctx->id, group->handle);
 
 		detach_ctx_from_heap_reclaim_mgr(kctx);
@@ -151,7 +152,7 @@ void kbase_csf_tiler_heap_reclaim_sched_notify_grp_evict(struct kbase_queue_grou
 		if (kctx->csf.sched.num_runnable_grps || kctx->csf.sched.num_idle_wait_grps) {
 			/* The kctx has other operational CSGs, attach it if not yet done */
 			if (list_empty(&info->mgr_link)) {
-				dev_vdbg(kctx->kbdev->dev,
+				dev_dbg(kctx->kbdev->dev,
 					"CSG_%d_%d_%d evict, add kctx to reclaim manager",
 					group->kctx->tgid, group->kctx->id, group->handle);
 
@@ -159,7 +160,7 @@ void kbase_csf_tiler_heap_reclaim_sched_notify_grp_evict(struct kbase_queue_grou
 			}
 		} else {
 			/* The kctx is a zombie after the group eviction, drop it out */
-			dev_vdbg(kctx->kbdev->dev,
+			dev_dbg(kctx->kbdev->dev,
 				"CSG_%d_%d_%d evict leading to zombie kctx, dettach from reclaim manager",
 				group->kctx->tgid, group->kctx->id, group->handle);
 
@@ -179,7 +180,7 @@ void kbase_csf_tiler_heap_reclaim_sched_notify_grp_suspend(struct kbase_queue_gr
 		info->on_slot_grps--;
 	/* If the kctx has no CSGs on-slot, attach it to scheduler's reclaim manager */
 	if (info->on_slot_grps == 0) {
-		dev_vdbg(kctx->kbdev->dev, "CSG_%d_%d_%d off-slot, add kctx to reclaim manager",
+		dev_dbg(kctx->kbdev->dev, "CSG_%d_%d_%d off-slot, add kctx to reclaim manager",
 			group->kctx->tgid, group->kctx->id, group->handle);
 
 		attach_ctx_to_heap_reclaim_mgr(kctx);
@@ -241,11 +242,11 @@ static unsigned long reclaim_unused_heap_pages(struct kbase_device *kbdev)
 				break;
 		}
 
-		dev_vdbg(kbdev->dev, "Reclaim free heap pages: %lu (cnt_ctxs: %u, prio: %d)",
+		dev_dbg(kbdev->dev, "Reclaim free heap pages: %lu (cnt_ctxs: %u, prio: %d)",
 			total_freed_pages, cnt_ctxs, prio);
 	}
 
-	dev_vdbg(kbdev->dev, "Reclaim free total heap pages: %lu (across all CSG priority)",
+	dev_dbg(kbdev->dev, "Reclaim free total heap pages: %lu (across all CSG priority)",
 		total_freed_pages);
 
 	return total_freed_pages;
@@ -257,7 +258,7 @@ static unsigned long kbase_csf_tiler_heap_reclaim_count_free_pages(struct kbase_
 	struct kbase_csf_sched_heap_reclaim_mgr *mgr = &kbdev->csf.scheduler.reclaim_mgr;
 	unsigned long page_cnt = atomic_read(&mgr->unused_pages);
 
-	dev_vdbg(kbdev->dev, "Reclaim count unused pages (estimate): %lu", page_cnt);
+	dev_dbg(kbdev->dev, "Reclaim count unused pages (estimate): %lu", page_cnt);
 
 	return page_cnt;
 }
@@ -277,7 +278,7 @@ static unsigned long kbase_csf_tiler_heap_reclaim_scan_free_pages(struct kbase_d
 		wait_event_timeout(kbdev->csf.event_wait, (scheduler->state != SCHED_BUSY),
 				   msecs_to_jiffies(2));
 		if (!mutex_trylock(&kbdev->csf.scheduler.lock)) {
-			dev_vdbg(kbdev->dev, "Tiler heap reclaim scan see device busy (freed: 0)");
+			dev_dbg(kbdev->dev, "Tiler heap reclaim scan see device busy (freed: 0)");
 			return 0;
 		}
 	}

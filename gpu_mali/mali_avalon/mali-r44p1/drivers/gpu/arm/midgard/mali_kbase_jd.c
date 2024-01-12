@@ -43,6 +43,7 @@
 #include <mali_kbase_cs_experimental.h>
 
 #include <mali_kbase_caps.h>
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 /* Return whether katom will run on the GPU or not. Currently only soft jobs and
  * dependency-only atoms do not run on the GPU
@@ -76,7 +77,7 @@ static void jd_mark_atom_complete(struct kbase_jd_atom *katom)
 {
 	katom->status = KBASE_JD_ATOM_STATE_COMPLETED;
 	kbase_kinstr_jm_atom_complete(katom);
-	dev_vdbg(katom->kctx->kbdev->dev, "Atom %pK status to completed\n",
+	dev_dbg(katom->kctx->kbdev->dev, "Atom %pK status to completed\n",
 		(void *)katom);
 	KBASE_TLSTREAM_TL_JD_ATOM_COMPLETE(katom->kctx->kbdev, katom);
 }
@@ -92,7 +93,7 @@ static bool jd_run_atom(struct kbase_jd_atom *katom)
 {
 	struct kbase_context *kctx = katom->kctx;
 
-	dev_vdbg(kctx->kbdev->dev, "JD run atom %pK in kctx %pK\n",
+	dev_dbg(kctx->kbdev->dev, "JD run atom %pK in kctx %pK\n",
 		(void *)katom, (void *)kctx);
 
 	KBASE_DEBUG_ASSERT(katom->status != KBASE_JD_ATOM_STATE_UNUSED);
@@ -118,7 +119,7 @@ static bool jd_run_atom(struct kbase_jd_atom *katom)
 	}
 
 	katom->status = KBASE_JD_ATOM_STATE_IN_JS;
-	dev_vdbg(kctx->kbdev->dev, "Atom %pK status to in JS\n", (void *)katom);
+	dev_dbg(kctx->kbdev->dev, "Atom %pK status to in JS\n", (void *)katom);
 	/* Queue an action about whether we should try scheduling a context */
 	return kbasep_js_add_job(kctx, katom);
 }
@@ -585,7 +586,7 @@ bool kbase_jd_done_nolock(struct kbase_jd_atom *katom, bool post_immediately)
 			list_del(runnable_jobs.next);
 			node->in_jd_list = false;
 
-			dev_vdbg(kctx->kbdev->dev, "List node %pK has status %d\n",
+			dev_dbg(kctx->kbdev->dev, "List node %pK has status %d\n",
 				node, node->status);
 
 			KBASE_DEBUG_ASSERT(node->status != KBASE_JD_ATOM_STATE_UNUSED);
@@ -734,7 +735,7 @@ static bool jd_submit_atom(struct kbase_context *const kctx,
 	unsigned long flags;
 	enum kbase_jd_atom_state status;
 
-	dev_vdbg(kbdev->dev, "User did JD submit atom %pK\n", (void *)katom);
+	dev_dbg(kbdev->dev, "User did JD submit atom %pK\n", (void *)katom);
 
 	/* Update the TOTAL number of jobs. This includes those not tracked by
 	 * the scheduler: 'not ready to run' and 'dependency-only' jobs.
@@ -804,7 +805,7 @@ static bool jd_submit_atom(struct kbase_context *const kctx,
 					dep_atom_type != BASE_JD_DEP_TYPE_DATA) {
 				katom->event_code = BASE_JD_EVENT_JOB_CONFIG_FAULT;
 				katom->status = KBASE_JD_ATOM_STATE_COMPLETED;
-				dev_vdbg(kbdev->dev,
+				dev_dbg(kbdev->dev,
 					"Atom %pK status to completed\n",
 					(void *)katom);
 
@@ -847,7 +848,7 @@ static bool jd_submit_atom(struct kbase_context *const kctx,
 			/* Atom has completed, propagate the error code if any */
 			katom->event_code = dep_atom->event_code;
 			katom->status = KBASE_JD_ATOM_STATE_QUEUED;
-			dev_vdbg(kbdev->dev, "Atom %pK status to queued\n",
+			dev_dbg(kbdev->dev, "Atom %pK status to queued\n",
 				(void *)katom);
 
 			/* This atom will be sent back to user space.
@@ -889,7 +890,7 @@ static bool jd_submit_atom(struct kbase_context *const kctx,
 	 */
 	katom->event_code = BASE_JD_EVENT_DONE;
 	katom->status = KBASE_JD_ATOM_STATE_QUEUED;
-	dev_vdbg(kbdev->dev, "Atom %pK status to queued\n", (void *)katom);
+	dev_dbg(kbdev->dev, "Atom %pK status to queued\n", (void *)katom);
 
 	/* For invalid priority, be most lenient and choose the default */
 	sched_prio = kbasep_js_atom_prio_to_sched_prio(user_atom->prio);
@@ -1020,7 +1021,7 @@ static bool jd_submit_atom(struct kbase_context *const kctx,
 		bool need_to_try_schedule_context;
 
 		katom->status = KBASE_JD_ATOM_STATE_IN_JS;
-		dev_vdbg(kctx->kbdev->dev, "Atom %pK status to in JS\n",
+		dev_dbg(kctx->kbdev->dev, "Atom %pK status to in JS\n",
 			(void *)katom);
 
 		need_to_try_schedule_context = kbasep_js_add_job(kctx, katom);
@@ -1033,7 +1034,7 @@ static bool jd_submit_atom(struct kbase_context *const kctx,
 		status = katom->status;
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 		if (status == KBASE_JD_ATOM_STATE_HW_COMPLETED) {
-			dev_vdbg(kctx->kbdev->dev,
+			dev_dbg(kctx->kbdev->dev,
 					"Atom %d cancelled on HW\n",
 					kbase_jd_atom_id(katom->kctx, katom));
 			return need_to_try_schedule_context;
@@ -1080,7 +1081,7 @@ int kbase_jd_submit(struct kbase_context *kctx,
 	}
 
 	if (nr_atoms > BASE_JD_ATOM_COUNT) {
-		dev_vdbg(kbdev->dev, "Invalid attempt to submit %u atoms at once for kctx %d_%d",
+		dev_dbg(kbdev->dev, "Invalid attempt to submit %u atoms at once for kctx %d_%d",
 			nr_atoms, kctx->tgid, kctx->id);
 		return -EINVAL;
 	}
@@ -1097,7 +1098,7 @@ int kbase_jd_submit(struct kbase_context *kctx,
 
 		if (unlikely(jd_atom_is_v2)) {
 			if (copy_from_user(&user_atom.jc, user_addr, sizeof(struct base_jd_atom_v2)) != 0) {
-				dev_vdbg(kbdev->dev,
+				dev_dbg(kbdev->dev,
 					"Invalid atom address %pK passed to job_submit\n",
 					user_addr);
 				err = -EFAULT;
@@ -1108,7 +1109,7 @@ int kbase_jd_submit(struct kbase_context *kctx,
 			user_atom.seq_nr = 0;
 		} else {
 			if (copy_from_user(&user_atom, user_addr, stride) != 0) {
-				dev_vdbg(kbdev->dev,
+				dev_dbg(kbdev->dev,
 					"Invalid atom address %pK passed to job_submit\n",
 					user_addr);
 				err = -EFAULT;
@@ -1117,7 +1118,7 @@ int kbase_jd_submit(struct kbase_context *kctx,
 		}
 
 		if (stride == offsetof(struct base_jd_atom_v2, renderpass_id)) {
-			dev_vdbg(kbdev->dev, "No renderpass ID: use 0\n");
+			dev_dbg(kbdev->dev, "No renderpass ID: use 0\n");
 			user_atom.renderpass_id = 0;
 		} else {
 			/* Ensure all padding bytes are 0 for potential future
@@ -1125,7 +1126,7 @@ int kbase_jd_submit(struct kbase_context *kctx,
 			 */
 			size_t j;
 
-			dev_vdbg(kbdev->dev, "Renderpass ID is %d\n",
+			dev_dbg(kbdev->dev, "Renderpass ID is %d\n",
 				user_atom.renderpass_id);
 			for (j = 0; j < sizeof(user_atom.padding); j++) {
 				if (user_atom.padding[j]) {
@@ -1153,7 +1154,7 @@ int kbase_jd_submit(struct kbase_context *kctx,
 				err = -EFAULT;
 				break;
 			}
-			dev_vdbg(kbdev->dev, "Copied IR jobchain addresses\n");
+			dev_dbg(kbdev->dev, "Copied IR jobchain addresses\n");
 			user_atom.jc = 0;
 		}
 
@@ -1216,7 +1217,7 @@ while (false)
 
 		mutex_unlock(&jctx->lock);
 		if (fatal_signal_pending(current)) {
-			dev_vdbg(kbdev->dev, "Fatal signal pending for kctx %d_%d",
+			dev_dbg(kbdev->dev, "Fatal signal pending for kctx %d_%d",
 				kctx->tgid, kctx->id);
 			/* We're being killed so the result code doesn't really matter  */
 			return 0;
@@ -1253,7 +1254,7 @@ void kbase_jd_done_worker(struct work_struct *data)
 	js_kctx_info = &kctx->jctx.sched_info;
 	js_devdata = &kbdev->js_data;
 
-	dev_vdbg(kbdev->dev, "Enter atom %pK done worker for kctx %pK\n",
+	dev_dbg(kbdev->dev, "Enter atom %pK done worker for kctx %pK\n",
 		(void *)katom, (void *)kctx);
 
 	KBASE_KTRACE_ADD_JM(kbdev, JD_DONE_WORKER, kctx, katom, katom->jc, 0);
@@ -1277,7 +1278,7 @@ void kbase_jd_done_worker(struct work_struct *data)
 	if (katom->event_code == BASE_JD_EVENT_STOPPED) {
 		unsigned long flags;
 
-		dev_vdbg(kbdev->dev, "Atom %pK has been promoted to stopped\n",
+		dev_dbg(kbdev->dev, "Atom %pK has been promoted to stopped\n",
 			(void *)katom);
 		mutex_unlock(&js_kctx_info->ctx.jsctx_mutex);
 		mutex_unlock(&js_devdata->queue_mutex);
@@ -1285,7 +1286,7 @@ void kbase_jd_done_worker(struct work_struct *data)
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 		katom->status = KBASE_JD_ATOM_STATE_IN_JS;
-		dev_vdbg(kctx->kbdev->dev, "Atom %pK status to in JS\n",
+		dev_dbg(kctx->kbdev->dev, "Atom %pK status to in JS\n",
 			(void *)katom);
 		kbase_js_unpull(kctx, katom);
 
@@ -1401,7 +1402,7 @@ void kbase_jd_done_worker(struct work_struct *data)
 
 	KBASE_KTRACE_ADD_JM(kbdev, JD_DONE_WORKER_END, kctx, NULL, cache_jc, 0);
 
-	dev_vdbg(kbdev->dev, "Leave atom %pK done worker for kctx %pK\n",
+	dev_dbg(kbdev->dev, "Leave atom %pK done worker for kctx %pK\n",
 		(void *)katom, (void *)kctx);
 }
 
@@ -1534,7 +1535,7 @@ void kbase_jd_cancel(struct kbase_device *kbdev, struct kbase_jd_atom *katom)
 	kctx = katom->kctx;
 	KBASE_DEBUG_ASSERT(kctx != NULL);
 
-	dev_vdbg(kbdev->dev, "JD: cancelling atom %pK\n", (void *)katom);
+	dev_dbg(kbdev->dev, "JD: cancelling atom %pK\n", (void *)katom);
 	KBASE_KTRACE_ADD_JM(kbdev, JD_CANCEL, kctx, katom, katom->jc, 0);
 
 	/* This should only be done from a context that is not scheduled */

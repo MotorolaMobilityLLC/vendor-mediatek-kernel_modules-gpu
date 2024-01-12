@@ -30,6 +30,7 @@
 #include "mali_kbase.h"
 #include "mali_kbase_csf_firmware_core_dump.h"
 #include "backend/gpu/mali_kbase_pm_internal.h"
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 /* Page size in bytes in use by MCU. */
 #define FW_PAGE_SIZE 4096
@@ -473,7 +474,7 @@ static int fw_core_dump_write_elf_header(struct seq_file *m)
 
 	/* Prepare ELF note of PRSTATUS type. */
 	if (fw_get_core_dump_mcu(kbdev, &regs))
-		dev_vdbg(kbdev->dev, "MCU Registers not available, all registers set to zero");
+		dev_dbg(kbdev->dev, "MCU Registers not available, all registers set to zero");
 	/* Even if MCU Registers are not available the ELF prstatus is still
 	 * filled with the registers equal to zero.
 	 */

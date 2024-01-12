@@ -40,6 +40,7 @@
 #include <linux/kernel.h>
 #include <linux/cache.h>
 #include <linux/version_compat_defs.h>
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 #if !MALI_USE_CSF
 /**
@@ -944,7 +945,7 @@ static int kbase_jit_allocate_prepare(struct kbase_jd_atom *katom)
 	u32 i;
 
 	if (!kbase_mem_allow_alloc(kctx)) {
-		dev_vdbg(kbdev->dev, "Invalid attempt to allocate JIT memory by %s/%d for ctx %d_%d",
+		dev_dbg(kbdev->dev, "Invalid attempt to allocate JIT memory by %s/%d for ctx %d_%d",
 			current->comm, current->pid, kctx->tgid, kctx->id);
 		ret = -EINVAL;
 		goto fail;

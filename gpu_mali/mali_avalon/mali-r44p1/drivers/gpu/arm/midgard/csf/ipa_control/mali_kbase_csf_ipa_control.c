@@ -23,6 +23,7 @@
 #include <mali_kbase_config_defaults.h>
 #include "backend/gpu/mali_kbase_clk_rate_trace_mgr.h"
 #include "mali_kbase_csf_ipa_control.h"
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
@@ -257,7 +258,7 @@ static inline void calc_prfcnt_delta(struct kbase_device *kbdev,
 
 		if (!warned) {
 #if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
-			dev_vdbg(kbdev->dev, "%s: GPU freq is unexpectedly 0", __func__);
+			dev_dbg(kbdev->dev, "%s: GPU freq is unexpectedly 0", __func__);
 #endif /* CONFIG_MALI_MTK_COMMON */
 			warned = true;
 		}
@@ -300,7 +301,7 @@ kbase_ipa_control_rate_change_notify(struct kbase_clk_rate_listener *listener,
 
 		if (!kbdev->pm.backend.gpu_ready) {
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
-			dev_vdbg(kbdev->dev,
+			dev_dbg(kbdev->dev,
 				"%s: backup clk rate:%u change while gpu power off", __func__,
 				clk_rate_hz);
 

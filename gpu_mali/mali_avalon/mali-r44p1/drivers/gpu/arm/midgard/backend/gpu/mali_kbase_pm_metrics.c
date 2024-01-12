@@ -37,6 +37,7 @@
 
 #include <backend/gpu/mali_kbase_pm_defs.h>
 #include <mali_linux_trace.h>
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 #if defined(CONFIG_MALI_DEVFREQ) || defined(CONFIG_MALI_MIDGARD_DVFS) || !MALI_USE_CSF
 /* Shift used for kbasep_pm_metrics_data.time_busy/idle - units of (1 << 8) ns
@@ -58,14 +59,9 @@
  * OFF       -> ON
  *
  *
- * â”Œâ”€eâ”€â”â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€fâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
- * â”‚   vâ”‚                          v
- * â””â”€â”€â”€ON â”€â”€aâ”€â”€> STOPPED â”€â”€bâ”€â”€> OFF
- *     ^^            â”‚             â”‚
- *     â”‚â””â”€â”€â”€â”€â”€â”€câ”€â”€â”€â”€â”€â”˜             â”‚
- *     â”‚                           â”‚
- *     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€dâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
- *
+ * ?Œâ?e?€?â??€?€?€?€?€?€?€?€?€?€?€?€f?€?€?€?€?€?€?€?€?€?€?€?€?€?? * ??  v??                         v
+ * ?”â??€?€ON ?€?€a?€?€> STOPPED ?€?€b?€?€> OFF
+ *     ^^            ??            ?? *     ?‚â??€?€?€?€?€?€c?€?€?€?€?€??            ?? *     ??                          ?? *     ?”â??€?€?€?€?€?€?€?€?€?€?€?€d?€?€?€?€?€?€?€?€?€?€?€?€?€?? *
  * Transition effects:
  * a. None
  * b. Timer expires without restart
@@ -372,7 +368,7 @@ static void kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 			if (gpu_active_counter[0] > (diff_ns + MARGIN_NS)) {
-				dev_vdbg(
+				dev_dbg(
 					kbdev->dev,
 					"GPU activity takes longer than time interval: %llu ns > %llu ns",
 					(unsigned long long)gpu_active_counter[0],

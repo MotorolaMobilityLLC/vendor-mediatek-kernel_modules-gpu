@@ -34,6 +34,7 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG */
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 enum kbasep_soft_reset_status {
 	RESET_SUCCESS = 0,
@@ -327,7 +328,7 @@ static enum kbasep_soft_reset_status kbase_csf_reset_gpu_once(struct kbase_devic
 	spin_lock(&kbdev->mmu_mask_change);
 	kbase_pm_reset_start_locked(kbdev);
 
-	dev_vdbg(kbdev->dev,
+	dev_dbg(kbdev->dev,
 		"We're about to flush out the IRQs and their bottom halves\n");
 	kbdev->irq_reset_flush = true;
 
@@ -339,14 +340,14 @@ static enum kbasep_soft_reset_status kbase_csf_reset_gpu_once(struct kbase_devic
 	spin_unlock(&kbdev->mmu_mask_change);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
-	dev_vdbg(kbdev->dev, "Ensure that any IRQ handlers have finished\n");
+	dev_dbg(kbdev->dev, "Ensure that any IRQ handlers have finished\n");
 	/* Must be done without any locks IRQ handlers will take. */
 	kbase_synchronize_irqs(kbdev);
 
-	dev_vdbg(kbdev->dev, "Flush out any in-flight work items\n");
+	dev_dbg(kbdev->dev, "Flush out any in-flight work items\n");
 	kbase_flush_mmu_wqs(kbdev);
 
-	dev_vdbg(kbdev->dev,
+	dev_dbg(kbdev->dev,
 		"The flush has completed so reset the active indicator\n");
 	kbdev->irq_reset_flush = false;
 
@@ -454,7 +455,7 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 		kbase_csf_scheduler_reset(kbdev);
 	cancel_work_sync(&kbdev->csf.firmware_reload_work);
 
-	dev_vdbg(kbdev->dev, "Disable GPU hardware counters.\n");
+	dev_dbg(kbdev->dev, "Disable GPU hardware counters.\n");
 	/* This call will block until counters are disabled. */
 	kbase_hwcnt_context_disable(kbdev->hwcnt_gpu_ctx);
 

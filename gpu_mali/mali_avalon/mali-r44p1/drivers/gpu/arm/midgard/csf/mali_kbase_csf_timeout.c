@@ -31,6 +31,7 @@
 #include "mali_kbase_csf_timeout.h"
 #include "mali_kbase_reset_gpu.h"
 #include "backend/gpu/mali_kbase_pm_internal.h"
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 /**
  * set_timeout - set a new global progress timeout.
@@ -49,7 +50,7 @@ static int set_timeout(struct kbase_device *const kbdev, u64 const timeout)
 		return -ERANGE;
 	}
 
-	dev_vdbg(kbdev->dev, "New progress timeout: %llu cycles\n", timeout);
+	dev_dbg(kbdev->dev, "New progress timeout: %llu cycles\n", timeout);
 
 	atomic64_set(&kbdev->csf.progress_timeout, timeout);
 	kbase_device_set_timeout(kbdev, CSF_SCHED_PROTM_PROGRESS_TIMEOUT, timeout, 1);

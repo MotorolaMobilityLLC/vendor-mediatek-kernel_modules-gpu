@@ -33,6 +33,7 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG */
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
@@ -97,7 +98,7 @@ static void submit_work_pagefault(struct kbase_device *kbdev, u32 as_nr,
 		 * MCU's address space.
 		 */
 		if (!queue_work(as->pf_wq, &as->work_pagefault)) {
-			dev_vdbg(kbdev->dev,
+			dev_dbg(kbdev->dev,
 				"Page fault is already pending for as %u", as_nr);
 			kbase_ctx_sched_release_ctx(kctx);
 		} else {

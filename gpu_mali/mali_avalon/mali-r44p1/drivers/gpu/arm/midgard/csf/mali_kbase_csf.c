@@ -41,6 +41,7 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG */
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
 #include <platform/mtk_platform_common/mtk_platform_irq_trace.h>
@@ -432,7 +433,7 @@ static bool release_queue(struct kbase_queue *queue)
 		/* The queue can't still be on the per context list. */
 		WARN_ON(!list_empty(&queue->link));
 		WARN_ON(queue->group);
-		dev_vdbg(queue->kctx->kbdev->dev,
+		dev_dbg(queue->kctx->kbdev->dev,
 			"Remove any pending command queue fatal from ctx %d_%d",
 			queue->kctx->tgid, queue->kctx->id);
 		kbase_csf_event_remove_error(queue->kctx, &queue->error);
@@ -471,7 +472,7 @@ static int csf_queue_register_internal(struct kbase_context *kctx,
 
 	/* Only one pointer expected, otherwise coding error */
 	if ((reg == NULL && reg_ex == NULL) || (reg && reg_ex)) {
-		dev_vdbg(kctx->kbdev->dev,
+		dev_dbg(kctx->kbdev->dev,
 			"Error, one and only one param-ptr expected!");
 		return -EINVAL;
 	}
@@ -935,7 +936,7 @@ int kbase_csf_queue_kick(struct kbase_context *kctx,
 			spin_unlock(&kbdev->csf.pending_gpuq_kicks_lock);
 		}
 	} else {
-		dev_vdbg(kbdev->dev,
+		dev_dbg(kbdev->dev,
 			"Attempt to kick GPU queue without a valid command buffer region");
 		err = -EFAULT;
 	}
@@ -1214,7 +1215,7 @@ static int create_queue_group(struct kbase_context *const kctx,
 	int group_handle = find_free_group_handle(kctx);
 
 	if (group_handle < 0) {
-		dev_vdbg(kctx->kbdev->dev,
+		dev_dbg(kctx->kbdev->dev,
 			"All queue group handles are already in use");
 	} else {
 		struct kbase_queue_group * const group =
@@ -1326,15 +1327,15 @@ int kbase_csf_queue_group_create(struct kbase_context *const kctx,
 
 	if ((create->in.tiler_max > tiler_count) || (create->in.fragment_max > fragment_count) ||
 	    (create->in.compute_max > compute_count)) {
-		dev_vdbg(kctx->kbdev->dev,
+		dev_dbg(kctx->kbdev->dev,
 			"Invalid maximum number of endpoints for a queue group");
 		err = -EINVAL;
 	} else if (create->in.priority >= BASE_QUEUE_GROUP_PRIORITY_COUNT) {
-		dev_vdbg(kctx->kbdev->dev, "Invalid queue group priority %u",
+		dev_dbg(kctx->kbdev->dev, "Invalid queue group priority %u",
 			(unsigned int)create->in.priority);
 		err = -EINVAL;
 	} else if (!iface_has_enough_streams(kctx->kbdev, create->in.cs_min)) {
-		dev_vdbg(kctx->kbdev->dev,
+		dev_dbg(kctx->kbdev->dev,
 			"No CSG has at least %d CSs",
 			create->in.cs_min);
 		err = -EINVAL;
@@ -1471,7 +1472,7 @@ static void term_queue_group(struct kbase_queue_group *group)
 	if (group->run_state == KBASE_CSF_GROUP_TERMINATED)
 		return;
 
-	dev_vdbg(kctx->kbdev->dev, "group %d terminating", group->handle);
+	dev_dbg(kctx->kbdev->dev, "group %d terminating", group->handle);
 
 	kbase_csf_term_descheduled_queue_group(group);
 }
@@ -1514,7 +1515,7 @@ static void remove_pending_group_fatal_error(struct kbase_queue_group *group)
 {
 	struct kbase_context *kctx = group->kctx;
 
-	dev_vdbg(kctx->kbdev->dev,
+	dev_dbg(kctx->kbdev->dev,
 		"Remove any pending group fatal error from context %pK\n",
 		(void *)group->kctx);
 
@@ -1665,7 +1666,7 @@ void kbase_csf_active_queue_groups_reset(struct kbase_device *kbdev,
 		group = list_first_entry(&evicted_groups,
 				struct kbase_queue_group, link);
 
-		dev_vdbg(kbdev->dev, "Context %d_%d active group %d terminated",
+		dev_dbg(kbdev->dev, "Context %d_%d active group %d terminated",
 			    kctx->tgid, kctx->id, group->handle);
 		kbase_csf_term_descheduled_queue_group(group);
 		list_del_init(&group->link);
@@ -1944,7 +1945,7 @@ static int handle_oom_event(struct kbase_queue_group *const group,
 	    (pending_frag_count == 0) && (err == -ENOMEM || err == -EBUSY)) {
 		/* The group allows incremental rendering, trigger it */
 		new_chunk_ptr = 0;
-		dev_vdbg(kctx->kbdev->dev, "Group-%d (slot-%d) enter incremental render\n",
+		dev_dbg(kctx->kbdev->dev, "Group-%d (slot-%d) enter incremental render\n",
 			group->handle, group->csg_nr);
 	} else if (err == -EBUSY) {
 		/* Acknowledge with a NULL chunk (firmware will then wait for
@@ -2254,7 +2255,7 @@ static int alloc_grp_protected_suspend_buffer_pages(struct kbase_queue_group *co
 		 * allocated and retained pma.
 		 */
 		WARN_ON(group->csg_nr >= 0);
-		dev_vdbg(kbdev->dev, "No bound csg_reg for group_%d_%d_%d to enter protected mode",
+		dev_dbg(kbdev->dev, "No bound csg_reg for group_%d_%d_%d to enter protected mode",
 			group->kctx->tgid, group->kctx->id, group->handle);
 		goto unlock;
 	}
@@ -2737,7 +2738,7 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 				KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, CSI_INTERRUPT_PROTM_PEND,
 							 group, queue, cs_req ^ cs_ack);
 
-				dev_vdbg(kbdev->dev,
+				dev_dbg(kbdev->dev,
 					"Protected mode entry request for queue on csi %d bound to group-%d on slot %d",
 					queue->csi_index, group->handle,
 					group->csg_nr);
@@ -2766,7 +2767,7 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 				  scheduler->csg_slots_idle_mask);
 			KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_SLOT_IDLE_CLEAR, group,
 							scheduler->csg_slots_idle_mask[0]);
-			dev_vdbg(kbdev->dev,
+			dev_dbg(kbdev->dev,
 				"Group-%d on slot %d de-idled by protm request",
 				group->handle, group->csg_nr);
 		}
@@ -2869,7 +2870,7 @@ static void process_csg_interrupts(struct kbase_device *const kbdev, int const c
 		KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_SLOT_IDLE_SET, group,
 					 scheduler->csg_slots_idle_mask[0]);
 		KBASE_KTRACE_ADD_CSF_GRP(kbdev,  CSG_INTERRUPT_IDLE, group, req ^ ack);
-		dev_vdbg(kbdev->dev, "Idle notification received for Group %u on slot %d\n",
+		dev_dbg(kbdev->dev, "Idle notification received for Group %u on slot %d\n",
 			 group->handle, csg_nr);
 
 		if (atomic_read(&scheduler->non_idle_offslot_grps)) {
@@ -2942,7 +2943,7 @@ static void process_prfcnt_interrupts(struct kbase_device *kbdev, u32 glb_req,
 	     (glb_ack & GLB_REQ_PRFCNT_SAMPLE_MASK))) {
 		kbdev->csf.hwcnt.request_pending = false;
 
-		dev_vdbg(kbdev->dev, "PRFCNT_SAMPLE done interrupt received.");
+		dev_dbg(kbdev->dev, "PRFCNT_SAMPLE done interrupt received.");
 
 		kbase_hwcnt_backend_csf_on_prfcnt_sample(
 			&kbdev->hwcnt_gpu_iface);
@@ -2954,7 +2955,7 @@ static void process_prfcnt_interrupts(struct kbase_device *kbdev, u32 glb_req,
 	     (glb_ack & GLB_REQ_PRFCNT_ENABLE_MASK))) {
 		kbdev->csf.hwcnt.enable_pending = false;
 
-		dev_vdbg(kbdev->dev,
+		dev_dbg(kbdev->dev,
 			"PRFCNT_ENABLE status changed interrupt received.");
 
 		if (glb_ack & GLB_REQ_PRFCNT_ENABLE_MASK)
@@ -2967,7 +2968,7 @@ static void process_prfcnt_interrupts(struct kbase_device *kbdev, u32 glb_req,
 
 	/* Process PRFCNT_THRESHOLD interrupt. */
 	if ((glb_req ^ glb_ack) & GLB_REQ_PRFCNT_THRESHOLD_MASK) {
-		dev_vdbg(kbdev->dev, "PRFCNT_THRESHOLD interrupt received.");
+		dev_dbg(kbdev->dev, "PRFCNT_THRESHOLD interrupt received.");
 
 		kbase_hwcnt_backend_csf_on_prfcnt_threshold(
 			&kbdev->hwcnt_gpu_iface);
@@ -2984,7 +2985,7 @@ static void process_prfcnt_interrupts(struct kbase_device *kbdev, u32 glb_req,
 
 	/* Process PRFCNT_OVERFLOW interrupt. */
 	if ((glb_req ^ glb_ack) & GLB_REQ_PRFCNT_OVERFLOW_MASK) {
-		dev_vdbg(kbdev->dev, "PRFCNT_OVERFLOW interrupt received.");
+		dev_dbg(kbdev->dev, "PRFCNT_OVERFLOW interrupt received.");
 
 		kbase_hwcnt_backend_csf_on_prfcnt_overflow(
 			&kbdev->hwcnt_gpu_iface);
@@ -3027,7 +3028,7 @@ static inline void check_protm_enter_req_complete(struct kbase_device *kbdev,
 	    (glb_ack & GLB_REQ_PROTM_ENTER_MASK))
 		return;
 
-	dev_vdbg(kbdev->dev, "Protected mode entry interrupt received");
+	dev_dbg(kbdev->dev, "Protected mode entry interrupt received");
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR,
@@ -3058,7 +3059,7 @@ static inline void process_protm_exit(struct kbase_device *kbdev, u32 glb_ack)
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 
-	dev_vdbg(kbdev->dev, "Protected mode exit interrupt received");
+	dev_dbg(kbdev->dev, "Protected mode exit interrupt received");
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR,
@@ -3104,7 +3105,7 @@ static inline void process_tracked_info_for_protm(struct kbase_device *kbdev,
 		/* If the protm enter was prevented due to groups priority, then fire a tock
 		 * for the scheduler to re-examine the case.
 		 */
-		dev_vdbg(kbdev->dev, "Attempt pending protm from idle slot %d\n", track->idle_slot);
+		dev_dbg(kbdev->dev, "Attempt pending protm from idle slot %d\n", track->idle_slot);
 		kbase_csf_scheduler_invoke_tock(kbdev);
 	} else if (group) {
 		u32 i, num_groups = kbdev->csf.global_iface.group_num;
@@ -3126,7 +3127,7 @@ static inline void process_tracked_info_for_protm(struct kbase_device *kbdev,
 
 			if (grp->scan_seq_num < current_protm_pending_seq) {
 				tock_triggered = true;
-				dev_vdbg(kbdev->dev,
+				dev_dbg(kbdev->dev,
 					"Attempt new protm from tick/tock idle slot %d\n", i);
 				kbase_csf_scheduler_invoke_tock(kbdev);
 				break;
@@ -3134,7 +3135,7 @@ static inline void process_tracked_info_for_protm(struct kbase_device *kbdev,
 		}
 
 		if (!tock_triggered) {
-			dev_vdbg(kbdev->dev, "Group-%d on slot-%d start protm work\n",
+			dev_dbg(kbdev->dev, "Group-%d on slot-%d start protm work\n",
 				group->handle, group->csg_nr);
 			queue_work(group->kctx->csf.wq, &group->protm_event_work);
 		}
@@ -3271,7 +3272,7 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 
 				/* Handle IDLE Hysteresis notification event */
 				if ((glb_req ^ glb_ack) & GLB_REQ_IDLE_EVENT_MASK) {
-					dev_vdbg(kbdev->dev, "Idle-hysteresis event flagged");
+					dev_dbg(kbdev->dev, "Idle-hysteresis event flagged");
 					kbase_csf_firmware_global_input_mask(
 						global_iface, GLB_REQ, glb_ack,
 						GLB_REQ_IDLE_EVENT_MASK);

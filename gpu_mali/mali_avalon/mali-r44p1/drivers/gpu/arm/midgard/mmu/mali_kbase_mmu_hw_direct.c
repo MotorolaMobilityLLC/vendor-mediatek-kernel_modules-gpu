@@ -32,6 +32,7 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG */
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
@@ -239,7 +240,7 @@ static int write_cmd(struct kbase_device *kbdev, int as_nr, u32 cmd)
 	if (likely(status == 0))
 		kbase_reg_write(kbdev, MMU_STAGE1_REG(MMU_AS_REG(as_nr, AS_COMMAND)), cmd);
 	else if (status == -EBUSY) {
-		dev_vdbg(kbdev->dev,
+		dev_dbg(kbdev->dev,
 			"Skipped the wait for AS_ACTIVE bit for as %u, before sending MMU command %u",
 			as_nr, cmd);
 	} else {

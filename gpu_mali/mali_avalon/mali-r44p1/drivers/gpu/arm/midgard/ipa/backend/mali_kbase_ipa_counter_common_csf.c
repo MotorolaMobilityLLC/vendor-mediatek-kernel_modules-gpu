@@ -21,6 +21,7 @@
 
 #include "mali_kbase_ipa_counter_common_csf.h"
 #include "ipa/mali_kbase_ipa_debugfs.h"
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 #define DEFAULT_SCALING_FACTOR 5
 
@@ -197,7 +198,7 @@ static int calculate_coeff(struct kbase_ipa_counter_model_data *model_data,
 	if (total_energy >= 0)
 		coeff = total_energy;
 	else
-		dev_vdbg(model_data->kbdev->dev,
+		dev_dbg(model_data->kbdev->dev,
 			"Energy value came negative as %lld", total_energy);
 
 	/* Range: 0 <= coeff < 2^63 (because active_cycles >= 1). However, this
@@ -293,7 +294,7 @@ int kbase_ipa_counter_dynamic_coeff(struct kbase_ipa_model *model, u32 *coeffp)
 	 * that regular calls every 25-100 ms interval are expected.
 	 */
 	if (diff_ms > MAX_SAMPLE_INTERVAL_MS) {
-		dev_vdbg(kbdev->dev,
+		dev_dbg(kbdev->dev,
 			"Last sample was taken %lld milli seconds ago",
 			diff_ms);
 		return -EOVERFLOW;

@@ -29,6 +29,7 @@
 
 #include <linux/firmware.h>
 #include <linux/delay.h>
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 #define DUMMY_JOB_WA_BINARY_NAME "valhall-1691526.wa"
 
@@ -312,7 +313,7 @@ int kbase_dummy_job_wa_load(struct kbase_device *kbdev)
 	fw = firmware->data;
 	fw_end = fw + firmware->size;
 
-	dev_vdbg(kbdev->dev, "Loaded firmware of size %zu bytes\n",
+	dev_dbg(kbdev->dev, "Loaded firmware of size %zu bytes\n",
 		firmware->size);
 
 	if (!in_range(fw, fw_end, 0, sizeof(*header))) {

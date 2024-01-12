@@ -20,6 +20,7 @@
  */
 
 #include <mali_kbase.h>
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 
@@ -74,7 +75,7 @@ int kbasep_mem_profile_debugfs_insert(struct kbase_context *kctx, char *data,
 
 	mutex_lock(&kctx->mem_profile_lock);
 
-	dev_vdbg(kctx->kbdev->dev, "initialised: %d",
+	dev_dbg(kctx->kbdev->dev, "initialised: %d",
 		kbase_ctx_flag(kctx, KCTX_MEM_PROFILE_INITIALIZED));
 
 	if (!kbase_ctx_flag(kctx, KCTX_MEM_PROFILE_INITIALIZED)) {
@@ -98,7 +99,7 @@ int kbasep_mem_profile_debugfs_insert(struct kbase_context *kctx, char *data,
 		kfree(data);
 	}
 
-	dev_vdbg(kctx->kbdev->dev, "returning: %d, initialised: %d",
+	dev_dbg(kctx->kbdev->dev, "returning: %d, initialised: %d",
 		err, kbase_ctx_flag(kctx, KCTX_MEM_PROFILE_INITIALIZED));
 
 	mutex_unlock(&kctx->mem_profile_lock);
@@ -110,7 +111,7 @@ void kbasep_mem_profile_debugfs_remove(struct kbase_context *kctx)
 {
 	mutex_lock(&kctx->mem_profile_lock);
 
-	dev_vdbg(kctx->kbdev->dev, "initialised: %d",
+	dev_dbg(kctx->kbdev->dev, "initialised: %d",
 				kbase_ctx_flag(kctx, KCTX_MEM_PROFILE_INITIALIZED));
 
 	kfree(kctx->mem_profile_data);

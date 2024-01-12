@@ -31,6 +31,7 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <platform/mtk_platform_common.h>
 #endif
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 /*
  * Hold the runpool_mutex for this
@@ -149,7 +150,7 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 		KBASE_DISJOINT_STATE_INTERLEAVED_CONTEXT_COUNT_THRESHOLD;
 					u32 softstop_flags = 0u;
 
-					dev_vdbg(kbdev->dev, "Soft-stop");
+					dev_dbg(kbdev->dev, "Soft-stop");
 					/* nr_user_contexts_running is updated
 					 * with the runpool_mutex, but we can't
 					 * take that here.
@@ -216,7 +217,7 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 					 * not soft-stop during
 					 * CONFIG_MALI_JOB_DUMP, however.
 					 */
-					dev_vdbg(kbdev->dev, "Soft-stop");
+					dev_dbg(kbdev->dev, "Soft-stop");
 				} else if (ticks ==
 					js_devdata->hard_stop_ticks_dumping) {
 					/* Job has been scheduled for at least

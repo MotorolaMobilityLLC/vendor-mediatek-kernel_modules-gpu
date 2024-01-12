@@ -28,6 +28,7 @@
 #include <backend/gpu/mali_kbase_pm_internal.h>
 #include <backend/gpu/mali_kbase_model_linux.h>
 #include <mali_kbase_dummy_job_wa.h>
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 int kbase_pm_ca_init(struct kbase_device *kbdev)
 {
@@ -98,7 +99,7 @@ void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
 	}
 #endif
 
-	dev_vdbg(kbdev->dev, "Devfreq policy : new core mask=%llX\n",
+	dev_dbg(kbdev->dev, "Devfreq policy : new core mask=%llX\n",
 			pm_backend->ca_cores_enabled);
 
 	return;
