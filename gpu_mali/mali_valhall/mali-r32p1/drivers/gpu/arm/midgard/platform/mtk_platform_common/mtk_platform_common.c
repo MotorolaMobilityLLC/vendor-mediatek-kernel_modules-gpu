@@ -25,6 +25,10 @@
 #include "mtk_gpu_devfreq_governor.h"
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEM_TRACK)
+extern unsigned int (*mtk_get_gpu_memory_usage_fp)(void);
+#endif
+
 static bool mfg_powered;
 static DEFINE_MUTEX(mfg_pm_lock);
 static struct kbase_device *mali_kbdev;
@@ -98,6 +102,14 @@ int mtk_common_ged_dvfs_get_last_commit_idx(void)
 	return -1;
 #endif
 }
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEM_TRACK)
+static unsigned int mtk_common_gpu_memory_usage(void)
+{
+	unsigned int used_pages = atomic_read(&(mali_kbdev->memdev.used_pages));
+	return used_pages * 4096;
+}
+#endif
 
 #if IS_ENABLED(CONFIG_PROC_FS)
 static int mtk_common_gpu_utilization_show(struct seq_file *m, void *v)
@@ -216,7 +228,9 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 #endif
 	ged_dvfs_gpu_freq_commit_fp = mtk_common_ged_dvfs_commit;
 #endif
-
+#if IS_ENABLED(CONFIG_MALI_MTK_MEM_TRACK)
+	mtk_get_gpu_memory_usage_fp = mtk_common_gpu_memory_usage;
+#endif
 #if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ)
 	mtk_common_devfreq_init();
 #endif
@@ -249,7 +263,9 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 #endif
 	ged_dvfs_gpu_freq_commit_fp = NULL;
 #endif
-
+#if IS_ENABLED(CONFIG_MALI_MTK_MEM_TRACK)
+	mtk_get_gpu_memory_usage_fp = NULL;
+#endif
 #if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ)
 	mtk_common_devfreq_term();
 #endif
