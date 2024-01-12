@@ -50,10 +50,6 @@ bool kbase_reg_is_valid(struct kbase_device *kbdev, u32 reg_enum)
 
 bool kbase_reg_is_accessible(struct kbase_device *kbdev, u32 reg_enum, u32 flags)
 {
-#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
-	if (kbdev->bypass_register_check)
-		return true;
-#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 #ifdef CONFIG_MALI_DEBUG
 	if (WARN(!kbase_reg_is_valid(kbdev, reg_enum), "Invalid register enum 0x%x: %s", reg_enum,
 		 kbase_reg_get_enum_string(reg_enum)))

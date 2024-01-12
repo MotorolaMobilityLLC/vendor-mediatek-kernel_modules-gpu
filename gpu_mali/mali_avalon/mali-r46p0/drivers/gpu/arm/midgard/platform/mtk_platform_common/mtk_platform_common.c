@@ -581,7 +581,6 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
-	kbdev->bypass_register_check = false;
 	mutex_init(&kbdev->register_check_lock);
 	mutex_init(&kbdev->mmu_debug_info_lock);
 	kbdev->mmu_debug_info_head = 0;

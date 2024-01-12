@@ -386,8 +386,6 @@ static void dump_cmd_ptr_instructions(struct kbase_context *kctx, u64 cmd_ptr)
 static void dump_iterator_registers(struct kbase_device *kbdev)
 {
 	unsigned int i;
-	u32 reg_offsets[8] = { 0x0, 0x4, 0x8, 0xD0, 0xDC, 0xA4, 0xA0, 0xE0 };
-	u32 cshw_it_comp_reg[8], cshw_it_frag_reg[8], cshw_it_tiler_reg[8];
 
 	if (kbdev->protected_mode)
 		return;
@@ -395,36 +393,67 @@ static void dump_iterator_registers(struct kbase_device *kbdev)
 	if (!kbdev->pm.backend.gpu_powered)
 		return;
 
-	for (i = 0; i < 8; i++) {
-		cshw_it_comp_reg[i] = kbase_reg_read(kbdev, CSHW_IT_COMP_REG(reg_offsets[i]));
-		cshw_it_frag_reg[i] = kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(reg_offsets[i]));
-		cshw_it_tiler_reg[i] = kbase_reg_read(kbdev, CSHW_IT_TILER_REG(reg_offsets[i]));
-	}
-
-	dev_err(kbdev->dev, "Compute  CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x",
-		cshw_it_comp_reg[0], cshw_it_comp_reg[1], cshw_it_comp_reg[2], cshw_it_comp_reg[3],
-		cshw_it_comp_reg[4], cshw_it_comp_reg[5], cshw_it_comp_reg[6], cshw_it_comp_reg[7]);
-	dev_err(kbdev->dev, "Fragment CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x",
-		cshw_it_frag_reg[0], cshw_it_frag_reg[1], cshw_it_frag_reg[2], cshw_it_frag_reg[3],
-		cshw_it_frag_reg[4], cshw_it_frag_reg[5], cshw_it_frag_reg[6], cshw_it_frag_reg[7]);
-	dev_err(kbdev->dev, "Tiler    CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x",
-		cshw_it_tiler_reg[0], cshw_it_tiler_reg[1], cshw_it_tiler_reg[2], cshw_it_tiler_reg[3],
-		cshw_it_tiler_reg[4], cshw_it_tiler_reg[5], cshw_it_tiler_reg[6], cshw_it_tiler_reg[7]);
+	dev_err(kbdev->dev, "Compute  CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x SUSPEND_BUF %llx",
+		kbase_reg_read32(kbdev, CSHW_IT_COMP_REG(0x0)),
+		kbase_reg_read32(kbdev, CSHW_IT_COMP_REG(0x4)),
+		kbase_reg_read32(kbdev, CSHW_IT_COMP_REG(0x8)),
+		kbase_reg_read32(kbdev, CSHW_IT_COMP_REG(0xD0)),
+		kbase_reg_read32(kbdev, CSHW_IT_COMP_REG(0xDC)),
+		kbase_reg_read32(kbdev, CSHW_IT_COMP_REG(0xA4)),
+		kbase_reg_read32(kbdev, CSHW_IT_COMP_REG(0xA0)),
+		kbase_reg_read32(kbdev, CSHW_IT_COMP_REG(0x80)) | ((u64)kbase_reg_read32(kbdev, CSHW_IT_COMP_REG(0x84)) << 32));
+	dev_err(kbdev->dev, "Fragment CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x SUSPEND_BUF %llx",
+		kbase_reg_read32(kbdev, CSHW_IT_FRAG_REG(0x0)),
+		kbase_reg_read32(kbdev, CSHW_IT_FRAG_REG(0x4)),
+		kbase_reg_read32(kbdev, CSHW_IT_FRAG_REG(0x8)),
+		kbase_reg_read32(kbdev, CSHW_IT_FRAG_REG(0xD0)),
+		kbase_reg_read32(kbdev, CSHW_IT_FRAG_REG(0xDC)),
+		kbase_reg_read32(kbdev, CSHW_IT_FRAG_REG(0xA4)),
+		kbase_reg_read32(kbdev, CSHW_IT_FRAG_REG(0xA0)),
+		kbase_reg_read32(kbdev, CSHW_IT_FRAG_REG(0x80)) | ((u64)kbase_reg_read32(kbdev, CSHW_IT_FRAG_REG(0x84)) << 32));
+	dev_err(kbdev->dev, "Tiler    CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x SUSPEND_BUF %llx",
+		kbase_reg_read32(kbdev, CSHW_IT_TILER_REG(0x0)),
+		kbase_reg_read32(kbdev, CSHW_IT_TILER_REG(0x4)),
+		kbase_reg_read32(kbdev, CSHW_IT_TILER_REG(0x8)),
+		kbase_reg_read32(kbdev, CSHW_IT_TILER_REG(0xD0)),
+		kbase_reg_read32(kbdev, CSHW_IT_TILER_REG(0xDC)),
+		kbase_reg_read32(kbdev, CSHW_IT_TILER_REG(0xA4)),
+		kbase_reg_read32(kbdev, CSHW_IT_TILER_REG(0xA0)),
+		kbase_reg_read32(kbdev, CSHW_IT_TILER_REG(0x80)) | ((u64)kbase_reg_read32(kbdev, CSHW_IT_TILER_REG(0x84)) << 32));
 	dev_err(kbdev->dev, "\n");
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"Compute  CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x\n",
-			cshw_it_comp_reg[0], cshw_it_comp_reg[1], cshw_it_comp_reg[2], cshw_it_comp_reg[3],
-			cshw_it_comp_reg[4], cshw_it_comp_reg[5], cshw_it_comp_reg[6], cshw_it_comp_reg[7]);
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"Fragment CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x\n",
-			cshw_it_frag_reg[0], cshw_it_frag_reg[1], cshw_it_frag_reg[2], cshw_it_frag_reg[3],
-			cshw_it_frag_reg[4], cshw_it_frag_reg[5], cshw_it_frag_reg[6], cshw_it_frag_reg[7]);
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"Tiler    CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x\n",
-			cshw_it_tiler_reg[0], cshw_it_tiler_reg[1], cshw_it_tiler_reg[2], cshw_it_tiler_reg[3],
-			cshw_it_tiler_reg[4], cshw_it_tiler_reg[5], cshw_it_tiler_reg[6], cshw_it_tiler_reg[7]);
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		"Compute  CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x SUSPEND_BUF %llx \n",
+		kbase_reg_read32(kbdev, CSHW_IT_COMP_REG(0x0)),
+		kbase_reg_read32(kbdev, CSHW_IT_COMP_REG(0x4)),
+		kbase_reg_read32(kbdev, CSHW_IT_COMP_REG(0x8)),
+		kbase_reg_read32(kbdev, CSHW_IT_COMP_REG(0xD0)),
+		kbase_reg_read32(kbdev, CSHW_IT_COMP_REG(0xDC)),
+		kbase_reg_read32(kbdev, CSHW_IT_COMP_REG(0xA4)),
+		kbase_reg_read32(kbdev, CSHW_IT_COMP_REG(0xA0)),
+		kbase_reg_read32(kbdev, CSHW_IT_COMP_REG(0x80)) | ((u64)kbase_reg_read32(kbdev, CSHW_IT_COMP_REG(0x84)) << 32));
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		"Fragment CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x SUSPEND_BUF %llx \n",
+		kbase_reg_read32(kbdev, CSHW_IT_FRAG_REG(0x0)),
+		kbase_reg_read32(kbdev, CSHW_IT_FRAG_REG(0x4)),
+		kbase_reg_read32(kbdev, CSHW_IT_FRAG_REG(0x8)),
+		kbase_reg_read32(kbdev, CSHW_IT_FRAG_REG(0xD0)),
+		kbase_reg_read32(kbdev, CSHW_IT_FRAG_REG(0xDC)),
+		kbase_reg_read32(kbdev, CSHW_IT_FRAG_REG(0xA4)),
+		kbase_reg_read32(kbdev, CSHW_IT_FRAG_REG(0xA0)),
+		kbase_reg_read32(kbdev, CSHW_IT_FRAG_REG(0x80)) | ((u64)kbase_reg_read32(kbdev, CSHW_IT_FRAG_REG(0x84)) << 32));
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		"Tiler    CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x SUSPEND_BUF %llx \n",
+		kbase_reg_read32(kbdev, CSHW_IT_TILER_REG(0x0)),
+		kbase_reg_read32(kbdev, CSHW_IT_TILER_REG(0x4)),
+		kbase_reg_read32(kbdev, CSHW_IT_TILER_REG(0x8)),
+		kbase_reg_read32(kbdev, CSHW_IT_TILER_REG(0xD0)),
+		kbase_reg_read32(kbdev, CSHW_IT_TILER_REG(0xDC)),
+		kbase_reg_read32(kbdev, CSHW_IT_TILER_REG(0xA4)),
+		kbase_reg_read32(kbdev, CSHW_IT_TILER_REG(0xA0)),
+		kbase_reg_read32(kbdev, CSHW_IT_TILER_REG(0x80)) | ((u64)kbase_reg_read32(kbdev, CSHW_IT_TILER_REG(0x84)) << 32));
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 }
 
@@ -433,8 +462,6 @@ static void dump_hwif_registers(struct kbase_device *kbdev, int faulty_as)
 	struct kbase_context *kctx;
 	unsigned int i, j;
 	int as_nr;
-	u32 reg_offsets[17] = { 0x24, 0x34, 0x60, 0x64, 0x74, 0x78, 0x7C, 0x80, 0x98, 0xA4, 0xAC, 0xB0, 0xB8, 0xBC, 0x28, 0x2C, 0x30 };
-	u32 cshwif_reg[17];
 	u64 cmd_ptr;
 	u64 cmd_ptr_end;
 
@@ -442,65 +469,54 @@ static void dump_hwif_registers(struct kbase_device *kbdev, int faulty_as)
 		return;
 
 	for (i = 0; kbdev->pm.backend.gpu_powered && (i < NR_HW_INTERFACES); i++) {
-		cmd_ptr = kbase_reg_read(kbdev, CSHWIF_REG(i, 0x0)) |
-			((u64)kbase_reg_read(kbdev, CSHWIF_REG(i, 0x4)) << 32);
-		cmd_ptr_end = kbase_reg_read(kbdev, CSHWIF_REG(i, 0x8)) |
-			((u64)kbase_reg_read(kbdev, CSHWIF_REG(i, 0xC)) << 32);
-		as_nr = kbase_reg_read(kbdev, CSHWIF_REG(i, 0x34));
+		cmd_ptr = kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x0)) |
+			((u64)kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x4)) << 32);
+		cmd_ptr_end = kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x8)) |
+			((u64)kbase_reg_read32(kbdev, CSHWIF_REG(i, 0xC)) << 32);
+		as_nr = kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x34));
 
 		if (!cmd_ptr)
 			continue;
 
-		for (j = 0; j < 17; j++)
-			cshwif_reg[j] = kbase_reg_read(kbdev, CSHWIF_REG(i, reg_offsets[j]));
-
 		dev_err(kbdev->dev, "Register dump of CSHWIF %d", i);
 		dev_err(kbdev->dev, "CMD_PTR: %llx CMD_PTR_END: %llx STATUS: %x JASID: %x EMUL_INSTR: %llx WAIT_STATUS: %x SB_SET_SEL: %x SB_SEL: %x",
 			cmd_ptr,
-			cmd_ptr_end,
-			cshwif_reg[0],
-			cshwif_reg[1],
-			cshwif_reg[2] | ((u64)cshwif_reg[3] << 32),
-			cshwif_reg[4],
-			cshwif_reg[5],
-			cshwif_reg[6]);
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x8)) | ((u64)kbase_reg_read32(kbdev, CSHWIF_REG(i, 0xC)) << 32),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x24)),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x34)),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x60)) | ((u64)kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x64)) << 32),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x74)),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x78)),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x7C)));
 		dev_err(kbdev->dev, "CMD_COUNTER: %x EVT_RAW: %x EVT_IRQ_STATUS: %x EVT_HALT_STATUS: %x FAULT_STATUS: %x FAULT_ADDR: %llx",
-			cshwif_reg[7],
-			cshwif_reg[8],
-			cshwif_reg[9],
-			cshwif_reg[10],
-			cshwif_reg[11],
-			cshwif_reg[12] | ((u64)cshwif_reg[13] << 32));
-		dev_err(kbdev->dev, "ITER_COMPUTE: %x ITER_FRAGMENT: %x ITER_TILER: %x",
-			cshwif_reg[14],
-			cshwif_reg[15],
-			cshwif_reg[16]);
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x80)),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x98)),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0xA4)),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0xAC)),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0xB0)),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0xB8)) | ((u64)kbase_reg_read64(kbdev, CSHWIF_REG(i, 0xBC)) << 32));
 		dev_err(kbdev->dev, "\n");
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "Register dump of CSHWIF %d", i);
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"CMD_PTR: %llx CMD_PTR_END: %llx STATUS: %x JASID: %x EMUL_INSTR: %llx WAIT_STATUS: %x SB_SET_SEL: %x SB_SEL: %x\n",
+			"CMD_PTR: %llx CMD_PTR_END: %llx STATUS: %x JASID: %x EMUL_INSTR: %llx WAIT_STATUS: %x SB_SET_SEL: %x SB_SEL: %x",
 			cmd_ptr,
-			cmd_ptr_end,
-			cshwif_reg[0],
-			cshwif_reg[1],
-			cshwif_reg[2] | ((u64)cshwif_reg[3] << 32),
-			cshwif_reg[4],
-			cshwif_reg[5],
-			cshwif_reg[6]);
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x8)) | ((u64)kbase_reg_read32(kbdev, CSHWIF_REG(i, 0xC)) << 32),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x24)),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x34)),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x60)) | ((u64)kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x64)) << 32),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x74)),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x78)),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x7C)));
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"CMD_COUNTER: %x EVT_RAW: %x EVT_IRQ_STATUS: %x EVT_HALT_STATUS: %x FAULT_STATUS: %x FAULT_ADDR: %llx\n",
-			cshwif_reg[7],
-			cshwif_reg[8],
-			cshwif_reg[9],
-			cshwif_reg[10],
-			cshwif_reg[11],
-			cshwif_reg[12] | ((u64)cshwif_reg[13] << 32));
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"ITER_COMPUTE: %x ITER_FRAGMENT: %x ITER_TILER: %x\n",
-			cshwif_reg[14],
-			cshwif_reg[15],
-			cshwif_reg[16]);
+			"CMD_COUNTER: %x EVT_RAW: %x EVT_IRQ_STATUS: %x EVT_HALT_STATUS: %x FAULT_STATUS: %x FAULT_ADDR: %llx",
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x80)),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0x98)),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0xA4)),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0xAC)),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0xB0)),
+			kbase_reg_read32(kbdev, CSHWIF_REG(i, 0xB8)) | ((u64)kbase_reg_read64(kbdev, CSHWIF_REG(i, 0xBC)) << 32));
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -659,10 +675,11 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx, struct kbase_as
 
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
 	mutex_lock(&kbdev->register_check_lock);
-	kbdev->bypass_register_check = true;
 
-	dump_hwif_registers(kbdev, as_no);
-	dump_iterator_registers(kbdev);
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	//dump_hwif_registers(kbdev, as_no);
+	//dump_iterator_registers(kbdev);
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	mutex_lock(&kctx->csf.lock);
 	for (csg_nr = 0; csg_nr < kbdev->csf.global_iface.group_num; csg_nr++) {
 		struct kbase_queue_group *const group =
@@ -684,7 +701,6 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx, struct kbase_as
 	}
 	mutex_unlock(&kctx->csf.lock);
 
-	kbdev->bypass_register_check = false;
 	mutex_unlock(&kbdev->register_check_lock);
 
 	dump_mmu_teardown_records(kbdev);
