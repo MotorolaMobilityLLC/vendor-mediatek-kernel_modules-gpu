@@ -1713,7 +1713,11 @@ static void fence_signal_timeout_cb(struct timer_list *timer)
 	/* If we have additional pending fence signal commands in the queue, re-arm for the
 	 * remaining fence signal commands.
 	 */
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	if (atomic_read(&kcpu_queue->fence_signal_pending_cnt) > 0)
+#else /* CONFIG_MALI_MTK_FENCE_DEBUG */
 	if (atomic_read(&kcpu_queue->fence_signal_pending_cnt) > 1)
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 		fence_signal_timeout_start(kcpu_queue);
 
 	queue_work(kcpu_queue->wq, &kcpu_queue->dump_work);
