@@ -36,6 +36,8 @@
 #include "mali_kbase_csf_tiler_heap_reclaim.h"
 #include "mali_kbase_csf_mcu_shared_reg.h"
 #include <linux/version_compat_defs.h>
+#include <linux/sched.h>
+#include <uapi/linux/sched/types.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG) || IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
 #include <platform/mtk_platform_common.h>
@@ -6652,6 +6654,7 @@ int kbase_csf_scheduler_init(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 	u32 num_groups = kbdev->csf.global_iface.group_num;
+	struct sched_param param = { .sched_priority = MAX_RT_PRIO - 1 };
 
 	bitmap_zero(scheduler->csg_inuse_bitmap, num_groups);
 	bitmap_zero(scheduler->csg_slots_idle_mask, num_groups);
@@ -6675,7 +6678,7 @@ int kbase_csf_scheduler_init(struct kbase_device *kbdev)
 		dev_err(kbdev->dev, "Failed to spawn the GPU queue submission worker thread");
 		return -ENOMEM;
 	}
-
+	sched_setscheduler_nocheck(scheduler->gpuq_kthread, SCHED_FIFO, &param);
 	return kbase_csf_mcu_shared_regs_data_init(kbdev);
 }
 
