@@ -4806,13 +4806,13 @@ static int suspend_active_groups_on_powerdown(struct kbase_device *kbdev,
 		 */
 		dev_warn(kbdev->dev, "[%llu] Timeout (%d ms) waiting for CSG slots to suspend on power down, slot_mask: 0x%*pb\n",
 			 kbase_backend_get_cycle_cnt(kbdev),
-			 kbdev->csf.fw_timeout_ms,
+			 kbdev->reset_timeout_ms,
 			 kbdev->csf.global_iface.group_num, slot_mask);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"[%llxt] Timeout (%d ms) waiting for CSG slots to suspend on power down, slot_mask: 0x%*pb\n",
 			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
-			kbdev->csf.fw_timeout_ms,
+			kbdev->reset_timeout_ms,
 			kbdev->csf.global_iface.group_num, slot_mask);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
