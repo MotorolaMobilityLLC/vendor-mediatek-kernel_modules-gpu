@@ -204,9 +204,6 @@ static void remove_unlinked_chunk(struct kbase_context *kctx,
 		return;
 
 	kbase_gpu_vm_lock(kctx);
-	if ( 0x6000601000 - 0x200000 <= chunk->gpu_va && chunk->gpu_va <= 0x6000601000 + 0x200000)
-		dev_info(kctx->kbdev->dev,
-			 "remove chunk from kctx %p, chunk 0x%llx", kctx, chunk->gpu_va);
 	kbase_vunmap(kctx, &chunk->map);
 	/* KBASE_REG_DONT_NEED regions will be confused with ephemeral regions (inc freed JIT
 	 * regions), and so we must clear that flag too before freeing
@@ -267,10 +264,6 @@ static struct kbase_csf_tiler_heap_chunk *alloc_new_chunk(struct kbase_context *
 	/* Allocate GPU memory for the new chunk. */
 	chunk->region =
 		kbase_mem_alloc(kctx, nr_pages, nr_pages, 0, &flags, &chunk->gpu_va, mmu_sync_info);
-
-	if ( 0x6000601000 - 0x200000 <= chunk->gpu_va && chunk->gpu_va <= 0x6000601000 + 0x200000)
-		dev_info(kctx->kbdev->dev,
-			 "create chunk from kctx %p, chunk 0x%llx", kctx, chunk->gpu_va);
 
 	if (unlikely(!chunk->region)) {
 		dev_err(kctx->kbdev->dev, "Failed to allocate a tiler heap chunk!\n");
@@ -333,9 +326,6 @@ unroll_region:
 	 * regions), and so we must clear that flag too before freeing.
 	 */
 	chunk->region->flags &= ~(KBASE_REG_NO_USER_FREE | KBASE_REG_DONT_NEED);
-	if ( 0x6000601000 - 0x200000 <= chunk->gpu_va && chunk->gpu_va <= 0x6000601000 + 0x200000)
-		dev_info(kctx->kbdev->dev,
-			 "remove chunk from kctx %p on unroll, chunk 0x%llx", kctx, chunk->gpu_va);
 	kbase_mem_free_region(kctx, chunk->region);
 	kbase_gpu_vm_unlock(kctx);
 unroll_chunk:
@@ -372,9 +362,7 @@ static int create_chunk(struct kbase_csf_tiler_heap *const heap)
 	if (unlikely(err))
 		goto initialization_failure;
 
-	if ( 0x6000601000 - 0x200000 <= chunk->gpu_va && chunk->gpu_va <= 0x6000601000 + 0x200000)
-		dev_info(heap->kctx->kbdev->dev, "Created tiler heap chunk 0x%llX, kctx %p\n",
-			chunk->gpu_va, heap->kctx);
+	dev_vdbg(heap->kctx->kbdev->dev, "Created tiler heap chunk 0x%llX\n", chunk->gpu_va);
 
 	return 0;
 initialization_failure:
@@ -415,22 +403,6 @@ static void delete_all_chunks(struct kbase_csf_tiler_heap *heap)
 		heap->chunk_count--;
 
 		remove_unlinked_chunk(kctx, chunk);
-	}
-}
-
-static void print_all_chunks(struct kbase_csf_tiler_heap *heap)
-{
-	struct list_head *entry = NULL, *tmp = NULL;
-	struct kbase_context *const kctx = heap->kctx;
-
-	dev_warn(kctx->kbdev->dev, "heap va 0x%llx, heap buffer descr va 0x%llx",
-		heap->gpu_va, heap->buf_desc_va);
-
-	list_for_each_safe(entry, tmp, &heap->chunks_list) {
-		struct kbase_csf_tiler_heap_chunk *chunk = list_entry(
-			entry, struct kbase_csf_tiler_heap_chunk, link);
-
-		dev_warn(kctx->kbdev->dev, "chunk 0x%llx", chunk->gpu_va);
 	}
 }
 
@@ -1046,10 +1018,9 @@ static bool delete_chunk_physical_pages(struct kbase_csf_tiler_heap *heap, u64 c
 	chunk_hdr = chunk->map.addr;
 	*hdr_val = *chunk_hdr;
 
-	if ( 0x6000601000 - 0x200000 <= chunk_gpu_va && chunk_gpu_va <= 0x6000601000 + 0x200000)
-		dev_info(kctx->kbdev->dev,
-			"Reclaim: delete chunk(0x%llx) in heap(0x%llx), header value(0x%llX)\n",
-			chunk_gpu_va, heap->gpu_va, *hdr_val);
+	dev_vdbg(kctx->kbdev->dev,
+		"Reclaim: delete chunk(0x%llx) in heap(0x%llx), header value(0x%llX)\n",
+		chunk_gpu_va, heap->gpu_va, *hdr_val);
 
 	err = kbase_mem_shrink_gpu_mapping(kctx, chunk->region, 0, chunk->region->gpu_alloc->nents);
 	if (unlikely(err)) {
@@ -1386,16 +1357,4 @@ void kbase_csf_tiler_heap_register_shrinker(struct kbase_device *kbdev)
 void kbase_csf_tiler_heap_unregister_shrinker(struct kbase_device *kbdev)
 {
 	unregister_shrinker(&kbdev->csf.tiler_heap_reclaim);
-}
-
-void kbase_csf_tiler_heap_print_kctx_chunks(struct kbase_context *kctx)
-{
-	struct kbase_csf_tiler_heap *heap;
-
-	mutex_lock(&kctx->csf.tiler_heaps.lock);
-
-	list_for_each_entry(heap, &kctx->csf.tiler_heaps.list, link)
-		print_all_chunks(heap);
-
-	mutex_unlock(&kctx->csf.tiler_heaps.lock);
 }

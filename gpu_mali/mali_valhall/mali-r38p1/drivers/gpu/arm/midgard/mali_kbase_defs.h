@@ -1244,6 +1244,10 @@ struct kbase_device {
 	struct mtk_logbuffer_info logbuf_regular;
 	struct mtk_logbuffer_info logbuf_exception;
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET)
+	bool reset_force_evict_group_work;
+#endif /* CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET */
 };
 
 /**

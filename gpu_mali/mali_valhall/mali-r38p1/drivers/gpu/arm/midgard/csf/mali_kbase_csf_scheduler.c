@@ -5916,9 +5916,20 @@ void kbase_csf_scheduler_reset(struct kbase_device *kbdev)
 		/* As all groups have been successfully evicted from the CSG
 		 * slots, clear out thee scheduler data fields and return
 		 */
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET)
+		if (!kbdev->reset_force_evict_group_work) {
+			scheduler_inner_reset(kbdev);
+			return;
+		}
+#else
 		scheduler_inner_reset(kbdev);
 		return;
+#endif /* CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET */
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET)
+	kbdev->reset_force_evict_group_work = false;
+#endif /* CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET */
 
 	mutex_lock(&kbdev->kctx_list_lock);
 

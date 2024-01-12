@@ -1632,7 +1632,6 @@ file_create_fail:
 #endif
 
 	current_command->info.fence.fence = NULL;
-	kfree(fence_out);
 
 	return ret;
 }
