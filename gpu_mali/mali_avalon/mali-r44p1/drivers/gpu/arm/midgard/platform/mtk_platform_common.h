@@ -32,7 +32,7 @@ enum mtk_common_debug_types {
 #define MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT                    ((u64)0x1<<18)
 #define MTK_DBG_HOOK_RESET                                     ((u64)0x1<<24)
 #define MTK_DBG_HOOK_RESET_FAIL                                ((u64)0x1<<25)
-#define MTK_DBG_HOOK_LOADMMUTABLE_FAIL                         ((u64)0x1<<32)
+#define MTK_DBG_HOOK_BITSTUCK_FAIL                             ((u64)0x1<<32)
 #define MTK_DBG_HOOK_GLOBALREQUEST_TIMEOUT                     ((u64)0x1<<33)
 #define MTK_DBG_HOOK_MCUPOWERON_FAIL                           ((u64)0x1<<34)
 #define MTK_DBG_HOOK_FWRELOAD_FAIL                             ((u64)0x1<<35)

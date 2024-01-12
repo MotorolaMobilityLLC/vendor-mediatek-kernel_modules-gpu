@@ -218,8 +218,9 @@ static int wait_ready(struct kbase_device *kbdev, unsigned int as_nr)
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	kbdev->as[as_nr].is_unresponsive = true;
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_NA);
-	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_BITSTUCK_FAIL);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_BITSTUCK_FAIL);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_BITSTUCK_FAIL);
 #endif /* CONFIG_MALI_MTK_DEBUG */
 	BUG_ON(1);
 	if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
