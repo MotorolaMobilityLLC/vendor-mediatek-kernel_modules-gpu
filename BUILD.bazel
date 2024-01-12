@@ -45,6 +45,13 @@ mt6768_outs = [
     "mt6768/mali_valhall/mali-r32p1/drivers/base/arm/memory_group_manager/mali_mgm_mt6768.ko",
 ]
 
+mt6991_outs = [
+    "mt6991/mali_avalon/mali-r46p0/drivers/base/arm/memory_group_manager/mali_mgm_mt6991_r46.ko",
+    "mt6991/mali_avalon/mali-r46p0/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6991_r46.ko",
+    "mt6991/mali_avalon/mali-r46p0/drivers/base/arm/dma_buf_test_exporter/mali_dmabuf_test_mt6991_r46.ko",
+    "mt6991/mali_avalon/mali-r46p0/drivers/gpu/arm/midgard/mali_kbase_mt6991_r46.ko",
+]
+
 define_mgk_ko(
     name = "gpu",
     srcs = glob(["**"]),
@@ -56,6 +63,8 @@ define_mgk_ko(
         mt6985_outs if glob(["mt6985/*"]) else []
     ) + (
         mt6989_outs if glob(["mt6989/*"]) else []
+    ) + (
+        mt6991_outs if glob(["mt6991/*"]) else []
     ),
 )
 
