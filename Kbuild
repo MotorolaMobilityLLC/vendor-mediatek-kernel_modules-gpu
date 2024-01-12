@@ -1,5 +1,9 @@
 KO_CODE_PATH := $(if $(filter /%,$(src)),,$(srctree)/)$(src)
 
+ifneq ($(wildcard $(KO_CODE_PATH)/mt6878),)
+	obj-m += mt6878/
+endif
+
 ifneq ($(wildcard $(KO_CODE_PATH)/mt6897),)
 	obj-m += mt6897/
 endif
