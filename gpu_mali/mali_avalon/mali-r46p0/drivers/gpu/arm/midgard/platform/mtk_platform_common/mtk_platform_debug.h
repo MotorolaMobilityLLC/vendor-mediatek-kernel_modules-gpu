@@ -90,6 +90,8 @@ void mtk_debug_dump_infra_status(struct kbase_device *kbdev);
 void mtk_debug_dump_pm_status(struct kbase_device *kbdev);
 
 /* Dump ENOP metadata */
-void mtk_debug_dump_enop_metatdata(struct kbase_device *kbdev);
+int mtk_debug_dump_enop_metadata_debugfs_init(struct kbase_device *kbdev);
+int mtk_debug_dump_enop_metadata_init(struct kbase_device *kbdev);
+void mtk_debug_dump_enop_metadata(struct kbase_device *kbdev);
 
 #endif /* __MTK_PLATFORM_DEBUG_H__ */

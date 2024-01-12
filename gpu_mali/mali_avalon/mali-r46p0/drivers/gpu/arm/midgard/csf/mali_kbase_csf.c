@@ -435,9 +435,6 @@ static bool release_queue(struct kbase_queue *queue)
 
 static void oom_event_worker(struct work_struct *data);
 static void cs_error_worker(struct work_struct *data);
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-static void mtk_enop_metadata_dump_worker(struct work_struct *const data);
-#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 /* Between reg and reg_ex, one and only one must be null */
 static int csf_queue_register_internal(struct kbase_context *kctx,
@@ -554,9 +551,6 @@ static int csf_queue_register_internal(struct kbase_context *kctx,
 	INIT_LIST_HEAD(&queue->pending_kick_link);
 	INIT_WORK(&queue->oom_event_work, oom_event_worker);
 	INIT_WORK(&queue->cs_error_work, cs_error_worker);
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-	INIT_WORK(&queue->mtk_enop_metadata_dump_work, mtk_enop_metadata_dump_worker);
-#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 	list_add(&queue->link, &kctx->csf.queue_list);
 
 	region->user_data = queue;
@@ -699,9 +693,6 @@ void kbase_csf_queue_terminate(struct kbase_context *kctx,
 		/* The work items can be cancelled as Userspace is terminating the queue */
 		cancel_work_sync(&queue->oom_event_work);
 		cancel_work_sync(&queue->cs_error_work);
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-		cancel_work_sync(&queue->mtk_enop_metadata_dump_work);
-#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		mutex_lock(&kctx->csf.lock);
 
 		release_queue(queue);
@@ -2366,7 +2357,7 @@ static void handle_fault_event(struct kbase_queue *const queue, const u32 cs_ack
 			return;
 		}
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-		queue_work(queue->kctx->csf.wq, &queue->mtk_enop_metadata_dump_work);
+		queue_work(kbdev->mtk_enop_metadata_dump_workq, &kbdev->mtk_enop_metadata_dump_work);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 	}
 #endif
@@ -2400,13 +2391,6 @@ static void report_queue_fatal_error(struct kbase_queue *const queue, u32 cs_fat
 	kbase_csf_event_add_error(queue->kctx, &group->error_fatal, &error);
 	kbase_event_wakeup(queue->kctx);
 }
-
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-static void mtk_enop_metadata_dump_worker(struct work_struct *const data)
-{
-	mtk_common_debug(MTK_COMMON_DBG_DUMP_ENOP_METADATA, -1, MTK_DBG_HOOK_CSFATAL);
-}
-#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 /**
  * cs_error_worker - Handle the CS_FATAL/CS_FAULT error for the GPU queue
@@ -2580,7 +2564,7 @@ static void handle_fatal_event(struct kbase_queue *const queue,
 		queue->cs_error_fatal = true;
 		queue_work(queue->kctx->csf.wq, &queue->cs_error_work);
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-		queue_work(queue->kctx->csf.wq, &queue->mtk_enop_metadata_dump_work);
+		queue_work(kbdev->mtk_enop_metadata_dump_workq, &kbdev->mtk_enop_metadata_dump_work);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 	}
 

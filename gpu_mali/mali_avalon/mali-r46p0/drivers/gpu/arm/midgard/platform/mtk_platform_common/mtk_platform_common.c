@@ -168,7 +168,7 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 			mtk_debug_dump_pm_status(kbdev);
 			break;
 		case MTK_COMMON_DBG_DUMP_ENOP_METADATA:
-			mtk_debug_dump_enop_metatdata(kbdev);
+			mtk_debug_dump_enop_metadata(kbdev);
 			break;
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP*/
 #if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
@@ -494,34 +494,14 @@ static int mtk_debug_sleep_mode(struct seq_file *file, void *data)
 	return 0;
 }
 
-static int mtk_debug_enop_metatdata_dump(struct seq_file *file, void *data)
-{
-	mtk_common_debug(MTK_COMMON_DBG_DUMP_ENOP_METADATA, -1, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
-
-	return 0;
-}
-
 static int mtk_sleep_mode_debugfs_open(struct inode *in, struct file *file)
 {
 	return single_open(file, mtk_debug_sleep_mode,
 	                   in->i_private);
 }
 
-static int mtk_enop_metatdata_dump_debugfs_open(struct inode *in, struct file *file)
-{
-	return single_open(file, mtk_debug_enop_metatdata_dump,
-	                   in->i_private);
-}
-
 static const struct file_operations mtk_sleep_mode_debugfs_fops = {
 	.open = mtk_sleep_mode_debugfs_open,
-	.read    = seq_read,
-	.llseek  = seq_lseek,
-	.release = single_release
-};
-
-static const struct file_operations mtk_enop_metatdata_dump_debugfs_fops = {
-	.open = mtk_enop_metatdata_dump_debugfs_open,
 	.read    = seq_read,
 	.llseek  = seq_lseek,
 	.release = single_release
@@ -539,28 +519,18 @@ int mtk_debug_sleep_mode_debugfs_init(struct kbase_device *kbdev)
 	return 0;
 }
 
-int mtk_debug_enop_metatdata_dump_debugfs_init(struct kbase_device *kbdev)
-{
-	if (IS_ERR_OR_NULL(kbdev))
-		return -1;
-
-	debugfs_create_file("enop_metadata_dump", 0440,
-		kbdev->mali_debugfs_directory, kbdev,
-		&mtk_enop_metatdata_dump_debugfs_fops);
-
-	return 0;
-}
-
 void mtk_common_debugfs_init(struct kbase_device *kbdev)
 {
 	if (IS_ERR_OR_NULL(kbdev))
 		return;
 
 	mtk_debug_sleep_mode_debugfs_init(kbdev);
-	mtk_debug_enop_metatdata_dump_debugfs_init(kbdev);
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 	mtk_debug_adaptive_power_policy_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	mtk_debug_dump_enop_metadata_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 }
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
@@ -607,6 +577,7 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	mtk_debug_dump_infra_status_init();
+	mtk_debug_dump_enop_metadata_init(kbdev);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)

@@ -106,6 +106,9 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"GPU fault in protected mode\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		queue_work(kbdev->mtk_enop_metadata_dump_workq, &kbdev->mtk_enop_metadata_dump_work);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 		/* Mask the protected fault interrupt to avoid the potential
 		 * deluge of such interrupts. It will be unmasked on GPU reset.

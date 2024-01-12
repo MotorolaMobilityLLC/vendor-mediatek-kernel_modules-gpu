@@ -1473,6 +1473,12 @@ struct kbase_device {
 #if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)
 	u32 exception_mask;
 #endif /* CONFIG_MALI_MTK_TRIGGER_KE */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	struct workqueue_struct *mtk_enop_metadata_dump_workq;
+	struct work_struct mtk_enop_metadata_dump_work;
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
 };
 
 /**
