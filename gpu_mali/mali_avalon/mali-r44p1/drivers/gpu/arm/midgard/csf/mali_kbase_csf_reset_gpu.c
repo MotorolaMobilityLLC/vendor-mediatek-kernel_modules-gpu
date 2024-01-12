@@ -516,7 +516,15 @@ static void kbase_csf_reset_gpu_worker(struct work_struct *data)
 	/* Ensure any threads (e.g. executing the CSF scheduler) have finished
 	 * using the HW
 	 */
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		"Reset GPU Worker, start\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	kbase_csf_reset_begin_hw_access_sync(kbdev, initial_reset_state);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		"Reset GPU Worker, hw access sync done\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	firmware_inited = kbdev->csf.firmware_inited;
@@ -524,6 +532,10 @@ static void kbase_csf_reset_gpu_worker(struct work_struct *data)
 	gpu_sleep_mode_active = kbdev->pm.backend.gpu_sleep_mode_active;
 #endif
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		"Reset GPU Worker, gpu sleep mode status updated\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	if (unlikely(gpu_sleep_mode_active)) {
 #ifdef KBASE_PM_RUNTIME
@@ -535,6 +547,10 @@ static void kbase_csf_reset_gpu_worker(struct work_struct *data)
 		 * groups. GPUCORE-29850 would add the proper handling.
 		 */
 		kbase_pm_lock(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		"Reset GPU Worker, pm locked\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		if (kbase_pm_force_mcu_wakeup_after_sleep(kbdev))
 			dev_warn(kbdev->dev, "Wait for MCU wake up failed on GPU reset");
 		kbase_pm_unlock(kbdev);
