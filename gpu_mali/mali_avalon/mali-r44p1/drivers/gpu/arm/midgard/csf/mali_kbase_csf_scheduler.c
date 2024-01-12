@@ -1907,32 +1907,12 @@ static void halt_csg_slot(struct kbase_queue_group *group, bool suspend)
 		unsigned long flags;
 		struct kbase_csf_cmd_stream_group_info *ginfo =
 						&global_iface->groups[slot];
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		u32 req, ack;
-#endif /* CONFIG_MALI_MTK_DEBUG */
 
 		u32 halt_cmd = suspend ? CSG_REQ_STATE_SUSPEND :
 					 CSG_REQ_STATE_TERMINATE;
 
 		dev_dbg(kbdev->dev, "Halting(suspend=%d) group %d of context %d_%d on slot %d",
 			suspend, group->handle, group->kctx->tgid, group->kctx->id, slot);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		if (halt_cmd == CSG_REQ_STATE_SUSPEND) {
-			req = kbase_csf_firmware_csg_input_read(ginfo, CSG_REQ);
-			ack = kbase_csf_firmware_csg_output(ginfo, CSG_ACK);
-
-			if ((req ^ ack) & CSG_REQ_SYNC_UPDATE_MASK) {
-				dev_info(kbdev->dev, "%d_%d csg %hhd has syn_update not handled before suspend (0x%x,0x%x)\n",
-						group->kctx->tgid, group->kctx->id, slot, req, ack);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-				mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-						"%d_%d csg %hhd has syn_update not handled before suspend (0x%x,0x%x)\n",
-						group->kctx->tgid, group->kctx->id, slot, req, ack);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-			}
-		}
-#endif /* CONFIG_MALI_MTK_DEBUG */
 
 		spin_lock_irqsave(&kbdev->csf.scheduler.interrupt_lock, flags);
 		/* Set state to SUSPEND/TERMINATE */
@@ -2672,6 +2652,31 @@ static bool cleanup_csg_slot(struct kbase_queue_group *group)
 
 	/* now marking the slot is vacant */
 	spin_lock_irqsave(&kbdev->csf.scheduler.interrupt_lock, flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	/* check pending sync_update irq. */
+	{
+		u32 req, ack;
+		req = kbase_csf_firmware_csg_input_read(ginfo, CSG_REQ);
+		ack = kbase_csf_firmware_csg_output(ginfo, CSG_ACK);
+		if ((req ^ ack) & CSG_REQ_SYNC_UPDATE_MASK)
+		{
+			/* clearn up the pending sync_update.*/
+			kbase_csf_firmware_csg_input_mask(ginfo, CSG_REQ, ack, CSG_REQ_SYNC_UPDATE_MASK);
+
+			dev_info(kbdev->dev, "%d_%d csg %hhd process pending syn_update irq before cleanup csg (0x%x,0x%x)\n",
+					group->kctx->tgid, group->kctx->id, slot, req, ack);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+					"%d_%d csg %hhd process pending syn_update irq before cleanup csg (0x%x,0x%x)\n",
+					group->kctx->tgid, group->kctx->id, slot, req, ack);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+			/* process as irq routine does.*/
+			atomic_set(&kbdev->csf.scheduler.gpu_no_longer_idle, true);
+			kbase_csf_event_signal_cpu_only(group->kctx);
+		}
+	}
+#endif
 	kbdev->csf.scheduler.csg_slots[slot].resident_group = NULL;
 	clear_bit(slot, kbdev->csf.scheduler.csg_slots_idle_mask);
 	KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_SLOT_IDLE_CLEAR, group,
