@@ -54,10 +54,10 @@ int mtk_logbuffer_procfs_init(struct kbase_device *kbdev, struct proc_dir_entry 
 		return -1;
 
 	if (kbdev->logbuf_regular.entries)
-		proc_create(kbdev->logbuf_regular.name, 0444, parent, &mtk_logbuffer_regular_proc_ops);
+		proc_create(kbdev->logbuf_regular.name, 0440, parent, &mtk_logbuffer_regular_proc_ops);
 
 	if (kbdev->logbuf_exception.entries)
-		proc_create(kbdev->logbuf_exception.name, 0444, parent, &mtk_logbuffer_exception_proc_ops);
+		proc_create(kbdev->logbuf_exception.name, 0440, parent, &mtk_logbuffer_exception_proc_ops);
 
 	return 0;
 }
