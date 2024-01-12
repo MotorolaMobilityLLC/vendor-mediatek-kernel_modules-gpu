@@ -3263,8 +3263,6 @@ void kbase_csf_scheduler_group_deschedule(struct kbase_queue_group *group)
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 	bool wait_for_termination = true;
 	bool on_slot;
-	ktime_t cur_time;
-	s64 elapsed_time = 0;
 
 	kbase_reset_gpu_assert_failed_or_prevented(kbdev);
 	lockdep_assert_held(&group->kctx->csf.lock);
@@ -3288,39 +3286,18 @@ void kbase_csf_scheduler_group_deschedule(struct kbase_queue_group *group)
 	if (on_slot && (scheduler->state == SCHED_SLEEPING)) {
 		scheduler_wakeup(kbdev, true);
 
-		cur_time = ktime_get_raw();
 		/* Wait for MCU firmware to start running */
-		while (1) {
-			int ret = kbase_csf_scheduler_wait_mcu_active(kbdev);
-
-			if (!ret) {
-				/* Wait successful */
-				break;
-			} else if (ret == -ETIMEDOUT) {
-				dev_warn(
-					kbdev->dev,
-					"[%llu] Wait for MCU active failed when terminating group %d of context %d_%d on slot %d",
-					kbase_backend_get_cycle_cnt(kbdev), group->handle,
-					group->kctx->tgid, group->kctx->id, group->csg_nr);
-				/* No point in waiting for CSG termination if
-				 * MCU didn't become active.
-				 */
-				wait_for_termination = false;
-				break;
-			} else if (ret == -ERESTARTSYS) {
-				dev_warn(
-					kbdev->dev,
-					"[%llu] Wait for MCU active was interrupted when terminating group %d of context %d_%d on slot %d",
-					kbase_backend_get_cycle_cnt(kbdev), group->handle,
-					group->kctx->tgid, group->kctx->id, group->csg_nr);
-				/* Break if exceed timedout othwerise Keep waiting */
-				elapsed_time = ktime_to_ms(ktime_sub(ktime_get_raw(), cur_time));
-				if(elapsed_time > kbase_get_timeout_ms(kbdev, CSF_PM_TIMEOUT))
-				{
-					wait_for_termination = false;
-					break;
-				}
-			}
+		if (kbase_csf_scheduler_wait_mcu_active(kbdev)) {
+			dev_warn(
+				kbdev->dev,
+				"[%llu] Wait for MCU active failed when terminating group %d of context %d_%d on slot %d",
+				kbase_backend_get_cycle_cnt(kbdev),
+				group->handle, group->kctx->tgid,
+				group->kctx->id, group->csg_nr);
+			/* No point in waiting for CSG termination if MCU didn't
+			 * become active.
+			 */
+			wait_for_termination = false;
 		}
 	}
 #endif
