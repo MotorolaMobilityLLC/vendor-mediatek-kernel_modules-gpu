@@ -80,17 +80,22 @@ int mtk_logbuffer_procfs_term(struct kbase_device *kbdev, struct proc_dir_entry 
 u64 mtk_logbuffer_get_timestamp(struct kbase_device *kbdev)
 {
 	u64 val;
+#if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
+	enum kbase_mcu_state mcu_state;
+#endif
 
 	if (IS_ERR_OR_NULL(kbdev))
 		return 0;
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
+	mcu_state = kbdev->pm.backend.mcu_state;
+
 	/* If MCU is not active, not need to print timestamp for CSFFW logs.
 	 */
-	if (!kbase_pm_is_mcu_inactive(kbdev, kbdev->pm.backend.mcu_state))
-		val = kbase_backend_get_timestamp(kbdev);
-	else
+	if ((mcu_state == KBASE_MCU_OFF) || (mcu_state == KBASE_MCU_IN_SLEEP))
 		val = 0;
+	else
+		val = kbase_backend_get_timestamp(kbdev);
 #else
 	val = 0;
 #endif
