@@ -153,7 +153,7 @@ static irqreturn_t kbase_job_irq_handler(int irq, void *data)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
 	mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 0);
-	mtk_debug_irq_trace_check_timeout(KBASE_IRQ_JOB, 0);
+	mtk_debug_irq_trace_check_timeout(kbdev, KBASE_IRQ_JOB, 0);
 #endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 	return IRQ_HANDLED;
@@ -164,6 +164,10 @@ static irqreturn_t kbase_mmu_irq_handler(int irq, void *data)
 	unsigned long flags;
 	struct kbase_device *kbdev = kbase_untag(data);
 	u32 val;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_start(KBASE_IRQ_MMU, 0);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
@@ -194,6 +198,11 @@ static irqreturn_t kbase_mmu_irq_handler(int irq, void *data)
 	kbase_mmu_interrupt(kbdev, val);
 
 	atomic_dec(&kbdev->faults_pending);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+	mtk_debug_irq_trace_record_end(KBASE_IRQ_MMU, 0);
+	mtk_debug_irq_trace_check_timeout(kbdev, KBASE_IRQ_MMU, 0);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 	return IRQ_HANDLED;
 }
@@ -252,7 +261,7 @@ static irqreturn_t kbase_gpu_irq_handler(int irq, void *data)
 #endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
-	mtk_debug_irq_trace_check_timeout(KBASE_IRQ_GPU, 0);
+	mtk_debug_irq_trace_check_timeout(kbdev, KBASE_IRQ_GPU, 0);
 #endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 	return IRQ_HANDLED;
