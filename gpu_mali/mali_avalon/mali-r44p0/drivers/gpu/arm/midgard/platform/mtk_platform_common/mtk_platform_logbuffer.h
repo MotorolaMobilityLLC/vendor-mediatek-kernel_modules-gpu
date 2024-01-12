@@ -18,13 +18,13 @@ struct mtk_logbuffer_info {
 	uint8_t tmp_entry[MTK_LOG_BUFFER_ENTRY_SIZE];
 	uint8_t *entries;
 	bool is_circular;
-	bool has_timestamp;
 	bool fallback;
 };
 
 enum mtk_logbuffer_type {
 	MTK_LOGBUFFER_TYPE_ALL,
 	MTK_LOGBUFFER_TYPE_REGULAR,
+	MTK_LOGBUFFER_TYPE_CRITICAL,
 	MTK_LOGBUFFER_TYPE_EXCEPTION,
 };
 

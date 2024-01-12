@@ -1395,6 +1395,7 @@ struct kbase_device {
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	struct mtk_logbuffer_info logbuf_regular;
+	struct mtk_logbuffer_info logbuf_critical;
 	struct mtk_logbuffer_info logbuf_exception;
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
