@@ -3281,7 +3281,11 @@ static void sched_evict_group(struct kbase_queue_group *group, bool fault,
 static int term_group_sync(struct kbase_queue_group *group)
 {
 	struct kbase_device *kbdev = group->kctx->kbdev;
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
+	const unsigned int fw_timeout_ms = kbase_get_timeout_ms(kbdev, kbdev->csf.csg_term_timeout_ms);
+#else
 	const unsigned int fw_timeout_ms = kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
 	long remaining = kbase_csf_timeout_in_jiffies(fw_timeout_ms);
 	int err = 0;
 
@@ -3324,7 +3328,7 @@ static int term_group_sync(struct kbase_queue_group *group)
 		 * restore the origial value of fw_timeout_ms
 		 * */
 		if (kbase_reset_gpu_is_not_pending(kbdev))
-			kbdev->csf.fw_timeout_ms = kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT);
+			kbdev->csf.csg_term_timeout_ms = kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
 	}
 
@@ -3837,6 +3841,21 @@ static void program_suspending_csg_slots(struct kbase_device *kbdev)
 				 * terminated, the GPU will be reset as a
 				 * work-around.
 				 */
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
+				dev_warn(
+					kbdev->dev,
+					"[%llu] Group %d of context %d_%d on slot %u failed to suspend (timeout %d ms)",
+					kbase_backend_get_cycle_cnt(kbdev), group->handle,
+					group->kctx->tgid, group->kctx->id, i,
+					kbdev->csf.csg_suspend_timeout_ms);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+				mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+					"Group %d of context %d_%d on slot %u failed to suspend (timeout %d ms)\n",
+					group->handle,
+					group->kctx->tgid, group->kctx->id, i,
+					kbdev->csf.csg_suspend_timeout_ms);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#else
 				dev_warn(
 					kbdev->dev,
 					"[%llu] Group %d of context %d_%d on slot %u failed to suspend (timeout %d ms)",
@@ -3850,6 +3869,7 @@ static void program_suspending_csg_slots(struct kbase_device *kbdev)
 					group->kctx->tgid, group->kctx->id, i,
 					kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
 				if (kbase_csf_firmware_ping_wait(kbdev,
 								 FW_PING_AFTER_ERROR_TIMEOUT_MS))
 					error_type = DF_PING_REQUEST_TIMEOUT;

@@ -2323,6 +2323,8 @@ int kbase_csf_firmware_early_init(struct kbase_device *kbdev)
 	init_waitqueue_head(&kbdev->csf.event_wait);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
+	kbdev->csf.csg_term_timeout_ms =
+		kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT);
 	kbdev->csf.csg_suspend_timeout_ms =
 		kbase_get_timeout_ms(kbdev, CSF_CSG_SUSPEND_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
