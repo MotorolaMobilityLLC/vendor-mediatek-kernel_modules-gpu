@@ -36,6 +36,9 @@
 static u8 g_buf[PAGE_SIZE * 256];
 extern u8 *g_fw_dump_dest;
 static char fw_eof_content[FWLOG_EOF_LEN] = "====[Cut]:fwlog end of file====";
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
 
 /**
@@ -571,6 +574,10 @@ int kbase_csf_firmware_trace_buffer_set_active_mask64(struct firmware_trace_buff
 void mtk_kbase_csf_firmware_ke_dump_fwlog(struct kbase_device *kbdev)
 {
 	unsigned int read_size, total_size = 0;
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	uint64_t ts_nsec;
+	uint32_t rem_nsec;
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	struct firmware_trace_buffer *tb =
 		kbase_csf_firmware_get_trace_buffer(kbdev, FIRMWARE_LOG_BUF_NAME);
 	if (tb == NULL) {
@@ -588,6 +595,15 @@ void mtk_kbase_csf_firmware_ke_dump_fwlog(struct kbase_device *kbdev)
 		}
 	}
 	dev_info(kbdev->dev, "[CSFFW]:(ke)dump fwlog size = 0x%x\n", total_size);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	ts_nsec = local_clock();
+	rem_nsec = do_div(ts_nsec, 1000000000);
+	snprintf(fw_eof_content, FWLOG_EOF_LEN, "[%5lu.%06lu][%llxt]====FWLOG End of File====\n",
+		(unsigned long)ts_nsec,
+		rem_nsec / 1000,
+		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_regular));
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	/* printf "[Cut]:fwlog end of file" at END of SYS_MALI_CSFFW_LOG */
 	if (total_size < (PAGE_SIZE * 256 - FWLOG_EOF_LEN))
