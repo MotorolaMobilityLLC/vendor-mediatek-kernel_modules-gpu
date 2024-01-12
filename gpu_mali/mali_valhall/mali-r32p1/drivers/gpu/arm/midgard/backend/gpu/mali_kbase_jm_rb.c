@@ -1250,7 +1250,7 @@ void kbase_gpu_complete_hw(struct kbase_device *kbdev, int js,
 						next_katom->work_id);
 			kbdev->hwaccess.backend.slot_rb[js].last_context =
 							next_katom->kctx;
-#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+#if defined(CONFIG_MALI_MTK_GPU_BM_2)
             if(js == 0) {
                 kbdev->v1->ctx = (u32)next_katom->kctx->id;
                 kbdev->v1->job = next_katom->work_id;
@@ -1271,7 +1271,7 @@ void kbase_gpu_complete_hw(struct kbase_device *kbdev, int js,
 	}
 #endif
 
-#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+#if defined(CONFIG_MALI_MTK_GPU_BM_2)
 	{
 		/* The atom in the HEAD */
 		struct kbase_jd_atom *next_katom = kbase_gpu_inspect(kbdev, js,
