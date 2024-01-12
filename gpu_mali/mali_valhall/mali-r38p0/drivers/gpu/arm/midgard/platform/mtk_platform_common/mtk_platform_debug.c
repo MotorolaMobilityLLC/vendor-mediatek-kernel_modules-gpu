@@ -1323,7 +1323,7 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 				dev_info(kbdev->dev, "[kcpu_queues] MALI_CSF_KCPU_DEBUGFS_VERSION: v%u\n", MALI_CSF_CSG_DEBUGFS_VERSION);
 				dev_info(kbdev->dev, "[kcpu_queues] ##### Ctx %d_%d #####", kctx->tgid, kctx->id);
 				dev_info(kbdev->dev,
-				         "[%d_%d] Queue Idx(err-mode), Pending Commands, Enqueue err, Blocked, Fence context  &  seqno",
+				         "[%d_%d] Queue Idx(err-mode), Pending Commands, Enqueue err, Blocked, Start Offset, Fence context  &  seqno",
 				         kctx->tgid,
 				         kctx->id);
 
@@ -1340,7 +1340,7 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 					}
 
 					dev_info(kbdev->dev,
-					         "[%d_%d] %9lu( %s ), %16u, %11u, %7u, %13llu  %8u",
+					         "[%d_%d] %9lu(  %s ), %16u, %11u, %7u, %12u, %13llu  %8u",
 							kctx->tgid,
 							kctx->id,
 							idx,
@@ -1348,23 +1348,43 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 							queue->num_pending_cmds,
 							queue->enqueue_failed,
 							queue->command_started ? 1 : 0,
+							queue->start_offset,
 							queue->fence_context,
 							queue->fence_seqno);
 
 					if (queue->command_started) {
 						int i;
 						for (i = 0; i < queue->num_pending_cmds; i++) {
-						struct kbase_kcpu_command *cmd = &queue->commands[queue->start_offset + i];
-						if (cmd->type < 0 || cmd->type >= BASE_KCPU_COMMAND_TYPE_COUNT) {
+						struct kbase_kcpu_command *cmd;
+						u8 cmd_idx = queue->start_offset + i;
+						if (cmd_idx > KBASEP_KCPU_QUEUE_SIZE) {
 							dev_info(kbdev->dev,
-							         "[%d_%d] Queue Idx, Wait Type, Additional info",
+							         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
 							         kctx->tgid,
 							         kctx->id);
 							dev_info(kbdev->dev,
-							         "[%d_%d] %9lu,         %d, (unknown blocking command)",
+							         "[%d_%d] %9lu(  %s ), %7d,      None, (command index out of size limits %d)",
 							         kctx->tgid,
 							         kctx->id,
 							         idx,
+							         queue->has_error ? "InErr" : "NoErr",
+							         cmd_idx,
+							         KBASEP_KCPU_QUEUE_SIZE);
+							break;
+						}
+						cmd = &queue->commands[cmd_idx];
+						if (cmd->type < 0 || cmd->type >= BASE_KCPU_COMMAND_TYPE_COUNT) {
+							dev_info(kbdev->dev,
+							         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
+							         kctx->tgid,
+							         kctx->id);
+							dev_info(kbdev->dev,
+							         "[%d_%d] %9lu(  %s ), %7d, %9d, (unknown blocking command)",
+							         kctx->tgid,
+							         kctx->id,
+							         idx,
+							         queue->has_error ? "InErr" : "NoErr",
+							         cmd_idx,
 							         cmd->type);
 							continue;
 						}
@@ -1376,18 +1396,19 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 
 							kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
 							dev_info(kbdev->dev,
-										 "[%d_%d] Queue Idx(err-mode), Wait Type, Additional info",
-										 kctx->tgid,
-										 kctx->id);
+							         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
+							         kctx->tgid,
+							         kctx->id);
 							dev_info(kbdev->dev,
-										 "[%d_%d] %9lu( %s ),     Fence Signal, %pK %s %s",
-										 kctx->tgid,
-										 kctx->id,
-										 idx,
-										 queue->has_error ? "InErr" : "NoErr",
-										 info.fence,
-										 info.name,
-										 kbase_sync_status_string(info.status));
+							         "[%d_%d] %9lu(  %s ), %7d, Fence Signal, %pK %s %s",
+							         kctx->tgid,
+							         kctx->id,
+							         idx,
+							         queue->has_error ? "InErr" : "NoErr",
+							         cmd_idx,
+							         info.fence,
+							         info.name,
+							         kbase_sync_status_string(info.status));
 							break;
 						}
 						case BASE_KCPU_COMMAND_TYPE_FENCE_WAIT:
@@ -1396,15 +1417,16 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 
 							kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
 							dev_info(kbdev->dev,
-							         "[%d_%d] Queue Idx(err-mode), Wait Type, Additional info",
+							         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
 							         kctx->tgid,
 							         kctx->id);
 							dev_info(kbdev->dev,
-							         "[%d_%d] %9lu( %s ),     Fence Wait, %pK %s %s",
+							         "[%d_%d] %9lu(  %s ), %7d, Fence Wait, %pK %s %s",
 							         kctx->tgid,
 							         kctx->id,
 							         idx,
 							         queue->has_error ? "InErr" : "NoErr",
+							         cmd_idx,
 							         info.fence,
 							         info.name,
 							         kbase_sync_status_string(info.status));
@@ -1418,14 +1440,16 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 
 							for (i = 0; i < sets->nr_objs; i++) {
 								dev_info(kbdev->dev,
-								         "[%d_%d] Queue Idx(err-mode), Wait Type, Additional info",
+								         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
 								         kctx->tgid,
 								         kctx->id);
 								dev_info(kbdev->dev,
-								        "[%d_%d] %9lu,       CQS Set %llx",
+								        "[%d_%d] %9lu(  %s ), %7d,   CQS Set, %llx",
 								         kctx->tgid,
 								         kctx->id,
 								         idx,
+								         queue->has_error ? "InErr" : "NoErr",
+								         cmd_idx,
 								         sets->objs[i].addr);
 							}
 							break;
@@ -1450,15 +1474,16 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 								msg = (waits->inherit_err_flags && (1U << i)) ? "true" : "false";
 
 								dev_info(kbdev->dev,
-								         "[%d_%d] Queue Idx(err-mode), Wait Type, Additional info",
+								         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
 								         kctx->tgid,
 								         kctx->id);
 								dev_info(kbdev->dev,
-								         "[%d_%d] %9lu( %s ),       CQS Wait, %llx(%u > %u, inherit_err: %s)",
+								         "[%d_%d] %9lu(  %s ), %7d,  CQS Wait, %llx(%u > %u, inherit_err: %s)",
 								         kctx->tgid,
 								         kctx->id,
 								         idx,
 								         queue->has_error ? "InErr" : "NoErr",
+								         cmd_idx,
 								         waits->objs[i].addr,
 								         val,
 								         waits->objs[i].val,
@@ -1468,14 +1493,16 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 						}
 						default:
 							dev_info(kbdev->dev,
-							         "[%d_%d] Queue Idx, Wait Type, Additional info",
+							         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
 							         kctx->tgid,
 							         kctx->id);
 							dev_info(kbdev->dev,
-							         "[%d_%d] %9lu,         %d, (other blocking command)",
+							         "[%d_%d] %9lu(  %s ), %7d, %9d, (other blocking command)",
 							         kctx->tgid,
 							         kctx->id,
 							         idx,
+							         queue->has_error ? "InErr" : "NoErr",
+							         cmd_idx,
 							         cmd->type);
 							break;
 						}
