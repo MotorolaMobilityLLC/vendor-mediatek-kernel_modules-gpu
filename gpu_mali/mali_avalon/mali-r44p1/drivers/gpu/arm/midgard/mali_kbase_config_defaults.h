@@ -204,7 +204,7 @@ enum {
  * Then, it will end up with the original CSG suspend timeout to be 31s.
  * So, adjust the value to align with r38p1 1.5s.
  */
-#define CSF_CSG_SUSPEND_TIMEOUT_CYCLES (150000000ull)
+#define CSF_CSG_SUSPEND_TIMEOUT_CYCLES (200000000ull)
 #else
 #define CSF_CSG_SUSPEND_TIMEOUT_CYCLES (3100000000ull)
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
