@@ -486,6 +486,50 @@ bool kbase_csf_firmware_trace_buffer_is_empty(
 }
 EXPORT_SYMBOL(kbase_csf_firmware_trace_buffer_is_empty);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+unsigned int kbase_csf_firmware_trace_buffer_read_data(
+	struct firmware_trace_buffer *trace_buffer, u8 *data, unsigned int num_bytes)
+{
+	static unsigned int bytes_copied = 0, extract_offset_tmp = 0;
+	u8 *data_cpu_va = trace_buffer->data_mapping.cpu_addr;
+	u32 extract_offset = *(trace_buffer->cpu_va.extract_cpu_va);
+	u32 insert_offset = *(trace_buffer->cpu_va.insert_cpu_va);
+	u32 buffer_size = trace_buffer->num_pages << PAGE_SHIFT;
+
+	if (bytes_copied == 0)
+		extract_offset_tmp = extract_offset;
+
+	if (insert_offset >= extract_offset) {
+		bytes_copied = min_t(unsigned int, num_bytes,
+			(insert_offset - extract_offset));
+		memcpy(data, &data_cpu_va[extract_offset], bytes_copied);
+		extract_offset += bytes_copied;
+	} else {
+		unsigned int bytes_copied_head, bytes_copied_tail;
+
+		bytes_copied_tail = min_t(unsigned int, num_bytes,
+			(buffer_size - extract_offset));
+		memcpy(data, &data_cpu_va[extract_offset], bytes_copied_tail);
+
+		bytes_copied_head = min_t(unsigned int,
+			(num_bytes - bytes_copied_tail), insert_offset);
+		memcpy(&data[bytes_copied_tail], data_cpu_va, bytes_copied_head);
+
+		bytes_copied = bytes_copied_head + bytes_copied_tail;
+		extract_offset += bytes_copied;
+		if (extract_offset >= buffer_size)
+			extract_offset = bytes_copied_head;
+	}
+
+	if ((kbase_csf_firmware_trace_buffer_get_active_mask64(trace_buffer) == 0) && (bytes_copied == 0))
+		*(trace_buffer->cpu_va.extract_cpu_va) = extract_offset_tmp;
+	else
+		*(trace_buffer->cpu_va.extract_cpu_va) = extract_offset;
+
+	return bytes_copied;
+}
+EXPORT_SYMBOL(kbase_csf_firmware_trace_buffer_read_data);
+#else
 unsigned int kbase_csf_firmware_trace_buffer_read_data(
 	struct firmware_trace_buffer *trace_buffer, u8 *data, unsigned int num_bytes)
 {
@@ -522,6 +566,7 @@ unsigned int kbase_csf_firmware_trace_buffer_read_data(
 	return bytes_copied;
 }
 EXPORT_SYMBOL(kbase_csf_firmware_trace_buffer_read_data);
+#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
 
 void kbase_csf_firmware_trace_buffer_discard(struct firmware_trace_buffer *trace_buffer)
 {
