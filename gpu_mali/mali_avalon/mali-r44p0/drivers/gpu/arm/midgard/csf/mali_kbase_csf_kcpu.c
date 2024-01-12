@@ -1706,6 +1706,10 @@ static int kbasep_kcpu_fence_signal_init(struct kbase_kcpu_command_queue *kcpu_q
 	fence_out = (struct dma_fence *)kcpu_fence;
 #endif
 
+	/* Set reference to KCPU metadata and increment refcount */
+	kcpu_fence->metadata = kcpu_queue->metadata;
+	WARN_ON(!kbase_refcount_inc_not_zero(&kcpu_fence->metadata->refcount));
+
 	dma_fence_init(fence_out,
 		       &kbase_fence_ops,
 		       &kbase_csf_fence_lock,
@@ -1720,10 +1724,6 @@ static int kbasep_kcpu_fence_signal_init(struct kbase_kcpu_command_queue *kcpu_q
 	 */
 	dma_fence_get(fence_out);
 #endif
-
-	/* Set reference to KCPU metadata and increment refcount */
-	kcpu_fence->metadata = kcpu_queue->metadata;
-	WARN_ON(!kbase_refcount_inc_not_zero(&kcpu_fence->metadata->refcount));
 
 	/* create a sync_file fd representing the fence */
 	*sync_file = sync_file_create(fence_out);
