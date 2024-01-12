@@ -36,7 +36,11 @@ comma := ,
 PARAMS :=
 
 ifneq (,$(wildcard mt6983))
-	PARAMS += mali,mt6983,mali_valhall,mali-r32p1,mali_valhall_r32p1_mt6983
+	PARAMS += mali,mt6983,mali_valhall,mali-r37p0,mali_valhall_r37p0_mt6983
+endif
+
+ifneq (,$(wildcard mt6985))
+	PARAMS += mali,mt6985,mali_valhall,mali-r37p0,mali_valhall_r37p0_mt6985
 endif
 
 all modules_install clean: RULE := $(BUILD_RULE)
