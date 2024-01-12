@@ -1254,7 +1254,7 @@ static int kbase_mem_umm_map_attachment(struct kbase_context *kctx,
 
 #if IS_ENABLED(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && IS_ENABLED(CONFIG_MTK_GZ_KREE)
 		uint64_t phy_addr = 0;
-		u32 sec_handle = 0;
+		u64 sec_handle = 0;
 
 		if (reg->flags & KBASE_REG_PROTECTED) {
 			struct dma_buf *dma_buf = reg->gpu_alloc->imported.umm.dma_buf;
