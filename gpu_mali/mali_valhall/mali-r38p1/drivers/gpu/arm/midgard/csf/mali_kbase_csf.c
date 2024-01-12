@@ -1692,6 +1692,15 @@ void kbase_csf_queue_group_terminate(struct kbase_context *kctx,
 		kctx->csf.queue_groups[group_handle] = NULL;
 		mutex_unlock(&kctx->csf.lock);
 
+		if (reset_prevented) {
+			/* Allow GPU reset before cancelling the group specific
+			 * work item to avoid potential deadlock.
+			 * Reset prevention isn't needed after group termination.
+			 */
+			kbase_reset_gpu_allow(kbdev);
+			reset_prevented = false;
+		}
+
 		/* Cancel any pending event callbacks. If one is in progress
 		 * then this thread waits synchronously for it to complete (which
 		 * is why we must unlock the context first). We already ensured
@@ -1937,8 +1946,6 @@ void kbase_csf_ctx_term(struct kbase_context *kctx)
 	else
 		reset_prevented = true;
 
-	cancel_work_sync(&kctx->csf.pending_submission_work);
-
 	mutex_lock(&kctx->csf.lock);
 
 	/* Iterate through the queue groups that were not terminated by
@@ -1956,6 +1963,8 @@ void kbase_csf_ctx_term(struct kbase_context *kctx)
 
 	if (reset_prevented)
 		kbase_reset_gpu_allow(kbdev);
+
+	cancel_work_sync(&kctx->csf.pending_submission_work);
 
 	/* Now that all queue groups have been terminated, there can be no
 	 * more OoM or timer event interrupts but there can be inflight work
@@ -2074,11 +2083,15 @@ static int handle_oom_event(struct kbase_queue_group *const group,
 	err = kbase_csf_tiler_heap_alloc_new_chunk(kctx,
 		gpu_heap_va, renderpasses_in_flight, pending_frag_count, &new_chunk_ptr);
 
+	if ( 0x6000601000 - 0x200000 <= new_chunk_ptr && new_chunk_ptr <= 0x6000601000 + 0x200000)
+		dev_info(kctx->kbdev->dev, "pid %d slot-%d, new heap address 0x%lx, heap va 0x%lx",
+			kctx->pid, group->csg_nr, new_chunk_ptr, gpu_heap_va);
+
 	if ((group->csi_handlers & BASE_CSF_TILER_OOM_EXCEPTION_FLAG) &&
 	    (pending_frag_count == 0) && (err == -ENOMEM || err == -EBUSY)) {
 		/* The group allows incremental rendering, trigger it */
 		new_chunk_ptr = 0;
-		dev_vdbg(kctx->kbdev->dev, "Group-%d (slot-%d) enter incremental render\n",
+		dev_info(kctx->kbdev->dev, "Group-%d (slot-%d) enter incremental render\n",
 			group->handle, group->csg_nr);
 	} else if (err == -EBUSY) {
 		/* Acknowledge with a NULL chunk (firmware will then wait for
@@ -2705,7 +2718,7 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 					mtk_logbuffer_print(&kbdev->logbuf_exception,
-						"[%llxt]%s %d:OoM event have been already queued",
+						"[%llxt] %s %d: OoM event have been already queued\n",
 						mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception), __func__, __LINE__);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -3160,165 +3173,189 @@ static void order_job_irq_clear_with_iface_mem_read(void)
 
 void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 {
-	unsigned long flags;
-	u32 csg_interrupts = val & ~JOB_IRQ_GLOBAL_IF;
-	struct irq_idle_and_protm_track track = { .protm_grp = NULL, .idle_seq = U32_MAX };
-
-#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
-	ktime_t spin_start;
-
-	kbdev->csf.csg_interrupts = csg_interrupts;
-	kbdev->csf.csf_interrupt_start_tm = ktime_get();
-#endif /* CONFIG_MALI_MTK_IRQ_DEBUG */
+	bool deferred_handling_glb_idle_irq = false;
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
-
 	KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT_START, NULL, val);
-	kbase_reg_write(kbdev, JOB_CONTROL_REG(JOB_IRQ_CLEAR), val);
-	/* fix update sequence to promise irq scquence */
-	order_job_irq_clear_with_iface_mem_read();
 
+	do {
+		unsigned long flags;
+		u32 csg_interrupts = val & ~JOB_IRQ_GLOBAL_IF;
+		struct irq_idle_and_protm_track track = { .protm_grp = NULL, .idle_seq = U32_MAX };
+		bool glb_idle_irq_received = false;
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
-	if (csg_interrupts != 0) {
-		spin_start = ktime_get();
-		kbase_csf_scheduler_spin_lock(kbdev, &flags);
-		kbdev->csf.spin_delta_us_1 = ktime_to_us(ktime_sub(ktime_get(), spin_start));
-		while (csg_interrupts != 0) {
-			int const csg_nr = ffs(csg_interrupts) - 1;
+		ktime_t spin_start;
 
-			kbdev->csf.csg_start_tm[csg_nr] = ktime_get();
-			process_csg_interrupts(kbdev, csg_nr, &track);
-			kbdev->csf.csg_end_tm[csg_nr] = ktime_get();
-			csg_interrupts &= ~(1 << csg_nr);
-		}
-
-		/* Handle protm from the tracked information */
-		process_tracked_info_for_protm(kbdev, &track);
-		kbase_csf_scheduler_spin_unlock(kbdev, flags);
-	}
-#else
-	if (csg_interrupts != 0) {
-#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
-		mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 1);
-#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
-		kbase_csf_scheduler_spin_lock(kbdev, &flags);
-		/* Looping through and track the highest idle and protm groups */
-		while (csg_interrupts != 0) {
-			int const csg_nr = ffs(csg_interrupts) - 1;
-
-			process_csg_interrupts(kbdev, csg_nr, &track);
-			csg_interrupts &= ~(1 << csg_nr);
-		}
-
-		/* Handle protm from the tracked information */
-		process_tracked_info_for_protm(kbdev, &track);
-		kbase_csf_scheduler_spin_unlock(kbdev, flags);
-#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
-		mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 1);
-#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
-	}
+		kbdev->csf.csg_interrupts = csg_interrupts;
+		kbdev->csf.csf_interrupt_start_tm = ktime_get();
 #endif /* CONFIG_MALI_MTK_IRQ_DEBUG */
 
+		kbase_reg_write(kbdev, JOB_CONTROL_REG(JOB_IRQ_CLEAR), val);
+		order_job_irq_clear_with_iface_mem_read();
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
-	kbdev->csf.glb_start_tm = ktime_get();
-#endif
-
-	if (val & JOB_IRQ_GLOBAL_IF) {
-		const struct kbase_csf_global_iface *const global_iface =
-			&kbdev->csf.global_iface;
-
-		kbdev->csf.interrupt_received = true;
-
-		if (!kbdev->csf.firmware_reloaded) {
-#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
-			mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 2);
-#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
-			kbase_csf_firmware_reload_completed(kbdev);
-#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
-			mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 2);
-#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
-		}
-
-		else if (global_iface->output) {
-			u32 glb_req, glb_ack;
-
-#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
+		if (csg_interrupts != 0) {
 			spin_start = ktime_get();
 			kbase_csf_scheduler_spin_lock(kbdev, &flags);
-			kbdev->csf.spin_delta_us_2 = ktime_to_us(ktime_sub(ktime_get(), spin_start));
+			kbdev->csf.spin_delta_us_1 = ktime_to_us(ktime_sub(ktime_get(), spin_start));
+			/* Looping through and track the highest idle and protm groups */
+			while (csg_interrupts != 0) {
+				int const csg_nr = ffs(csg_interrupts) - 1;
+
+				kbdev->csf.csg_start_tm[csg_nr] = ktime_get();
+				process_csg_interrupts(kbdev, csg_nr, &track);
+				kbdev->csf.csg_end_tm[csg_nr] = ktime_get();
+				csg_interrupts &= ~(1 << csg_nr);
+			}
+
+			/* Handle protm from the tracked information */
+			process_tracked_info_for_protm(kbdev, &track);
+			kbase_csf_scheduler_spin_unlock(kbdev, flags);
+		}
 #else
+		if (csg_interrupts != 0) {
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+			mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 1);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 			kbase_csf_scheduler_spin_lock(kbdev, &flags);
+			/* Looping through and track the highest idle and protm groups */
+			while (csg_interrupts != 0) {
+				int const csg_nr = ffs(csg_interrupts) - 1;
+
+				process_csg_interrupts(kbdev, csg_nr, &track);
+				csg_interrupts &= ~(1 << csg_nr);
+			}
+
+			/* Handle protm from the tracked information */
+			process_tracked_info_for_protm(kbdev, &track);
+			kbase_csf_scheduler_spin_unlock(kbdev, flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+			mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 1);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
+		}
 #endif /* CONFIG_MALI_MTK_IRQ_DEBUG */
 
-			glb_req = kbase_csf_firmware_global_input_read(
-					global_iface, GLB_REQ);
-			glb_ack = kbase_csf_firmware_global_output(
-					global_iface, GLB_ACK);
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
-			kbdev->csf.glb_req = glb_req;
-			kbdev->csf.glb_ack = glb_ack;
+		kbdev->csf.glb_start_tm = ktime_get();
+#endif
+
+		if (val & JOB_IRQ_GLOBAL_IF) {
+			const struct kbase_csf_global_iface *const global_iface =
+				&kbdev->csf.global_iface;
+
+			kbdev->csf.interrupt_received = true;
+
+			if (!kbdev->csf.firmware_reloaded) {
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+				mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 2);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
+				kbase_csf_firmware_reload_completed(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+				mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 2);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
+			}
+			else if (global_iface->output) {
+				u32 glb_req, glb_ack;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
+				spin_start = ktime_get();
+				kbase_csf_scheduler_spin_lock(kbdev, &flags);
+				kbdev->csf.spin_delta_us_2 = ktime_to_us(ktime_sub(ktime_get(), spin_start));
+#else
+				kbase_csf_scheduler_spin_lock(kbdev, &flags);
 #endif /* CONFIG_MALI_MTK_IRQ_DEBUG */
 
-			KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT_GLB_REQ_ACK, NULL, glb_req ^ glb_ack);
+				glb_req = kbase_csf_firmware_global_input_read(global_iface, GLB_REQ);
+				glb_ack = kbase_csf_firmware_global_output(global_iface, GLB_ACK);
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
+				kbdev->csf.glb_req = glb_req;
+				kbdev->csf.glb_ack = glb_ack;
+#endif /* CONFIG_MALI_MTK_IRQ_DEBUG */
+
+				KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT_GLB_REQ_ACK, NULL,
+						 glb_req ^ glb_ack);
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+				mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 3);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
+				check_protm_enter_req_complete(kbdev, glb_req, glb_ack);
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+				mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 3);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
-			mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 3);
+				mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 4);
 #endif /* CONFIG_MALI_MTK_IRQ_TRACE */
-			check_protm_enter_req_complete(kbdev, glb_req, glb_ack);
+				if ((glb_req ^ glb_ack) & GLB_REQ_PROTM_EXIT_MASK)
+					process_protm_exit(kbdev, glb_ack);
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
-			mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 3);
+				mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 4);
 #endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
-			mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 4);
+				mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 5);
 #endif /* CONFIG_MALI_MTK_IRQ_TRACE */
-			if ((glb_req ^ glb_ack) & GLB_REQ_PROTM_EXIT_MASK)
-				process_protm_exit(kbdev, glb_ack);
-#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
-			mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 4);
-#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
-
-#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
-			mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 5);
-#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
-			/* Handle IDLE Hysteresis notification event */
-			if ((glb_req ^ glb_ack) & GLB_REQ_IDLE_EVENT_MASK) {
-				dev_vdbg(kbdev->dev, "Idle-hysteresis event flagged");
-				kbase_csf_firmware_global_input_mask(
+				/* Handle IDLE Hysteresis notification event */
+				if ((glb_req ^ glb_ack) & GLB_REQ_IDLE_EVENT_MASK) {
+					dev_vdbg(kbdev->dev, "Idle-hysteresis event flagged");
+					kbase_csf_firmware_global_input_mask(
 						global_iface, GLB_REQ, glb_ack,
 						GLB_REQ_IDLE_EVENT_MASK);
 
-				kbase_csf_scheduler_process_gpu_idle_event(kbdev);
+					glb_idle_irq_received = true;
+					/* Defer handling this IRQ to account for a race condition
+					 * where the idle worker could be executed before we have
+					 * finished handling all pending IRQs (including CSG IDLE
+					 * IRQs).
+					 */
+					deferred_handling_glb_idle_irq = true;
+				}
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+				mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 5);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+				mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 6);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
+				process_prfcnt_interrupts(kbdev, glb_req, glb_ack);
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+				mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 6);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
+
+				kbase_csf_scheduler_spin_unlock(kbdev, flags);
+
+				/* Invoke the MCU state machine as a state transition
+				 * might have completed.
+				 */
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+				mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 7);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
+				kbase_pm_update_state(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
+				mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 7);
+#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 			}
-#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
-			mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 5);
-#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
-
-#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
-			mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 6);
-#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
-			process_prfcnt_interrupts(kbdev, glb_req, glb_ack);
-#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
-			mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 6);
-#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
-
-			kbase_csf_scheduler_spin_unlock(kbdev, flags);
-
-			/* Invoke the MCU state machine as a state transition
-			 * might have completed.
-			 */
-#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
-			mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 7);
-#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
-			kbase_pm_update_state(kbdev);
-#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
-			mtk_debug_irq_trace_record_end(KBASE_IRQ_JOB, 7);
-#endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 		}
-	}
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
-	kbdev->csf.glb_end_tm = ktime_get();
+		kbdev->csf.glb_end_tm = ktime_get();
 #endif
+
+		if (!glb_idle_irq_received)
+			break;
+		/* Attempt to serve potential IRQs that might have occurred
+		 * whilst handling the previous IRQ. In case we have observed
+		 * the GLB IDLE IRQ without all CSGs having been marked as
+		 * idle, the GPU would be treated as no longer idle and left
+		 * powered on.
+		 */
+		val = kbase_reg_read(kbdev, JOB_CONTROL_REG(JOB_IRQ_STATUS));
+	} while (val);
+
+	if (deferred_handling_glb_idle_irq) {
+		unsigned long flags;
+
+		kbase_csf_scheduler_spin_lock(kbdev, &flags);
+		kbase_csf_scheduler_process_gpu_idle_event(kbdev);
+		kbase_csf_scheduler_spin_unlock(kbdev, flags);
+	}
 
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
 	mtk_debug_irq_trace_record_start(KBASE_IRQ_JOB, 8);

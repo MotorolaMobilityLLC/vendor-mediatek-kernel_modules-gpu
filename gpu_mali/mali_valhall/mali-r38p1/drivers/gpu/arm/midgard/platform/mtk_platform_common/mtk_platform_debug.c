@@ -524,7 +524,7 @@ static int mtk_debug_dump_kcpu_queues(struct seq_file *file, void *data)
 #if IS_ENABLED(CONFIG_SYNC_FILE)
 				case BASE_KCPU_COMMAND_TYPE_FENCE_SIGNAL:
 				{
-					struct kbase_sync_fence_info info;
+					struct kbase_sync_fence_info info = { 0 };
 
 					if (cmd->info.fence.fence)
 						kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
@@ -549,7 +549,7 @@ static int mtk_debug_dump_kcpu_queues(struct seq_file *file, void *data)
 				}
 				case BASE_KCPU_COMMAND_TYPE_FENCE_WAIT:
 				{
-					struct kbase_sync_fence_info info;
+					struct kbase_sync_fence_info info = { 0 };
 
 					if (cmd->info.fence.fence)
 						kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
@@ -1979,7 +1979,7 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 #if IS_ENABLED(CONFIG_SYNC_FILE)
 						case BASE_KCPU_COMMAND_TYPE_FENCE_SIGNAL:
 						{
-							struct kbase_sync_fence_info info;
+							struct kbase_sync_fence_info info = { 0 };
 
 							if (cmd->info.fence.fence)
 								kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
@@ -2004,7 +2004,7 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 						}
 						case BASE_KCPU_COMMAND_TYPE_FENCE_WAIT:
 						{
-							struct kbase_sync_fence_info info;
+							struct kbase_sync_fence_info info = { 0 };
 
 							if (cmd->info.fence.fence)
 								kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
