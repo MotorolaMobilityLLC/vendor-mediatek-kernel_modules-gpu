@@ -283,6 +283,50 @@ struct kbase_mmu_table {
 };
 
 /**
+ * enum kbase_memory_zone - Kbase memory zone identifier
+ * @SAME_VA_ZONE: Memory zone for allocations where the GPU and CPU VA coincide.
+ * @CUSTOM_VA_ZONE: When operating in compatibility mode, this zone is used to
+ *                  allow 32-bit userspace (either on a 32-bit device or a
+ *                  32-bit application on a 64-bit device) to address the entirety
+ *                  of the GPU address space. The @CUSTOM_VA_ZONE is also used
+ *                  for JIT allocations: on 64-bit systems, the zone is created
+ *                  by reducing the size of the SAME_VA zone by a user-controlled
+ *                  amount, whereas on 32-bit systems, it is created as part of
+ *                  the existing CUSTOM_VA_ZONE
+ * @EXEC_VA_ZONE: Memory zone used to track GPU-executable memory. The start
+ *                and end of this zone depend on the individual platform,
+ *                and it is initialized upon user process request.
+ * @EXEC_FIXED_VA_ZONE: Memory zone used to contain GPU-executable memory
+ *                      that also permits FIXED/FIXABLE allocations.
+ * @FIXED_VA_ZONE: Memory zone used to allocate memory at userspace-supplied
+ *                 addresses.
+ * @MCU_SHARED_ZONE: Memory zone created for mappings shared between the MCU
+ *                   and Kbase. Currently this is the only zone type that is
+ *                   created on a per-device, rather than a per-context
+ *                   basis.
+ * @MEMORY_ZONE_MAX: Sentinel value used for iterating over all the memory zone
+ *                   identifiers.
+ * @CONTEXT_ZONE_MAX: Sentinel value used to keep track of the last per-context
+ *                    zone for iteration.
+ */
+enum kbase_memory_zone {
+	SAME_VA_ZONE,
+	CUSTOM_VA_ZONE,
+	EXEC_VA_ZONE,
+#ifdef MALI_USE_CSF
+	EXEC_FIXED_VA_ZONE,
+	FIXED_VA_ZONE,
+	MCU_SHARED_ZONE,
+#endif
+	MEMORY_ZONE_MAX,
+#ifdef MALI_USE_CSF
+	CONTEXT_ZONE_MAX = FIXED_VA_ZONE
+#else
+	CONTEXT_ZONE_MAX = EXEC_VA_ZONE
+#endif
+};
+
+/**
  * struct kbase_reg_zone - Information about GPU memory region zones
  * @base_pfn: Page Frame Number in GPU virtual address space for the start of
  *            the Zone
