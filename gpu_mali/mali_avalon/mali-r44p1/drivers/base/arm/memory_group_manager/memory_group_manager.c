@@ -544,8 +544,8 @@ static int mgm_initialize_debugfs(struct mgm_groups *mgm_data)
 
 #define ORDER_SMALL_PAGE 0
 #define ORDER_LARGE_PAGE 9
-static void update_size(struct memory_group_manager_device *mgm_dev, int
-		group_id, int order, bool alloc)
+static void update_size(struct memory_group_manager_device *mgm_dev, unsigned int group_id,
+			int order, bool alloc)
 {
 	struct mgm_groups *data = mgm_dev->data;
 
@@ -910,8 +910,8 @@ static struct page *example_mgm_alloc_page(
 	int refill = 0;
 	size_t tmp;
 #endif /* CONFIG_MALI_MTK_MGMM */
-	dev_vdbg(data->dev, "%s(mgm_dev=%p, group_id=%d gfp_mask=0x%x order=%u\n",
-		__func__, (void *)mgm_dev, group_id, gfp_mask, order);
+	dev_vdbg(data->dev, "%s(mgm_dev=%pK, group_id=%d gfp_mask=0x%x order=%u\n", __func__,
+		(void *)mgm_dev, group_id, gfp_mask, order);
 
 	if (WARN_ON(group_id < 0) ||
 		WARN_ON(group_id >= MEMORY_GROUP_MANAGER_NR_GROUPS))
@@ -1026,8 +1026,8 @@ static void example_mgm_free_page(
 #if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
 	int i;
 #endif /* CONFIG_MALI_MTK_MGMM */
-	dev_vdbg(data->dev, "%s(mgm_dev=%p, group_id=%d page=%p order=%u\n",
-		__func__, (void *)mgm_dev, group_id, (void *)page, order);
+	dev_vdbg(data->dev, "%s(mgm_dev=%pK, group_id=%d page=%pK order=%u\n", __func__,
+		(void *)mgm_dev, group_id, (void *)page, order);
 
 	if (WARN_ON(group_id < 0) ||
 		WARN_ON(group_id >= MEMORY_GROUP_MANAGER_NR_GROUPS))
@@ -1078,9 +1078,8 @@ static int example_mgm_get_import_memory_id(
 	int gid = 0;
 #endif
 
-	dev_vdbg(data->dev, "%s(mgm_dev=%p, import_data=%p (type=%d)\n",
-		__func__, (void *)mgm_dev, (void *)import_data,
-		(int)import_data->type);
+	dev_vdbg(data->dev, "%s(mgm_dev=%pK, import_data=%pK (type=%d)\n", __func__, (void *)mgm_dev,
+		(void *)import_data, (int)import_data->type);
 
 	if (!WARN_ON(!import_data)) {
 		WARN_ON(!import_data->u.dma_buf);
@@ -1108,9 +1107,8 @@ static u64 example_mgm_update_gpu_pte(
 {
 	struct mgm_groups *const data = mgm_dev->data;
 
-	dev_vdbg(data->dev,
-		"%s(mgm_dev=%p, group_id=%d, mmu_level=%d, pte=0x%llx)\n",
-		__func__, (void *)mgm_dev, group_id, mmu_level, pte);
+	dev_vdbg(data->dev, "%s(mgm_dev=%pK, group_id=%d, mmu_level=%d, pte=0x%llx)\n", __func__,
+		(void *)mgm_dev, group_id, mmu_level, pte);
 
 	if (WARN_ON(group_id < 0) ||
 		WARN_ON(group_id >= MEMORY_GROUP_MANAGER_NR_GROUPS))
@@ -1146,7 +1144,7 @@ static vm_fault_t example_mgm_vmf_insert_pfn_prot(
 	vm_fault_t fault;
 
 	dev_vdbg(data->dev,
-		"%s(mgm_dev=%p, group_id=%d, vma=%p, addr=0x%lx, pfn=0x%lx, prot=0x%llx)\n",
+		"%s(mgm_dev=%pK, group_id=%d, vma=%pK, addr=0x%lx, pfn=0x%lx, prot=0x%llx)\n",
 		__func__, (void *)mgm_dev, group_id, (void *)vma, addr, pfn,
 		(unsigned long long)pgprot_val(prot));
 

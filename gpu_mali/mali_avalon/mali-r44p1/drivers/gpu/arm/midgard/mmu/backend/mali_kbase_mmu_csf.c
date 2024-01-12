@@ -740,12 +740,13 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	kbase_mmu_disable(kctx);
 	kbase_ctx_flag_set(kctx, KCTX_AS_DISABLED_ON_FAULT);
+	kbase_debug_csf_fault_notify(kbdev, kctx, DF_GPU_PAGE_FAULT);
+	kbase_csf_ctx_report_page_fault_for_active_groups(kctx, fault);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	mutex_unlock(&kbdev->mmu_hw_mutex);
 	/* AS transaction end */
 
-	kbase_debug_csf_fault_notify(kbdev, kctx, DF_GPU_PAGE_FAULT);
 	/* Switching to UNMAPPED mode above would have enabled the firmware to
 	 * recover from the fault (if the memory access was made by firmware)
 	 * and it can then respond to CSG termination requests to be sent now.

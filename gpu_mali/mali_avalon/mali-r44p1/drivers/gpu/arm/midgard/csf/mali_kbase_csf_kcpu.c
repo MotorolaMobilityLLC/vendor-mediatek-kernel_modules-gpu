@@ -2354,6 +2354,7 @@ static void kcpu_queue_timeout_worker(struct work_struct *data)
 		container_of(data, struct kbase_kcpu_command_queue, timeout_work);
 
 	kcpu_queue_dump(queue);
+
 	kcpu_queue_force_fence_signal(queue);
 }
 

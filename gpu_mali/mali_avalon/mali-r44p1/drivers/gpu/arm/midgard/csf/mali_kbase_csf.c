@@ -241,7 +241,6 @@ static int kernel_map_user_io_pages(struct kbase_context *kctx,
 	else
 		cpu_map_prot = PAGE_KERNEL;
 
-
 	for (i = 0; i < ARRAY_SIZE(page_list); i++)
 		page_list[i] = as_page(queue->phys[i]);
 
@@ -436,7 +435,6 @@ static bool release_queue(struct kbase_queue *queue)
 		dev_dbg(queue->kctx->kbdev->dev,
 			"Remove any pending command queue fatal from ctx %d_%d",
 			queue->kctx->tgid, queue->kctx->id);
-		kbase_csf_event_remove_error(queue->kctx, &queue->error);
 
 		/* After this the Userspace would be able to free the
 		 * memory for GPU queue. In case the Userspace missed
@@ -576,7 +574,6 @@ static int csf_queue_register_internal(struct kbase_context *kctx,
 	INIT_LIST_HEAD(&queue->link);
 	atomic_set(&queue->pending_kick, 0);
 	INIT_LIST_HEAD(&queue->pending_kick_link);
-	INIT_LIST_HEAD(&queue->error.link);
 	INIT_WORK(&queue->oom_event_work, oom_event_worker);
 	INIT_WORK(&queue->cs_error_work, cs_error_worker);
 	list_add(&queue->link, &kctx->csf.queue_list);
@@ -1236,6 +1233,9 @@ static int create_queue_group(struct kbase_context *const kctx,
 		} else {
 			int err = 0;
 
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+			group->prev_act = false;
+#endif
 			group->kctx = kctx;
 			group->handle = group_handle;
 			group->csg_nr = KBASEP_CSG_NR_INVALID;
@@ -1271,8 +1271,6 @@ static int create_queue_group(struct kbase_context *const kctx,
 			INIT_LIST_HEAD(&group->link);
 			INIT_LIST_HEAD(&group->link_to_schedule);
 			INIT_LIST_HEAD(&group->error_fatal.link);
-			INIT_LIST_HEAD(&group->error_timeout.link);
-			INIT_LIST_HEAD(&group->error_tiler_oom.link);
 			INIT_WORK(&group->timer_event_work, timer_event_worker);
 			INIT_WORK(&group->protm_event_work, protm_event_worker);
 			bitmap_zero(group->protm_pending_bitmap,
@@ -1525,8 +1523,6 @@ static void remove_pending_group_fatal_error(struct kbase_queue_group *group)
 		"Remove any pending group fatal error from context %pK\n",
 		(void *)group->kctx);
 
-	kbase_csf_event_remove_error(kctx, &group->error_tiler_oom);
-	kbase_csf_event_remove_error(kctx, &group->error_timeout);
 	kbase_csf_event_remove_error(kctx, &group->error_fatal);
 }
 
@@ -1737,6 +1733,36 @@ int kbase_csf_ctx_init(struct kbase_context *kctx)
 	return err;
 }
 
+void kbase_csf_ctx_report_page_fault_for_active_groups(struct kbase_context *kctx,
+						       struct kbase_fault *fault)
+{
+	struct base_gpu_queue_group_error err_payload =
+		(struct base_gpu_queue_group_error){ .error_type = BASE_GPU_QUEUE_GROUP_ERROR_FATAL,
+						     .payload = { .fatal_group = {
+									  .sideband = fault->addr,
+									  .status = fault->status,
+								  } } };
+	struct kbase_device *kbdev = kctx->kbdev;
+	const u32 num_groups = kbdev->csf.global_iface.group_num;
+	unsigned long flags;
+	int csg_nr;
+
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
+	kbase_csf_scheduler_spin_lock(kbdev, &flags);
+	for (csg_nr = 0; csg_nr < num_groups; csg_nr++) {
+		struct kbase_queue_group *const group =
+			kbdev->csf.scheduler.csg_slots[csg_nr].resident_group;
+
+		if (!group || (group->kctx != kctx))
+			continue;
+
+		group->faulted = true;
+		kbase_csf_add_group_fatal_error(group, &err_payload);
+	}
+	kbase_csf_scheduler_spin_unlock(kbdev, flags);
+}
+
 void kbase_csf_ctx_handle_fault(struct kbase_context *kctx,
 		struct kbase_fault *fault)
 {
@@ -1778,6 +1804,9 @@ void kbase_csf_ctx_handle_fault(struct kbase_context *kctx,
 
 		if (group && group->run_state != KBASE_CSF_GROUP_TERMINATED) {
 			term_queue_group(group);
+			/* This would effectively be a NOP if the fatal error was already added to
+			 * the error_list by kbase_csf_ctx_report_page_fault_for_active_groups().
+			 */
 			kbase_csf_add_group_fatal_error(group, &err_payload);
 			reported = true;
 		}
@@ -1994,7 +2023,7 @@ static void report_tiler_oom_error(struct kbase_queue_group *group)
 					  } } } };
 
 	kbase_csf_event_add_error(group->kctx,
-				  &group->error_tiler_oom,
+				  &group->error_fatal,
 				  &error);
 	kbase_event_wakeup(group->kctx);
 }
@@ -2166,7 +2195,7 @@ static void report_group_timeout_error(struct kbase_queue_group *const group)
 		 "Notify the event notification thread, forward progress timeout (%llu cycles)\n",
 		 kbase_csf_timeout_get(group->kctx->kbdev));
 
-	kbase_csf_event_add_error(group->kctx, &group->error_timeout, &error);
+	kbase_csf_event_add_error(group->kctx, &group->error_fatal, &error);
 	kbase_event_wakeup(group->kctx);
 }
 
@@ -2369,15 +2398,15 @@ handle_fault_event(struct kbase_queue *const queue, const u32 cs_ack)
 	if (cs_fault_exception_type != CS_FAULT_EXCEPTION_TYPE_CS_INHERIT_FAULT) {
 #endif /* CONFIG_MALI_MTK_DEBUG */
 	dev_warn(kbdev->dev,
-		"Ctx %d_%d Group %d CSG %d CSI: %d\n"
-		"CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
-		"CS_FAULT.EXCEPTION_DATA: 0x%x\n"
-		"CS_FAULT_INFO.EXCEPTION_DATA: 0x%llx\n",
-		queue->kctx->tgid, queue->kctx->id, queue->group->handle,
-		queue->group->csg_nr, queue->csi_index,
-		cs_fault_exception_type,
-		kbase_gpu_exception_name(cs_fault_exception_type),
-		cs_fault_exception_data, cs_fault_info_exception_data);
+		 "Ctx %d_%d Group %d CSG %d CSI: %d\n"
+		 "CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
+		 "CS_FAULT.EXCEPTION_DATA: 0x%x\n"
+		 "CS_FAULT_INFO.EXCEPTION_DATA: 0x%llx\n",
+		 queue->kctx->tgid, queue->kctx->id, queue->group->handle,
+		 queue->group->csg_nr, queue->csi_index,
+		 cs_fault_exception_type,
+		 kbase_gpu_exception_name(cs_fault_exception_type),
+		 cs_fault_exception_data, cs_fault_info_exception_data);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 		"Ctx %d_%d Group %d CSG %d CSI: %d\n"
@@ -2425,31 +2454,29 @@ handle_fault_event(struct kbase_queue *const queue, const u32 cs_ack)
 	kbase_csf_ring_cs_kernel_doorbell(kbdev, queue->csi_index, queue->group->csg_nr, true);
 }
 
-static void report_queue_fatal_error(struct kbase_queue *const queue,
-				     u32 cs_fatal, u64 cs_fatal_info,
-				     u8 group_handle)
+static void report_queue_fatal_error(struct kbase_queue *const queue, u32 cs_fatal,
+				     u64 cs_fatal_info, struct kbase_queue_group *group)
 {
-	struct base_csf_notification error = {
-		.type = BASE_CSF_NOTIFICATION_GPU_QUEUE_GROUP_ERROR,
-		.payload = {
-			.csg_error = {
-				.handle = group_handle,
-				.error = {
-					.error_type =
-					BASE_GPU_QUEUE_GROUP_QUEUE_ERROR_FATAL,
-					.payload = {
-						.fatal_queue = {
-						.sideband = cs_fatal_info,
-						.status = cs_fatal,
-						.csi_index = queue->csi_index,
-						}
-					}
-				}
-			}
-		}
-	};
+	struct base_csf_notification
+		error = { .type = BASE_CSF_NOTIFICATION_GPU_QUEUE_GROUP_ERROR,
+			  .payload = {
+				  .csg_error = {
+					  .error = { .error_type =
+							     BASE_GPU_QUEUE_GROUP_QUEUE_ERROR_FATAL,
+						     .payload = { .fatal_queue = {
+									  .sideband = cs_fatal_info,
+									  .status = cs_fatal,
+								  } } } } } };
 
-	kbase_csf_event_add_error(queue->kctx, &queue->error, &error);
+	if (!queue)
+		return;
+
+	if (WARN_ON_ONCE(!group))
+		return;
+
+	error.payload.csg_error.handle = group->handle;
+	error.payload.csg_error.error.payload.fatal_queue.csi_index = queue->csi_index;
+	kbase_csf_event_add_error(queue->kctx, &group->error_fatal, &error);
 	kbase_event_wakeup(queue->kctx);
 }
 
@@ -2464,10 +2491,10 @@ static void cs_error_worker(struct work_struct *const data)
 {
 	struct kbase_queue *const queue =
 		container_of(data, struct kbase_queue, cs_error_work);
+	const u32 cs_fatal_exception_type = CS_FATAL_EXCEPTION_TYPE_GET(queue->cs_error);
 	struct kbase_context *const kctx = queue->kctx;
 	struct kbase_device *const kbdev = kctx->kbdev;
 	struct kbase_queue_group *group;
-	u8 group_handle;
 	bool reset_prevented = false;
 	int err;
 
@@ -2531,11 +2558,20 @@ static void cs_error_worker(struct work_struct *const data)
 	}
 #endif
 
-	group_handle = group->handle;
 	term_queue_group(group);
 	flush_gpu_cache_on_fatal_error(kbdev);
-	report_queue_fatal_error(queue, queue->cs_error, queue->cs_error_info,
-				 group_handle);
+	/* For an invalid GPU page fault, CS_BUS_FAULT fatal error is expected after the
+	 * page fault handler disables the AS of faulty context. Need to skip reporting the
+	 * CS_BUS_FAULT fatal error to the Userspace as it doesn't have the full fault info.
+	 * Page fault handler will report the fatal error with full page fault info.
+	 */
+	if ((cs_fatal_exception_type == CS_FATAL_EXCEPTION_TYPE_CS_BUS_FAULT) && group->faulted) {
+		dev_dbg(kbdev->dev,
+			"Skipped reporting CS_BUS_FAULT for queue %d of group %d of ctx %d_%d",
+			queue->csi_index, group->handle, kctx->tgid, kctx->id);
+	} else {
+		report_queue_fatal_error(queue, queue->cs_error, queue->cs_error_info, group);
+	}
 
 unlock:
 	mutex_unlock(&kctx->csf.lock);
@@ -2844,6 +2880,7 @@ static void process_csg_interrupts(struct kbase_device *const kbdev, int const c
 		return;
 
 	KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_INTERRUPT_PROCESS_START, group, csg_nr);
+
 	kbase_csf_handle_csg_sync_update(kbdev, ginfo, group, req, ack);
 
 	if ((req ^ ack) & CSG_REQ_IDLE_MASK) {

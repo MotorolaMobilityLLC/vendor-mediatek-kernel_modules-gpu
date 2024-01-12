@@ -377,7 +377,6 @@ struct kbase_csf_notification {
  * @trace_offset_ptr:  Pointer to the CS trace buffer offset variable.
  * @trace_buffer_size: CS trace buffer size for the queue.
  * @trace_cfg:         CS trace configuration parameters.
- * @error:          GPU command queue fatal information to pass to user space.
  * @cs_error_work:    Work item to handle the CS fatal event reported for this
  *                    queue or the CS fault event if dump on fault is enabled
  *                    and acknowledgment for CS fault event needs to be done
@@ -426,7 +425,6 @@ struct kbase_queue {
 	u64 trace_offset_ptr;
 	u32 trace_buffer_size;
 	u32 trace_cfg;
-	struct kbase_csf_notification error;
 	struct work_struct cs_error_work;
 	u64 cs_error_info;
 	u32 cs_error;
@@ -529,10 +527,6 @@ struct kbase_protected_suspend_buffer {
  *                         have pending protected mode entry requests.
  * @error_fatal: An error of type BASE_GPU_QUEUE_GROUP_ERROR_FATAL to be
  *               returned to userspace if such an error has occurred.
- * @error_timeout: An error of type BASE_GPU_QUEUE_GROUP_ERROR_TIMEOUT
- *                 to be returned to userspace if such an error has occurred.
- * @error_tiler_oom: An error of type BASE_GPU_QUEUE_GROUP_ERROR_TILER_HEAP_OOM
- *                   to be returned to userspace if such an error has occurred.
  * @timer_event_work: Work item to handle the progress timeout fatal event
  *                    for the group.
  * @deschedule_deferred_cnt: Counter keeping a track of the number of threads
@@ -582,8 +576,6 @@ struct kbase_queue_group {
 	DECLARE_BITMAP(protm_pending_bitmap, MAX_SUPPORTED_STREAMS_PER_GROUP);
 
 	struct kbase_csf_notification error_fatal;
-	struct kbase_csf_notification error_timeout;
-	struct kbase_csf_notification error_tiler_oom;
 
 	struct work_struct timer_event_work;
 
@@ -598,6 +590,12 @@ struct kbase_queue_group {
 #endif
 	void *csg_reg;
 	u8 csg_reg_bind_retries;
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+	/**
+	 * @prev_act: Previous CSG activity transition in a GPU metrics.
+	 */
+	bool prev_act;
+#endif
 };
 
 /**

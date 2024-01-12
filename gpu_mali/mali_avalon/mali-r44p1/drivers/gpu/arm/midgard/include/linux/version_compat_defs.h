@@ -30,10 +30,13 @@
 #include <linux/overflow.h>
 #endif
 
+#include <linux/bitops.h>
 #if (KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE)
 #include <linux/bits.h>
-#else
-#include <linux/bitops.h>
+#endif
+
+#ifndef BITS_PER_TYPE
+#define BITS_PER_TYPE(type) (sizeof(type) * BITS_PER_BYTE)
 #endif
 
 #if KERNEL_VERSION(4, 16, 0) > LINUX_VERSION_CODE
@@ -221,17 +224,20 @@ static inline void dma_fence_set_error_helper(
 #include <linux/mm.h>
 #if !((KERNEL_VERSION(6, 3, 0) <= LINUX_VERSION_CODE) || \
       ((KERNEL_VERSION(6, 1, 25) <= LINUX_VERSION_CODE) && defined(__ANDROID_COMMON_KERNEL__)))
-static inline void vm_flags_set(struct vm_area_struct *vma,
-				  vm_flags_t flags)
+static inline void vm_flags_set(struct vm_area_struct *vma, vm_flags_t flags)
 {
 	vma->vm_flags |= flags;
 }
-
-static inline void vm_flags_clear(struct vm_area_struct *vma,
-				  vm_flags_t flags)
+static inline void vm_flags_clear(struct vm_area_struct *vma, vm_flags_t flags)
 {
 	vma->vm_flags &= ~flags;
 }
+#endif
+
+#if (KERNEL_VERSION(6, 4, 0) <= LINUX_VERSION_CODE)
+#define KBASE_CLASS_CREATE(owner, name) class_create(name)
+#else
+#define KBASE_CLASS_CREATE(owner, name) class_create(owner, name)
 #endif
 
 #endif /* _VERSION_COMPAT_DEFS_H_ */

@@ -39,11 +39,16 @@
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
 #include <mali_kbase_gpu_metrics.h>
 
-unsigned long gpu_metrics_tp_emit_interval_ns = DEFAULT_GPU_METRICS_TP_EMIT_INTERVAL_NS;
+static unsigned long gpu_metrics_tp_emit_interval_ns = DEFAULT_GPU_METRICS_TP_EMIT_INTERVAL_NS;
 
 module_param(gpu_metrics_tp_emit_interval_ns, ulong, 0444);
 MODULE_PARM_DESC(gpu_metrics_tp_emit_interval_ns,
 		 "Time interval in nano seconds at which GPU metrics tracepoints are emitted");
+
+unsigned long kbase_gpu_metrics_get_emit_interval(void)
+{
+	return gpu_metrics_tp_emit_interval_ns;
+}
 #endif
 
 #include <platform/mtk_platform_utils.h> /* MTK_INLINE */

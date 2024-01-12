@@ -125,27 +125,33 @@ ifeq ($(MALI_KCONFIG_EXT_PREFIX),)
                 CONFIG_MALI_KUTF_IRQ_TEST ?= y
                 CONFIG_MALI_KUTF_CLK_RATE_TRACE ?= y
                 CONFIG_MALI_KUTF_MGM_INTEGRATION_TEST ?= y
+#ifdef MALI_GPU_FAMILY_AVALON
                 ifeq ($(CONFIG_MALI_CSF_SUPPORT), y)
                     CONFIG_MALI_KUTF_CSF_TESTS ?= y
                     CONFIG_MALI_KUTF_KCPU_UNIT_TEST ?= y
                 endif
+#endif
                 ifeq ($(CONFIG_MALI_DEVFREQ), y)
                     ifeq ($(CONFIG_MALI_NO_MALI), y)
                         CONFIG_MALI_KUTF_IPA_UNIT_TEST ?= y
                     endif
                 endif
+#ifdef MALI_GPU_FAMILY_AVALON
                 CONFIG_MALI_KUTF_KERNEL_DEFECT_TEST ?= y
                 CONFIG_MALI_KUTF_KERNEL_POWER_TEST ?= y
+#endif
 
             else
                 # Prevent misuse when CONFIG_MALI_KUTF=n
                 CONFIG_MALI_KUTF_IRQ_TEST = n
                 CONFIG_MALI_KUTF_CLK_RATE_TRACE = n
                 CONFIG_MALI_KUTF_MGM_INTEGRATION_TEST = n
+#ifdef MALI_GPU_FAMILY_AVALON
                 CONFIG_MALI_KUTF_CSF_TESTS = n
                 CONFIG_MALI_KUTF_IPA_UNIT_TEST = n
                 CONFIG_MALI_KUTF_KERNEL_DEFECT_TEST = n
                 CONFIG_MALI_KUTF_KERNEL_POWER_TEST = n
+#endif
             endif
         else
             # Prevent misuse when CONFIG_MALI_DEBUG=n
@@ -153,10 +159,12 @@ ifeq ($(MALI_KCONFIG_EXT_PREFIX),)
             CONFIG_MALI_KUTF_IRQ_TEST = n
             CONFIG_MALI_KUTF_CLK_RATE_TRACE = n
             CONFIG_MALI_KUTF_MGM_INTEGRATION_TEST = n
+#ifdef MALI_GPU_FAMILY_AVALON
             CONFIG_MALI_KUTF_CSF_TESTS = n
             CONFIG_MALI_KUTF_IPA_UNIT_TEST = n
             CONFIG_MALI_KUTF_KERNEL_DEFECT_TEST = n
             CONFIG_MALI_KUTF_KERNEL_POWER_TEST = n
+#endif
         endif
     else
         # Prevent misuse when CONFIG_MALI_MIDGARD=n
@@ -165,10 +173,12 @@ ifeq ($(MALI_KCONFIG_EXT_PREFIX),)
         CONFIG_MALI_KUTF_IRQ_TEST = n
         CONFIG_MALI_KUTF_CLK_RATE_TRACE = n
         CONFIG_MALI_KUTF_MGM_INTEGRATION_TEST = n
+#ifdef MALI_GPU_FAMILY_AVALON
         CONFIG_MALI_KUTF_CSF_TESTS = n
         CONFIG_MALI_KUTF_IPA_UNIT_TEST = n
         CONFIG_MALI_KUTF_KERNEL_DEFECT_TEST = n
         CONFIG_MALI_KUTF_KERNEL_POWER_TEST = n
+#endif
     endif
 
     # All Mali CONFIG should be listed here
@@ -211,11 +221,13 @@ ifeq ($(MALI_KCONFIG_EXT_PREFIX),)
         CONFIG_MALI_CORESIGHT \
         CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD
 
+#ifdef MALI_GPU_FAMILY_AVALON
     CONFIGS += \
         CONFIG_MALI_KUTF_CSF_TESTS \
         CONFIG_MALI_KUTF_IPA_UNIT_TEST \
         CONFIG_MALI_KUTF_KERNEL_DEFECT_TEST \
         CONFIG_MALI_KUTF_KERNEL_POWER_TEST
+#endif
 
 endif
 

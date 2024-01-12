@@ -160,7 +160,7 @@ int kbase_csf_cpu_queue_dump(struct kbase_context *kctx,
 
 	alloc_size = (alloc_size + PAGE_SIZE) & ~(PAGE_SIZE - 1);
 	dump_buffer = kzalloc(alloc_size, GFP_KERNEL);
-	if (ZERO_OR_NULL_PTR(dump_buffer))
+	if (!dump_buffer)
 		return -ENOMEM;
 
 	WARN_ON(kctx->csf.cpu_queue.buffer != NULL);

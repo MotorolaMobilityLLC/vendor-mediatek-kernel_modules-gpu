@@ -31,7 +31,6 @@
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
 #include <mali_kbase_gpu_metrics.h>
 
-extern unsigned long gpu_metrics_tp_emit_interval_ns;
 #endif
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <platform/mtk_platform_common.h>
@@ -342,7 +341,7 @@ void kbase_backend_ctx_count_changed(struct kbase_device *kbdev)
 		/* No need to restart the timer if it is already running. */
 		if (!js_devdata->gpu_metrics_timer_running) {
 			hrtimer_start(&js_devdata->gpu_metrics_timer,
-				      HR_TIMER_DELAY_NSEC(gpu_metrics_tp_emit_interval_ns),
+				      HR_TIMER_DELAY_NSEC(kbase_gpu_metrics_get_emit_interval()),
 				      HRTIMER_MODE_REL);
 			js_devdata->gpu_metrics_timer_running = true;
 		}

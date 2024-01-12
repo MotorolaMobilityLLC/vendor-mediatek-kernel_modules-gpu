@@ -128,6 +128,7 @@ MODULE_PARM_DESC(fw_debug,
 #define BUILD_INFO_GIT_SHA_PATTERN "git_sha: "
 
 #define CSF_MAX_FW_STOP_LOOPS            (100000)
+#define CSF_MAX_GPU_INACTIVE_LOOPS	 (1000)
 
 #define CSF_GLB_REQ_CFG_MASK                                                                       \
 	(GLB_REQ_CFG_ALLOC_EN_MASK | GLB_REQ_CFG_PROGRESS_TIMER_MASK |                             \
@@ -244,7 +245,13 @@ void kbase_csf_firmware_disable_mcu(struct kbase_device *kbdev)
 {
 	KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_DISABLING(kbdev, kbase_backend_get_cycle_cnt(kbdev));
 
-	kbase_reg_write(kbdev, GPU_CONTROL_REG(MCU_CONTROL), MCU_CNTRL_DISABLE);
+	if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_TITANHW_2922)) {
+		kbase_reg_write(kbdev, GPU_CONTROL_REG(MCU_CONTROL), MCU_CNTRL_ENABLE);
+		kbase_reg_write(kbdev, GPU_CONTROL_MCU_REG(GPU_CTRL_MCU_GPU_COMMAND),
+				  GPU_COMMAND_FAST_RESET);
+	} else {
+		kbase_reg_write(kbdev, GPU_CONTROL_REG(MCU_CONTROL), MCU_CNTRL_DISABLE);
+	}
 }
 
 static void wait_for_firmware_stop(struct kbase_device *kbdev)
@@ -257,9 +264,26 @@ static void wait_for_firmware_stop(struct kbase_device *kbdev)
 	KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_OFF(kbdev, kbase_backend_get_cycle_cnt(kbdev));
 }
 
+static void wait_for_gpu_inactive(struct kbase_device *kbdev)
+{
+	u32 max_loops = CSF_MAX_GPU_INACTIVE_LOOPS;
+
+	while (--max_loops &&
+	       (GPU_STATUS_GPU_ACTIVE & kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_STATUS))))
+		;
+
+	if (!max_loops)
+		dev_err(kbdev->dev, "Wait for GPU inactive failed post Fast Reset.");
+}
+
 void kbase_csf_firmware_disable_mcu_wait(struct kbase_device *kbdev)
 {
-	wait_for_firmware_stop(kbdev);
+	if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_TITANHW_2922))
+		wait_for_gpu_inactive(kbdev);
+	else
+		wait_for_firmware_stop(kbdev);
+
+	KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_OFF(kbdev, kbase_backend_get_cycle_cnt(kbdev));
 }
 
 static void stop_csf_firmware(struct kbase_device *kbdev)
@@ -267,7 +291,7 @@ static void stop_csf_firmware(struct kbase_device *kbdev)
 	/* Stop the MCU firmware */
 	kbase_csf_firmware_disable_mcu(kbdev);
 
-	wait_for_firmware_stop(kbdev);
+	kbase_csf_firmware_disable_mcu_wait(kbdev);
 }
 
 static void wait_for_firmware_boot(struct kbase_device *kbdev)
@@ -2222,7 +2246,6 @@ u32 kbase_csf_firmware_set_gpu_idle_hysteresis_time(struct kbase_device *kbdev, 
 
 	kbase_csf_scheduler_pm_idle(kbdev);
 	kbase_reset_gpu_allow(kbdev);
-
 end:
 	dev_dbg(kbdev->dev, "CSF set firmware idle hysteresis count-value: 0x%.8x",
 		hysteresis_val);
@@ -2420,6 +2443,7 @@ int kbase_csf_firmware_early_init(struct kbase_device *kbdev)
 	INIT_WORK(&kbdev->csf.fw_error_work, firmware_error_worker);
 
 	mutex_init(&kbdev->csf.reg_lock);
+	kbase_csf_pending_gpuq_kicks_init(kbdev);
 
 	kbdev->csf.fw = (struct kbase_csf_mcu_fw){ .data = NULL };
 
@@ -2428,6 +2452,7 @@ int kbase_csf_firmware_early_init(struct kbase_device *kbdev)
 
 void kbase_csf_firmware_early_term(struct kbase_device *kbdev)
 {
+	kbase_csf_pending_gpuq_kicks_term(kbdev);
 	mutex_destroy(&kbdev->csf.reg_lock);
 }
 
@@ -2647,8 +2672,6 @@ int kbase_csf_firmware_load_init(struct kbase_device *kbdev)
 	if (ret != 0)
 		goto err_out;
 
-	kbase_csf_pending_gpuq_kicks_init(kbdev);
-
 	ret = kbase_csf_scheduler_init(kbdev);
 	if (ret != 0)
 		goto err_out;
@@ -2713,8 +2736,6 @@ void kbase_csf_firmware_unload_term(struct kbase_device *kbdev)
 	kbase_csf_free_dummy_user_reg_page(kbdev);
 
 	kbase_csf_scheduler_term(kbdev);
-
-	kbase_csf_pending_gpuq_kicks_term(kbdev);
 
 	kbase_csf_doorbell_mapping_term(kbdev);
 

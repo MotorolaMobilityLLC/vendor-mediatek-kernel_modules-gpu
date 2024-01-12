@@ -646,7 +646,7 @@ static void toggle_logging_calls_in_loaded_image(struct kbase_device *kbdev, boo
 
 			/* Patch logging func calls in their load location */
 			dev_dbg(kbdev->dev, "FW log patch 0x%x: 0x%x\n", calling_address,
-					bl_instruction);		
+					bl_instruction);
 			kbase_csf_update_firmware_memory_exe(kbdev, calling_address,
 					bl_instruction);
 		}

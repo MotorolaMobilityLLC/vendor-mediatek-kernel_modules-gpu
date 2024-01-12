@@ -211,10 +211,11 @@ struct gpu_metrics_event {
 /**
  * gpu_metrics_read_event() - Read a GPU metrics trace from trace buffer
  *
- * @kbdev: Pointer to the device
- * @kctx:  Kcontext that is derived from CSG slot field of a GPU metrics.
- * @act:   CSG activity transition in a GPU metrics.
- * @ts:    CSG activity transition timestamp in a GPU metrics.
+ * @kbdev:    Pointer to the device
+ * @kctx:     Kcontext that is derived from CSG slot field of a GPU metrics.
+ * @prev_act: Previous CSG activity transition in a GPU metrics.
+ * @cur_act:  Current CSG activity transition in a GPU metrics.
+ * @ts:       CSG activity transition timestamp in a GPU metrics.
  *
  * This function reads firmware trace buffer, named 'gpu_metrics' and
  * parse one 12-byte data packet into following information.
@@ -225,7 +226,7 @@ struct gpu_metrics_event {
  * Return: true on success.
  */
 static bool gpu_metrics_read_event(struct kbase_device *kbdev, struct kbase_context **kctx,
-				   bool *act, uint64_t *ts)
+				   bool *prev_act, bool *cur_act, uint64_t *ts)
 {
 	struct firmware_trace_buffer *tb = kbdev->csf.scheduler.gpu_metrics_tb;
 	struct gpu_metrics_event e;
@@ -241,9 +242,12 @@ static bool gpu_metrics_read_event(struct kbase_device *kbdev, struct kbase_cont
 			return false;
 		}
 
-		*act = GPU_METRICS_ACT_GET(e.csg_slot_act);
+		*cur_act = GPU_METRICS_ACT_GET(e.csg_slot_act);
 		*ts = kbase_backend_time_convert_gpu_to_cpu(kbdev, e.timestamp);
 		*kctx = group->kctx;
+
+		*prev_act = group->prev_act;
+		group->prev_act = *cur_act;
 
 		return true;
 	}
@@ -261,6 +265,8 @@ static bool gpu_metrics_read_event(struct kbase_device *kbdev, struct kbase_cont
  * This function must be called to emit GPU metrics data to the
  * frontend whenever needed.
  * Calls to this function will be serialized by scheduler lock.
+ *
+ * Kbase reports invalid activity traces when detected.
  */
 static void emit_gpu_metrics_to_frontend(struct kbase_device *kbdev)
 {
@@ -275,13 +281,34 @@ static void emit_gpu_metrics_to_frontend(struct kbase_device *kbdev)
 
 	while (!kbase_csf_firmware_trace_buffer_is_empty(kbdev->csf.scheduler.gpu_metrics_tb)) {
 		struct kbase_context *kctx;
-		bool act;
+		bool prev_act;
+		bool cur_act;
 
-		if (gpu_metrics_read_event(kbdev, &kctx, &act, &ts)) {
-			if (act)
-				kbase_gpu_metrics_ctx_start_activity(kctx, ts);
-			else
-				kbase_gpu_metrics_ctx_end_activity(kctx, ts);
+		if (gpu_metrics_read_event(kbdev, &kctx, &prev_act, &cur_act, &ts)) {
+			if (prev_act == cur_act) {
+				/* Error handling
+				 *
+				 * In case of active CSG, Kbase will try to recover the
+				 * lost event by ending previously active event and
+				 * starting a new one.
+				 *
+				 * In case of inactive CSG, the event is drop as Kbase
+				 * cannot recover.
+				 */
+				dev_err(kbdev->dev,
+					"Invalid activity state transition. (prev_act = %u, cur_act = %u)",
+					prev_act, cur_act);
+				if (cur_act) {
+					kbase_gpu_metrics_ctx_end_activity(kctx, ts);
+					kbase_gpu_metrics_ctx_start_activity(kctx, ts);
+				}
+			} else {
+				/* Normal handling */
+				if (cur_act)
+					kbase_gpu_metrics_ctx_start_activity(kctx, ts);
+				else
+					kbase_gpu_metrics_ctx_end_activity(kctx, ts);
+			}
 		} else
 			break;
 	}
@@ -4343,6 +4370,7 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 				 * architecture team. See the comment in
 				 * GPUCORE-21394.
 				 */
+
 				/* Switch to protected mode */
 				scheduler->active_protm_grp = input_grp;
 				KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_PROTM_ENTER, input_grp,
@@ -6073,10 +6101,9 @@ static void scheduler_inner_reset(struct kbase_device *kbdev)
 
 	spin_lock_irqsave(&scheduler->interrupt_lock, flags);
 	bitmap_fill(scheduler->csgs_events_enable_mask, MAX_SUPPORTED_CSGS);
-	if (scheduler->active_protm_grp) {
+	if (scheduler->active_protm_grp)
 		KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_PROTM_EXIT, scheduler->active_protm_grp,
 					 0u);
-	}
 	scheduler->active_protm_grp = NULL;
 	memset(kbdev->csf.scheduler.csg_slots, 0,
 	       num_groups * sizeof(struct kbase_csf_csg_slot));
@@ -6890,6 +6917,7 @@ static int kbase_csf_scheduler_kthread(void *data)
 		} else if (atomic_read(&scheduler->pending_tock_work)) {
 			schedule_on_tock(kbdev);
 		}
+
 		dev_dbg(kbdev->dev, "Waking up for event after a scheduling iteration.");
 		wake_up_all(&kbdev->csf.event_wait);
 	}
@@ -7007,6 +7035,7 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 	scheduler->fast_gpu_idle_handling = false;
 	atomic_set(&scheduler->gpu_no_longer_idle, false);
 	atomic_set(&scheduler->non_idle_offslot_grps, 0);
+
 	hrtimer_init(&scheduler->tick_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	scheduler->tick_timer.function = tick_timer_callback;
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)

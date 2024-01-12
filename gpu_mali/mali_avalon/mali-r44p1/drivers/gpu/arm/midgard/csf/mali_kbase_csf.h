@@ -76,6 +76,18 @@ void kbase_csf_ctx_handle_fault(struct kbase_context *kctx,
 		struct kbase_fault *fault);
 
 /**
+ * kbase_csf_ctx_report_page_fault_for_active_groups - Notify Userspace about GPU page fault
+ *                                                   for active groups of the faulty context.
+ *
+ * @kctx:       Pointer to faulty kbase context.
+ * @fault:      Pointer to the fault.
+ *
+ * This function notifies the event notification thread of the GPU page fault.
+ */
+void kbase_csf_ctx_report_page_fault_for_active_groups(struct kbase_context *kctx,
+						       struct kbase_fault *fault);
+
+/**
  * kbase_csf_ctx_term - Terminate the CSF interface for a GPU address space.
  *
  * @kctx:	Pointer to the kbase context which is being terminated.
@@ -317,7 +329,7 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val);
  *
  * @kbdev: The kbase device to handle the SYNC_UPDATE interrupt.
  * @ginfo: Pointer to the CSG interface used by the @group
- * @group: Pointer to the GPU command stream queue group.
+ * @group: Pointer to the GPU command queue group.
  * @req:   CSG_REQ register value corresponding to @group.
  * @ack:   CSG_ACK register value corresponding to @group.
  */

@@ -1145,12 +1145,14 @@ int kbase_csf_firmware_early_init(struct kbase_device *kbdev)
 	INIT_WORK(&kbdev->csf.fw_error_work, firmware_error_worker);
 
 	mutex_init(&kbdev->csf.reg_lock);
+	kbase_csf_pending_gpuq_kicks_init(kbdev);
 
 	return 0;
 }
 
 void kbase_csf_firmware_early_term(struct kbase_device *kbdev)
 {
+	kbase_csf_pending_gpuq_kicks_term(kbdev);
 	mutex_destroy(&kbdev->csf.reg_lock);
 }
 
@@ -1219,8 +1221,6 @@ int kbase_csf_firmware_load_init(struct kbase_device *kbdev)
 	if (ret != 0)
 		goto error;
 
-	kbase_csf_pending_gpuq_kicks_init(kbdev);
-
 	ret = kbase_csf_scheduler_init(kbdev);
 	if (ret != 0)
 		goto error;
@@ -1251,8 +1251,6 @@ void kbase_csf_firmware_unload_term(struct kbase_device *kbdev)
 	kbase_csf_free_dummy_user_reg_page(kbdev);
 
 	kbase_csf_scheduler_term(kbdev);
-
-	kbase_csf_pending_gpuq_kicks_term(kbdev);
 
 	kbase_csf_doorbell_mapping_term(kbdev);
 

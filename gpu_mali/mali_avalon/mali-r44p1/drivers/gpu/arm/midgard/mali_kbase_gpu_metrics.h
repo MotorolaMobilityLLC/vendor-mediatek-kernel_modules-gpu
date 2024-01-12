@@ -30,6 +30,13 @@
 #include <mali_kbase.h>
 
 /**
+ * kbase_gpu_metrics_get_emit_interval() - Return the trace point emission interval.
+ *
+ * Return: The time interval in nanosecond for GPU metrics trace point emission.
+ */
+unsigned long kbase_gpu_metrics_get_emit_interval(void);
+
+/**
  * kbase_gpu_metrics_ctx_put() - Decrement the Kbase context count for the GPU metrics
  *                               context and free it if the count becomes 0.
  *
