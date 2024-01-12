@@ -842,6 +842,9 @@ void kbase_mem_evictable_mark_reclaim(struct kbase_mem_phy_alloc *alloc)
 
 	KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
 	kbase_trace_gpu_mem_usage_dec(kbdev, kctx, alloc->nents);
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kbase_trace_free_pages(kbdev->id, kctx, alloc->nents, (size_t)alloc->pages);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 }
 
 /**
@@ -864,6 +867,9 @@ static void kbase_mem_evictable_unmark_reclaim(struct kbase_mem_phy_alloc *alloc
 
 	KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
 	kbase_trace_gpu_mem_usage_inc(kbdev, kctx, alloc->nents);
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kbase_trace_alloc_pages(kbdev->id, kctx, alloc->nents, (size_t)alloc->pages);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 }
 
 void kbase_mem_evictable_make(struct kbase_mem_phy_alloc *gpu_alloc)
