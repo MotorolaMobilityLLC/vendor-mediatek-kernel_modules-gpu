@@ -2965,6 +2965,13 @@ static void process_csg_interrupts(struct kbase_device *const kbdev, int const c
 			group->handle, group->kctx->tgid,
 			group->kctx->id, csg_nr);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
+		/* set fw timeout to 0.5s after PROGRESS_TIMER timeout */
+		kbdev->csf.fw_timeout_ms =
+			kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT_AFTER_ABNORMAL_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
+
 		handle_progress_timer_event(group);
 	}
 
