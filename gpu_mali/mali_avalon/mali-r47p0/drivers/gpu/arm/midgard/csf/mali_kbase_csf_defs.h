@@ -1731,6 +1731,7 @@ struct kbase_csf_device {
 	u32 gpu_idle_dur_count;
 	u32 gpu_idle_dur_count_no_modifier;
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
+	unsigned int csg_term_timeout_ms;
 	unsigned int csg_suspend_timeout_ms;
 #endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
 	struct kbase_csf_hwcnt hwcnt;
