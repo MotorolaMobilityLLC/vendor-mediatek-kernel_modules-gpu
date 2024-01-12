@@ -84,6 +84,12 @@ int kbase_backend_gpuprops_get(struct kbase_device *kbdev,
 	registers.shader_present_hi = kbase_reg_read(kbdev,
 				GPU_CONTROL_REG(SHADER_PRESENT_HI));
 
+#if IS_ENABLED(CONFIG_MALI_MTK_NO_THERMAL)
+	/* mt6985: T0C0 | T0C1 | T1C0 | T1C1 */
+	registers.shader_present_lo &= 0x33;
+	registers.shader_present_hi &= 0x0;
+#endif
+
 	registers.tiler_present_lo = kbase_reg_read(kbdev,
 				GPU_CONTROL_REG(TILER_PRESENT_LO));
 	registers.tiler_present_hi = kbase_reg_read(kbdev,
@@ -129,6 +135,12 @@ int kbase_backend_gpuprops_get_curr_config(struct kbase_device *kbdev,
 					GPU_CONTROL_REG(SHADER_PRESENT_LO));
 	curr_config_regdump->shader_present_hi = kbase_reg_read(kbdev,
 					GPU_CONTROL_REG(SHADER_PRESENT_HI));
+
+#if IS_ENABLED(CONFIG_MALI_MTK_NO_THERMAL)
+	/* mt6985: T0C0 | T0C1 | T1C0 | T1C1 */
+	curr_config_regdump->shader_present_lo &= 0x33;
+	curr_config_regdump->shader_present_hi &= 0x0;
+#endif
 
 	curr_config_regdump->l2_present_lo = kbase_reg_read(kbdev,
 					GPU_CONTROL_REG(L2_PRESENT_LO));
