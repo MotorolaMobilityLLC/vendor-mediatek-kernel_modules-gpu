@@ -197,7 +197,17 @@ enum {
  * More cycles (1s @ 100Mhz = 100000000) are added up to ensure that
  * host timeout is always bigger than FW timeout.
  */
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+/* Because of the MTK freqency information won't be input mali driver for
+ * timeout value calculation so the mali driver will use default 100Mhz
+ * to have the calculation.
+ * Then, it will end up with the original CSG suspend timeout to be 31s.
+ * So, adjust the value to align with r38p1 1.5s.
+ */
+#define CSF_CSG_SUSPEND_TIMEOUT_CYCLES (150000000ull)
+#else
 #define CSF_CSG_SUSPEND_TIMEOUT_CYCLES (3100000000ull)
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 /* Waiting timeout in clock cycles for GPU reset to complete. */
 #define CSF_GPU_RESET_TIMEOUT_CYCLES (CSF_CSG_SUSPEND_TIMEOUT_CYCLES * 2)
