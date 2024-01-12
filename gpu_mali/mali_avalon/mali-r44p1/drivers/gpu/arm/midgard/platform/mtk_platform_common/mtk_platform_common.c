@@ -563,6 +563,22 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	mutex_init(&kbdev->register_check_lock);
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)
+	{
+		u32 tmp = 0;
+		kbdev->bit_stuck = true;
+		kbdev->trans_timeout = false;
+		if (!of_property_read_u32(kbdev->dev->of_node, "exception-mask", &tmp)) {
+			kbdev->bit_stuck = (tmp & 0x1);
+			kbdev->trans_timeout = (tmp & 0x2) >> 1;
+			dev_info(kbdev->dev, "@%s: bit_stuck=%u trans_timeout=%u",
+					__func__, kbdev->bit_stuck, kbdev->trans_timeout);
+		} else
+			dev_info(kbdev->dev, "@%s: no dts property setting, default bit_stuck=%u trans_timeout=%u",
+					__func__, kbdev->bit_stuck, kbdev->trans_timeout);
+	}
+#endif /* CONFIG_MALI_MTK_TRIGGER_KE */
+
 	return 0;
 }
 
