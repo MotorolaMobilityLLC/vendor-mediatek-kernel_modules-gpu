@@ -53,6 +53,7 @@ struct kbase_kcpu_command_import_info {
  * @fence_cb:      Fence callback
  * @fence:         Fence
  * @kcpu_queue:    kcpu command queue
+ * @fence_has_force_signaled:	fence has forced signaled after fence timeouted
  */
 struct kbase_kcpu_command_fence_info {
 #if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
@@ -63,6 +64,7 @@ struct kbase_kcpu_command_fence_info {
 	struct dma_fence *fence;
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) */
 	struct kbase_kcpu_command_queue *kcpu_queue;
+	bool fence_has_force_signaled;
 };
 
 /**
@@ -252,8 +254,8 @@ struct kbase_kcpu_command {
  *				the function which handles processing of kcpu
  *				commands enqueued into a kcpu command queue;
  *				part of kernel API for processing workqueues
- * @dump_work:			struct work_struct which contains a pointer to the
- *				function which handles dumping the state of a kcpu
+ * @timeout_work:		struct work_struct which contains a pointer to the
+ *				function which handles post-timeout actions
  *				queue when a fence signal timeout occurs.
  * @start_offset:		Index of the command to be executed next
  * @id:				KCPU command queue ID.
@@ -296,7 +298,7 @@ struct kbase_kcpu_command_queue {
 	struct kbase_kcpu_command commands[KBASEP_KCPU_QUEUE_SIZE];
 	struct workqueue_struct *wq;
 	struct work_struct work;
-	struct work_struct dump_work;
+	struct work_struct timeout_work;
 	u8 start_offset;
 	u8 id;
 	u16 num_pending_cmds;
@@ -431,4 +433,5 @@ int kbase_csf_kcpu_queue_halt_timers(struct kbase_device *kbdev);
  */
 void kbase_csf_kcpu_queue_resume_timers(struct kbase_device *kbdev);
 
+bool kbase_kcpu_command_fence_has_force_signaled(struct kbase_kcpu_command_fence_info *fence_info);
 #endif /* _KBASE_CSF_KCPU_H_ */
