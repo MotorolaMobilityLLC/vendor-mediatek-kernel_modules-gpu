@@ -405,6 +405,22 @@ static void delete_all_chunks(struct kbase_csf_tiler_heap *heap)
 	}
 }
 
+static void print_all_chunks(struct kbase_csf_tiler_heap *heap)
+{
+	struct list_head *entry = NULL, *tmp = NULL;
+	struct kbase_context *const kctx = heap->kctx;
+
+	dev_warn(kctx->kbdev->dev, "heap va 0x%llx, heap buffer descr va 0x%llx",
+		heap->gpu_va, heap->buf_desc_va);
+
+	list_for_each_safe(entry, tmp, &heap->chunks_list) {
+		struct kbase_csf_tiler_heap_chunk *chunk = list_entry(
+			entry, struct kbase_csf_tiler_heap_chunk, link);
+
+		dev_warn(kctx->kbdev->dev, "chunk 0x%llx", chunk->gpu_va);
+	}
+}
+
 /**
  * create_initial_chunks - Create the initial list of chunks for a tiler heap
  *
@@ -1352,4 +1368,16 @@ void kbase_csf_tiler_heap_register_shrinker(struct kbase_device *kbdev)
 void kbase_csf_tiler_heap_unregister_shrinker(struct kbase_device *kbdev)
 {
 	unregister_shrinker(&kbdev->csf.tiler_heap_reclaim);
+}
+
+void kbase_csf_tiler_heap_print_kctx_chunks(struct kbase_context *kctx)
+{
+	struct kbase_csf_tiler_heap *heap;
+
+	mutex_lock(&kctx->csf.tiler_heaps.lock);
+
+	list_for_each_entry(heap, &kctx->csf.tiler_heaps.list, link)
+		print_all_chunks(heap);
+
+	mutex_unlock(&kctx->csf.tiler_heaps.lock);
 }
