@@ -41,6 +41,10 @@
 #include <platform/mtk_platform_common/mtk_platform_pending_submission.h>
 #endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 #define CS_REQ_EXCEPTION_MASK (CS_REQ_FAULT_MASK | CS_REQ_FATAL_MASK)
 #define CS_ACK_EXCEPTION_MASK (CS_ACK_FAULT_MASK | CS_ACK_FATAL_MASK)
 
@@ -647,12 +651,15 @@ void kbase_csf_queue_terminate(struct kbase_context *kctx,
 	bool reset_prevented = false;
 
 	err = kbase_reset_gpu_prevent_and_wait(kbdev);
-	if (err)
+	if (err) {
 		dev_warn(
 			kbdev->dev,
 			"Unsuccessful GPU reset detected when terminating queue (buffer_addr=0x%.16llx), attempting to terminate regardless",
 			term->buffer_gpu_addr);
-	else
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_RESET_FAIL);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+	} else
 		reset_prevented = true;
 
 	mutex_lock(&kctx->csf.lock);
@@ -1550,12 +1557,16 @@ void kbase_csf_queue_group_terminate(struct kbase_context *kctx,
 	struct kbase_device *const kbdev = kctx->kbdev;
 
 	err = kbase_reset_gpu_prevent_and_wait(kbdev);
-	if (err)
+	if (err) {
 		dev_warn(
 			kbdev->dev,
 			"Unsuccessful GPU reset detected when terminating group %d, attempting to terminate regardless",
 			group_handle);
-	else
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_RESET_FAIL);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+	} else
 		reset_prevented = true;
 
 	mutex_lock(&kctx->csf.lock);
@@ -2393,16 +2404,23 @@ handle_fault_event(struct kbase_queue *const queue, const u32 cs_ack)
 
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	if (cs_fault_exception_type != CS_FAULT_EXCEPTION_TYPE_CS_INHERIT_FAULT) {
+#endif /* CONFIG_MALI_MTK_DEBUG */
 	dev_warn(kbdev->dev,
-		 "Ctx %d_%d Group %d CSG %d CSI: %d\n"
-		 "CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
-		 "CS_FAULT.EXCEPTION_DATA: 0x%x\n"
-		 "CS_FAULT_INFO.EXCEPTION_DATA: 0x%llx\n",
-		 queue->kctx->tgid, queue->kctx->id, queue->group->handle,
-		 queue->group->csg_nr, queue->csi_index,
-		 cs_fault_exception_type,
-		 kbase_gpu_exception_name(cs_fault_exception_type),
-		 cs_fault_exception_data, cs_fault_info_exception_data);
+		"Ctx %d_%d Group %d CSG %d CSI: %d\n"
+		"CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
+		"CS_FAULT.EXCEPTION_DATA: 0x%x\n"
+		"CS_FAULT_INFO.EXCEPTION_DATA: 0x%llx\n",
+		queue->kctx->tgid, queue->kctx->id, queue->group->handle,
+		queue->group->csg_nr, queue->csi_index,
+		cs_fault_exception_type,
+		kbase_gpu_exception_name(cs_fault_exception_type),
+		cs_fault_exception_data, cs_fault_info_exception_data);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_CSFAULT);
+	}
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
@@ -2485,11 +2503,15 @@ static void cs_error_worker(struct work_struct *const data)
 	kbase_debug_csf_fault_wait_completion(kbdev);
 	err = kbase_reset_gpu_prevent_and_wait(kbdev);
 
-	if (err)
+	if (err) {
 		dev_warn(
 			kbdev->dev,
 			"Unsuccessful GPU reset detected when terminating group to handle fatal event, attempting to terminate regardless");
-	else
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_RESET_FAIL);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+	} else
 		reset_prevented = true;
 
 	mutex_lock(&kctx->csf.lock);
@@ -2497,6 +2519,10 @@ static void cs_error_worker(struct work_struct *const data)
 	group = get_bound_queue_group(queue);
 	if (!group) {
 		dev_warn(kbdev->dev, "queue not bound when handling fatal event");
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_CSFATAL_QUEUENOTBOUND);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 		goto unlock;
 	}
 
@@ -2586,9 +2612,15 @@ handle_fatal_event(struct kbase_queue *const queue,
 	if (cs_fatal_exception_type ==
 			CS_FATAL_EXCEPTION_TYPE_FIRMWARE_INTERNAL_ERROR) {
 		kbase_debug_csf_fault_notify(kbdev, queue->kctx, DF_FW_INTERNAL_ERROR);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_CSFATAL_FWINTERNAL);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 		queue_work(system_wq, &kbdev->csf.fw_error_work);
 	} else {
 		kbase_debug_csf_fault_notify(kbdev, queue->kctx, DF_CS_FATAL);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_CSFATAL);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 		if (cs_fatal_exception_type == CS_FATAL_EXCEPTION_TYPE_CS_UNRECOVERABLE) {
 			queue->group->cs_unrecoverable = true;
 			if (kbase_prepare_to_reset_gpu(queue->kctx->kbdev, RESET_FLAGS_NONE))
@@ -2695,7 +2727,11 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 					 * one pending OoM event for a
 					 * queue.
 					 */
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+					dev_info(
+#else
 					dev_warn(
+#endif /* CONFIG_MALI_MTK_DEBUG */
 						kbdev->dev,
 						"Tiler OOM work pending: queue %d group %d (ctx %d_%d)",
 						queue->csi_index, group->handle, queue->kctx->tgid,

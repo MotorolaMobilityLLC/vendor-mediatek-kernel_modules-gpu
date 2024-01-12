@@ -28,6 +28,9 @@
 #include <mali_kbase_reset_gpu.h>
 #include <backend/gpu/mali_kbase_jm_internal.h>
 #include <backend/gpu/mali_kbase_js_internal.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <platform/mtk_platform_common.h>
+#endif
 
 #if !MALI_USE_CSF
 /*
@@ -196,6 +199,10 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 					int ms =
 						js_devdata->scheduling_period_ns
 								/ 1000000u;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_NA);
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 					dev_warn(kbdev->dev, "JS: Job Hard-Stopped (took more than %lu ticks at %lu ms/tick)",
 							(unsigned long)ticks,
 							(unsigned long)ms);
@@ -234,6 +241,10 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 					int ms =
 						js_devdata->scheduling_period_ns
 								/ 1000000u;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_NA);
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 					dev_warn(kbdev->dev, "JS: Job Hard-Stopped (took more than %lu ticks at %lu ms/tick)",
 							(unsigned long)ticks,
 							(unsigned long)ms);

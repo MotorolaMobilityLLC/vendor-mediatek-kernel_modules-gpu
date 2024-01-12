@@ -120,7 +120,7 @@
 
 #include <mali_kbase_caps.h>
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS) || IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG) || IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS) || IS_ENABLED(CONFIG_MALI_MTK_DEBUG) || IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
@@ -1688,6 +1688,28 @@ static int kbasep_ioctl_set_limited_core_count(struct kbase_context *kctx,
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
+			struct kbase_ioctl_internal_fence_wait *fence_wait)
+{
+	dev_info(kctx->kbdev->dev, "Internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u",
+	         fence_wait->time_in_microseconds,
+	         fence_wait->flags,
+	         fence_wait->pid);
+
+	if (fence_wait->flags & BASE_INTERNAL_FENCE_WAIT_DUMP_FLAG) {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, (int)fence_wait->pid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, (int)fence_wait->pid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, (int)fence_wait->pid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, (int)fence_wait->pid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+	}
+
+	return 0;
+}
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+
 static long kbase_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	struct kbase_file *const kfile = filp->private_data;
@@ -2080,6 +2102,14 @@ static long kbase_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				struct kbase_ioctl_set_limited_core_count,
 				kctx);
 		break;
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	case KBASE_IOCTL_INTERNAL_FENCE_WAIT:
+		KBASE_HANDLE_IOCTL_IN(KBASE_IOCTL_INTERNAL_FENCE_WAIT ,
+				kbasep_ioctl_internal_fence_wait,
+				struct kbase_ioctl_internal_fence_wait,
+				kctx);
+		break;
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 	}
 
 	dev_warn(kbdev->dev, "Unknown ioctl 0x%x nr:%d", cmd, _IOC_NR(cmd));
@@ -2516,7 +2546,11 @@ static ssize_t core_mask_store(struct device *dev, struct device_attribute *attr
 
 #if MALI_USE_CSF
 	if ((new_core_mask & shader_present) != new_core_mask) {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		dev_vdbg(dev,
+#else
 		dev_err(dev,
+#endif /* CONFIG_MALI_MTK_DEBUG */
 			"Invalid core mask 0x%llX: Includes non-existent cores (present = 0x%llX)",
 			new_core_mask, shader_present);
 		err = -EINVAL;
@@ -2524,7 +2558,11 @@ static ssize_t core_mask_store(struct device *dev, struct device_attribute *attr
 
 	} else if (!(new_core_mask & shader_present &
 		     kbdev->pm.backend.ca_cores_enabled)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		dev_vdbg(dev,
+#else
 		dev_err(dev,
+#endif /* CONFIG_MALI_MTK_DEBUG */
 			"Invalid core mask 0x%llX: No intersection with currently available cores (present = 0x%llX, CA enabled = 0x%llX\n",
 			new_core_mask,
 			kbdev->gpu_props.props.raw_props.shader_present,
@@ -5007,6 +5045,12 @@ void kbase_device_debugfs_term(struct kbase_device *kbdev)
 }
 #endif /* CONFIG_DEBUG_FS */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+static u32 config_system_coherency = 0;
+module_param(config_system_coherency, uint, 0444);
+MODULE_PARM_DESC(config_system_coherency, "System Coherency");
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 int kbase_device_coherency_init(struct kbase_device *kbdev)
 {
 #if IS_ENABLED(CONFIG_OF)
@@ -5056,6 +5100,12 @@ int kbase_device_coherency_init(struct kbase_device *kbdev)
 			override_coherency = COHERENCY_ACE_LITE;
 		}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		if (override_coherency == COHERENCY_ACE_LITE &&
+			config_system_coherency != COHERENCY_ACE_LITE)
+			override_coherency = COHERENCY_NONE;
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 #if MALI_USE_CSF && !IS_ENABLED(CONFIG_MALI_NO_MALI)
 		/* ACE coherency mode is not supported by Driver on CSF GPUs.
 		 * Return an error to signal the invalid device tree configuration.
@@ -5086,6 +5136,10 @@ int kbase_device_coherency_init(struct kbase_device *kbdev)
 
 	kbdev->gpu_props.props.raw_props.coherency_mode =
 		kbdev->system_coherency;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	config_system_coherency = kbdev->system_coherency;
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	return 0;
 }

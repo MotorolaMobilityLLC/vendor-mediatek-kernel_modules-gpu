@@ -3,6 +3,7 @@ include $(src)/Kbuild-mtk-custom-env
 curr := platform/mtk_platform_common
 
 mali_kbase-y += $(curr)/mtk_platform_common.o
+
 ifeq ($(CONFIG_MALI_MTK_DEVFREQ_GOVERNOR),y)
     mali_kbase-y += $(curr)/mtk_platform_dvfs.o
 endif ## CONFIG_MALI_MTK_DEVFREQ_GOVERNOR ##
@@ -14,6 +15,10 @@ endif ## CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE ##
 ifeq ($(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY),y)
     mali_kbase-y += $(curr)/mtk_platform_adaptive_power_policy.o
 endif ## CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY ##
+
+ifeq ($(CONFIG_MALI_MTK_DEBUG),y)
+    mali_kbase-y += $(curr)/mtk_platform_debug.o
+endif ## CONFIG_MALI_MTK_DEBUG ##
 
 ccflags-y += -I$(srctree)/drivers/devfreq/
 ccflags-y += -Wno-unused-variable

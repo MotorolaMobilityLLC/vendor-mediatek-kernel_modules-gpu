@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2021 MediaTek Inc.
+ * Copyright (c) 2022 MediaTek Inc.
  */
 
 #ifndef __MTK_PLATFORM_DEBUG_H__
@@ -142,5 +142,12 @@ union mtk_debug_csf_instruction {
 		u64 opcode: 8;
 	} call;
 };
+
+int mtk_debug_init(struct kbase_device *kbdev);
+int mtk_debug_term(struct kbase_device *kbdev);
+int mtk_debug_csf_debugfs_init(struct kbase_device *kbdev);
+
+void mtk_debug_dump_pm_status(struct kbase_device *kbdev);
+void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid);
 
 #endif /* __MTK_PLATFORM_DEBUG_H__ */

@@ -519,7 +519,7 @@ int kbase_device_firmware_init_once(struct kbase_device *kbdev)
 
 		kbase_csf_debugfs_init(kbdev);
 		kbase_timeline_io_debugfs_init(kbdev);
-#ifdef CONFIG_MALI_MTK_DEBUG
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 		dev_info(kbdev->dev, "CSF firmware was successfully initialized by process '%s'", current->comm);
 #endif /* CONFIG_MALI_MTK_DEBUG */
 out:

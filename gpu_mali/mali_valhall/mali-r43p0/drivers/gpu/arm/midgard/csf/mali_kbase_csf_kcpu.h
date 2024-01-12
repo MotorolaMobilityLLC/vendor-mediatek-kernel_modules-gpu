@@ -307,6 +307,13 @@ struct kbase_kcpu_command_queue {
 #if IS_ENABLED(CONFIG_SYNC_FILE)
 	struct kbase_kcpu_dma_fence_meta *metadata;
 #endif /* CONFIG_SYNC_FILE */
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	bool pending_cmds_timer_active;
+	u64 pending_cmd_prev_offset;
+	struct workqueue_struct *cmds_timeout_wq;
+	struct work_struct cmds_timeout_work;
+	struct timer_list pending_cmds_timer;
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 };
 
 /**

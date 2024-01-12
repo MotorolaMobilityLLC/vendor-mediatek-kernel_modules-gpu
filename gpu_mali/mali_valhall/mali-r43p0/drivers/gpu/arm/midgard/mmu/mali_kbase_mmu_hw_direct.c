@@ -29,6 +29,21 @@
 #include <tl/mali_kbase_tracepoints.h>
 #include <linux/delay.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+
+/* Max loop is 100000000 which roughly equals to 50s.
+ * 1s roughly equals to 2000000 loops.
+ */
+#define KBASE_AS_INACTIVE_DUMP_POINT_1S     (KBASE_AS_INACTIVE_MAX_LOOPS - (2000000 * 1))
+#define KBASE_AS_INACTIVE_DUMP_POINT_3S     (KBASE_AS_INACTIVE_MAX_LOOPS - (2000000 * 3))
+#define KBASE_AS_INACTIVE_DUMP_POINT_5S     (KBASE_AS_INACTIVE_MAX_LOOPS - (2000000 * 5))
+#define KBASE_AS_INACTIVE_DUMP_POINT_8S     (KBASE_AS_INACTIVE_MAX_LOOPS - (2000000 * 8))
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 #if MALI_USE_CSF
 /**
  * mmu_has_flush_skip_pgd_levels() - Check if the GPU has the feature
@@ -193,6 +208,10 @@ static int wait_ready(struct kbase_device *kbdev, unsigned int as_nr)
 		"AS_ACTIVE bit stuck for as %u. Might be caused by unstable GPU clk/pwr or faulty system",
 		as_nr);
 	kbdev->as[as_nr].is_unresponsive = true;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_NA);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 	if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
 		kbase_reset_gpu_locked(kbdev);
 

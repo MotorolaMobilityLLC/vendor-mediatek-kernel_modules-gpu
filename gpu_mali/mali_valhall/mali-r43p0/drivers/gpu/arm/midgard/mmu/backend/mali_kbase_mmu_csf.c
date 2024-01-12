@@ -30,6 +30,10 @@
 #include <mali_kbase_as_fault_debugfs.h>
 #include <mmu/mali_kbase_mmu_internal.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 void kbase_mmu_get_as_setup(struct kbase_mmu_table *mmut,
 		struct kbase_mmu_setup * const setup)
 {
@@ -121,6 +125,10 @@ void kbase_mmu_report_mcu_as_fault_and_reset(struct kbase_device *kbdev,
 		access_type, kbase_gpu_access_type_name(fault->status),
 		source_id);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_MMU_UNEXPECTEDPAGEFAULT);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 	kbase_debug_csf_fault_notify(kbdev, NULL, DF_GPU_PAGE_FAULT);
 
 	/* Report MMU fault for all address spaces (except MCU_AS_NR) */
@@ -168,6 +176,10 @@ void kbase_gpu_report_bus_fault_and_kill(struct kbase_context *kctx,
 		access_type, kbase_gpu_access_type_name(access_type),
 		source_id,
 		kctx->pid);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, kctx->pid, MTK_DBG_HOOK_MMU_BUSFAULT);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	/* AS transaction begin */
 	mutex_lock(&kbdev->mmu_hw_mutex);
@@ -237,6 +249,12 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 		access_type, kbase_gpu_access_type_name(status),
 		source_id,
 		kctx->pid);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, kctx->pid, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	/* AS transaction begin */
 	mutex_lock(&kbdev->mmu_hw_mutex);
