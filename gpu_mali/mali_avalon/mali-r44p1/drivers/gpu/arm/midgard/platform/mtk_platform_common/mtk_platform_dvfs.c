@@ -30,7 +30,8 @@ static unsigned int current_util_iter;
 static unsigned int current_util_mcu;
 #endif
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE)
+#if IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE) && \
+    IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)
 #define UTIL_ACTIVE_ID   0
 #define UTIL_TA_ID       1
 #define UTIL_COMPUTE_ID  2
@@ -40,6 +41,13 @@ static unsigned int current_util_mcu;
 #define UTIL_IRQ_ID      6
 #define UTIL_SC_COMP_ID  7
 #define UTIL_l2ext_ID    8
+#elif IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE)
+#define UTIL_ACTIVE_ID   0
+#define UTIL_TA_ID       1
+#define UTIL_COMPUTE_ID  2
+#define UTIL_3D_ID       3
+#define UTIL_ITER_ID     4
+#define UTIL_MCU_ID      5
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
@@ -129,7 +137,12 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 #endif
 	unsigned long long delta_time;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE)
 	int utilisation[NUM_PERF_COUNTERS*2];
+#else
+	int utilisation[NUM_PERF_COUNTERS];
+#endif /* CONFIG_MALI_MTK_DVFS_LOADING_MODE */
+
 	struct kbasep_pm_metrics *diff;
 	int index = 0;
 
@@ -144,7 +157,9 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 	for (index = 0; index < NUM_PERF_COUNTERS; index++) {
 		// delta time should be the same for all PMU, so simply reuse it
 		utilisation[index] = (100 * diff->time_busy[index]) / delta_time;
+#if IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE)
 		utilisation[index + NUM_PERF_COUNTERS] = diff->counterRaw[index];
+#endif /* CONFIG_MALI_MTK_DVFS_LOADING_MODE */
 	}
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE)
@@ -157,9 +172,11 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 
 	util_ex->util_iter_raw      = utilisation[UTIL_ITER_ID + NUM_PERF_COUNTERS];
 	util_ex->util_mcu_raw       = utilisation[UTIL_MCU_ID + NUM_PERF_COUNTERS];
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)
 	util_ex->util_irq_raw       = utilisation[UTIL_IRQ_ID + NUM_PERF_COUNTERS];
 	util_ex->util_sc_comp_raw   = utilisation[UTIL_SC_COMP_ID + NUM_PERF_COUNTERS];
 	util_ex->util_l2ext_raw     = utilisation[UTIL_l2ext_ID + NUM_PERF_COUNTERS];
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_ASYNC */
 
 	util_ex->delta_time     = delta_time << 8;   // 8 = KBASE_PM_TIME_SHIFT
 #endif
