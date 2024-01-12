@@ -172,7 +172,7 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 #if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
 		dev_info(kbdev->dev, "trigger gpu full DB dump");
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
-		if (!(diagnosis_dump_mask & MTK_DBG_COMMON_DUMP_SKIP_GROUPS_QUEUES)) {
+		if (diagnosis_dump_mask & MTK_DBG_COMMON_DUMP_ENABLE_GROUPS_QUEUES) {
 			mtk_debug_csf_dump_groups_and_queues(kbdev, pid);
 		}
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
