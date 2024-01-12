@@ -387,10 +387,9 @@ struct mtk_qinspect_shared_sb_wait_it {
 	struct kbase_context *kctx;
 	struct kbase_queue_group *queue_group;
 	struct kbase_queue *gpu_queue;
-	struct mtk_qinspect_gpu_shared_sb_info *gpu_shared_sb_wait;
 
 	/* current wait info */
-	u8 shared_entry;
+	struct mtk_qinspect_gpu_shared_sb_info *gpu_shared_sb_wait;
 
 	/* gpu_queue search record */
 	unsigned int gpu_queue_idx;

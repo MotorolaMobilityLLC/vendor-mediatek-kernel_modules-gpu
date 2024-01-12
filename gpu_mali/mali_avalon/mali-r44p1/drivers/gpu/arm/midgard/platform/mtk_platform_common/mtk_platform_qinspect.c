@@ -389,8 +389,8 @@ static union mtk_qinspect_csf_instruction mtk_qinspect_gpuq_internal_decode_inst
 	union mtk_qinspect_csf_instruction *inst = (union mtk_qinspect_csf_instruction *)start;
 	union mtk_qinspect_csf_instruction *target, ret;
 	u64 reg;
-	u32 size = 0, val;
-	u64 buffer = 0, val64;
+	u32 size, val;
+	u64 buffer, val64;
 
 	for (; (u64)inst < end; inst++) {
 		switch (inst->inst.opcode) {
@@ -401,9 +401,9 @@ static union mtk_qinspect_csf_instruction mtk_qinspect_gpuq_internal_decode_inst
 			rf_reg_store(rf, inst->move32.dest, (u32)inst->move32.imm);
 			break;
 		case 0b00100000:			/* CALL */
-			if (!rf_reg_load(rf, inst->call.src1, &size) || !size)
+			if (rf_reg_load(rf, inst->call.src1, &size) || !size)
 				break;
-			if (!rf_reg_load64(rf, inst->call.src0, &buffer) || !buffer || (buffer & 0x07))
+			if (rf_reg_load64(rf, inst->call.src0, &buffer) || !buffer || (buffer & 0x07))
 				break;
 			ret = mtk_qinspect_gpuq_internal_search_inst(queue, gpuq_it, rf, depth + 1,
 				buffer, buffer + size, inst_list);
@@ -811,7 +811,7 @@ static struct mtk_qinspect_shared_sb_wait_on *mtk_qinspect_query_internal_shared
 								 {{0, 0}}};
 	struct mtk_qinspect_gpuq_it gpuq_it;
 
-	gpuq_it.shared_entry = wait_it->shared_entry;
+	gpuq_it.shared_entry = wait_it->gpu_shared_sb_wait->shared_entry;
 	if (mtk_qinspect_gpuq_internal_search(queue, &gpuq_it, inst_search_list)) {
 		qinspect_dbg(wait_it->kctx->kbdev,
 			"[qinspect] shared entry matched!");
@@ -835,7 +835,6 @@ struct mtk_qinspect_cpu_command *mtk_qinspect_query_cpuq_internal_top_wait_cmd(
 	struct mtk_qinspect_cpu_command_queue *queue = &(queue_buf->queue);
 	struct mtk_qinspect_cpu_command *command;
 	struct mtk_qinspect_cpu_object *object;
-	int cmd_idx;
 	u32 obj_no;
 
 	*completed = (int)queue->completed;
@@ -1225,6 +1224,7 @@ void mtk_qinspect_query_internal_cqs_wait_it_init(enum mtk_qinspect_queue_type q
 	wait_it->objs_signaled_map = 0;
 	wait_it->objs_failure_map = 0;
 	wait_it->objs_match_map = 0;
+	wait_it->objs_deadlock_map = 0;
 	wait_it->objs_map_mask = (1 << (objs_nr)) - 1;
 	if (objs_nr > sizeof(wait_it->objs_signaled_map) * 8)
 		qinspect_err(wait_it->kctx->kbdev,
