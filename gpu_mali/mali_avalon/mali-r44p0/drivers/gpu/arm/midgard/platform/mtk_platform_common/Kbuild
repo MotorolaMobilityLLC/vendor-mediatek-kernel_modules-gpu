@@ -24,6 +24,12 @@ ifeq ($(CONFIG_MALI_MTK_DEBUG),y)
     mali_kbase-y += $(curr)/mtk_platform_debug.o
 endif ## CONFIG_MALI_MTK_DEBUG ##
 
+ifeq ($(CONFIG_MTK_GPU_SWPM_SUPPORT),y)
+    mali_kbase-y += $(curr)/mtk_mfg_counter.o
+    mali_kbase-y += $(curr)/mtk_ltr_pmu.o
+    mali_kbase-y += $(curr)/mtk_gpu_power_model_sspm_ipi.o
+endif ## CONFIG_MTK_GPU_SWPM_SUPPORT ##
+
 ifeq ($(CONFIG_MALI_MTK_IRQ_TRACE),y)
     mali_kbase-y += $(curr)/mtk_platform_irq_trace.o
 endif ## CONFIG_MALI_MTK_IRQ_TRACE ##
@@ -41,4 +47,6 @@ ifeq ($(CONFIG_MALI_MTK_DIAGNOSIS_MODE),y)
 endif ## CONFIG_MALI_MTK_DIAGNOSIS_MODE ##
 
 ccflags-y += -I$(srctree)/drivers/devfreq/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/perf_common/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/tinysys_scmi/
 ccflags-y += -Wno-unused-variable
