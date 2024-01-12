@@ -226,6 +226,7 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	ged_dvfs_cal_gpu_utilization_fp = mtk_common_cal_gpu_utilization;
 #endif
 	ged_dvfs_gpu_freq_commit_fp = mtk_common_ged_dvfs_commit;
+	ged_dvfs_set_gpu_core_mask_fp = mtk_set_core_mask;
 #endif
 #if IS_ENABLED(CONFIG_MALI_MTK_MEM_TRACK)
 	mtk_get_gpu_memory_usage_fp = mtk_common_gpu_memory_usage;

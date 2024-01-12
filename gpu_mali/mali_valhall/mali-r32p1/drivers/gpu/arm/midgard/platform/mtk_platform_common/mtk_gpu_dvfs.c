@@ -76,7 +76,6 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 #endif
 {
 #if MALI_USE_CSF
-	/* TODO: GPU DVFS */
 	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
 #if IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE)
 	struct GpuUtilization_Ex *util_ex =
@@ -199,4 +198,19 @@ void MTKGPUFreq_change_notify(u32 clk_idx, u32 gpufreq)
 		mtk_common_rate_change_notify_fp(kbdev, clk_idx, gpufreq);
 }
 #endif
+#endif
+
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+int mtk_set_core_mask(u64 core_mask)
+{
+	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+	int ret = 0;
+
+	kbase_devfreq_set_core_mask(kbdev, core_mask);
+
+	/* TODO: need to check get_core_mask hang issue, to verity the scaling result */
+	// current_mask = kbdev->pm.backend.ca_cores_enabled;
+
+	return ret;
+}
 #endif
