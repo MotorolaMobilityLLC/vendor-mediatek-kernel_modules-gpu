@@ -56,14 +56,11 @@
 
 #include <linux/of.h>
 
-#if IS_ENABLED(CONFIG_MTK_GPU_DEBUG)
-#include <ged_log.h>
-#endif
-
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <mtk_gpufreq.h>
 #include "platform/mtk_platform_common.h"
 #include <ged_dcs.h>
+#include <ged_log.h>
 #if IS_ENABLED(CONFIG_MTK_IRQ_DBG)
 #include <linux/of_irq.h>
 extern void mt_irq_dump_status(int irq);
@@ -2693,7 +2690,7 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 
 int kbase_pm_protected_mode_enable(struct kbase_device *const kbdev)
 {
-#if IS_ENABLED(CONFIG_MTK_GPU_DEBUG)
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	if (is_gpu_ged_log_enable())
 		pr_info("[gpu_debug]%s", __func__);
 #endif
@@ -2706,7 +2703,7 @@ int kbase_pm_protected_mode_disable(struct kbase_device *const kbdev)
 {
 	lockdep_assert_held(&kbdev->pm.lock);
 
-#if IS_ENABLED(CONFIG_MTK_GPU_DEBUG)
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	if (is_gpu_ged_log_enable())
 		pr_info("[gpu_debug]%s", __func__);
 #endif
