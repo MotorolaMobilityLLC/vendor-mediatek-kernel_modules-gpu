@@ -584,6 +584,50 @@ TRACE_EVENT(mali_jit_trim,
 	TP_printk("freed_pages=%zu", __entry->freed_pages)
 );
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+TRACE_EVENT(mali_alloc_req_size,
+	    TP_PROTO(size_t req_size),
+	    TP_ARGS(req_size),
+	    TP_STRUCT__entry(
+		    __field(size_t, req_size)
+		    ),
+	    TP_fast_assign(
+		    __entry->req_size = req_size;
+		    ),
+	    TP_printk("req_size=%zu",
+		      __entry->req_size
+		    )
+);
+
+TRACE_EVENT(mali_alloc_req_stats,
+	    TP_PROTO(size_t req_size, size_t flip_cnt,
+		     size_t rank_0_cnt, size_t rank_1_cnt,
+		     size_t hpos, size_t rpos),
+	    TP_ARGS(req_size, flip_cnt, rank_0_cnt, rank_1_cnt, hpos, rpos),
+	    TP_STRUCT__entry(
+		    __field(size_t, req_size)
+		    __field(size_t, flip_cnt)
+		    __field(size_t, rank_0_cnt)
+		    __field(size_t, rank_1_cnt)
+		    __field(size_t, hpos)
+		    __field(size_t, rpos)
+		    ),
+	    TP_fast_assign(
+		    __entry->req_size = req_size;
+		    __entry->flip_cnt = flip_cnt;
+		    __entry->rank_0_cnt = rank_0_cnt;
+		    __entry->rank_1_cnt = rank_1_cnt;
+		    __entry->hpos = hpos;
+		    __entry->rpos = rpos;
+		    ),
+	    TP_printk("req_size=%zu, fcnt=%zu, r0cnt=%zu, r1cnt=%zu, hpos=%zu, rpos=%zu",
+		      __entry->req_size, __entry->flip_cnt,
+		      __entry->rank_0_cnt, __entry->rank_1_cnt,
+		      __entry->hpos, __entry->rpos
+		    )
+);
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
+
 #include "debug/mali_kbase_debug_linux_ktrace.h"
 
 #endif /* _TRACE_MALI_H */

@@ -46,6 +46,48 @@
 static inline void kbase_process_page_usage_inc(struct kbase_context *kctx,
 		int pages);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+#define MTK_EMI_DRAM_OFFSET 0x40000000
+
+/* struct alloc_pages_ctx - context for tracking
+ *                          page allocation state.
+ */
+struct alloc_pages_ctx {
+	size_t head;
+	size_t rear;
+	size_t nr_pages;
+	struct tagged_addr *pages;
+	struct kbase_mem_phy_alloc *alloc;
+	bool pt_clustering_enable;
+	struct kbase_device *kbdev;
+	struct kbase_context *kctx;
+	void *rsv;
+};
+
+#define INIT_ALLOC_PAGES_CTX(apc, req_nr_page, pp, req_alloc,		\
+			     ptc_enable, dev, ctx)			\
+	struct alloc_pages_ctx apc = {					\
+		.head = 0,						\
+		.rear = (req_nr_page) - 1,				\
+		.nr_pages = (req_nr_page),				\
+		.pages = (pp),						\
+		.alloc = (req_alloc),					\
+		.pt_clustering_enable = (ptc_enable),			\
+		.kbdev = (dev),					\
+		.kctx = (ctx),						\
+		.rsv = NULL,						\
+	}
+
+noinline void mtk_mem_alloc_insert_page(struct tagged_addr *p,
+					struct tagged_addr np,
+					struct alloc_pages_ctx *apc,
+					struct alloc_pages_ctx *curr);
+noinline void mtk_mem_prepare_dealloc_pages(struct alloc_pages_ctx *apc,
+					    struct alloc_pages_ctx *curr);
+void mtk_alloc_req_stats(struct tagged_addr *pages,
+				   size_t nr_pages, struct alloc_pages_ctx *apc);
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
+
 /* Part of the workaround for uTLB invalid pages is to ensure we grow/shrink tmem by 4 pages at a time */
 #define KBASEP_TMEM_GROWABLE_BLOCKSIZE_PAGES_LOG2_HW_ISSUE_8316 (2)	/* round to 4 pages */
 
@@ -1186,6 +1228,12 @@ void kbase_mem_pool_free_locked(struct kbase_mem_pool *pool, struct page *p,
 int kbase_mem_pool_alloc_pages(struct kbase_mem_pool *pool, size_t nr_4k_pages,
 			       struct tagged_addr *pages, bool partial_allowed,
 			       struct task_struct *page_owner);
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+int __kbase_mem_pool_alloc_pages(struct kbase_mem_pool *pool, size_t nr_4k_pages,
+				 struct tagged_addr *pages, bool partial_allowed,
+				 struct task_struct *page_owner,
+				 struct alloc_pages_ctx *apc);
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 
 /**
  * kbase_mem_pool_alloc_pages_locked - Allocate pages from memory pool
@@ -1226,6 +1274,11 @@ int kbase_mem_pool_alloc_pages(struct kbase_mem_pool *pool, size_t nr_4k_pages,
  */
 int kbase_mem_pool_alloc_pages_locked(struct kbase_mem_pool *pool,
 		size_t nr_4k_pages, struct tagged_addr *pages);
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
+int __kbase_mem_pool_alloc_pages_locked(struct kbase_mem_pool *pool,
+					size_t nr_4k_pages, struct tagged_addr *pages,
+					struct alloc_pages_ctx *apc);
+#endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 
 /**
  * kbase_mem_pool_free_pages - Free pages to memory pool
