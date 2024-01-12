@@ -3662,12 +3662,12 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 	while (l2_trans) {
 		if (++retry_count == 300) {
 			dev_err(kbdev->dev,
-				"Waiting for L2 transition: %llx timeout when reset\n", l2_trans);
+				"Waiting for L2 transition: 0x%llx timeout when reset\n", l2_trans);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-				"Waiting for L2 transition: %llx timeout when reset\n", l2_trans);
+				"Waiting for L2 transition: 0x%llx timeout when reset\n", l2_trans);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-			return -EINVAL;
+			break;
 		}
 		udelay(10);
 		l2_trans = kbase_pm_get_trans_cores(kbdev, KBASE_PM_CORE_L2);
