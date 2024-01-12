@@ -2762,6 +2762,10 @@ static void process_csg_interrupts(struct kbase_device *const kbdev,
 	ack = kbase_csf_firmware_csg_output(ginfo, CSG_ACK);
 	irqreq = kbase_csf_firmware_csg_output(ginfo, CSG_IRQ_REQ);
 	irqack = kbase_csf_firmware_csg_input_read(ginfo, CSG_IRQ_ACK);
+	kbdev->csf.csg_req[csg_nr] = req;
+	kbdev->csf.csg_ack[csg_nr] = ack;
+	kbdev->csf.csg_irqreq[csg_nr] = irqreq;
+	kbdev->csf.csg_irqack[csg_nr] = irqack;
 
 	/* There may not be any pending CSG/CS interrupts to process */
 	if ((req == ack) && (irqreq == irqack))
@@ -3008,11 +3012,18 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 {
 	unsigned long flags;
 	u32 remaining = val;
+	ktime_t start, spin_start;
+	s64 diff_us;
+
+	start = ktime_get();
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
 	KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT, NULL, val);
 	kbase_reg_write(kbdev, JOB_CONTROL_REG(JOB_IRQ_CLEAR), val);
+
+	kbdev->csf.job_irq_val = val;
+	kbdev->csf.glb_start_tm = ktime_get();
 
 	if (val & JOB_IRQ_GLOBAL_IF) {
 		const struct kbase_csf_global_iface *const global_iface =
@@ -3027,11 +3038,16 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 		else if (global_iface->output) {
 			u32 glb_req, glb_ack;
 
+			spin_start = ktime_get();
 			kbase_csf_scheduler_spin_lock(kbdev, &flags);
+			kbdev->csf.spin_delta_us_1 = ktime_to_us(ktime_sub(ktime_get(), spin_start));
+
 			glb_req = kbase_csf_firmware_global_input_read(
 					global_iface, GLB_REQ);
 			glb_ack = kbase_csf_firmware_global_output(
 					global_iface, GLB_ACK);
+			kbdev->csf.glb_req = glb_req;
+			kbdev->csf.glb_ack = glb_ack;
 			KBASE_KTRACE_ADD(kbdev, GLB_REQ_ACQ, NULL, glb_req ^ glb_ack);
 
 			check_protm_enter_req_complete(kbdev, glb_req, glb_ack);
@@ -3078,20 +3094,73 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 		}
 
 		if (!remaining) {
+			diff_us = ktime_to_us(ktime_sub(ktime_get(), start));
+			kbdev->csf.glb_end_tm = ktime_get();
+			// cout glb information if execution time exceed 100ms
+			if(diff_us > (5 * 1000)) {
+				dev_info(kbdev->dev,
+					"kbase_job_irq_handler long hit no csg %lld us\n",
+					diff_us);
+				dev_info(kbdev->dev,
+					"total glb interrupt, duration: %lld us, req: 0x%x, ack: 0x%x\n",
+					ktime_to_us(ktime_sub(kbdev->csf.glb_end_tm, kbdev->csf.glb_start_tm)),
+					kbdev->csf.glb_req,
+					kbdev->csf.glb_ack);
+				dev_info(kbdev->dev,
+					"csf_scheduler_spin_lock duration %lld us\n",
+					kbdev->csf.spin_delta_us_1);
+			}
 			wake_up_all(&kbdev->csf.event_wait);
 			KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT_END, NULL, val);
 			return;
 		}
 	}
+	kbdev->csf.glb_end_tm = ktime_get();
 
+	spin_start = ktime_get();
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
+	kbdev->csf.spin_delta_us_2 = ktime_to_us(ktime_sub(ktime_get(), spin_start)),
+	kbdev->csf.csg_remaining = remaining;
 	while (remaining != 0) {
 		int const csg_nr = ffs(remaining) - 1;
 
+		kbdev->csf.csg_start_tm[csg_nr] = ktime_get();
 		process_csg_interrupts(kbdev, csg_nr);
+		kbdev->csf.csg_end_tm[csg_nr] = ktime_get();
 		remaining &= ~(1 << csg_nr);
 	}
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
+
+	diff_us = ktime_to_us(ktime_sub(ktime_get(), start));
+	// cout glb, csg/cs information if execution time exceed 100ms
+	if(diff_us > (5 * 1000)) {
+		dev_info(kbdev->dev,
+			"kbase_job_irq_handler long hit %lld us\n",
+			diff_us);
+		dev_info(kbdev->dev,
+			"total glb interrupt, duration: %lld us, req: 0x%x, ack: 0x%x\n",
+			ktime_to_us(ktime_sub(kbdev->csf.glb_end_tm, kbdev->csf.glb_start_tm)),
+			kbdev->csf.glb_req,
+			kbdev->csf.glb_ack);
+
+		remaining = kbdev->csf.csg_remaining;
+		while(remaining != 0) {
+			int const i = ffs(remaining) - 1;
+			dev_info(kbdev->dev,
+				"csg[%d] interrupt, duration: %lld us, req: 0x%x, ack: 0x%x, irqreq: 0x%x, irqack: 0x%x\n",
+				i,
+				ktime_to_us(ktime_sub(kbdev->csf.csg_end_tm[i], kbdev->csf.csg_start_tm[i])),
+				kbdev->csf.csg_req[i],
+				kbdev->csf.csg_ack[i],
+				kbdev->csf.csg_irqreq[i],
+				kbdev->csf.csg_irqack[i]);
+			remaining &= ~(1 << i);
+		}
+		dev_info(kbdev->dev,
+			"csf_scheduler_spin_lock duration: %lld us, %lld us\n",
+			kbdev->csf.spin_delta_us_1,
+			kbdev->csf.spin_delta_us_2);
+	}
 
 	wake_up_all(&kbdev->csf.event_wait);
 	KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT_END, NULL, val);
