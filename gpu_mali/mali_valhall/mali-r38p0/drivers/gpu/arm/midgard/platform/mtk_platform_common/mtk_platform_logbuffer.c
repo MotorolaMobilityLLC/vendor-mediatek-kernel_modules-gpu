@@ -274,6 +274,8 @@ int mtk_logbuffer_init(struct kbase_device *kbdev)
 {
 	struct device_node *rmem_node = NULL;
 	struct reserved_mem *rmem = NULL;
+	phys_addr_t rmem_remaining_size = 0;
+	phys_addr_t logbuf_size = 0;
 
 	if (IS_ERR_OR_NULL(kbdev))
 		return -1;
@@ -288,9 +290,10 @@ int mtk_logbuffer_init(struct kbase_device *kbdev)
 				memset(rmem_virt, 0, rmem->size);
 
 				/* Acquire valid memory region */
-				reserved_mem_phys = (phys_addr_t)rmem->base;
-				reserved_mem_virt = (phys_addr_t)rmem_virt;
-				reserved_mem_size = (phys_addr_t)rmem->size;
+				reserved_mem_phys   = (phys_addr_t)rmem->base;
+				reserved_mem_virt   = (phys_addr_t)rmem_virt;
+				reserved_mem_size   = (phys_addr_t)rmem->size;
+				rmem_remaining_size = (phys_addr_t)rmem->size;
 			}
 		}
 	}
@@ -299,24 +302,28 @@ int mtk_logbuffer_init(struct kbase_device *kbdev)
 	         __func__, reserved_mem_phys, reserved_mem_size, reserved_mem_virt);
 
 	/* Create a circular buffer for regular logs */
+	logbuf_size = 1024 * 1536;
 	mtk_logbuffer_init_internal(kbdev,
 	                            &kbdev->logbuf_regular,      /* logbuf */
 	                            (uint8_t *)reserved_mem_virt /* rmem_va */,
-	                            (size_t)reserved_mem_size    /* rmem_size */,
+	                            (size_t)rmem_remaining_size  /* rmem_size */,
 	                            0                            /* offset */,
-	                            1024 * 1536                  /* size */,
+	                            (size_t)logbuf_size          /* size */,
 	                            true                         /* is_circular */,
 	                            "logbuf_regular"             /* name */);
+	rmem_remaining_size -= logbuf_size;
 
 	/* Create a non-circular buffer for exception logs */
+	logbuf_size = 1024 * 512;
 	mtk_logbuffer_init_internal(kbdev,
 	                            &kbdev->logbuf_exception,    /* logbuf */
 	                            (uint8_t *)reserved_mem_virt /* rmem_virt */,
-	                            (size_t)reserved_mem_size    /* rmem_size */,
+	                            (size_t)rmem_remaining_size  /* rmem_size */,
 	                            1024 * 1536                  /* offset */,
-	                            1024 * 512                   /* size */,
+	                            (size_t)logbuf_size          /* size */,
 	                            false                        /* is_circular */,
 	                            "logbuf_exception"           /* name */);
+	rmem_remaining_size -= logbuf_size;
 
 	return 0;
 }
