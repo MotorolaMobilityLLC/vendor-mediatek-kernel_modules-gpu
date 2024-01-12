@@ -122,6 +122,14 @@
 
 #include <mali_kbase_caps.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 /* GPU IRQ Tags */
 #define	JOB_IRQ_TAG	0
 #define MMU_IRQ_TAG	1
@@ -1672,6 +1680,38 @@ static int kbasep_ioctl_set_limited_core_count(struct kbase_context *kctx,
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
+			struct kbase_ioctl_internal_fence_wait *fence_wait)
+{
+	dev_info(kctx->kbdev->dev, "@%s: fence wait timeouts(%llu ms)! flags=0x%x pid=%u",
+	         __func__,
+	         fence_wait->time_in_microseconds,
+	         fence_wait->flags,
+	         fence_wait->pid);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
+		"@%s: fence wait timeouts(%llu ms)! flags=0x%x pid=%u\n",
+		__func__,
+		fence_wait->time_in_microseconds,
+		fence_wait->flags,
+		fence_wait->pid);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	if (fence_wait->flags & BASE_INTERNAL_FENCE_WAIT_DUMP_FLAG) {
+		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, (int)fence_wait->pid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, (int)fence_wait->pid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, (int)fence_wait->pid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
+//		mtk_common_debug(MTK_COMMON_DBG_TRIGGER_KERNEL_EXCEPTION, (int)fence_wait->pid);
+	}
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+
+	return 0;
+}
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 static long kbase_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	struct kbase_file *const kfile = filp->private_data;
@@ -2066,6 +2106,14 @@ static long kbase_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				struct kbase_ioctl_set_limited_core_count,
 				kctx);
 		break;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	case KBASE_IOCTL_INTERNAL_FENCE_WAIT :
+		KBASE_HANDLE_IOCTL_IN(KBASE_IOCTL_INTERNAL_FENCE_WAIT ,
+				kbasep_ioctl_internal_fence_wait,
+				struct kbase_ioctl_internal_fence_wait,
+				kctx);
+		break;
+#endif /* CONFIG_MALI_MTK_DEBUG */
 	}
 
 	dev_warn(kbdev->dev, "Unknown ioctl 0x%x nr:%d", cmd, _IOC_NR(cmd));
@@ -2499,7 +2547,11 @@ static ssize_t core_mask_store(struct device *dev, struct device_attribute *attr
 
 #if MALI_USE_CSF
 	if ((new_core_mask & shader_present) != new_core_mask) {
-		dev_err(dev,
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		dev_vdbg(kbdev->dev,
+#else
+		dev_err(kbdev->dev,
+#endif /* CONFIG_MALI_MTK_DEBUG */
 			"Invalid core mask 0x%llX: Includes non-existent cores (present = 0x%llX)",
 			new_core_mask, shader_present);
 		err = -EINVAL;
@@ -2507,7 +2559,11 @@ static ssize_t core_mask_store(struct device *dev, struct device_attribute *attr
 
 	} else if (!(new_core_mask & shader_present &
 		     kbdev->pm.backend.ca_cores_enabled)) {
-		dev_err(dev,
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		dev_vdbg(kbdev->dev,
+#else
+		dev_err(kbdev->dev,
+#endif /* CONFIG_MALI_MTK_DEBUG */
 			"Invalid core mask 0x%llX: No intersection with currently available cores (present = 0x%llX, CA enabled = 0x%llX\n",
 			new_core_mask,
 			kbdev->gpu_props.props.raw_props.shader_present,
@@ -4900,6 +4956,9 @@ int kbase_device_debugfs_init(struct kbase_device *kbdev)
 #endif
 	kbase_dvfs_status_debugfs_init(kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS)
+	mtk_common_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_DEBUG_FS */
 
 	return 0;
 
@@ -5451,6 +5510,12 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		kbase_arbiter_pm_vm_event(kbdev, KBASE_VM_GPU_INITIALIZED_EVT);
 		mutex_unlock(&kbdev->pm.lock);
 #endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_regular,
+			"Probed as %s\n",
+			dev_name(kbdev->mdev.this_device));
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 
 	return err;

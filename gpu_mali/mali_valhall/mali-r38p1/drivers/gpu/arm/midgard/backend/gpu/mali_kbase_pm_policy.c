@@ -35,6 +35,10 @@
 
 #include <linux/of.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 static const struct kbase_pm_policy *const all_policy_list[] = {
 #if IS_ENABLED(CONFIG_MALI_NO_MALI)
 	&kbase_pm_always_on_policy_ops,
@@ -380,6 +384,11 @@ void kbase_pm_set_policy(struct kbase_device *kbdev,
 		new_policy->init(kbdev);
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_print(&kbdev->logbuf_regular,
+		"Power policy changed from %s to %s\n",
+		old_policy->name, new_policy->name);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	kbdev->pm.backend.pm_current_policy = new_policy;
 #if MALI_USE_CSF
 	kbdev->pm.backend.csf_pm_sched_flags = new_policy_csf_pm_sched_flags;

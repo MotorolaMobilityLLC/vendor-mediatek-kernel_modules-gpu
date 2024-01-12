@@ -46,6 +46,10 @@
 
 #include <platform/mtk_platform_common.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 /**
  * kbase_device_firmware_hwcnt_term - Terminate CSF firmware and HWC
  *
@@ -371,6 +375,12 @@ int kbase_device_init(struct kbase_device *kbdev)
 
 	dev_info(kbdev->dev, "Kernel DDK version %s", MALI_RELEASE_NAME);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_print(&kbdev->logbuf_regular,
+		"Kernel DDK version %s\n",
+		MALI_RELEASE_NAME);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 	kbase_device_id_init(kbdev);
 	kbase_disjoint_init(kbdev);
 
@@ -512,6 +522,13 @@ int kbase_device_firmware_init_once(struct kbase_device *kbdev)
 #ifdef CONFIG_MALI_MTK_DEBUG
 		dev_info(kbdev->dev, "CSF firmware was successfully initialized by process '%s'", current->comm);
 #endif /* CONFIG_MALI_MTK_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_print(&kbdev->logbuf_regular,
+		"CSF firmware was successfully initialized by process '%s'\n",
+		current->comm);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 out:
 		kbase_pm_context_idle(kbdev);
 	}

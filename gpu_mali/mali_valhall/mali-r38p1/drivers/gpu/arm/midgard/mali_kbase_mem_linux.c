@@ -45,6 +45,10 @@
 #include <mali_kbase_trace_gpu_mem.h>
 #include <mali_kbase_reset_gpu.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if ((KERNEL_VERSION(5, 3, 0) <= LINUX_VERSION_CODE) || \
 	(KERNEL_VERSION(5, 0, 0) > LINUX_VERSION_CODE))
 /* Enable workaround for ion for kernels prior to v5.0.0 and from v5.3.0
@@ -685,12 +689,25 @@ unsigned long kbase_mem_evictable_reclaim_count_objects(struct shrinker *s,
 
 	kctx = container_of(s, struct kbase_context, reclaim);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+	// MTK add to prevent false alarm
+	lockdep_off();
+#endif /* CONFIG_MALI_MTK_COMMON */
+
+#if !IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	// avoid to report when shrinking for mtk_iova_dbg_alloc
 	WARN((sc->gfp_mask & __GFP_ATOMIC),
 	     "Shrinkers cannot be called for GFP_ATOMIC allocations. Check kernel mm for problems. gfp_mask==%x\n",
 	     sc->gfp_mask);
 	WARN(in_atomic(),
 	     "Shrinker called whilst in atomic context. The caller must switch to using GFP_ATOMIC or similar. gfp_mask==%x\n",
 	     sc->gfp_mask);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+	// MTK add to prevent false alarm
+	lockdep_on();
+#endif /* CONFIG_MALI_MTK_COMMON */
 
 	return atomic_read(&kctx->evict_nents);
 }
@@ -1139,10 +1156,16 @@ int kbase_mem_do_sync_imported(struct kbase_context *kctx,
 		break;
 	}
 
-	if (unlikely(ret))
+	if (unlikely(ret)) {
 		dev_warn(kctx->kbdev->dev,
 			 "Failed to sync mem region %pK at GPU VA %llx: %d\n",
 			 reg, reg->start_pfn, ret);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
+			"Failed to sync mem region %pK at GPU VA %llx: %d\n",
+			reg, reg->start_pfn, ret);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	}
 
 	return ret;
 }
