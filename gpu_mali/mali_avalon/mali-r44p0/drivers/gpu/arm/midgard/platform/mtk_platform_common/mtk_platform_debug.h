@@ -99,6 +99,7 @@ struct mtk_debug_cs_queue_dump_record_gpu_addr {
 	struct list_head list_node;
 	u64 gpu_addr;
 	void *cpu_addr;
+	u8 bitmap[(PAGE_SIZE / 64) / 8];	/* cache line size as dump unit */
 };
 
 struct mtk_debug_cs_queue_dump_record_kctx {
