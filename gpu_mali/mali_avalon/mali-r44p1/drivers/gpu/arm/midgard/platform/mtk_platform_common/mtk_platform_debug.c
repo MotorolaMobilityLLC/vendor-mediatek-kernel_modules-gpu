@@ -584,25 +584,12 @@ void mtk_debug_dump_pm_status(struct kbase_device *kbdev)
 			 kbdev->pm.backend.mcu_desired,
 			 kbdev->pm.backend.l2_desired,
 			 kbdev->pm.backend.l2_always_on);
-#if IS_ENABLED(CONFIG_MALI_MTK_DUMMY_CM)
-	dev_info(kbdev->dev, "[PM] hwcnt_desired=%d hwcnt_disabled=%d poweroff_wait_in_progress=%d invoke_poweroff_wait_wq_when_l2_off=%d poweron_required=%d debug_core_mask_en=%u",
-			 kbdev->pm.backend.hwcnt_desired,
-			 kbdev->pm.backend.hwcnt_disabled,
-			 kbdev->pm.backend.poweroff_wait_in_progress,
-			 kbdev->pm.backend.invoke_poweroff_wait_wq_when_l2_off,
-			 kbdev->pm.backend.poweron_required,
-			 kbdev->pm.debug_core_mask_en);
-	dev_info(kbdev->dev, "[PM] policy_change_clamp_state_to_off=%d csf_pm_sched_flsgs=%d",
-			 kbdev->pm.backend.policy_change_clamp_state_to_off,
-			 kbdev->pm.backend.csf_pm_sched_flags);
-#else
 	dev_info(kbdev->dev, "[PM] hwcnt_desired=%d hwcnt_disabled=%d poweroff_wait_in_progress=%d invoke_poweroff_wait_wq_when_l2_off=%d poweron_required=%d",
 			 kbdev->pm.backend.hwcnt_desired,
 			 kbdev->pm.backend.hwcnt_disabled,
 			 kbdev->pm.backend.poweroff_wait_in_progress,
 			 kbdev->pm.backend.invoke_poweroff_wait_wq_when_l2_off,
 			 kbdev->pm.backend.poweron_required);
-#endif
 #else
 	dev_info(kbdev->dev, "[PM] in_reset=%d reset_done=%d gpu_powered=%d gpu_ready=%d shaders_state=%s l2_state=%s shaders_desired=%d l2_desired=%d l2_always_on=%d",
 			 kbdev->pm.backend.in_reset,
