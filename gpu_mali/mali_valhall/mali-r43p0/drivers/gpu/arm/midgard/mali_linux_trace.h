@@ -384,6 +384,59 @@ TRACE_EVENT(mali_jit_report_pressure,
 );
 #endif /* MALI_JIT_PRESSURE_LIMIT_BASE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+/* trace_mali_mem_evictable_count
+ *
+ * Tracepoint about accounting number of JIT allocations to be freed when
+ * shrinker is called.
+ */
+TRACE_EVENT(mali_mem_evictable_count,
+	TP_PROTO(struct kbase_context *kctx, unsigned long evict_nents),
+	TP_ARGS(kctx, evict_nents),
+	TP_STRUCT__entry(
+		__field(pid_t, tgid)
+		__field(unsigned long, evict_nents)
+		__field(u32, jit_reclaim_timeout_ms)
+	),
+	TP_fast_assign(
+		__entry->tgid                   = kctx->tgid;
+		__entry->evict_nents            = evict_nents;
+		__entry->jit_reclaim_timeout_ms = kctx->kbdev->jit_reclaim_timeout_ms;
+	),
+	TP_printk("tgid=%d, total=%lu, jit_reclaim_timeout_ms=%u",
+		__entry->tgid, __entry->evict_nents, __entry->jit_reclaim_timeout_ms)
+);
+
+/* trace_mali_mem_evictable_reclaim
+ *
+ * Tracepoint about changes of JIT allocations when shrinker is called.
+ */
+TRACE_EVENT(mali_mem_evictable_reclaim,
+	TP_PROTO(struct kbase_context *kctx, u16 jit_usage_id, u64 now_ns, u64 last_used_ts, bool is_deferred),
+	TP_ARGS(kctx, jit_usage_id, now_ns, last_used_ts, is_deferred),
+	TP_STRUCT__entry(
+		__field(pid_t, tgid)
+		__field(u16, jit_usage_id)
+		__field(u64, now_ns)
+		__field(u64, last_used_ts)
+		__field(u32, jit_reclaim_timeout_ms)
+		__field(bool, is_deferred)
+	),
+	TP_fast_assign(
+		__entry->tgid                   = kctx->tgid;
+		__entry->jit_usage_id           = jit_usage_id;
+		__entry->now_ns                 = now_ns;
+		__entry->last_used_ts           = last_used_ts;
+		__entry->jit_reclaim_timeout_ms = kctx->kbdev->jit_reclaim_timeout_ms;
+		__entry->is_deferred            = is_deferred;
+	),
+	TP_printk("%s: tgid=%d, jit_usage_id=%u, now_ns=%llu, last_used_ts=%llu, jit_reclaim_timeout_ms=%u",
+		(__entry->is_deferred? "defered": "reclaimed"),
+		__entry->tgid, __entry->jit_usage_id, __entry->now_ns, __entry->last_used_ts,
+		__entry->jit_reclaim_timeout_ms)
+);
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
+
 #ifndef __TRACE_SYSGRAPH_ENUM
 #define __TRACE_SYSGRAPH_ENUM
 /* Enum of sysgraph message IDs */

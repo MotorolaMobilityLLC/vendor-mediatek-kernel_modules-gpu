@@ -737,6 +737,17 @@ unsigned long kbase_mem_evictable_reclaim_count_objects(struct shrinker *s,
 	struct kbase_context *kctx = container_of(s, struct kbase_context, reclaim);
 	int evict_nents = atomic_read(&kctx->evict_nents);
 	unsigned long nr_freeable_items;
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	struct kbase_mem_phy_alloc *alloc, *tmp;
+	struct kbase_device *kbdev;
+	u64 jit_reclaim_timeout_ns = 0;
+	u64 now_ns;
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
+	
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	kbdev = kctx->kbdev;
+	jit_reclaim_timeout_ns = kbdev->jit_reclaim_timeout_ms * 1000000ULL;
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
 	// MTK add to prevent false alarm
@@ -759,6 +770,27 @@ unsigned long kbase_mem_evictable_reclaim_count_objects(struct shrinker *s,
 	} else {
 		nr_freeable_items = evict_nents;
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	now_ns = ktime_get_raw_ns();
+
+	list_for_each_entry_safe(alloc, tmp, &kctx->evict_list, evict_node) {
+		if (!alloc->reg)
+			continue;
+
+		if (alloc->reg->last_used_ts == 0 || now_ns - alloc->reg->last_used_ts > jit_reclaim_timeout_ns)
+			continue;
+
+		pr_debug("mem_evictable count_object: tgid=%d, jit_usage_id=%u, total=%lu, exclude=%lu",
+			 kctx->tgid, alloc->reg->jit_usage_id,
+			 nr_freeable_items, alloc->reg->gpu_alloc->nents);
+
+		/* exclude those recently used jit mem */
+		nr_freeable_items -= alloc->reg->gpu_alloc->nents;
+	}
+
+	trace_mali_mem_evictable_count(kctx, nr_freeable_items);
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
 	if (nr_freeable_items == 0)
@@ -800,8 +832,18 @@ unsigned long kbase_mem_evictable_reclaim_scan_objects(struct shrinker *s,
 	struct kbase_mem_phy_alloc *alloc;
 	struct kbase_mem_phy_alloc *tmp;
 	unsigned long freed = 0;
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	struct kbase_device *kbdev;
+	u64 jit_reclaim_timeout_ns = 0;
+	u64 now_ns;
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 
 	kctx = container_of(s, struct kbase_context, reclaim);
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	kbdev = kctx->kbdev;
+	jit_reclaim_timeout_ns = kbdev->jit_reclaim_timeout_ms * 1000000ULL;
+	now_ns = ktime_get_raw_ns();
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 
 	mutex_lock(&kctx->jit_evict_lock);
 
@@ -810,6 +852,18 @@ unsigned long kbase_mem_evictable_reclaim_scan_objects(struct shrinker *s,
 
 		if (!alloc->reg)
 			continue;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+		if (alloc->reg->last_used_ts != 0 && now_ns - alloc->reg->last_used_ts <= jit_reclaim_timeout_ns) {
+			trace_mali_mem_evictable_reclaim(kctx, alloc->reg->jit_usage_id,
+				now_ns, alloc->reg->last_used_ts, true);
+
+			continue;
+		} else {
+			trace_mali_mem_evictable_reclaim(kctx, alloc->reg->jit_usage_id,
+				now_ns, alloc->reg->last_used_ts, false);
+		}
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 
 		err = kbase_mem_shrink_gpu_mapping(kctx, alloc->reg,
 				0, alloc->nents);
@@ -948,6 +1002,10 @@ int kbase_mem_evictable_make(struct kbase_mem_phy_alloc *gpu_alloc)
 	 */
 	if (kbase_page_migration_enabled)
 		kbase_set_phy_alloc_page_status(gpu_alloc, NOT_MOVABLE);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	gpu_alloc->reg->last_used_ts = 0;
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 
 	mutex_unlock(&kctx->jit_evict_lock);
 	kbase_mem_evictable_mark_reclaim(gpu_alloc);
