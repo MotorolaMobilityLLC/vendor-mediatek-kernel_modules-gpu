@@ -46,7 +46,7 @@
 #define MAX_CSG_SLOT_PRIORITY ((u8)15)
 
 /* CSF scheduler time slice value */
-#define CSF_SCHEDULER_TIME_TICK_MS (5) /* 100 milliseconds */
+#define CSF_SCHEDULER_TIME_TICK_MS (100) /* 100 milliseconds */
 
 /*
  * CSF scheduler time threshold for converting "tock" requests into "tick" if
@@ -544,8 +544,8 @@ static void update_idle_suspended_group_state(struct kbase_queue_group *group)
 		 * static priority (reflected by the scan_seq_num) is inside
 		 * the current tick slot-range, schedules an async tock.
 		 */
-		if (scheduler->state != SCHED_SUSPENDED &&
-		    group->scan_seq_num < scheduler->num_csg_slots_for_tick)
+		//if (scheduler->state != SCHED_SUSPENDED &&
+		  //  group->scan_seq_num < scheduler->num_csg_slots_for_tick)
 			schedule_in_cycle(group, true);
 	} else
 		return;
@@ -1423,9 +1423,8 @@ static unsigned long get_schedule_delay(unsigned long last_event,
 					unsigned long time_now,
 					unsigned long period)
 {
-	const unsigned long t_distance = time_now - last_event;
-	const unsigned long delay_t = (t_distance < period) ?
-					(period - t_distance) : 0;
+	const unsigned long t_distance = 0;
+	const unsigned long delay_t = t_distance;
 
 	return delay_t;
 }
@@ -3847,7 +3846,6 @@ static void schedule_actions(struct kbase_device *kbdev)
 		spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 
 		scheduler_apply(kbdev);
-
 		/* Post-apply, all the committed groups in this tick are on
 		 * slots, time to arrange the idle timer on/off decision.
 		 */
@@ -3866,6 +3864,17 @@ static void schedule_actions(struct kbase_device *kbdev)
 		if (new_protm_top_grp) {
 			scheduler_group_check_protm_enter(kbdev,
 						scheduler->top_grp);
+		} else if (atomic_read(&scheduler->non_idle_offslot_grps)) {
+			bool do_in_cycle;
+
+			spin_lock_irqsave(&scheduler->interrupt_lock, flags);
+			do_in_cycle =
+				bitmap_weight(scheduler->csg_slots_idle_mask, kbdev->csf.global_iface.group_num) > 0;
+			spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
+			if (do_in_cycle) {
+				dev_dbg(kbdev->dev, "Another around tock\n");
+				mod_delayed_work(scheduler->wq, &scheduler->tock_work, 0);
+			}
 		}
 
 		return;
