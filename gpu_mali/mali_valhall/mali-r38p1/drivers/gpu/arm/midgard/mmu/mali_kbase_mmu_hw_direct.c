@@ -164,6 +164,16 @@ static int wait_ready(struct kbase_device *kbdev,
 	while (--max_loops &&
 	       kbase_reg_read(kbdev, MMU_AS_REG(as_nr, AS_STATUS)) &
 		       AS_STATUS_AS_ACTIVE) {
+
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+		if (kbdev->reset_force_mmu_not_ready) {
+			if (max_loops == (KBASE_AS_INACTIVE_MAX_LOOPS - 1000)) {
+				dev_info(kbdev->dev, "reset_force_mmu_not_ready, 1000 timeout return");
+				return -1;
+			}
+		}
+#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 		if((max_loops == KBASE_AS_INACTIVE_DUMP_POINT_1S) ||
 			(max_loops == KBASE_AS_INACTIVE_DUMP_POINT_3S) ||
@@ -203,6 +213,7 @@ static int wait_ready(struct kbase_device *kbdev,
 		spin_lock(&kbdev->reset_force_change);
 		kbdev->reset_force_evict_group_work = true;
 		kbdev->reset_force_hard_reset = true;
+		kbdev->reset_force_mmu_not_ready = true;
 		spin_unlock(&kbdev->reset_force_change);
 		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE)) {
 			dev_info(kbdev->dev, "Trigger GPU reset for MMU as command timeouts, early_timeouts=%d max_loops=%d",
