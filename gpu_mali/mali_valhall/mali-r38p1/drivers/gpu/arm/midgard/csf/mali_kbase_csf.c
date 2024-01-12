@@ -3265,7 +3265,7 @@ void kbase_process_csg_retry_job_irq(struct kbase_context *kctx, unsigned long t
 	for (csg_nr = 0 ; csg_nr < kbdev->csf.global_iface.group_num ; ++csg_nr) {
 		group = kbase_csf_scheduler_get_group_on_slot(kbdev, csg_nr);
 		if (group && group->kctx == kctx) {
-			dev_info(kbdev->dev,
+			dev_vdbg(kbdev->dev,
 				"try to recover csg %d (tgid %d) redo job irq handler after waiting fence %lu(ms)",
 				csg_nr, kctx->tgid, time_in_ms);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
