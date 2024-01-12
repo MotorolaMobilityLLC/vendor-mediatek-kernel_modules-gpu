@@ -221,6 +221,7 @@ static int wait_ready(struct kbase_device *kbdev, unsigned int as_nr)
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_NA);
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
 #endif /* CONFIG_MALI_MTK_DEBUG */
+	BUG_ON(1);
 	if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
 		kbase_reset_gpu_locked(kbdev);
 
