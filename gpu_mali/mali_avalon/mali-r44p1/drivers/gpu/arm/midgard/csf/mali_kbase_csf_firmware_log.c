@@ -291,7 +291,7 @@ static ssize_t mtk_fwlog_enable_mask_show(struct device * const dev,
 	int err;
 	u64 val;
 	struct firmware_trace_buffer *tb =
-		kbase_csf_firmware_get_trace_buffer(kbdev, FIRMWARE_LOG_BUF_NAME);
+		kbase_csf_firmware_get_trace_buffer(kbdev, KBASE_CSFFW_LOG_BUF_NAME);
 
 	if (IS_ERR_OR_NULL(kbdev))
 		return -ENODEV;
@@ -315,7 +315,7 @@ static ssize_t mtk_fwlog_enable_mask_store(struct device * const dev,
 {
 	struct kbase_device *const kbdev = dev_get_drvdata(dev);
 	struct firmware_trace_buffer *tb =
-		kbase_csf_firmware_get_trace_buffer(kbdev, FIRMWARE_LOG_BUF_NAME);
+		kbase_csf_firmware_get_trace_buffer(kbdev, KBASE_CSFFW_LOG_BUF_NAME);
 	u64 new_mask, val;
 	unsigned int enable_bits_count;
 
@@ -360,7 +360,7 @@ ssize_t mtk_fwlog_proc_read(struct file *filp, char __user *buf,
 	size_t mem = MIN(count, FIRMWARE_LOG_DUMP_BUF_SIZE);
 	int ret;
 	struct firmware_trace_buffer *tb =
-		kbase_csf_firmware_get_trace_buffer(kbdev, FIRMWARE_LOG_BUF_NAME);
+		kbase_csf_firmware_get_trace_buffer(kbdev, KBASE_CSFFW_LOG_BUF_NAME);
 
 	if (tb == NULL) {
 		dev_info(kbdev->dev, "Couldn't get the firmware trace buffer");
