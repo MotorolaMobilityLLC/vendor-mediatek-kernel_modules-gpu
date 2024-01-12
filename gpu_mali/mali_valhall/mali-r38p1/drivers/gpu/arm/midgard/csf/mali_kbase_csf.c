@@ -1940,11 +1940,12 @@ int kbase_csf_ctx_init(struct kbase_context *kctx)
 	/* Mark all the cookies as 'free' */
 	bitmap_fill(kctx->csf.cookies, KBASE_CSF_NUM_USER_IO_PAGES_HANDLE);
 
+/* Reduce log in log buffer
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kctx->kbdev->logbuf_regular,
 		"[%d_%d] Created CSF context for process '%s'\n",
 		kctx->tgid, kctx->id, current->comm);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif *//* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	kctx->csf.wq = alloc_workqueue("mali_kbase_csf_wq",
 					WQ_UNBOUND, 1);
@@ -2071,11 +2072,12 @@ void kbase_csf_ctx_term(struct kbase_context *kctx)
 	int err;
 	bool reset_prevented = false;
 
+/* Reduce log in log buffer
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_regular,
 		"[%d_%d] Destroying CSF context for process '%s'\n",
 		kctx->tgid, kctx->id, current->comm);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif *//* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	/* As the kbase context is terminating, its debugfs sub-directory would
 	 * have been removed already and so would be the debugfs file created

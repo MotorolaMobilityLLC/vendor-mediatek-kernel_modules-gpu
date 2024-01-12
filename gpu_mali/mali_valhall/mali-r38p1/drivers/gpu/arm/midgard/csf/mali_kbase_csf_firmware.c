@@ -1771,12 +1771,12 @@ static void kbase_csf_firmware_reload_worker(struct work_struct *work)
 void kbase_csf_firmware_trigger_reload(struct kbase_device *kbdev)
 {
 	lockdep_assert_held(&kbdev->hwaccess_lock);
-
+/* Reduce log in log buffer
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_regular,
 		"[%llxt] Re-enabling MCU here\n",
 		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_regular));
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif *//* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	kbdev->csf.firmware_reloaded = false;
 
@@ -1811,11 +1811,12 @@ void kbase_csf_firmware_reload_completed(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 
+/* Reduce log in log buffer
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_regular,
 		"[%llxt] FW reboot completed\n",
 		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_regular));
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif *//* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	KBASE_KTRACE_ADD(kbdev, CSF_FIRMWARE_REBOOT, NULL, 0u);
 
@@ -2607,11 +2608,12 @@ void kbase_csf_firmware_trigger_mcu_halt(struct kbase_device *kbdev)
 	WARN_ON(kbase_csf_scheduler_get_nr_active_csgs_locked(kbdev));
 	set_global_request(global_iface, GLB_REQ_HALT_MASK);
 	dev_vdbg(kbdev->dev, "Sending request to HALT MCU");
+/* Reduce log in log buffer
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_regular,
 		"[%llxt] Sending request to HALT MCU\n",
 		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_regular));
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif *//* CONFIG_MALI_MTK_LOG_BUFFER */
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 }

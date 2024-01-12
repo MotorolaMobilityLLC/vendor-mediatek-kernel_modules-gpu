@@ -903,10 +903,11 @@ static void scheduler_wakeup(struct kbase_device *kbdev, bool kick)
 	if (scheduler->state == SCHED_SUSPENDED) {
 		dev_vdbg(kbdev->dev,
 			"Re-activating the Scheduler after suspend");
+/* Reduce log in log buffer
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_regular,
 			"Re-activating the Scheduler after suspend\n");
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif *//* CONFIG_MALI_MTK_LOG_BUFFER */
 		ret = scheduler_pm_active_handle_suspend(kbdev,
 				KBASE_PM_SUSPEND_HANDLER_DONT_REACTIVATE);
 	} else {
@@ -2072,12 +2073,13 @@ void insert_group_to_runnable(struct kbase_csf_scheduler *const scheduler,
 	} else
 		schedule_in_cycle(group, false);
 
+/* Reduce log in log buffer
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	if (scheduler->state == SCHED_SUSPENDED)
 		mtk_logbuffer_print(&kbdev->logbuf_regular,
 			"[%d_%d] Wake-up scheduler for process '%s'\n",
 			kctx->tgid, kctx->id, current->comm);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif *//* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	/* Since a new group has become runnable, check if GPU needs to be
 	 * powered up.
@@ -2831,13 +2833,13 @@ static void program_csg_slot(struct kbase_queue_group *group, s8 slot,
 
 	dev_vdbg(kbdev->dev, "Starting group %d of context %d_%d on slot %d with priority %u\n",
 		group->handle, kctx->tgid, kctx->id, slot, prio);
-
+/* Reduce log in log buffer
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_regular,
 		"[%d_%d] Starting group %d on slot %d with priority %u, as_nr %u, group_uid %u, priority %u, req_state %u\n",
 		kctx->tgid, kctx->id, group->handle, slot, prio,
 		kctx->as_nr, group->group_uid, group->priority, state);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif *//* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_SLOT_START_REQ, group,
 				 (((u64)ep_cfg) << 32) | ((((u32)kctx->as_nr) & 0xF) << 16) |
@@ -4940,10 +4942,11 @@ static bool scheduler_idle_suspendable(struct kbase_device *kbdev)
 			unlikely(!all_on_slot_groups_remained_idle(kbdev)))) {
 		dev_vdbg(kbdev->dev,
 			 "GPU suspension skipped due to active CSGs");
+/* Reduce log in log buffer
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_regular,
 			"GPU suspension skipped due to active CSGs\n");
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif *//* CONFIG_MALI_MTK_LOG_BUFFER */
 		suspend = false;
 	}
 
@@ -5007,10 +5010,11 @@ static bool scheduler_suspend_on_idle(struct kbase_device *kbdev)
 	dev_vdbg(kbdev->dev, "Scheduler to be suspended on GPU becoming idle");
 	scheduler_suspend(kbdev);
 	cancel_tick_timer(kbdev);
+/* Reduce log in log buffer
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_regular,
 		"Scheduler was suspended on GPU becoming idle\n");
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif *//* CONFIG_MALI_MTK_LOG_BUFFER */
 	return true;
 }
 
