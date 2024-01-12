@@ -602,7 +602,7 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 	gfp_mask &= ~__GFP_DIRECT_RECLAIM;
 	while (order_scan_walk > order) {
 
-		p = alloc_pages(gfp_mask, order_scan_walk);
+		p = alloc_pages(gfp_mask | __GFP_NOWARN, order_scan_walk);
 		if (p) {
 			mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, (1 << order_scan_walk));
 			split_page(p, order_scan_walk);
