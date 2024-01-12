@@ -857,6 +857,7 @@ void kbase_csf_ring_csg_doorbell(struct kbase_device *kbdev, int slot)
 	if (WARN_ON(slot < 0))
 		return;
 
+	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 	kbase_csf_ring_csg_slots_doorbell(kbdev, (u32) (1 << slot));
 }
 
@@ -868,6 +869,8 @@ void kbase_csf_ring_csg_slots_doorbell(struct kbase_device *kbdev,
 	const u32 allowed_bitmap =
 		(u32) ((1U << kbdev->csf.global_iface.group_num) - 1);
 	u32 value;
+
+	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 
 	if (WARN_ON(slot_bitmap > allowed_bitmap))
 		return;
@@ -897,6 +900,8 @@ void kbase_csf_ring_cs_kernel_doorbell(struct kbase_device *kbdev,
 {
 	struct kbase_csf_cmd_stream_group_info *ginfo;
 	u32 value;
+
+	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 
 	if (WARN_ON(csg_nr < 0) ||
 	    WARN_ON(csg_nr >= kbdev->csf.global_iface.group_num))
@@ -2144,6 +2149,7 @@ static void kbase_queue_oom_event(struct kbase_queue *const queue)
 	struct kbase_csf_cmd_stream_info const *stream;
 	int csi_index = queue->csi_index;
 	u32 cs_oom_ack, cs_oom_req;
+	unsigned long flags;
 
 	lockdep_assert_held(&kctx->csf.lock);
 
@@ -2189,8 +2195,11 @@ static void kbase_queue_oom_event(struct kbase_queue *const queue)
 
 	err = handle_oom_event(group, stream);
 
+	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 	kbase_csf_firmware_cs_input_mask(stream, CS_REQ, cs_oom_ack,
 					 CS_REQ_TILER_OOM_MASK);
+	kbase_csf_ring_cs_kernel_doorbell(kbdev, csi_index, slot_num, true);
+	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 
 	if (err) {
 		dev_warn(
@@ -2202,7 +2211,6 @@ static void kbase_queue_oom_event(struct kbase_queue *const queue)
 		return;
 	}
 
-	kbase_csf_ring_cs_kernel_doorbell(kbdev, csi_index, slot_num, true);
 unlock:
 	kbase_csf_scheduler_unlock(kbdev);
 }
