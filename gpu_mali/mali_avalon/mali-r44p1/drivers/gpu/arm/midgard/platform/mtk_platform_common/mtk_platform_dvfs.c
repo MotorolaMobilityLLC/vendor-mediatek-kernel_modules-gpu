@@ -170,6 +170,7 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 	util_ex->util_iter      = utilisation[UTIL_ITER_ID];
 	util_ex->util_mcu       = utilisation[UTIL_MCU_ID];
 
+	util_ex->util_active_raw    = utilisation[UTIL_ACTIVE_ID + NUM_PERF_COUNTERS];
 	util_ex->util_iter_raw      = utilisation[UTIL_ITER_ID + NUM_PERF_COUNTERS];
 	util_ex->util_mcu_raw       = utilisation[UTIL_MCU_ID + NUM_PERF_COUNTERS];
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)
