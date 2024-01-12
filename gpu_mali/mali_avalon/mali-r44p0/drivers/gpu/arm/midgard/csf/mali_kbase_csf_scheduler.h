@@ -25,6 +25,9 @@
 #include "mali_kbase_csf.h"
 #include "mali_kbase_csf_event.h"
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+#include <ged_dvfs.h>
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 /**
  * kbase_csf_scheduler_queue_start() - Enable the running of GPU command queue
  *                                     on firmware.
@@ -492,6 +495,10 @@ static inline void kbase_csf_scheduler_invoke_tick(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+	ged_get_predict_active_time();
+	ged_check_predict_power_duration();
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 	KBASE_KTRACE_ADD(kbdev, SCHEDULER_TICK_INVOKE, NULL, 0u);
 	if (atomic_cmpxchg(&scheduler->pending_tick_work, false, true) == false)
 		complete(&scheduler->kthread_signal);
