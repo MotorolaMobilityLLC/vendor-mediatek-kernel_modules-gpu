@@ -80,6 +80,11 @@
 /* Time to wait for completion of PING req before considering MCU as hung */
 #define FW_PING_AFTER_ERROR_TIMEOUT_MS (10)
 
+/* Time to wait for completion of PING request before considering MCU as hung
+ * when GPU reset is triggered during protected mode.
+ */
+#define FW_PING_ON_GPU_RESET_IN_PMODE_TIMEOUT_MS (500)
+
 /* Explicitly defining this blocked_reason code as SB_WAIT for clarity */
 #define CS_STATUS_BLOCKED_ON_SB_WAIT CS_STATUS_BLOCKED_REASON_REASON_WAIT
 
@@ -5987,24 +5992,27 @@ static int suspend_active_queue_groups_on_reset(struct kbase_device *kbdev)
 /**
  * scheduler_handle_reset_in_protected_mode() - Update the state of normal mode
  *                                              groups when reset is done during
- *                                              protected mode execution.
+ *                                              protected mode execution and GPU
+ *                                              can't exit the protected mode in
+ *                                              response to the ping request.
  *
  * @kbdev: Pointer to the device.
  *
- * This function is called at the time of GPU reset, before the suspension of
- * queue groups, to handle the case when the reset is getting performed whilst
- * GPU is in protected mode.
- * On entry to protected mode all the groups, except the top group that executes
- * in protected mode, are implicitly suspended by the FW. Thus this function
- * simply marks the normal mode groups as suspended (and cleans up the
- * corresponding CSG slots) to prevent their potential forceful eviction from
- * the Scheduler. So if GPU was in protected mode and there was no fault, then
- * only the protected mode group would be suspended in the regular way post exit
- * from this function. And if GPU was in normal mode, then all on-slot groups
- * will get suspended in the regular way.
+ * This function is called at the time of GPU reset, before the suspension of queue groups,
+ * to handle the case when the reset is getting performed whilst GPU is in protected mode.
+ * If GPU is in protected mode, then the function attempts to bring it back to the normal
+ * mode by sending a ping request.
+ * - If GPU exited the protected mode, then the function returns success to the caller
+ *   indicating that the on-slot groups can be suspended in a regular way.
+ * - If GPU didn't exit the protected mode then as a recovery measure the function marks
+ *   the normal mode on-slot groups as suspended to avoid any loss of work for those groups.
+ *   All on-slot groups, except the top group that executes in protected mode, are implicitly
+ *   suspended by the FW just before entering protected mode. So the failure to exit protected
+ *   mode is attributed to the top group and it is thus forcefully evicted by the Scheduler
+ *   later in the request sequence.
  *
  * Return: true if the groups remaining on the CSG slots need to be suspended in
- *         the regular way by sending CSG SUSPEND reqs to FW, otherwise false.
+ *         the regular way by sending CSG SUSPEND requests to FW, otherwise false.
  */
 static bool scheduler_handle_reset_in_protected_mode(struct kbase_device *kbdev)
 {
@@ -6021,52 +6029,33 @@ static bool scheduler_handle_reset_in_protected_mode(struct kbase_device *kbdev)
 	spin_lock_irqsave(&scheduler->interrupt_lock, flags);
 	protm_grp = scheduler->active_protm_grp;
 	pmode_active = kbdev->protected_mode;
-
-	if (likely(!protm_grp && !pmode_active)) {
-		/* Case 1: GPU is not in protected mode or it successfully
-		 * exited protected mode. All on-slot groups can be suspended in
-		 * the regular way before reset.
-		 */
-		suspend_on_slot_groups = true;
-	} else if (protm_grp && pmode_active) {
-		/* Case 2: GPU went successfully into protected mode and hasn't
-		 * exited from it yet and the protected mode group is still
-		 * active. If there was no fault for the protected mode group
-		 * then it can be suspended in the regular way before reset.
-		 * The other normal mode on-slot groups were already implicitly
-		 * suspended on entry to protected mode so they can be marked as
-		 * suspended right away.
-		 */
-		suspend_on_slot_groups = !protm_grp->faulted;
-	} else if (!protm_grp && pmode_active) {
-		/* Case 3: GPU went successfully into protected mode and hasn't
-		 * exited from it yet but the protected mode group got deleted.
-		 * This would have happened if the FW got stuck during protected
-		 * mode for some reason (like GPU page fault or some internal
-		 * error). In normal cases FW is expected to send the pmode exit
-		 * interrupt before it handles the CSG termination request.
-		 * The other normal mode on-slot groups would already have been
-		 * implicitly suspended on entry to protected mode so they can be
-		 * marked as suspended right away.
-		 */
-		suspend_on_slot_groups = false;
-	} else if (protm_grp && !pmode_active) {
-		/* Case 4: GPU couldn't successfully enter protected mode, i.e.
-		 * PROTM_ENTER request had timed out.
-		 * All the on-slot groups need to be suspended in the regular
-		 * way before reset.
-		 */
-		suspend_on_slot_groups = true;
-	}
-
 	spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 
+	/* GPU not in protected mode. Suspend the on-slot groups normally */
 	if (likely(!pmode_active))
 		goto unlock;
 
-	/* GPU hasn't exited protected mode, so all the on-slot groups barring
-	 * the protected mode group can be marked as suspended right away.
+	/* Send the ping request to force exit from protected mode */
+	if (!kbase_csf_firmware_ping_wait(kbdev, FW_PING_ON_GPU_RESET_IN_PMODE_TIMEOUT_MS)) {
+		/* FW should have exited protected mode before acknowledging the ping request */
+		WARN_ON_ONCE(scheduler->active_protm_grp);
+
+		/* Explicitly suspend all groups. The protected mode group would be terminated
+		 * if it had faulted.
+		 */
+		goto unlock;
+	}
+
+	dev_warn(
+		kbdev->dev,
+		"Timeout for ping request sent to force exit from protected mode before GPU reset");
+
+	/* GPU didn't exit the protected mode, so FW is most probably unresponsive.
+	 * All the on-slot groups barring the protected mode group can be marked
+	 * as suspended right away. The protected mode group would be forcefully
+	 * evicted from the csg slot.
 	 */
+	suspend_on_slot_groups = false;
 	for (csg_nr = 0; csg_nr < num_groups; csg_nr++) {
 		struct kbase_queue_group *const group =
 			kbdev->csf.scheduler.csg_slots[csg_nr].resident_group;
