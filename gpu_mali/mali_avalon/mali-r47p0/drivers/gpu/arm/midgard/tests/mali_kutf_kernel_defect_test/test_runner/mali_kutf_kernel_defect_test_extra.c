@@ -59,3 +59,14 @@ struct kutf_extra_func_spec defect_test_GPUCORE37465 = {
 		NULL /* post-test */
 	}
 };
+
+struct kutf_extra_func_spec defect_test_GPUCORE39614 = {
+	KERNEL_DEFECT_TEST_APP_NAME, /* app_name */
+	KERNEL_DEFECT_TEST_SUITE_NAME, /* suite_name */
+	KERNEL_DEFECT_GPUCORE_39614, /* test_name */
+	{
+		NULL, /* pretest */
+		GPUCORE39614, /* midtest */
+		NULL /* posttest */
+	}
+};

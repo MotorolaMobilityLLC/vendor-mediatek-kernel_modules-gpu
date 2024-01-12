@@ -32,9 +32,7 @@
 #include "ipa/mali_kbase_ipa.h"
 #include "ipa/mali_kbase_ipa_simple.h"
 #include "ipa/mali_kbase_ipa_debugfs.h"
-#if MALI_USE_CSF
 #include "csf/ipa_control/mali_kbase_csf_ipa_control.h"
-#endif
 
 #include <kutf/kutf_suite.h>
 #include <kutf/kutf_utils.h>
@@ -57,7 +55,6 @@
  */
 
 #if IS_ENABLED(CONFIG_MALI_NO_MALI) && MALI_UNIT_TEST
-#if MALI_USE_CSF
 /* CSHW counter block comes first */
 #define PERF_CSHW ((size_t)0)
 /* Index at which the value of GPU_ACTIVE event is stored in the array used for
@@ -65,17 +62,11 @@
  */
 #define GPU_ACTIVE ((size_t)0)
 #define PERF_TILER ((size_t)1 * KBASE_DUMMY_MODEL_COUNTER_PER_CORE)
-#else
-#define PERF_JM ((size_t)0)
-/* Job Manager */
-#define GPU_ACTIVE ((size_t)2)
-#endif /* MALI_USE_CSF */
 #define PERF_MEMSYS(mem) ((size_t)((2 + mem) * KBASE_DUMMY_MODEL_COUNTER_PER_CORE))
 #define PERF_SC(mem, n) ((size_t)((2 + mem + n) * KBASE_DUMMY_MODEL_COUNTER_PER_CORE))
 
 /* Memory system */
 #define L2_ANY_LOOKUP ((size_t)21)
-#if MALI_USE_CSF
 #define L2_RD_MSG_IN_CU ((size_t)9)
 #define L2_RD_MSG_IN ((size_t)12)
 #define L2_WR_MSG_IN ((size_t)14)
@@ -86,13 +77,11 @@
 #define L2_EXT_WRITE_NOSNP_FULL ((size_t)39)
 #define L2_RD_MSG_IN_STALL ((size_t)13)
 #define L2_EXT_WRITE ((size_t)38)
-#endif /* MALI_USE_CSF */
 
 /* Shader core */
 #define EXEC_INSTR_FMA ((size_t)23)
 #define EXEC_INSTR_MSG ((size_t)26)
 #define TEX_FILT_NUM_OPERATIONS ((size_t)35)
-#if MALI_USE_CSF
 #define FRAG_STARVING ((size_t)4)
 #define FRAG_PARTIAL_QUADS_RAST ((size_t)6)
 #define FRAG_QUADS_EZS_UPDATE ((size_t)9)
@@ -112,16 +101,8 @@
 #define TEX_CFCH_NUM_L1_CT_OPERATIONS ((size_t)86)
 #define EXEC_INSTR_SLOT1 ((size_t)114)
 #define EXEC_ISSUE_SLOT_ANY ((size_t)115)
-#else
-#define EXEC_INSTR_COUNT ((size_t)24)
-#define TEX_COORD_ISSUE ((size_t)36)
-#define TEX_TFCH_NUM_OPERATIONS ((size_t)38)
-#define VARY_INSTR ((size_t)45)
-#define BEATS_WR_TIB ((size_t)58)
-#endif /* MALI_USE_CSF */
 
 /* Tiler core */
-#if MALI_USE_CSF
 #define IDVS_POS_SHAD_STALL ((size_t)19)
 #define PREFETCH_STALL ((size_t)21)
 #define VFETCH_POS_READ_WAIT ((size_t)25)
@@ -131,7 +112,6 @@
 #define ITER_STALL ((size_t)36)
 #define PMGR_PTR_RD_STALL ((size_t)44)
 #define PRIMASSY_POS_SHADER_WAIT ((size_t)60)
-#endif /* MALI_USE_CSF */
 
 /* Number of milliseconds to wait for model initialization. */
 #define WAIT_FOR_MODEL_MS (400U)
@@ -940,13 +920,8 @@ static int kutf_ipa_set_prfcnt(const struct kutf_ipa_in *const in,
 		const uint64_t num_l2_slices = in->num_l2_slices.u.val_u64;
 
 		memset(hwcnt_tbl, 0, hwcnt_size);
-#if MALI_USE_CSF
 		hwcnt_tbl[PERF_CSHW + GPU_ACTIVE] = in->gpu_active.u.val_u64;
-#else
-		hwcnt_tbl[PERF_JM + GPU_ACTIVE] = in->gpu_active.u.val_u64;
-#endif
 
-#if MALI_USE_CSF
 		hwcnt_tbl[PERF_TILER + IDVS_POS_SHAD_STALL] = in->idvs_pos_shad_stall.u.val_u64;
 		hwcnt_tbl[PERF_TILER + PREFETCH_STALL] = in->prefetch_stall.u.val_u64;
 		hwcnt_tbl[PERF_TILER + VFETCH_POS_READ_WAIT] = in->vfetch_pos_read_wait.u.val_u64;
@@ -957,11 +932,9 @@ static int kutf_ipa_set_prfcnt(const struct kutf_ipa_in *const in,
 		hwcnt_tbl[PERF_TILER + PMGR_PTR_RD_STALL] = in->pmgr_ptr_rd_stall.u.val_u64;
 		hwcnt_tbl[PERF_TILER + PRIMASSY_POS_SHADER_WAIT] =
 			in->primassy_pos_shader_wait.u.val_u64;
-#endif
 
 		for (i = 0; i < num_l2_slices; ++i) {
 			hwcnt_tbl[PERF_MEMSYS(i) + L2_ANY_LOOKUP] = in->l2_access[i].u.val_u64;
-#if MALI_USE_CSF
 			hwcnt_tbl[PERF_MEMSYS(i) + L2_RD_MSG_IN_CU] =
 				in->l2_rd_msg_in_cu[i].u.val_u64;
 			hwcnt_tbl[PERF_MEMSYS(i) + L2_RD_MSG_IN] = in->l2_rd_msg_in[i].u.val_u64;
@@ -977,7 +950,6 @@ static int kutf_ipa_set_prfcnt(const struct kutf_ipa_in *const in,
 			hwcnt_tbl[PERF_MEMSYS(i) + L2_RD_MSG_IN_STALL] =
 				in->l2_rd_msg_in_stall[i].u.val_u64;
 			hwcnt_tbl[PERF_MEMSYS(i) + L2_EXT_WRITE] = in->l2_ext_write[i].u.val_u64;
-#endif
 		}
 
 		for (i = 0; i < num_cores; ++i) {
@@ -990,7 +962,6 @@ static int kutf_ipa_set_prfcnt(const struct kutf_ipa_in *const in,
 			/* EXEC_INSTR_MSG */
 			hwcnt_tbl[PERF_SC(num_l2_slices, i) + EXEC_INSTR_MSG] =
 				in->exec_instr_msg[i].u.val_u64;
-#if MALI_USE_CSF
 			hwcnt_tbl[PERF_SC(num_l2_slices, i) + EXEC_INSTR_SFU] =
 				in->exec_instr_sfu[i].u.val_u64;
 			hwcnt_tbl[PERF_SC(num_l2_slices, i) + EXEC_INSTR_CVT] =
@@ -1029,23 +1000,6 @@ static int kutf_ipa_set_prfcnt(const struct kutf_ipa_in *const in,
 				in->exec_instr_slot1[i].u.val_u64;
 			hwcnt_tbl[PERF_SC(num_l2_slices, i) + EXEC_ISSUE_SLOT_ANY] =
 				in->exec_issue_slot_any[i].u.val_u64;
-#else
-			/* EXEC_INSTR_COUNT */
-			hwcnt_tbl[PERF_SC(num_l2_slices, i) + EXEC_INSTR_COUNT] =
-				in->exec_instr_count[i].u.val_u64;
-			/* TEX_COORD_ISSUE */
-			hwcnt_tbl[PERF_SC(num_l2_slices, i) + TEX_COORD_ISSUE] =
-				in->tex_issue[i].u.val_u64;
-			/* BEATS_WR_TIB */
-			hwcnt_tbl[PERF_SC(num_l2_slices, i) + BEATS_WR_TIB] =
-				in->tile_wb[i].u.val_u64;
-			/* TEX_TFCH_NUM_OPERATIONS */
-			hwcnt_tbl[PERF_SC(num_l2_slices, i) + TEX_TFCH_NUM_OPERATIONS] =
-				in->tex_tfch_num_operations[i].u.val_u64;
-			/* VARY_INSTR */
-			hwcnt_tbl[PERF_SC(num_l2_slices, i) + VARY_INSTR] =
-				in->vary_instr[i].u.val_u64;
-#endif
 		}
 
 #if IS_ENABLED(CONFIG_MALI_NO_MALI) && MALI_UNIT_TEST
@@ -1138,24 +1092,12 @@ struct suite_list {
 	const char *name;
 	u32 gpu_id;
 } suite_list[] = {
-#if !MALI_USE_CSF
-	{ IPA_SUITE_NAME_G71, GPU_ID2_PRODUCT_TMIX },
-	{ IPA_SUITE_NAME_G72, GPU_ID2_PRODUCT_THEX },
-	{ IPA_SUITE_NAME_TNOX, GPU_ID2_PRODUCT_TNOX },
-	{ IPA_SUITE_NAME_G51, GPU_ID2_PRODUCT_TSIX },
-	/* tGOx r0 uses the tNOx model, so it doesn't need a separate suite. */
-	{ IPA_SUITE_NAME_TGOX_R1, GPU_ID2_PRODUCT_TGOX | (1u << GPU_ID2_VERSION_MAJOR_SHIFT) },
-	{ IPA_SUITE_NAME_G77, GPU_ID2_PRODUCT_TTRX },
-	{ IPA_SUITE_NAME_TNAX, GPU_ID2_PRODUCT_TNAX },
-	{ IPA_SUITE_NAME_TBEX, GPU_ID2_PRODUCT_TBEX },
-#else
 	{ IPA_SUITE_NAME_TODX, GPU_ID2_PRODUCT_TODX },
 	{ IPA_SUITE_NAME_TGRX, GPU_ID2_PRODUCT_TGRX },
 	{ IPA_SUITE_NAME_TVAX, GPU_ID2_PRODUCT_TVAX },
 	{ IPA_SUITE_NAME_TTUX, GPU_ID2_PRODUCT_TTUX },
 	{ IPA_SUITE_NAME_TTIX, GPU_ID2_PRODUCT_TTIX },
 	{ IPA_SUITE_NAME_TKRX, GPU_ID2_PRODUCT_TKRX },
-#endif
 };
 
 /**

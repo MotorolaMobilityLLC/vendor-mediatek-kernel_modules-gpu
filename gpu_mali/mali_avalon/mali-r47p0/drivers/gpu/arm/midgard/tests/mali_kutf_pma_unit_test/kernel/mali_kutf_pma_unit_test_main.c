@@ -40,7 +40,7 @@
 #define PRIME_NUM 7
 
 /* Maximum allocation size to test, as a base-2 logarithm. */
-#define MAX_SIZE_LOG2 9
+#define MAX_SIZE_LOG2 (__builtin_ffs(SZ_2M / PAGE_SIZE) - 1)
 
 /* KUTF test application pointer for this test. */
 static struct kutf_application *pma_app;
@@ -130,14 +130,16 @@ static void mali_kutf_pma_free_any_order(struct kutf_context *context)
  * @context: KUTF context
  *
  * Verify that protected memory allocations of any size can be created
- * and freed in the range from order 0 (1 page, i.e. 4 kB) to order 9
- * (512 pages, i.e. 2 MB)
+ * and freed in the range from order 0 (1 page, i.e. PAGE_SIZE) to
+ * - order 9 (when PAGE_SIZE is 4KB, 2^9 * 4KB = 2 MB)
+ * - order 7 (when PAGE_SIZE is 16KB, 2^7 * 16KB = 2 MB)
+ * - order 5 (when PAGE_SIZE is 64KB, 2^5 * 64KB = 2 MB)
  */
 static void mali_kutf_pma_alloc_free_any_size(struct kutf_context *context)
 {
 	struct protected_memory_allocator_device *pma_dev = context->fixture;
 	struct protected_memory_allocation *allocs[MAX_SIZE_LOG2 + 1];
-	int i;
+	unsigned int i;
 
 	for (i = 0; i <= MAX_SIZE_LOG2; i++) {
 		allocs[i] = pma_dev->ops.pma_alloc_page(pma_dev, i);

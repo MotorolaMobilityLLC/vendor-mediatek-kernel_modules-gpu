@@ -25,6 +25,7 @@ static int kernel_defect_test_runner_run_func(mali_utf_test_specifier *test_spec
 	kutf_test_runner_test_extras_add(&defect_test_GPUCORE35490);
 	kutf_test_runner_test_extras_add(&defect_test_GPUCORE37201);
 	kutf_test_runner_test_extras_add(&defect_test_GPUCORE37465);
+	kutf_test_runner_test_extras_add(&defect_test_GPUCORE39614);
 
 	return kutf_test_runner_helper_run_func(test_spec);
 }

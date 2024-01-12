@@ -158,4 +158,39 @@ void kutf_test_runner_helper_cli_info_func(void);
  */
 void kutf_test_runner_add_result_external(char *result);
 
+/*
+ * Helper function which provides information on kprobe availability.
+ * Kprobes enables to dynamically break into any kernel routine
+ * and collect debugging and performance information.
+ * Refer https://docs.kernel.org/trace/kprobes.html for more info.
+ *
+ * Returns true if kprobe functionality is enabled in kernel.
+ * Ensure kutf.ko is loaded before calling this function.
+ */
+bool kutf_test_runner_helper_is_kprobe_available(void);
+
+/*
+ * Helper function to register kprobe.
+ * @probe_func_name:    kernel function name to probe.
+ * @entry:              True if we need to insert probe at function entry.
+ *                      False if we need to insert probe at function exit.
+ * @probe_handler_name: kernel function name which should be called once
+ *                      probe is triggered by kernel
+ * @format:             format string for variable arguments.
+ * @...                 variable number of arguments to @probe_handler_name
+ */
+int kutf_test_runner_helper_register_kprobe(char *probe_func_name,
+					    bool  entry,
+					    char *probe_handler_name,
+					    char *format,
+					    ...);
+/*
+ * Helper function to unregister kprobe.
+ * @probe_func_name: kernel function name to unregister probe.
+ * @entry:           True if we need to remove probe at function entry.
+ *                   False if we need to remove probe at function exit.
+ */
+int kutf_test_runner_helper_unregister_kprobe(char *probe_func_name,
+					      bool  entry);
+
 #endif /* _KUTF_TEST_RUNNER_H_ */

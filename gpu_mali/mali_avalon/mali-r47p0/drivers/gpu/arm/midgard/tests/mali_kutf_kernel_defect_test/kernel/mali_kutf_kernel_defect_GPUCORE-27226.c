@@ -50,8 +50,8 @@ static void mali_kutf_GPUCORE27226_test_function(struct kutf_context *context)
 	struct kbase_va_region *region;
 	struct kbase_mem_pool *pool;
 	struct tagged_addr *tp;
-	uint64_t gpu_va;
-	ssize_t cur_size, max_size;
+	u64 gpu_va;
+	size_t cur_size, max_size;
 	struct kutf_kernel_defect_fixture_data *data = context->fixture;
 	struct kbase_context *kctx = data->kctx;
 
@@ -60,8 +60,8 @@ static void mali_kutf_GPUCORE27226_test_function(struct kutf_context *context)
 	 */
 	const enum kbase_caller_mmu_sync_info mmu_sync_info = CALLER_MMU_ASYNC;
 
-	uint64_t flags = BASE_MEM_PROT_CPU_WR | BASE_MEM_PROT_GPU_RD | BASE_MEM_SAME_VA |
-			 BASE_MEM_GROW_ON_GPF;
+	u64 flags = BASE_MEM_PROT_CPU_WR | BASE_MEM_PROT_GPU_RD | BASE_MEM_SAME_VA |
+		    BASE_MEM_GROW_ON_GPF;
 
 	if (!kctx) {
 		pr_warn("%s: Unexpected NULL kctx\n", __func__);
@@ -95,7 +95,7 @@ static void mali_kutf_GPUCORE27226_test_function(struct kutf_context *context)
 		if (cur_size > max_size) {
 			const char *message = kutf_dsprintf(
 				&context->fixture_pool,
-				"pool_size exceeded pool_max_size %zd > %zd", cur_size, max_size);
+				"pool_size exceeded pool_max_size %zu > %zu", cur_size, max_size);
 			kutf_test_fail(context, message);
 		}
 	}

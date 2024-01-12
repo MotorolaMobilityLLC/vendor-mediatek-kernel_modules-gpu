@@ -42,8 +42,7 @@
 #define CSF_INTERFACE_INDEX ((uint8_t)0)
 #define CSF_NR_INTERFACES ((uint8_t)1)
 
-#define CHUNK_SIZE ((uint32_t)OSU_CONFIG_CPU_PAGE_SIZE) // in bytes
-
+#define CHUNK_SIZE (test_fix->chunk_size_in_pages * OSU_CONFIG_CPU_PAGE_SIZE)
 #define INVALID_GPU_HEAP_VA ((uint64_t)0xFFFFFFFF)
 
 #define JIT_REGION_VA_PAGES ((uint64_t)65536)
@@ -58,7 +57,7 @@ typedef struct test_fixture {
 	uint16_t target_in_flight;
 	uint32_t max_chunks;
 	uint32_t initial_chunks;
-	uint32_t chunk_size;
+	uint32_t chunk_size_in_pages;
 	uint8_t csi_handler_flags;
 	enum oom_event_action expected_action;
 	struct base_gpu_queue_group_error expected_error;
@@ -75,7 +74,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 6,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .expected_action = OOM_EVENT_NEW_CHUNK_ALLOCATED,
 	  .expected_error = {
 		.error_type = BASE_GPU_QUEUE_GROUP_ERROR_FATAL_COUNT,
@@ -91,7 +90,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	 .target_in_flight = 5,
 	 .max_chunks = 10,
 	 .initial_chunks = 10,
-	 .chunk_size = CHUNK_SIZE,
+	 .chunk_size_in_pages = 1,
 	 .expected_action = OOM_EVENT_CSG_TERMINATED,
 	 .expected_error = { .error_type = BASE_GPU_QUEUE_GROUP_ERROR_TILER_HEAP_OOM },
 	},
@@ -103,7 +102,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 9,
-	  .chunk_size = 2*CHUNK_SIZE,
+	  .chunk_size_in_pages = 2,
 	  .expected_action = OOM_EVENT_NEW_CHUNK_ALLOCATED,
 	  .expected_error = {
 		.error_type = BASE_GPU_QUEUE_GROUP_ERROR_FATAL_COUNT,
@@ -118,7 +117,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 10,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .expected_action = OOM_EVENT_NULL_CHUNK,
 	  .expected_error = {
 		.error_type = BASE_GPU_QUEUE_GROUP_ERROR_FATAL_COUNT,
@@ -133,7 +132,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 6,
-	  .chunk_size = 3*CHUNK_SIZE,
+	  .chunk_size_in_pages = 3,
 	  .expected_action = OOM_EVENT_NEW_CHUNK_ALLOCATED,
 	  .expected_error = {
 		.error_type = BASE_GPU_QUEUE_GROUP_ERROR_FATAL_COUNT,
@@ -148,7 +147,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 10,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .expected_action = OOM_EVENT_CSG_TERMINATED,
 	  .expected_error = { .error_type = BASE_GPU_QUEUE_GROUP_ERROR_TILER_HEAP_OOM },
 	},
@@ -160,7 +159,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 10,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .expected_action = OOM_EVENT_CSG_TERMINATED,
 	  .expected_error = { .error_type = BASE_GPU_QUEUE_GROUP_ERROR_TILER_HEAP_OOM },
 	},
@@ -173,7 +172,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 6,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .expected_action = OOM_EVENT_NULL_CHUNK,
 	  .expected_error = {
 		.error_type = BASE_GPU_QUEUE_GROUP_ERROR_FATAL_COUNT,
@@ -187,7 +186,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 10,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .expected_action = OOM_EVENT_NULL_CHUNK,
 	  .expected_error = {
 		.error_type = BASE_GPU_QUEUE_GROUP_ERROR_FATAL_COUNT,
@@ -201,7 +200,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 6,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .expected_action = OOM_EVENT_NULL_CHUNK,
 	  .expected_error = {
 		.error_type = BASE_GPU_QUEUE_GROUP_ERROR_FATAL_COUNT,
@@ -215,7 +214,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 6,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .expected_action = OOM_EVENT_CSG_TERMINATED,
 	  .expected_error = { .error_type = BASE_GPU_QUEUE_GROUP_ERROR_TILER_HEAP_OOM },
 	},
@@ -227,7 +226,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 6,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .expected_action = OOM_EVENT_CSG_TERMINATED,
 	  .expected_error = { .error_type = BASE_GPU_QUEUE_GROUP_ERROR_TILER_HEAP_OOM },
 	},
@@ -240,7 +239,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 6,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .expected_action = OOM_EVENT_CSG_TERMINATED,
 	  .expected_error = { .error_type = BASE_GPU_QUEUE_GROUP_ERROR_TILER_HEAP_OOM },
 	},
@@ -252,7 +251,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 6,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .expected_action = OOM_EVENT_CSG_TERMINATED,
 	  .expected_error = { .error_type = BASE_GPU_QUEUE_GROUP_ERROR_TILER_HEAP_OOM },
 	},
@@ -264,7 +263,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 6,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .expected_action = OOM_EVENT_CSG_TERMINATED,
 	  .expected_error = { .error_type = BASE_GPU_QUEUE_GROUP_ERROR_TILER_HEAP_OOM },
 	},
@@ -276,7 +275,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 6,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .expected_action = OOM_EVENT_CSG_TERMINATED,
 	  .expected_error = { .error_type = BASE_GPU_QUEUE_GROUP_ERROR_TILER_HEAP_OOM },
 	},
@@ -288,7 +287,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 6,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .expected_action = OOM_EVENT_CSG_TERMINATED,
 	  .expected_error = { .error_type = BASE_GPU_QUEUE_GROUP_ERROR_TILER_HEAP_OOM },
 	},
@@ -307,7 +306,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 6,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .csi_handler_flags = BASE_CSF_TILER_OOM_EXCEPTION_FLAG,
 	  .expected_action = OOM_EVENT_NEW_CHUNK_ALLOCATED,
 	  .expected_error = {
@@ -326,7 +325,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	 .target_in_flight = 5,
 	 .max_chunks = 10,
 	 .initial_chunks = 10,
-	 .chunk_size = CHUNK_SIZE,
+	 .chunk_size_in_pages = 1,
 	 .csi_handler_flags = BASE_CSF_TILER_OOM_EXCEPTION_FLAG,
 	 .expected_action = OOM_EVENT_INCREMENTAL_RENDER,
 	 .expected_error = {
@@ -342,7 +341,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 10,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .csi_handler_flags = BASE_CSF_TILER_OOM_EXCEPTION_FLAG,
 	  .expected_action = OOM_EVENT_NULL_CHUNK,
 	  .expected_error = {
@@ -358,7 +357,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 6,
-	  .chunk_size = 3*CHUNK_SIZE,
+	  .chunk_size_in_pages = 3,
 	  .csi_handler_flags = BASE_CSF_TILER_OOM_EXCEPTION_FLAG,
 	  .expected_action = OOM_EVENT_NEW_CHUNK_ALLOCATED,
 	  .expected_error = {
@@ -374,7 +373,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 10,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .csi_handler_flags = BASE_CSF_TILER_OOM_EXCEPTION_FLAG,
 	  .expected_action = OOM_EVENT_INCREMENTAL_RENDER,
 	  .expected_error = {
@@ -390,7 +389,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 10,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .csi_handler_flags = BASE_CSF_TILER_OOM_EXCEPTION_FLAG,
 	  .expected_action = OOM_EVENT_INCREMENTAL_RENDER,
 	  .expected_error = {
@@ -406,7 +405,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 6,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .csi_handler_flags = BASE_CSF_TILER_OOM_EXCEPTION_FLAG,
 	  .expected_action = OOM_EVENT_NULL_CHUNK,
 	  .expected_error = {
@@ -423,7 +422,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 6,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .csi_handler_flags = BASE_CSF_TILER_OOM_EXCEPTION_FLAG,
 	  .expected_action = OOM_EVENT_INCREMENTAL_RENDER,
 	  .expected_error = {
@@ -438,7 +437,7 @@ static const test_fixture heap_settings[CSF_TILER_HEAP_SUITE_FIXTURES] = {
 	  .target_in_flight = 5,
 	  .max_chunks = 10,
 	  .initial_chunks = 6,
-	  .chunk_size = CHUNK_SIZE,
+	  .chunk_size_in_pages = 1,
 	  .csi_handler_flags = BASE_CSF_TILER_OOM_EXCEPTION_FLAG,
 	  .expected_action = OOM_EVENT_CSG_TERMINATED,
 	  .expected_error = { .error_type = BASE_GPU_QUEUE_GROUP_ERROR_TILER_HEAP_OOM },
@@ -476,9 +475,8 @@ static int send_values(struct mali_utf_suite *const suite, unsigned int ctx_id,
 
 	/* Send size of the Heap chunk */
 	if (!err) {
-		mali_utf_loginf(HEAP_CHUNK_SIZE "=%x\n", test_fix->chunk_size);
-		err = kutf_test_helpers_userdata_send_named_u64(suite, HEAP_CHUNK_SIZE,
-								test_fix->chunk_size);
+		mali_utf_loginf(HEAP_CHUNK_SIZE "=%x\n", CHUNK_SIZE);
+		err = kutf_test_helpers_userdata_send_named_u64(suite, HEAP_CHUNK_SIZE, CHUNK_SIZE);
 	}
 
 	/* Send GPU VA of the GPU queue */
@@ -578,7 +576,7 @@ static void csf_tiler_heap_oom_event_test_common(struct mali_utf_suite *suite, b
 	int dof_fd = -1;
 
 	bool success = base_context_init(&ctx, BASE_CONTEXT_CSF_EVENT_THREAD);
-	MALI_UTF_ASSERT_FAIL_EX_M(success, "Failed to create context");
+	MALI_UTF_ASSERT_EX_M(success, "Failed to create context");
 
 	/* Compatibility check for incremental rendering, skip it if feature not supported */
 	if ((test_fix->csi_handler_flags & BASE_CSF_TILER_OOM_EXCEPTION_FLAG) &&
@@ -617,8 +615,8 @@ static void csf_tiler_heap_oom_event_test_common(struct mali_utf_suite *suite, b
 					JIT_TRIM_LEVEL, BASE_MEM_GROUP_DEFAULT,
 					JIT_REGION_VA_PAGES);
 
-		MALI_UTF_ASSERT_FAIL_M(mali_error_no_error(err),
-				       "Failed to initialize the custom VA zone");
+		MALI_UTF_ASSERT_M(mali_error_no_error(err),
+				  "Failed to initialize the custom VA zone");
 	}
 
 	/* Tiler heap reclaim changes brought in some strict check on buffer descriptor address. So
@@ -635,8 +633,8 @@ static void csf_tiler_heap_oom_event_test_common(struct mali_utf_suite *suite, b
 			memset(ptr_buf_descr, 0, OSU_CONFIG_CPU_PAGE_SIZE);
 		}
 
-		MALI_UTF_ASSERT_FAIL_M(mali_error_no_error(err),
-				       "Failed to allocate beffer decriptor page");
+		MALI_UTF_ASSERT_M(mali_error_no_error(err),
+				  "Failed to allocate beffer decriptor page");
 	}
 
 	if (mali_error_no_error(err)) {
@@ -674,7 +672,7 @@ static void csf_tiler_heap_oom_event_test_common(struct mali_utf_suite *suite, b
 
 	if (mali_error_no_error(err)) {
 		err = base_gpu_queue_group_bind(group, queue, CSF_INTERFACE_INDEX);
-		MALI_UTF_ASSERT_FAIL_M(mali_error_no_error(err), "Failed to bind queue to group");
+		MALI_UTF_ASSERT_M(mali_error_no_error(err), "Failed to bind queue to group");
 	}
 
 	if (mali_error_no_error(err)) {
@@ -689,17 +687,14 @@ static void csf_tiler_heap_oom_event_test_common(struct mali_utf_suite *suite, b
 
 		err = base_tiler_heap_init(&heap, &ctx, test_fix->target_in_flight,
 					   test_fix->max_chunks, test_fix->initial_chunks,
-					   test_fix->chunk_size, BASE_MEM_GROUP_DEFAULT,
-					   ptr_buf_descr);
-		MALI_UTF_ASSERT_FAIL_M(mali_error_no_error(err), "Failed to create the tiler heap");
+					   CHUNK_SIZE, BASE_MEM_GROUP_DEFAULT, ptr_buf_descr);
+		MALI_UTF_ASSERT_M(mali_error_no_error(err), "Failed to create the tiler heap");
 	}
 
 	if (mali_error_no_error(err)) {
-		unsigned int ctx_id;
 		uint64_t gpu_heap_va = base_tiler_heap_get_address(&heap);
 		uint64_t gpu_queue_va = base_mem_gpu_address(queue->basep.buffer_h, 0);
-
-		base_get_context_id(&ctx, &ctx_id);
+		unsigned int ctx_id = base_get_context_id(&ctx);
 
 		if (test_fix->use_invalid_gpu_heap_va) {
 			gpu_heap_va = INVALID_GPU_HEAP_VA;
@@ -732,22 +727,16 @@ static void csf_tiler_heap_oom_event_test_common(struct mali_utf_suite *suite, b
 		base_tiler_heap_term(&heap);
 	}
 
-	if (!base_mem_handle_is_invalid(mem_hdl)) {
-		base_mem_free(&ctx, mem_hdl, 1);
-	}
+	base_mem_free(&ctx, mem_hdl, 1);
 
-	if (queue) {
-		base_gpu_queue_delete(queue);
-	}
+	base_gpu_queue_delete(queue);
 
-	if (group) {
-		base_gpu_queue_group_delete(group);
-	}
+	base_gpu_queue_group_delete(group);
 
 	if (saved_power_policy[0] != '\0') {
 		err = base_test_set_power_policy(saved_power_policy);
-		MALI_UTF_ASSERT_FAIL_M(mali_error_no_error(err),
-				       "Failed to restore power_policy '%s'", saved_power_policy);
+		MALI_UTF_ASSERT_M(mali_error_no_error(err), "Failed to restore power_policy '%s'",
+				  saved_power_policy);
 	}
 
 	if (dof_fd >= 0)

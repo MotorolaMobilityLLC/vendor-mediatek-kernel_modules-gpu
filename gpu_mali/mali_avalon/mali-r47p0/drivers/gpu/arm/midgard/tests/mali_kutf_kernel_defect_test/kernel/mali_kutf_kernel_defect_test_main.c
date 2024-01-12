@@ -30,7 +30,6 @@
 
 #define MINOR_FOR_FIRST_KBASE_DEV (-1)
 
-#if MALI_USE_CSF
 
 void notify_user_val(struct kutf_context *context, const char *name, u64 val)
 {
@@ -62,7 +61,6 @@ struct kbase_context *get_kbase_ctx_ptr_from_id(struct kbase_device *kbdev, u32 
 
 	return target_kctx;
 }
-#endif
 
 /* KUTF test application pointer for this test */
 static struct kutf_application *kutf_app;
@@ -145,6 +143,8 @@ static int __init mali_kutf_kernel_defect_test_main_init(void)
 				   mali_kutf_kernel_defect_GPUCORE_37201, filters);
 	kutf_add_test_with_filters(suite, 0x0127, KERNEL_DEFECT_GPUCORE_37465,
 				   mali_kutf_kernel_defect_GPUCORE_37465, filters);
+	kutf_add_test_with_filters(suite, 0x0128, KERNEL_DEFECT_GPUCORE_39614,
+				   mali_kutf_kernel_defect_GPUCORE_39614, filters);
 	return 0;
 }
 

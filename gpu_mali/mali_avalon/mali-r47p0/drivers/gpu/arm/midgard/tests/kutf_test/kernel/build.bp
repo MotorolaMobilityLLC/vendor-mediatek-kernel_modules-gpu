@@ -3,7 +3,7 @@
  * ----------------------------------------------------------------------------
  * This confidential and proprietary software may be used only as authorized
  * by a licensing agreement from ARM Limited.
- *      (C) COPYRIGHT 2018-2019, 2021 ARM Limited, ALL RIGHTS RESERVED
+ *      (C) COPYRIGHT 2018-2019, 2021-2023 ARM Limited, ALL RIGHTS RESERVED
  * The entire notice above must be reproduced on all authorized copies and
  * copies may only be made to the extent permitted by a licensing agreement
  * from ARM Limited.
@@ -22,6 +22,8 @@ bob_kernel_module {
         "kutf_test_main.c",
         "kutf_test_userdata.c",
         "kutf_test_userdata.h",
+        "kutf_test_kprobe.c",
+        "kutf_test_kprobe.h",
     ],
     extra_symbols: [
         "mali_kbase",

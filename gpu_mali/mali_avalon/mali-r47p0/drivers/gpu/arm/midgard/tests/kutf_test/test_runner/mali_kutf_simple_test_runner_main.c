@@ -12,6 +12,7 @@
 #include <utf/include/mali_utf_main.h>
 #include "mali_kutf_test_runner.h"
 #include "mali_kutf_simple_test_userdata.h"
+#include "mali_kutf_simple_test_kprobe.h"
 
 static int kutf_test_simple_test_runner_run_func(mali_utf_test_specifier *test_spec)
 {
@@ -29,6 +30,9 @@ static int kutf_test_simple_test_runner_run_func(mali_utf_test_specifier *test_s
 	err = kutf_test_runner_filter_app_add(USERDATA_APP_NAME);
 	if (err)
 		return err;
+	err = kutf_test_runner_filter_app_add(KPROBE_APP_NAME);
+	if (err)
+		return err;
 
 	/* Add extra testing functions to some of the tests */
 	err = kutf_test_runner_test_extras_add(&kutf_simple_test_add_two_values);
@@ -40,7 +44,9 @@ static int kutf_test_simple_test_runner_run_func(mali_utf_test_specifier *test_s
 	err = kutf_test_runner_test_extras_add(&kutf_simple_test_random_str_sizes);
 	if (err)
 		return err;
-
+	err = kutf_test_runner_test_extras_add(&kutf_simple_test_kprobe);
+	if (err)
+		return err;
 	return kutf_test_runner_helper_run_func(test_spec);
 }
 

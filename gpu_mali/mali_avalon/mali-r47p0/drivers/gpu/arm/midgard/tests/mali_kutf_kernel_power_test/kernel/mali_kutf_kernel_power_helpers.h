@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2021-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -22,8 +22,9 @@
 #ifndef _MALI_KUTF_POWER_HELPERS_H_
 #define _MALI_KUTF_POWER_HELPERS_H_
 
-#include <mali_kbase.h>
-#include <device/mali_kbase_device.h>
+#include <linux/types.h>
+
+struct kbase_device;
 
 bool mali_kutf_test_set_power_policy_by_name(struct kbase_device *kbdev, char const *policy);
 

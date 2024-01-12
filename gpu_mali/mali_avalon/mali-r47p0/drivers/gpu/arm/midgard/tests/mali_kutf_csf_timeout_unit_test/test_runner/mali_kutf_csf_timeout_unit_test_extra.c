@@ -22,6 +22,7 @@
 #include "../mali_kutf_csf_timeout_unit_test.h"
 #include <fcntl.h>
 #include <unistd.h>
+#include <helpers/mali_base_helpers.h>
 #include <helpers/mali_base_helpers_csf.h>
 #include <csf/helpers/mali_base_csf_scheduler_helpers.h>
 #include <base/tests/common/mali_base_user_common.h>
@@ -142,10 +143,15 @@ static void check_dump_on_fault(struct mali_utf_suite *suite,
 
 static void csf_timeout_event_test_common(struct mali_utf_suite *suite, bool test_dof)
 {
+	if (!base_is_debugfs_supported()) {
+		mali_utf_test_skip_msg("Skip test as DEBUGFS is not enabled.");
+		return;
+	}
+
 	base_context ctx;
 	int dof_fd = -1;
 
-	MALI_UTF_ASSERT_FAIL_EX(base_context_init(&ctx, BASE_CONTEXT_CSF_EVENT_THREAD));
+	MALI_UTF_ASSERT_EX(base_context_init(&ctx, BASE_CONTEXT_CSF_EVENT_THREAD));
 
 	basep_test_single_cs_group groups[CSF_TIMEOUT_SUITE_FIXTURES];
 	basep_test_csf_job_resources job_res = { { { 0 } } };
@@ -206,8 +212,7 @@ static void csf_timeout_event_test_common(struct mali_utf_suite *suite, bool tes
 		MALI_UTF_ASSERT_UINT_EQ_M(mali_tpi_sleep_ns(WAIT_PROGRESS_TIMEOUT_NS, false),
 					  MALI_TPI_SLEEP_STATUS_OK, "Failed to wait sched");
 
-		unsigned int ctx_id;
-		base_get_context_id(&ctx, &ctx_id);
+		unsigned int ctx_id = base_get_context_id(&ctx);
 
 		/* Send timeout event parameters to kernel space */
 		mali_addr64 const gpu_queue_va =

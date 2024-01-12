@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2014-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -19,11 +19,10 @@
  *
  */
 
-/*
- * Backend specific configuration
- */
+#ifndef _KERNEL_UTF_TEST_KPROBE_H_
+#define _KERNEL_UTF_TEST_KPROBE_H_
 
-#ifndef _KBASE_BACKEND_CONFIG_H_
-#define _KBASE_BACKEND_CONFIG_H_
+void kutf_test_kprobe_init(void);
+void kutf_test_kprobe_exit(void);
 
-#endif /* _KBASE_BACKEND_CONFIG_H_ */
+#endif /* _KERNEL_UTF_TEST_KPROBE_H_ */

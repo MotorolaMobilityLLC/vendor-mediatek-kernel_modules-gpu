@@ -26,5 +26,6 @@ mali_kutf_kernel_defect_test-y := \
     mali_kutf_kernel_defect_GPUCORE-35490.o \
     mali_kutf_kernel_defect_GPUCORE-37201.o \
     mali_kutf_kernel_defect_GPUCORE-37465.o \
+    mali_kutf_kernel_defect_GPUCORE-39614.o \
     mali_kutf_kernel_defect_test_main.o
 endif

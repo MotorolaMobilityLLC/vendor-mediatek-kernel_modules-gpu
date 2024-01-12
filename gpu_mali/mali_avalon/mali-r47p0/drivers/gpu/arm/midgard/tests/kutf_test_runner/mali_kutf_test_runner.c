@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <libgen.h>
+#include <errno.h>
 
 /*
  * Maximum length of a single result that will be read from the kernel.
@@ -35,6 +36,12 @@
  * first which means at least the result code is _always_ obtained.
  */
 #define KUTF_RESULT_LEN 1024
+
+#define KUTF_KP_BUF_SIZE 4096
+
+#define KUTF_BASE_DEBUGFS_DIR "/sys/kernel/debug/kutf_tests"
+#define KUTF_KP_REG_FILE KUTF_BASE_DEBUGFS_DIR"/register_kprobe"
+#define KUTF_KP_UNREG_FILE KUTF_BASE_DEBUGFS_DIR"/unregister_kprobe"
 
 struct kutf_convert_table {
 	char result_name[KUTF_ERROR_MAX_NAME_SIZE];
@@ -70,7 +77,7 @@ struct app_list_node {
 cutils_dlist selected_apps_list = CUTILS_DLIST_STATIC_INITIALIZER;
 cutils_dlist extra_funcs_list = CUTILS_DLIST_STATIC_INITIALIZER;
 
-static char default_kutf_base_dir[] = "/sys/kernel/debug/kutf_tests";
+static char default_kutf_base_dir[] = KUTF_BASE_DEBUGFS_DIR;
 char *kutf_base_dir = default_kutf_base_dir;
 
 mali_utf_mempool global_mempool;
@@ -968,4 +975,111 @@ void kutf_test_runner_helper_cli_info_func(void)
 		      "                      Multiple --app options may be specified to\n"
 		      "                      select several apps\n"
 		      "    --kutf_base_dir=  Specify the base directory of kutf.\n");
+}
+
+static int kutf_test_runner_write_to_debugfs(char *filename, char *buf,
+					     int count)
+{
+	int fd;
+	int ret;
+
+	fd = open(filename, O_WRONLY);
+	if (fd == -1)
+		return errno;
+
+	ret = write(fd, buf, count);
+
+	close(fd);
+
+	if (ret == -1)
+		return errno;
+
+	return 0;
+}
+
+bool kutf_test_runner_helper_is_kprobe_available(void)
+{
+	bool kp_available  = false;
+	char *debugfs_file = KUTF_KP_REG_FILE;
+
+	if (access(debugfs_file, F_OK) != -1)
+		kp_available = true;
+
+	return kp_available;
+}
+
+int kutf_test_runner_helper_register_kprobe(char *probe_func_name,
+					    bool  entry,
+					    char *probe_handler_name,
+					    char *format_str,
+					    ...)
+{
+	char buf[KUTF_KP_BUF_SIZE];
+	char *p = buf;
+	int n;
+	int ret;
+	int count;
+	va_list args;
+	char *debugfs_kp_path = KUTF_KP_REG_FILE;
+	char *kp_kind_str;
+
+	if ((NULL == probe_func_name) || (NULL == probe_handler_name))
+		return -EINVAL;
+
+	if (!kutf_test_runner_helper_is_kprobe_available())
+		return -EPERM;
+
+	if (entry)
+		kp_kind_str = "entry";
+	else
+		kp_kind_str = "exit";
+
+	n = snprintf(p, KUTF_KP_BUF_SIZE, "%s %s %s ", probe_func_name,
+		     kp_kind_str, probe_handler_name);
+	count = n;
+
+	if (n >= KUTF_KP_BUF_SIZE)
+		return -EINVAL;
+	p += n;
+
+	va_start(args, format_str);
+	n = vsnprintf(p, KUTF_KP_BUF_SIZE-n, format_str, args);
+	va_end(args);
+	count += n;
+	/* add extra 1 byte for null char as vsnprintf doesn't count null */
+	count += 1;
+
+	ret = kutf_test_runner_write_to_debugfs(debugfs_kp_path,
+						buf, count);
+	return ret;
+}
+
+int kutf_test_runner_helper_unregister_kprobe(char *probe_func_name,
+					      bool  entry)
+{
+	char buf[KUTF_KP_BUF_SIZE];
+	int ret;
+	int count;
+	char *kp_kind_str;
+	char *debugfs_kp_path = KUTF_KP_UNREG_FILE;
+
+	if (probe_func_name == NULL)
+		return -EINVAL;
+
+	if (!kutf_test_runner_helper_is_kprobe_available())
+		return -EPERM;
+
+	if (entry)
+		kp_kind_str = "entry";
+	else
+		kp_kind_str = "exit";
+
+	count = snprintf(buf, KUTF_KP_BUF_SIZE, "%s %s", probe_func_name,
+		     kp_kind_str);
+	/* add extra 1 byte for null char as snprintf doesn't count null */
+	count += 1;
+
+	ret = kutf_test_runner_write_to_debugfs(debugfs_kp_path,
+						buf, count);
+	return ret;
 }

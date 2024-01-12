@@ -32,6 +32,7 @@ bob_kernel_module {
         "mali_kutf_kernel_defect_GPUCORE-35490.c",
         "mali_kutf_kernel_defect_GPUCORE-37201.c",
         "mali_kutf_kernel_defect_GPUCORE-37465.c",
+        "mali_kutf_kernel_defect_GPUCORE-39614.c",
         "mali_kutf_kernel_defect_test_main.c",
         "mali_kutf_kernel_defect_test_main.h",
         "../mali_kutf_kernel_defect_test.h",

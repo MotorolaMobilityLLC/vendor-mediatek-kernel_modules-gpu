@@ -29,7 +29,6 @@
 #include "mali_kutf_test_helpers.h"
 #include "mali_kutf_kernel_defect_test_helpers.h"
 
-#if MALI_USE_CSF
 
 #include <base/mali_base_tiler_heap.h>
 #include <base/mali_base_submission_gpu.h>
@@ -57,7 +56,6 @@
 #define INITIAL_NUM_CHUNKS ((uint32_t)5)
 #define MAX_NUM_CHUNKS ((uint32_t)200)
 #define CHUNK_SIZE ((uint32_t)OSU_CONFIG_CPU_PAGE_SIZE)
-#define MAX_CHUNK_SIZE ((uint32_t)(1024 * OSU_CONFIG_CPU_PAGE_SIZE))
 
 #define CSF_QUEUE_SIZE ((uint32_t)4096)
 
@@ -143,8 +141,8 @@ static void GPUCORE35490_test_func(mali_utf_suite *suite)
 	struct kutf_test_helpers_named_val named_val, named_val_2;
 	uint32_t ctx_id;
 
-	MALI_UTF_ASSERT_FAIL_EX_M(base_context_init(&ctx, BASE_CONTEXT_CSF_EVENT_THREAD),
-				  "Failed to create a base context");
+	MALI_UTF_ASSERT_EX_M(base_context_init(&ctx, BASE_CONTEXT_CSF_EVENT_THREAD),
+			     "Failed to create a base context");
 
 	err = base_mem_jit_init(&ctx, JIT_REGION_VA_PAGES, JIT_MAX_ALLOCATIONS, JIT_TRIM_LEVEL,
 				BASE_MEM_GROUP_DEFAULT, JIT_REGION_VA_PAGES);
@@ -171,7 +169,7 @@ static void GPUCORE35490_test_func(mali_utf_suite *suite)
 		kutf_test_helpers_userdata_send_named_u64(suite, "GPUCORE35490_USERSPACE_READY", 1),
 		0);
 
-	base_get_context_id(&ctx, &ctx_id);
+	ctx_id = base_get_context_id(&ctx);
 	MALI_UTF_ASSERT_INT_EQ(
 		kutf_test_helpers_userdata_send_named_u64(suite, "GPUCORE35490_CTX_ID", ctx_id), 0);
 
@@ -279,15 +277,8 @@ cleanup:
 	buf_descr_array_term(&ctx, NELEMS(tst_buf_descr), tst_buf_descr);
 	base_context_term(&ctx);
 }
-#endif /* MALI_USE_CSF */
 
 void GPUCORE35490(mali_utf_suite *suite)
 {
-#if MALI_USE_CSF
 	GPUCORE35490_test_func(suite);
-#else
-	CSTD_UNUSED(suite);
-	mali_utf_test_skip_msg(
-		"GPUCORE35490 defect test only available for CSF GPUs on Linux platform.");
-#endif /* MALI_USE_CSF */
 }

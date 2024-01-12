@@ -24,6 +24,7 @@ bob_binary {
         "GPUCORE-35490.c",
         "GPUCORE-37201.c",
         "GPUCORE-37465.c",
+        "GPUCORE-39614.c",
     ],
     static_libs: [
         "libkutf_test_runner",
@@ -31,6 +32,11 @@ bob_binary {
         "libbase_test_helpers",
         "libbase_cmn",
     ],
+    gpu_has_csf: {
+        static_libs: [
+            "libbase_csf_test_helpers",
+        ],
+    },
     shared_libs: [
         "libmali",
     ],

@@ -119,7 +119,6 @@ static const int64_t ts[4] = { (int64_t)(TS0 * 1000000.0), (int64_t)(TS1 * 10000
 #define TBEX_C5 ((double)0.1538) /* JMCounters.GPU_ACTIVE */
 #define TBEX_REF_VOLTAGE ((double)1.0) /* Voltage used to derive the coefficients */
 
-#if MALI_USE_CSF
 #define TODX_PREFETCH_STALL ((double)0.14543508124040833) /* TilerCounters */
 #define TODX_IDVS_VAR_SHAD_STALL ((double)-0.1719168157408611) /* TilerCounters */
 #define TODX_IDVS_POS_SHAD_STALL ((double)0.10998014230603903) /* TilerCounters */
@@ -216,7 +215,6 @@ static const int64_t ts[4] = { (int64_t)(TS0 * 1000000.0), (int64_t)(TS1 * 10000
 
 #define TKRX_REF_VOLTAGE ((double)0.55) /* Voltage used to derive the coefficients */
 
-#endif
 
 /* Coefficient, in watts per voltage^3, which is multiplied by
  * v^3 to calculate the static power consumption.
@@ -368,13 +366,8 @@ struct ipa_fixture {
 };
 
 /* Common values to be used when constructing test fixtures. */
-#if !MALI_USE_CSF
-#define FREQ_HZ ((unsigned long)400000000)
-#define VOLTAGE_MV ((unsigned long)750)
-#else
 #define FREQ_HZ ((unsigned long)50000000)
 #define VOLTAGE_MV ((unsigned long)820)
-#endif
 #define INTERVAL_NS ((uint64_t)NANOSEC_PER_SEC / 10)
 #define SCALE ((uint32_t)10)
 #define TEMP ((int)55000)
@@ -405,22 +398,15 @@ struct ipa_fixture {
 #define TEX_ISSUE_COUNT ((uint32_t)1628062)
 #define TILE_WB_COUNT ((uint32_t)812802)
 #define L2_COUNT ((uint32_t)102924)
-#if !MALI_USE_CSF
-#define ACTIVE_COUNT ((uint32_t)1812578)
-#define EXEC_INSTR_FMA_COUNT ((uint32_t)0)
-#define TEX_FILT_NUM_OPERATIONS_COUNT ((uint32_t)0)
-#endif
 
 /* Real-world counter values to be scaled for use in the test.
  * Obtained by running a benchmark on a Juno platform running at the frequency
  * of 50MHz, with a voltage value of 0.82 volts, and with a single shader core.
  * The values correspond to about 100ms of counter data.
  */
-#if MALI_USE_CSF
 #define ACTIVE_COUNT ((uint32_t)5500004)
 #define EXEC_INSTR_FMA_COUNT ((uint32_t)36154)
 #define TEX_FILT_NUM_OPERATIONS_COUNT ((uint32_t)3449105)
-#endif
 #define L2_RD_MSG_IN_COUNT ((uint32_t)182772)
 #define IDVS_POS_SHAD_STALL_COUNT ((uint32_t)502290)
 #define PREFETCH_STALL_COUNT ((uint32_t)2148051)
@@ -437,7 +423,6 @@ struct ipa_fixture {
  * of 50MHz, with a voltage value of 0.82 volts, and with a single shader core.
  * The values correspond to about 100ms of counter data.
  */
-#if MALI_USE_CSF
 /* Values collected on Mali-G310 */
 #define L2_RD_MSG_OUT_COUNT ((uint32_t)68866)
 #define L2_WR_MSG_IN_COUNT ((uint32_t)4736)
@@ -473,37 +458,6 @@ struct ipa_fixture {
 #define EXEC_INSTR_SLOT1_COUNT ((uint32_t)0)
 #define EXEC_ISSUE_SLOT_ANY_COUNT ((uint32_t)0)
 #define PRIMASSY_POS_SHADER_WAIT_COUNT ((uint32_t)0)
-#else /* MALI_USE_CSF */
-#define L2_RD_MSG_OUT_COUNT ((uint32_t)0)
-#define L2_WR_MSG_IN_COUNT ((uint32_t)0)
-#define ITER_STALL_COUNT ((uint32_t)0)
-#define PMGR_PTR_RD_STALL_COUNT ((uint32_t)0)
-#define EXEC_INSTR_MSG_COUNT ((uint32_t)0)
-#define FRAG_PARTIAL_QUADS_RAST_COUNT ((uint32_t)0)
-#define FRAG_STARVING_COUNT ((uint32_t)0)
-#define L2_READ_LOOKUP_COUNT ((uint32_t)0)
-#define VFETCH_VERTEX_WAIT_COUNT ((uint32_t)0)
-#define FULL_QUAD_WARPS_COUNT ((uint32_t)0)
-#define EXEC_INSTR_CVT_COUNT ((uint32_t)0)
-#define PRIMASSY_STALL_COUNT ((uint32_t)0)
-#define L2_RD_MSG_IN_CU_COUNT ((uint32_t)0)
-#define L2_SNP_MSG_IN_COUNT ((uint32_t)0)
-#define L2_EXT_READ_NOSNP_COUNT ((uint32_t)0)
-#define BEATS_RD_TEX_COUNT ((uint32_t)0)
-#define BEATS_RD_LSC_EXT_COUNT ((uint32_t)0)
-#define FRAG_QUADS_COARSE_COUNT ((uint32_t)0)
-#define BEATS_RD_TEX_EXT_COUNT ((uint32_t)0)
-#define EXEC_INSTR_SFU_COUNT ((uint32_t)0)
-#define L2_RD_MSG_IN_STALL_COUNT ((uint32_t)0)
-#define L2_EXT_WRITE_COUNT ((uint32_t)0)
-#define EXEC_STARVE_ARITH_COUNT ((uint32_t)0)
-#define TEX_TFCH_CLK_STALLED_COUNT ((uint32_t)0)
-#define RT_RAYS_STARTED_COUNT ((uint32_t)0)
-#define TEX_CFCH_NUM_L1_CT_OPERATIONS_COUNT ((uint32_t)0)
-#define EXEC_INSTR_SLOT1_COUNT ((uint32_t)0)
-#define EXEC_ISSUE_SLOT_ANY_COUNT ((uint32_t)0)
-#define PRIMASSY_POS_SHADER_WAIT_COUNT ((uint32_t)0)
-#endif
 
 /* Helper macros to be used to scale counter values to different GPU clock
  * frequencies or counter sampling intervals.
@@ -3150,7 +3104,6 @@ static struct ipa_fixture opps[IPA_SUITE_FIXTURES] = {
 	  .util = 0.84,
 	},
 
-#if MALI_USE_CSF
 	/* For testing really high counter values by scaling the real world
 	 * values for the max GPU frequency and full utilization over the max
 	 * sampling interval. The aggregate of the values for some of the shader
@@ -3269,7 +3222,6 @@ static struct ipa_fixture opps[IPA_SUITE_FIXTURES] = {
 	  .temp = TEMP,
 	  .util = 0.99,
 	},
-#endif
 };
 
 /* Compare the test's floating-point calculation 'reference' with the result
@@ -3649,14 +3601,7 @@ static uint64_t sum_of_cores(const uint64_t *const counter, const size_t ncores)
 	uint64_t sum = 0;
 
 	for (size_t i = 0; i < ncores; ++i) {
-#if !MALI_USE_CSF
-		if (sum <= (UINT32_MAX - counter[i]))
-			sum += counter[i];
-		else
-			sum = UINT32_MAX;
-#else
 		sum += counter[i];
-#endif
 	}
 	return sum;
 }
@@ -3681,7 +3626,6 @@ static int num_block_types(struct mali_utf_suite *suite)
 	return is_csf(suite) ? KBASE_IPA_BLOCK_TYPE_NUM : 1;
 }
 
-#if MALI_USE_CSF
 static void init_array(uint64_t *counter, const size_t ncores)
 {
 	const uint64_t init_value = counter[0];
@@ -3724,7 +3668,6 @@ static void update_fixture_values(struct ipa_fixture *ipa_fix)
 		init_array(ipa_fix->l2_ext_write_nosnp_full, ipa_fix->num_l2_slices);
 	}
 }
-#endif
 
 static void ipa_sample_dummy_thread_g7x(struct mali_utf_suite *suite)
 {
@@ -3733,9 +3676,7 @@ static void ipa_sample_dummy_thread_g7x(struct mali_utf_suite *suite)
 	int err;
 	struct kutf_test_helpers_named_val power;
 
-#if MALI_USE_CSF
 	update_fixture_values(ipa_fix);
-#endif
 	err = ipa_send_values(suite);
 
 	/* Receive power value */
@@ -3771,7 +3712,6 @@ static void ipa_sample_dummy_thread_g7x(struct mali_utf_suite *suite)
 		const uint64_t total_tex_filt_num_operations =
 			sum_of_cores(ipa_fix->tex_filt_num_operations, ipa_fix->num_cores);
 
-#if MALI_USE_CSF
 		const uint64_t total_l2_rd_msg_in_cu =
 			sum_of_cores(ipa_fix->l2_rd_msg_in_cu, ipa_fix->num_l2_slices);
 
@@ -3851,7 +3791,6 @@ static void ipa_sample_dummy_thread_g7x(struct mali_utf_suite *suite)
 
 		const uint64_t total_frag_quads_coarse =
 			sum_of_cores(ipa_fix->frag_quads_coarse, ipa_fix->num_cores);
-#endif
 
 		double Pdyn_total = 0;
 		const int block_types = num_block_types(suite);
@@ -3913,7 +3852,6 @@ static void ipa_sample_dummy_thread_g7x(struct mali_utf_suite *suite)
 					 (TBEX_C4 * total_tex_filt_num_operations) +
 					 (TBEX_C5 * ipa_fix->gpu_active);
 				reference_voltage = TBEX_REF_VOLTAGE;
-#if MALI_USE_CSF
 			} else if (strcmp(suite->name, IPA_SUITE_NAME_TODX) == 0) {
 				if (i == KBASE_IPA_BLOCK_TYPE_TOP_LEVEL) {
 					energy = (TODX_PREFETCH_STALL * ipa_fix->prefetch_stall) +
@@ -4054,7 +3992,6 @@ static void ipa_sample_dummy_thread_g7x(struct mali_utf_suite *suite)
 						(TKRX_RT_RAYS_STARTED * total_rt_rays_started);
 				}
 				reference_voltage = TKRX_REF_VOLTAGE;
-#endif
 			} else {
 				mali_utf_logerr("No model in test for %s", suite->name);
 				mali_utf_test_fatal("No model for GPU in test");
@@ -4218,13 +4155,11 @@ struct kutf_extra_func_spec kutf_ipa_unit_test_extra_funcs[] = {
 	IPA_EXTRA_FUNCS_G7X(IPA_SUITE_NAME_G77),
 	IPA_EXTRA_FUNCS_G7X(IPA_SUITE_NAME_TNAX),
 	IPA_EXTRA_FUNCS_G7X(IPA_SUITE_NAME_TBEX),
-#if MALI_USE_CSF
 	IPA_EXTRA_FUNCS_G7X(IPA_SUITE_NAME_TODX),
 	IPA_EXTRA_FUNCS_G7X(IPA_SUITE_NAME_TGRX),
 	IPA_EXTRA_FUNCS_G7X(IPA_SUITE_NAME_TVAX),
 	IPA_EXTRA_FUNCS_G7X(IPA_SUITE_NAME_TTUX),
 	IPA_EXTRA_FUNCS_G7X(IPA_SUITE_NAME_TTIX),
 	IPA_EXTRA_FUNCS_G7X(IPA_SUITE_NAME_TKRX),
-#endif
 	{ { 0 } } /* Marks the end of the list */
 };
