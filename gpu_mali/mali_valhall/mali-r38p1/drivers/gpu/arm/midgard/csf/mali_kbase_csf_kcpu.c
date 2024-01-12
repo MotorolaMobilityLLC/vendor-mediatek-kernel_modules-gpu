@@ -42,6 +42,10 @@ static DEFINE_SPINLOCK(kbase_csf_fence_lock);
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+#include <mali_kbase_reset_gpu.h>
+#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
+
 #ifdef CONFIG_MALI_FENCE_DEBUG
 #define FENCE_WAIT_TIMEOUT_MS 3000
 #endif
@@ -1662,6 +1666,34 @@ static void kcpu_queue_cmds_timeout_worker(struct work_struct *data)
 #if IS_ENABLED(CONFIG_MALI_MTK_KCPU_FENCE_WA)
 	kbase_process_csg_retry_job_irq(kctx, COMMAND_TIMEOUT_MS);
 #endif /* CONFIG_MALI_MTK_KCPU_FENCE_WA */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+	if (COMMAND_TIMEOUT_MS > 3000) {
+		spin_lock(&kctx->kbdev->reset_force_change);
+		kctx->kbdev->reset_force_evict_group_work = true;
+		spin_unlock(&kctx->kbdev->reset_force_change);
+		if (kctx->kbdev->pm.backend.gpu_powered) {
+			if (kbase_prepare_to_reset_gpu(kctx->kbdev, RESET_FLAGS_NONE)) {
+				dev_info(kctx->kbdev->dev, "KCPU queue command timeouts(%d ms)! Trigger GPU reset", COMMAND_TIMEOUT_MS);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+				mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
+					"[%llxt] KCPU queue command timeouts(%d ms)! Trigger GPU reset\n",
+					mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
+					COMMAND_TIMEOUT_MS);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+				kbase_reset_gpu(kctx->kbdev);
+			} else {
+				dev_info(kctx->kbdev->dev, "KCPU queue command timeouts(%d ms)! Other threads are already resetting the GPU", COMMAND_TIMEOUT_MS);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+				mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
+					"[%llxt] KCPU queue command timeouts(%d ms)! Other threads are already resetting the GPU\n",
+					mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
+					COMMAND_TIMEOUT_MS);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+			}
+		}
+	}
+#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
 }
 #endif /* CONFIG_MALI_MTK_KCPU_DEBUG */
 
@@ -1830,6 +1862,8 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 	size_t i;
 #if IS_ENABLED(CONFIG_MALI_MTK_KCPU_DEBUG)
 	u16 num_pending_fence_cmds = 0;
+	bool record_the_first_pending_cmd_done = false;
+	u64 pending_cmd_cur_offset;
 #endif /* CONFIG_MALI_MTK_KCPU_DEBUG */
 
 	lockdep_assert_held(&queue->lock);
@@ -2119,7 +2153,14 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 
 		switch (cmd->type) {
 		case BASE_KCPU_COMMAND_TYPE_FENCE_WAIT:
-		case BASE_KCPU_COMMAND_TYPE_FENCE_SIGNAL:
+		case BASE_KCPU_COMMAND_TYPE_CQS_WAIT:
+		case BASE_KCPU_COMMAND_TYPE_CQS_WAIT_OPERATION:
+		case BASE_KCPU_COMMAND_TYPE_JIT_ALLOC:
+			if (!record_the_first_pending_cmd_done) {
+				pending_cmd_cur_offset = cmd->enqueue_ts;
+				record_the_first_pending_cmd_done = true;
+			}
+
 			num_pending_fence_cmds++;
 			break;
 		default:
@@ -2128,10 +2169,18 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 	}
 	if (num_pending_fence_cmds) {
 		if (!queue->pending_cmds_timer_active) {
+			/* has pending cmds, timer not acitve -> start timer */
 			queue->pending_cmds_timer_active = true;
+			queue->pending_cmd_prev_offset = pending_cmd_cur_offset;
+			mod_timer(&queue->pending_cmds_timer, jiffies + msecs_to_jiffies(COMMAND_TIMEOUT_MS));
+		} else if (queue->pending_cmd_prev_offset != pending_cmd_cur_offset) {
+			/* has pending cmds, timer active,
+			   pending offeset is different with previous -> modify timer */
+			queue->pending_cmd_prev_offset = pending_cmd_cur_offset;
 			mod_timer(&queue->pending_cmds_timer, jiffies + msecs_to_jiffies(COMMAND_TIMEOUT_MS));
 		}
 	} else if (queue->pending_cmds_timer_active) {
+		/* no pending cmds -> del timer */
 		del_timer_sync(&queue->pending_cmds_timer);
 		queue->pending_cmds_timer_active = false;
 	}
