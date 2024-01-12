@@ -2059,8 +2059,13 @@ void kbase_mem_kref_free(struct kref *kref)
 			WARN_ONCE(alloc->imported.umm.current_mapping_usage_count != 1,
 				  "WARNING: expected exactly 1 mapping, got %d",
 				  alloc->imported.umm.current_mapping_usage_count);
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
 			dma_buf_unmap_attachment(alloc->imported.umm.dma_attachment,
 						 alloc->imported.umm.sgt, DMA_BIDIRECTIONAL);
+#else
+			dma_buf_unmap_attachment_unlocked(alloc->imported.umm.dma_attachment,
+						 alloc->imported.umm.sgt, DMA_BIDIRECTIONAL);
+#endif
 			kbase_remove_dma_buf_usage(alloc->imported.umm.kctx, alloc);
 		}
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)

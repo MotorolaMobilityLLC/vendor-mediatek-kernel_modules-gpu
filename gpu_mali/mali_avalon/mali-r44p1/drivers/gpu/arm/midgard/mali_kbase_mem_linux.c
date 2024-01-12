@@ -1284,8 +1284,13 @@ static void kbase_mem_umm_unmap_attachment(struct kbase_context *kctx,
 {
 	struct tagged_addr *pa = alloc->pages;
 
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
 	dma_buf_unmap_attachment(alloc->imported.umm.dma_attachment,
 				 alloc->imported.umm.sgt, DMA_BIDIRECTIONAL);
+#else
+	dma_buf_unmap_attachment_unlocked(alloc->imported.umm.dma_attachment,
+				 alloc->imported.umm.sgt, DMA_BIDIRECTIONAL);
+#endif
 	alloc->imported.umm.sgt = NULL;
 
 	kbase_remove_dma_buf_usage(kctx, alloc);
@@ -1317,9 +1322,13 @@ static int kbase_mem_umm_map_attachment(struct kbase_context *kctx,
 
 	WARN_ON_ONCE(alloc->type != KBASE_MEM_TYPE_IMPORTED_UMM);
 	WARN_ON_ONCE(alloc->imported.umm.sgt);
-
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
 	sgt = dma_buf_map_attachment(alloc->imported.umm.dma_attachment,
 			DMA_BIDIRECTIONAL);
+#else
+	sgt = dma_buf_map_attachment_unlocked(alloc->imported.umm.dma_attachment,
+			DMA_BIDIRECTIONAL);
+#endif
 	if (IS_ERR_OR_NULL(sgt))
 		return -EINVAL;
 

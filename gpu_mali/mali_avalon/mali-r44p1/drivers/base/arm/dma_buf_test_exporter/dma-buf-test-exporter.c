@@ -695,8 +695,11 @@ static u32 dma_te_buf_fill(struct dma_buf *dma_buf, unsigned int value)
 	attachment = dma_buf_attach(dma_buf, te_device.this_device);
 	if (IS_ERR_OR_NULL(attachment))
 		return -EBUSY;
-
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
 	sgt = dma_buf_map_attachment(attachment, DMA_BIDIRECTIONAL);
+#else
+	sgt = dma_buf_map_attachment_unlocked(attachment, DMA_BIDIRECTIONAL);
+#endif
 	if (IS_ERR_OR_NULL(sgt)) {
 		ret = PTR_ERR(sgt);
 		goto no_import;
@@ -730,7 +733,11 @@ static u32 dma_te_buf_fill(struct dma_buf *dma_buf, unsigned int value)
 no_kmap:
 	dma_buf_end_cpu_access(dma_buf, DMA_BIDIRECTIONAL);
 no_cpu_access:
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
 	dma_buf_unmap_attachment(attachment, sgt, DMA_BIDIRECTIONAL);
+#else
+	dma_buf_unmap_attachment_unlocked(attachment, sgt, DMA_BIDIRECTIONAL);
+#endif
 no_import:
 	dma_buf_detach(dma_buf, attachment);
 	return ret;
