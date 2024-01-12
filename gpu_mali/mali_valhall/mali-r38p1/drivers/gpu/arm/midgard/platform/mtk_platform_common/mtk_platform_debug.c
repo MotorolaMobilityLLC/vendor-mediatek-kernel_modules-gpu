@@ -7,6 +7,7 @@
 #include <mali_kbase_defs.h>
 #include <mali_kbase_sync.h>
 #include <mali_kbase_mem_linux.h>
+#include <mali_kbase_reset_gpu.h>
 #include <linux/delay.h>
 #include <platform/mtk_platform_common.h>
 #include <backend/gpu/mali_kbase_pm_defs.h>
@@ -2198,6 +2199,10 @@ static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int tim
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, pid, MTK_DBG_HOOK_FENCE_EXTERNAL_TIMEOUT);
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, pid, MTK_DBG_HOOK_FENCE_EXTERNAL_TIMEOUT);
 		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, pid, MTK_DBG_HOOK_FENCE_EXTERNAL_TIMEOUT);
+
+		if (kbdev->pm.backend.gpu_powered)
+			if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
+				kbase_reset_gpu(kbdev);
 	}
 #endif
 
