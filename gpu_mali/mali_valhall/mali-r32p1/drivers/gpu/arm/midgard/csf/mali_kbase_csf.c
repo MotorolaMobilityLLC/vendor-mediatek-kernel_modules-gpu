@@ -2996,6 +2996,8 @@ static inline void process_protm_exit(struct kbase_device *kbdev, u32 glb_ack)
 		KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_EXIT_PROTM,
 					 scheduler->active_protm_grp, 0u);
 		scheduler->apply_pmode_exit_wa = true;
+		queue_work(system_highpri_wq,
+				&scheduler->pmode_exit_wa_work);
 		scheduler->active_protm_grp = NULL;
 	} else {
 		dev_warn(kbdev->dev, "PROTM_EXIT interrupt after no pmode group");

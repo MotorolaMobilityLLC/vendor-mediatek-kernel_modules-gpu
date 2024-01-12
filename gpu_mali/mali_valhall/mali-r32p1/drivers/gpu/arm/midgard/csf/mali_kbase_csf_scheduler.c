@@ -529,6 +529,16 @@ static void scheduler_apply_pmode_exit_wa(struct kbase_device *kbdev)
 		kbase_pm_apply_pmode_exit_wa(kbdev);
 }
 
+static void pmode_exit_wa_worker(struct work_struct *work)
+{
+	struct kbase_device *kbdev = container_of(
+		work, struct kbase_device, csf.scheduler.pmode_exit_wa_work);
+
+	mutex_lock(&kbdev->csf.scheduler.lock);
+	scheduler_apply_pmode_exit_wa(kbdev);
+	mutex_unlock(&kbdev->csf.scheduler.lock);
+}
+
 static void scheduler_suspend(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
@@ -5121,6 +5131,7 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 	scheduler_doorbell_init(kbdev);
 
 	INIT_WORK(&scheduler->gpu_idle_work, gpu_idle_worker);
+	INIT_WORK(&scheduler->pmode_exit_wa_work, pmode_exit_wa_worker);
 	atomic_set(&scheduler->non_idle_offslot_grps, 0);
 
 	hrtimer_init(&scheduler->tick_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
@@ -5136,6 +5147,7 @@ void kbase_csf_scheduler_term(struct kbase_device *kbdev)
 		WARN_ON(atomic_read(&kbdev->csf.scheduler.non_idle_offslot_grps));
 		WARN_ON(csgs_active(kbdev));
 		flush_work(&kbdev->csf.scheduler.gpu_idle_work);
+		flush_work(&kbdev->csf.scheduler.pmode_exit_wa_work);
 		mutex_lock(&kbdev->csf.scheduler.lock);
 		if (WARN_ON(kbdev->csf.scheduler.state != SCHED_SUSPENDED))
 			scheduler_suspend(kbdev);

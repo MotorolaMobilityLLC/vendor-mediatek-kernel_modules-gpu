@@ -3021,16 +3021,17 @@ void kbase_pm_apply_pmode_exit_wa(struct kbase_device *kbdev)
 	/* Can switch back to MTK PDCA here */
 	/* 1. enable pdcv2 */
 	gpufreq_pdc_control(1);
-	/* 2. fake pwr down mfg2~18 */
-	gpufreq_fake_spm_mtcmos_control(0);
-	/* 3. enable dcs */
+	/* 2. enable dcs */
 	dcs_enable(1);
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	if (!kbase_pm_no_mcu_core_pwroff(kbdev)) {
-		/* Caller should invoke the state machine to send the request to FW */
 		kbase_csf_firmware_set_mcu_core_pwroff_time(kbdev,
 			DEFAULT_GLB_PWROFF_TIMEOUT_US);
+		/* Invoke the state machine to send the request to FW for
+		 * taking over power control of SC.
+		 */
+		kbase_pm_update_state(kbdev);
 	}
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
