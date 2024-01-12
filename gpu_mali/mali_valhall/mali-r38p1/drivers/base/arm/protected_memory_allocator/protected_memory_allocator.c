@@ -543,21 +543,21 @@ static int mtk_protected_memory_allocator_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	of_property_read_u32(np, "gpr_offset", &gpr_offset);
+	of_property_read_u32(np, "gpr-offset", &gpr_offset);
 
 	if(!gpr_offset) {
 		dev_err(&pdev->dev, "can't have GPR offset access\n");
 		return -ENODEV;
 	}
 
-	of_property_read_u32(np, "gpr_id", &gpr_id);
-	of_property_read_u32(np, "gmpu_table_size", &gmpu_table_size);
+	of_property_read_u32(np, "gpr-id", &gpr_id);
+	of_property_read_u32(np, "gmpu-table-size", &gmpu_table_size);
 
 	dev_info(&pdev->dev,
 		"Using on addr(base + %x, %d), shift +%u\n",
                  gpr_offset, gpr_id, gmpu_table_size);
 
-	of_property_read_u32(np, "protected_reserve_size", &psize);
+	of_property_read_u32(np, "protected-reserve-size", &psize);
 
 	if(!psize) {
 		dev_err(&pdev->dev, "can't find reserved-memory\n");
