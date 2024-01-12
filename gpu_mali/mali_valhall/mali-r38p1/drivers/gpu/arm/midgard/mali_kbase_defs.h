@@ -1241,10 +1241,6 @@ struct kbase_device {
 	struct mtk_logbuffer_info logbuf_regular;
 	struct mtk_logbuffer_info logbuf_exception;
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-
-#if MALI_USE_CSF
-	struct mutex trace_buffer_mutex;
-#endif
 };
 
 /**

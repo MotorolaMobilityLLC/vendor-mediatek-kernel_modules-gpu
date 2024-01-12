@@ -272,19 +272,16 @@ static void kbase_csf_dump_firmware_trace_buffer(struct kbase_device *kbdev)
 	unsigned int read_size, remaining_size;
 	struct firmware_trace_buffer *tb;
 
-	mutex_lock(&kbdev->trace_buffer_mutex);
 	tb = kbase_csf_firmware_get_trace_buffer(kbdev, FW_TRACE_BUF_NAME);
 
 	if (tb == NULL) {
 		dev_vdbg(kbdev->dev, "Can't get the trace buffer, firmware trace dump skipped");
-		mutex_unlock(&kbdev->trace_buffer_mutex);
 		return;
 	}
 
 	buf = kmalloc(PAGE_SIZE + 1, GFP_KERNEL);
 	if (buf == NULL) {
 		dev_err(kbdev->dev, "Short of memory, firmware trace dump skipped");
-		mutex_unlock(&kbdev->trace_buffer_mutex);
 		return;
 	}
 
@@ -328,7 +325,6 @@ static void kbase_csf_dump_firmware_trace_buffer(struct kbase_device *kbdev)
 		*p = 0;
 		dev_err(kbdev->dev, "FW> %s", buf);
 	}
-	mutex_unlock(&kbdev->trace_buffer_mutex);
 
 	kfree(buf);
 }
