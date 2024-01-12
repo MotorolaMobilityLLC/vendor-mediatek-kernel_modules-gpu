@@ -3000,6 +3000,9 @@ static inline void process_tracked_info_for_protm(struct kbase_device *kbdev,
 
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 
+	if (likely(current_protm_pending_seq == KBASEP_TICK_PROTM_PEND_SCAN_SEQ_NR_INVALID))
+		return;
+
 	/* Handle protm from the tracked information */
 	if (track->idle_seq < current_protm_pending_seq) {
 		/* If the protm enter was prevented due to groups priority, then fire a tock
