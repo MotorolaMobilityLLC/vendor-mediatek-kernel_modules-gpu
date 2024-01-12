@@ -2351,12 +2351,10 @@ handle_fault_event(struct kbase_queue *const queue,
 		 cs_fault_exception_type,
 		 kbase_gpu_exception_name(cs_fault_exception_type),
 		 cs_fault_exception_data, cs_fault_info_exception_data);
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	}
-#endif /* CONFIG_MALI_MTK_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_CSFAULT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_CSFAULT);
+	}
 #endif /* CONFIG_MALI_MTK_DEBUG */
 }
 
