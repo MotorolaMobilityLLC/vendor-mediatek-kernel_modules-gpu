@@ -293,6 +293,11 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	struct kbase_va_region *reg;
 	struct rb_root *rbtree;
 	struct device *dev;
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
+	int r_index;
+	struct kbase_va_region **tmp_coherent_regions;
+	size_t backup_size;
+#endif
 
 	KBASE_DEBUG_ASSERT(kctx);
 	KBASE_DEBUG_ASSERT(flags);
@@ -516,6 +521,52 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 		mutex_unlock(&kctx->jit_evict_lock);
 	}
 #endif /* MALI_JIT_PRESSURE_LIMIT_BASE */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
+		if ((reg->flags & KBASE_REG_SHARE_BOTH) != 0 &&
+			kctx->kbdev->system_coherency != COHERENCY_NONE) {
+			mutex_lock(&kctx->coherenct_region_lock);
+			for (r_index = 0; r_index < kctx->coherent_region_nr; r_index++) {
+				if (!kctx->coherenct_regions[r_index]) {  //array element empty
+					kctx->coherenct_regions[r_index] = reg;
+					/*
+					dev_vdbg(dev, "Add coherent region in index %d, reg 0x%p, starting Page 0x%llx flags: 0x%x, tgid %d, reg_nr: %u",
+						r_index, reg ,reg->cpu_alloc->pages[0], reg->flags, kctx->tgid, kctx->coherent_region_nr);
+					*/
+					break;
+				}
+			}
+			if (r_index == kctx->coherent_region_nr) {
+				dev_vdbg(dev, "Coherent region overflow on tgid: %d, size %u\n", kctx->tgid, kctx->coherent_region_nr);
+				backup_size = kctx->coherent_region_nr * sizeof(struct kbase_va_region *);
+				tmp_coherent_regions = kmalloc(backup_size, GFP_KERNEL);
+				if (!kctx->coherenct_regions) {
+					dev_err(dev, "Re-allocate temp list fail: %d, size %u\n",
+						kctx->tgid, kctx->coherent_region_nr);
+					kfree(tmp_coherent_regions);
+					goto no_mem;
+				}
+				memcpy(tmp_coherent_regions, kctx->coherenct_regions, backup_size);
+				kfree(kctx->coherenct_regions);
+				// Enlarge list size
+				kctx->coherent_region_nr += DEFAULT_COHERENT_REGION_SIZE;
+				kctx->coherenct_regions =
+					kmalloc(kctx->coherent_region_nr * sizeof(struct kbase_va_region *), GFP_KERNEL);
+
+				if (!kctx->coherenct_regions) {
+					dev_err(dev, "Re-allocate region list fail: %d, size %u\n",
+						kctx->tgid, kctx->coherent_region_nr);
+					kfree(tmp_coherent_regions);
+					goto no_mem;
+				}
+				for(r_index = 0; r_index < kctx->coherent_region_nr; r_index++)
+					kctx->coherenct_regions[r_index] = NULL;
+				memcpy(kctx->coherenct_regions, tmp_coherent_regions, backup_size);
+				kfree(tmp_coherent_regions);
+				}
+				mutex_unlock(&kctx->coherenct_region_lock);
+			}
+#endif
 
 	kbase_gpu_vm_unlock(kctx);
 
@@ -3528,13 +3579,19 @@ static vm_fault_t kbase_csf_user_io_pages_vm_fault(struct vm_fault *vmf)
 	/* Always map the doorbell page as uncached */
 	doorbell_pgprot = pgprot_device(vma->vm_page_prot);
 
-	if (kbdev->system_coherency == COHERENCY_NONE) {
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
 		input_page_pgprot = pgprot_writecombine(vma->vm_page_prot);
 		output_page_pgprot = pgprot_writecombine(vma->vm_page_prot);
-	} else {
-		input_page_pgprot = vma->vm_page_prot;
-		output_page_pgprot = vma->vm_page_prot;
-	}
+#else
+		if (kbdev->system_coherency == COHERENCY_NONE) {
+			input_page_pgprot = pgprot_writecombine(vma->vm_page_prot);
+			output_page_pgprot = pgprot_writecombine(vma->vm_page_prot);
+		} else {
+			input_page_pgprot = vma->vm_page_prot;
+			output_page_pgprot = vma->vm_page_prot;
+		}
+#endif
+
 
 	doorbell_cpu_addr = vma->vm_start;
 
