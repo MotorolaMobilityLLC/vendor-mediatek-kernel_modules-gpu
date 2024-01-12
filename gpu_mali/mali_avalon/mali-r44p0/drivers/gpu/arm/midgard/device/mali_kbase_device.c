@@ -364,8 +364,7 @@ void kbase_device_free(struct kbase_device *kbdev)
 
 void kbase_device_id_init(struct kbase_device *kbdev)
 {
-	scnprintf(kbdev->devname, DEVNAME_SIZE, "%s%d", kbase_drv_name,
-			kbase_dev_nr);
+	scnprintf(kbdev->devname, DEVNAME_SIZE, "%s%d", KBASE_DRV_NAME, kbase_dev_nr);
 	kbdev->id = kbase_dev_nr;
 }
 

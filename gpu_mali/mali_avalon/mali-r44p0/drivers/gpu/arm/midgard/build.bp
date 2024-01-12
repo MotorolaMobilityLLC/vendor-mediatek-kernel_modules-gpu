@@ -140,6 +140,15 @@ bob_defaults {
     mali_coresight: {
         kbuild_options: ["CONFIG_MALI_CORESIGHT=y"],
     },
+    mali_fw_trace_mode_manual: {
+        kbuild_options: ["CONFIG_MALI_FW_TRACE_MODE_MANUAL=y"],
+    },
+    mali_fw_trace_mode_auto_print: {
+        kbuild_options: ["CONFIG_MALI_FW_TRACE_MODE_AUTO_PRINT=y"],
+    },
+    mali_fw_trace_mode_auto_discard: {
+        kbuild_options: ["CONFIG_MALI_FW_TRACE_MODE_AUTO_DISCARD=y"],
+    },
     kbuild_options: [
         "CONFIG_MALI_PLATFORM_NAME={{.mali_platform_name}}",
         "MALI_CUSTOMER_RELEASE={{.release}}",

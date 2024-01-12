@@ -102,10 +102,8 @@ ifeq ($(CONFIG_MALI_PRFCNT_SET_SELECT_VIA_DEBUG_FS), y)
 endif
 
 ifeq ($(CONFIG_MALI_FENCE_DEBUG), y)
-    ifneq ($(CONFIG_SYNC), y)
-        ifneq ($(CONFIG_SYNC_FILE), y)
-            $(error CONFIG_MALI_FENCE_DEBUG depends on CONFIG_SYNC || CONFIG_SYNC_FILE to be set in Kernel configuration)
-        endif
+    ifneq ($(CONFIG_SYNC_FILE), y)
+        $(error CONFIG_MALI_FENCE_DEBUG depends on CONFIG_SYNC_FILE to be set in Kernel configuration)
     endif
 endif
 
@@ -123,7 +121,7 @@ ccflags-y += -I$(KO_CODE_PATH)/include
 subdir-ccflags-y += -I$(KO_CODE_PATH)/include
 
 # Driver version string which is returned to userspace via an ioctl
-MALI_RELEASE_NAME ?= '"r43p0-00dev1"'
+MALI_RELEASE_NAME ?= '"r44p0-00dev1"'
 # Set up defaults if not defined by build system
 ifeq ($(CONFIG_MALI_DEBUG), y)
     MALI_UNIT_TEST = 1
@@ -252,12 +250,10 @@ mali_kbase-y += \
     mali_kbase_mem_pool.o \
     mali_kbase_mem_pool_debugfs.o \
     mali_kbase_debugfs_helper.o \
-    mali_kbase_strings.o \
     mali_kbase_as_fault_debugfs.o \
     mali_kbase_regs_history_debugfs.o \
     mali_kbase_dvfs_debugfs.o \
     mali_power_gpu_frequency_trace.o \
-    mali_power_gpu_work_period_trace.o \
     mali_kbase_trace_gpu_mem.o \
     mali_kbase_pbha.o
 

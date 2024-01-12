@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2014-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -483,13 +483,6 @@ void *gpu_device_get_data(void *model)
 }
 
 #define signal_int(m, s) m->slots[(s)].job_complete_irq_asserted = 1
-
-/* SCons should pass in a default GPU, but other ways of building (e.g.
- * in-tree) won't, so define one here in case.
- */
-#ifndef CONFIG_MALI_NO_MALI_DEFAULT_GPU
-#define CONFIG_MALI_NO_MALI_DEFAULT_GPU "tMIx"
-#endif
 
 static char *no_mali_gpu = CONFIG_MALI_NO_MALI_DEFAULT_GPU;
 module_param(no_mali_gpu, charp, 0000);
@@ -1378,10 +1371,10 @@ void midgard_model_write_reg(void *h, u32 addr, u32 value)
 		dummy->l2_config = value;
 	}
 #if MALI_USE_CSF
-	else if (addr >= GPU_CONTROL_REG(CSF_HW_DOORBELL_PAGE_OFFSET) &&
-			 addr < GPU_CONTROL_REG(CSF_HW_DOORBELL_PAGE_OFFSET +
-						(CSF_NUM_DOORBELL * CSF_HW_DOORBELL_PAGE_SIZE))) {
-		if (addr == GPU_CONTROL_REG(CSF_HW_DOORBELL_PAGE_OFFSET))
+	else if (addr >= CSF_HW_DOORBELL_PAGE_OFFSET &&
+		 addr < CSF_HW_DOORBELL_PAGE_OFFSET +
+				 (CSF_NUM_DOORBELL * CSF_HW_DOORBELL_PAGE_SIZE)) {
+		if (addr == CSF_HW_DOORBELL_PAGE_OFFSET)
 			hw_error_status.job_irq_status = JOB_IRQ_GLOBAL_IF;
 	} else if ((addr >= GPU_CONTROL_REG(SYSC_ALLOC0)) &&
 		   (addr < GPU_CONTROL_REG(SYSC_ALLOC(SYSC_ALLOC_COUNT)))) {

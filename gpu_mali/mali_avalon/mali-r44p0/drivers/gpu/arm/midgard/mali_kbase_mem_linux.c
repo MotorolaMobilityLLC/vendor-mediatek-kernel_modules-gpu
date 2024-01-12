@@ -37,7 +37,7 @@
 #include <linux/memory_group_manager.h>
 #include <linux/math64.h>
 #include <linux/migrate.h>
-
+#include <linux/version.h>
 #include <mali_kbase.h>
 #include <mali_kbase_mem_linux.h>
 #include <tl/mali_kbase_tracepoints.h>
@@ -373,26 +373,26 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	/* find out which VA zone to use */
 	if (*flags & BASE_MEM_SAME_VA) {
 		rbtree = &kctx->reg_rbtree_same;
-		zone = KBASE_REG_ZONE_SAME_VA;
+		zone = SAME_VA_ZONE;
 	}
 #if MALI_USE_CSF
 	/* fixed va_zone always exists */
 	else if (*flags & (BASE_MEM_FIXED | BASE_MEM_FIXABLE)) {
 		if (*flags & BASE_MEM_PROT_GPU_EX) {
 			rbtree = &kctx->reg_rbtree_exec_fixed;
-			zone = KBASE_REG_ZONE_EXEC_FIXED_VA;
+			zone = EXEC_FIXED_VA_ZONE;
 		} else {
 			rbtree = &kctx->reg_rbtree_fixed;
-			zone = KBASE_REG_ZONE_FIXED_VA;
+			zone = FIXED_VA_ZONE;
 		}
 	}
 #endif
 	else if ((*flags & BASE_MEM_PROT_GPU_EX) && kbase_has_exec_va_zone(kctx)) {
 		rbtree = &kctx->reg_rbtree_exec;
-		zone = KBASE_REG_ZONE_EXEC_VA;
+		zone = EXEC_VA_ZONE;
 	} else {
 		rbtree = &kctx->reg_rbtree_custom;
-		zone = KBASE_REG_ZONE_CUSTOM_VA;
+		zone = CUSTOM_VA_ZONE;
 	}
 
 	reg = kbase_alloc_free_region(kctx->kbdev, rbtree, PFN_DOWN(*gpu_va), va_pages, zone);
@@ -692,8 +692,8 @@ int kbase_mem_query(struct kbase_context *kctx,
 #if MALI_USE_CSF
 		if (KBASE_REG_CSF_EVENT & reg->flags)
 			*out |= BASE_MEM_CSF_EVENT;
-		if (((KBASE_REG_ZONE_MASK & reg->flags) == KBASE_REG_ZONE_FIXED_VA) ||
-		    ((KBASE_REG_ZONE_MASK & reg->flags) == KBASE_REG_ZONE_EXEC_FIXED_VA)) {
+		if ((kbase_bits_to_zone(reg->flags) == FIXED_VA_ZONE) ||
+		    (kbase_bits_to_zone(reg->flags) == EXEC_FIXED_VA_ZONE)) {
 			if (KBASE_REG_FIXED_ADDRESS & reg->flags)
 				*out |= BASE_MEM_FIXED;
 			else
@@ -1653,10 +1653,10 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx,
 	if (shared_zone) {
 		*flags |= BASE_MEM_NEED_MMAP;
 		reg = kbase_alloc_free_region(kctx->kbdev, &kctx->reg_rbtree_same, 0, *va_pages,
-					      KBASE_REG_ZONE_SAME_VA);
+					      SAME_VA_ZONE);
 	} else {
 		reg = kbase_alloc_free_region(kctx->kbdev, &kctx->reg_rbtree_custom, 0, *va_pages,
-					      KBASE_REG_ZONE_CUSTOM_VA);
+					      CUSTOM_VA_ZONE);
 	}
 
 	if (!reg) {
@@ -1745,7 +1745,7 @@ static struct kbase_va_region *kbase_mem_from_user_buffer(
 	struct kbase_va_region *reg;
 	struct rb_root *rbtree;
 	long faulted_pages;
-	int zone = KBASE_REG_ZONE_CUSTOM_VA;
+	int zone = CUSTOM_VA_ZONE;
 	bool shared_zone = false;
 	u32 cache_line_alignment = kbase_get_cache_line_alignment(kctx->kbdev);
 	struct kbase_alloc_import_user_buf *user_buf;
@@ -1808,7 +1808,7 @@ static struct kbase_va_region *kbase_mem_from_user_buffer(
 
 	if (shared_zone) {
 		*flags |= BASE_MEM_NEED_MMAP;
-		zone = KBASE_REG_ZONE_SAME_VA;
+		zone = SAME_VA_ZONE;
 		rbtree = &kctx->reg_rbtree_same;
 	} else
 		rbtree = &kctx->reg_rbtree_custom;
@@ -1839,11 +1839,7 @@ static struct kbase_va_region *kbase_mem_from_user_buffer(
 	user_buf->address = address;
 	user_buf->nr_pages = *va_pages;
 	user_buf->mm = current->mm;
-#if KERNEL_VERSION(4, 11, 0) > LINUX_VERSION_CODE
-	atomic_inc(&current->mm->mm_count);
-#else
-	mmgrab(current->mm);
-#endif
+	kbase_mem_mmgrab();
 	if (reg->gpu_alloc->properties & KBASE_MEM_PHY_ALLOC_LARGE)
 		user_buf->pages = vmalloc(*va_pages * sizeof(struct page *));
 	else
@@ -1918,10 +1914,13 @@ static struct kbase_va_region *kbase_mem_from_user_buffer(
 		 * region, otherwise the initial content of memory would be wrong.
 		 */
 		for (i = 0; i < faulted_pages; i++) {
-			dma_addr_t dma_addr =
-				dma_map_page_attrs(dev, pages[i], 0, PAGE_SIZE, DMA_BIDIRECTIONAL,
-						   DMA_ATTR_SKIP_CPU_SYNC);
-
+			dma_addr_t dma_addr;
+#if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
+			dma_addr = dma_map_page(dev, pages[i], 0, PAGE_SIZE, DMA_BIDIRECTIONAL);
+#else
+			dma_addr = dma_map_page_attrs(dev, pages[i], 0, PAGE_SIZE,
+						      DMA_BIDIRECTIONAL, DMA_ATTR_SKIP_CPU_SYNC);
+#endif
 			if (dma_mapping_error(dev, dma_addr))
 				goto unwind_dma_map;
 
@@ -1948,8 +1947,12 @@ unwind_dma_map:
 		dma_addr_t dma_addr = user_buf->dma_addrs[i];
 
 		dma_sync_single_for_device(dev, dma_addr, PAGE_SIZE, DMA_BIDIRECTIONAL);
+#if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
+		dma_unmap_page_attrs(dev, dma_addr, PAGE_SIZE, DMA_BIDIRECTIONAL);
+#else
 		dma_unmap_page_attrs(dev, dma_addr, PAGE_SIZE, DMA_BIDIRECTIONAL,
 				     DMA_ATTR_SKIP_CPU_SYNC);
+#endif
 	}
 fault_mismatch:
 	if (pages) {
@@ -2034,10 +2037,10 @@ u64 kbase_mem_alias(struct kbase_context *kctx, u64 *flags, u64 stride,
 		 */
 		*flags |= BASE_MEM_NEED_MMAP;
 		reg = kbase_alloc_free_region(kctx->kbdev, &kctx->reg_rbtree_same, 0, *num_pages,
-					      KBASE_REG_ZONE_SAME_VA);
+					      SAME_VA_ZONE);
 	} else {
 		reg = kbase_alloc_free_region(kctx->kbdev, &kctx->reg_rbtree_custom, 0, *num_pages,
-					      KBASE_REG_ZONE_CUSTOM_VA);
+					      CUSTOM_VA_ZONE);
 	}
 
 	if (!reg)
@@ -2608,8 +2611,7 @@ static void kbase_cpu_vm_close(struct vm_area_struct *vma)
 	kbase_gpu_vm_lock(map->kctx);
 
 	if (map->free_on_close) {
-		KBASE_DEBUG_ASSERT((map->region->flags & KBASE_REG_ZONE_MASK) ==
-				KBASE_REG_ZONE_SAME_VA);
+		KBASE_DEBUG_ASSERT(kbase_bits_to_zone(map->region->flags) == SAME_VA_ZONE);
 		/* Avoid freeing memory on the process death which results in
 		 * GPU Page Fault. Memory will be freed in kbase_destroy_context
 		 */
@@ -2873,7 +2875,7 @@ static int kbase_mmu_dump_mmap(struct kbase_context *kctx,
 	}
 
 	new_reg = kbase_alloc_free_region(kctx->kbdev, &kctx->reg_rbtree_same, 0, nr_pages,
-					  KBASE_REG_ZONE_SAME_VA);
+					  SAME_VA_ZONE);
 	if (!new_reg) {
 		err = -ENOMEM;
 		WARN_ON(1);
@@ -3529,11 +3531,14 @@ KBASE_EXPORT_TEST_API(kbase_vunmap);
 
 static void kbasep_add_mm_counter(struct mm_struct *mm, int member, long value)
 {
-#if (KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE)
-	/* To avoid the build breakage due to an unexported kernel symbol
-	 * 'mm_trace_rss_stat' from later kernels, i.e. from V4.19.0 onwards,
-	 * we inline here the equivalent of 'add_mm_counter()' from linux
-	 * kernel V5.4.0~8.
+#if (KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE)
+	/* To avoid the build breakage due to the type change in rss_stat,
+	 * we inline here the equivalent of 'add_mm_counter()' from linux kernel V6.2.
+	 */
+	percpu_counter_add(&mm->rss_stat[member], value);
+#elif (KERNEL_VERSION(5, 5, 0) <= LINUX_VERSION_CODE)
+	/* To avoid the build breakage due to an unexported kernel symbol 'mm_trace_rss_stat',
+	 * we inline here the equivalent of 'add_mm_counter()' from linux kernel V5.5.
 	 */
 	atomic_long_add(value, &mm->rss_stat.count[member]);
 #else

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -31,17 +31,6 @@
 #include "backend/mali_kbase_gpu_regmap_jm.h"
 #endif
 
-/* GPU_U definition */
-#ifdef __ASSEMBLER__
-#define GPU_U(x) x
-#define GPU_UL(x) x
-#define GPU_ULL(x) x
-#else
-#define GPU_U(x) x##u
-#define GPU_UL(x) x##ul
-#define GPU_ULL(x) x##ull
-#endif /* __ASSEMBLER__ */
-
 /* Begin Register Offsets */
 /* GPU control registers */
 
@@ -54,15 +43,12 @@
 #define GPU_IRQ_MASK            0x028   /* (RW) */
 
 #define GPU_COMMAND             0x030   /* (WO) */
-#define GPU_STATUS              0x034   /* (RO) */
 
 #define GPU_DBGEN               (1 << 8)    /* DBGEN wire status */
 
 #define GPU_FAULTSTATUS         0x03C   /* (RO) GPU exception type and fault status */
 #define GPU_FAULTADDRESS_LO     0x040   /* (RO) GPU exception fault address, low word */
 #define GPU_FAULTADDRESS_HI     0x044   /* (RO) GPU exception fault address, high word */
-
-#define L2_CONFIG               0x048   /* (RW) Level 2 cache configuration */
 
 #define GROUPS_L2_COHERENT      (1 << 0) /* Cores groups are l2 coherent */
 #define SUPER_L2_COHERENT       (1 << 1) /* Shader cores within a core
@@ -103,9 +89,6 @@
 #define SHADER_PRESENT_LO       0x100   /* (RO) Shader core present bitmap, low word */
 #define SHADER_PRESENT_HI       0x104   /* (RO) Shader core present bitmap, high word */
 
-#define TILER_PRESENT_LO        0x110   /* (RO) Tiler core present bitmap, low word */
-#define TILER_PRESENT_HI        0x114   /* (RO) Tiler core present bitmap, high word */
-
 #define L2_PRESENT_LO           0x120   /* (RO) Level 2 cache present bitmap, low word */
 #define L2_PRESENT_HI           0x124   /* (RO) Level 2 cache present bitmap, high word */
 
@@ -114,8 +97,6 @@
 
 #define STACK_READY_LO          0xE10   /* (RO) Core stack ready bitmap, low word */
 #define STACK_READY_HI          0xE14   /* (RO) Core stack ready bitmap, high word */
-
-#define SHADER_PWRFEATURES      0x188   /* (RW) Shader core power features */
 
 #define STACK_PWRON_LO          0xE20   /* (RO) Core stack power on bitmap, low word */
 #define STACK_PWRON_HI          0xE24   /* (RO) Core stack power on bitmap, high word */
@@ -335,11 +316,6 @@
 #define AS_LOCKADDR_FLUSH_SKIP_LEVELS_SET(reg_val, value)                                          \
 	(((reg_val) & ~AS_LOCKADDR_FLUSH_SKIP_LEVELS_MASK) |                                       \
 	 ((value << AS_LOCKADDR_FLUSH_SKIP_LEVELS_SHIFT) & AS_LOCKADDR_FLUSH_SKIP_LEVELS_MASK))
-
-/* GPU_STATUS values */
-#define GPU_STATUS_PRFCNT_ACTIVE            (1 << 2)    /* Set if the performance counters are active. */
-#define GPU_STATUS_CYCLE_COUNT_ACTIVE       (1 << 6)    /* Set if the cycle counter is active. */
-#define GPU_STATUS_PROTECTED_MODE_ACTIVE    (1 << 7)    /* Set if protected mode is active */
 
 /* PRFCNT_CONFIG register values */
 #define PRFCNT_CONFIG_MODE_SHIFT        0 /* Counter mode position. */

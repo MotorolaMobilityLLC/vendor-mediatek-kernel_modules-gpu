@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2018-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -522,6 +522,37 @@ unsigned int kbase_csf_firmware_trace_buffer_read_data(
 	return bytes_copied;
 }
 EXPORT_SYMBOL(kbase_csf_firmware_trace_buffer_read_data);
+
+void kbase_csf_firmware_trace_buffer_discard(struct firmware_trace_buffer *trace_buffer)
+{
+	unsigned int bytes_discarded;
+	u32 buffer_size = trace_buffer->num_pages << PAGE_SHIFT;
+	u32 extract_offset = *(trace_buffer->cpu_va.extract_cpu_va);
+	u32 insert_offset = *(trace_buffer->cpu_va.insert_cpu_va);
+	unsigned int trace_size;
+
+	if (insert_offset >= extract_offset) {
+		trace_size = insert_offset - extract_offset;
+		if (trace_size > buffer_size / 2) {
+			bytes_discarded = trace_size - buffer_size / 2;
+			extract_offset += bytes_discarded;
+			*(trace_buffer->cpu_va.extract_cpu_va) = extract_offset;
+		}
+	} else {
+		unsigned int bytes_tail;
+
+		bytes_tail = buffer_size - extract_offset;
+		trace_size = bytes_tail + insert_offset;
+		if (trace_size > buffer_size / 2) {
+			bytes_discarded = trace_size - buffer_size / 2;
+			extract_offset += bytes_discarded;
+			if (extract_offset >= buffer_size)
+				extract_offset = extract_offset - buffer_size;
+			*(trace_buffer->cpu_va.extract_cpu_va) = extract_offset;
+		}
+	}
+}
+EXPORT_SYMBOL(kbase_csf_firmware_trace_buffer_discard);
 
 static void update_trace_buffer_active_mask64(struct firmware_trace_buffer *tb, u64 mask)
 {

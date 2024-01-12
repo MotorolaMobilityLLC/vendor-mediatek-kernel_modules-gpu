@@ -343,5 +343,36 @@ config MALI_HW_ERRATA_1485982_USE_CLOCK_ALTERNATIVE
 	  slowest clock will be selected.
 
 
+choice
+	prompt "CSF Firmware trace mode"
+	depends on MALI_MIDGARD
+	default MALI_FW_TRACE_MODE_MANUAL
+	help
+	  CSF Firmware log operating mode.
+
+config MALI_FW_TRACE_MODE_MANUAL
+	bool "manual mode"
+	depends on MALI_MIDGARD
+	help
+	  firmware log can be read manually by the userspace (and it will
+	  also be dumped automatically into dmesg on GPU reset).
+
+config MALI_FW_TRACE_MODE_AUTO_PRINT
+	bool "automatic printing mode"
+	depends on MALI_MIDGARD
+	help
+	  firmware log will be periodically emptied into dmesg, manual
+	  reading through debugfs is disabled.
+
+config MALI_FW_TRACE_MODE_AUTO_DISCARD
+	bool "automatic discarding mode"
+	depends on MALI_MIDGARD
+	help
+	  firmware log will be periodically discarded, the remaining log can be
+	  read manually by the userspace (and it will also be dumped
+	  automatically into dmesg on GPU reset).
+
+endchoice
+
 source "kernel/drivers/gpu/arm/arbitration/Mconfig"
 source "kernel/drivers/gpu/arm/midgard/tests/Mconfig"

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2018-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -116,7 +116,8 @@ struct firmware_trace_buffer *kbase_csf_firmware_get_trace_buffer(
 	struct kbase_device *kbdev, const char *name);
 
 /**
- * kbase_csf_firmware_trace_buffer_get_trace_enable_bits_count - Get number of trace enable bits for a trace buffer
+ * kbase_csf_firmware_trace_buffer_get_trace_enable_bits_count - Get number of trace enable bits
+ *                                                               for a trace buffer
  *
  * @trace_buffer: Trace buffer handle
  *
@@ -175,6 +176,15 @@ unsigned int kbase_csf_firmware_trace_buffer_read_data(
  */
 void mtk_kbase_csf_firmware_ke_dump_fwlog(struct kbase_device *kbdev);
 #endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
+
+/**
+ * kbase_csf_firmware_trace_buffer_discard - Discard data from a trace buffer
+ *
+ * @trace_buffer: Trace buffer handle
+ *
+ * Discard part of the data in the trace buffer to reduce its utilization to half of its size.
+ */
+void kbase_csf_firmware_trace_buffer_discard(struct firmware_trace_buffer *trace_buffer);
 
 /**
  * kbase_csf_firmware_trace_buffer_get_active_mask64 - Get trace buffer active mask

@@ -272,6 +272,7 @@ enum kbase_queue_group_priority {
  * @CSF_SCHED_PROTM_PROGRESS_TIMEOUT: Timeout used to prevent protected mode execution hang.
  * @MMU_AS_INACTIVE_WAIT_TIMEOUT: Maximum waiting time in ms for the completion
  *                                of a MMU operation
+ * @KCPU_FENCE_SIGNAL_TIMEOUT: Waiting time in ms for triggering a KCPU queue sync state dump
  * @KBASE_TIMEOUT_SELECTOR_COUNT: Number of timeout selectors. Must be last in
  *                                the enum.
  */
@@ -284,6 +285,7 @@ enum kbase_timeout_selector {
 	CSF_FIRMWARE_PING_TIMEOUT,
 	CSF_SCHED_PROTM_PROGRESS_TIMEOUT,
 	MMU_AS_INACTIVE_WAIT_TIMEOUT,
+	KCPU_FENCE_SIGNAL_TIMEOUT,
 
 	/* Must be the last in the enum */
 	KBASE_TIMEOUT_SELECTOR_COUNT
@@ -324,6 +326,14 @@ struct kbase_csf_notification {
  *                  It is in page units.
  * @link:        Link to the linked list of GPU command queues created per
  *               GPU address space.
+ * @pending_kick:      Indicates whether there is a pending kick to be handled.
+ * @pending_kick_link: Link to the linked list of GPU command queues that have
+ *                     been kicked, but the kick has not yet been processed.
+ *                     This link would be deleted right before the kick is
+ *                     handled to allow for future kicks to occur in the mean
+ *                     time. For this reason, this must not be used to check
+ *                     for the presence of a pending queue kick. @pending_kick
+ *                     should be used instead.
  * @refcount:    Reference count, stands for the number of times the queue
  *               has been referenced. The reference is taken when it is
  *               created, when it is bound to the group and also when the
@@ -336,6 +346,7 @@ struct kbase_csf_notification {
  * @base_addr:      Base address of the CS buffer.
  * @size:           Size of the CS buffer.
  * @priority:       Priority of this queue within the group.
+ * @group_priority: Priority of the group to which this queue has been bound.
  * @bind_state:     Bind state of the queue as enum @kbase_csf_queue_bind_state
  * @csi_index:      The ID of the assigned CS hardware interface.
  * @enabled:        Indicating whether the CS is running, or not.
@@ -373,7 +384,6 @@ struct kbase_csf_notification {
  * @cs_error:         Records information about the CS fatal event or
  *                    about CS fault event if dump on fault is enabled.
  * @cs_error_fatal:   Flag to track if the CS fault or CS fatal event occurred.
- * @pending:          Indicating whether the queue has new submitted work.
  * @extract_ofs: The current EXTRACT offset, this is only updated when handling
  *               the GLB IDLE IRQ if the idle timeout value is non-0 in order
  *               to help detect a queue's true idle status.
@@ -391,6 +401,8 @@ struct kbase_queue {
 	int doorbell_nr;
 	unsigned long db_file_offset;
 	struct list_head link;
+	atomic_t pending_kick;
+	struct list_head pending_kick_link;
 	kbase_refcount_t refcount;
 	struct kbase_queue_group *group;
 	struct kbase_va_region *queue_reg;
@@ -398,6 +410,7 @@ struct kbase_queue {
 	u64 base_addr;
 	u32 size;
 	u8 priority;
+	u8 group_priority;
 	s8 csi_index;
 	enum kbase_csf_queue_bind_state bind_state;
 	bool enabled;
@@ -415,7 +428,6 @@ struct kbase_queue {
 	u64 cs_error_info;
 	u32 cs_error;
 	bool cs_error_fatal;
-	atomic_t pending;
 	u64 extract_ofs;
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	u64 saved_cmd_ptr;
@@ -543,6 +555,7 @@ struct kbase_queue_group {
 	u8 fragment_max;
 	u8 compute_max;
 	u8 csi_handlers;
+
 
 	u64 tiler_mask;
 	u64 fragment_mask;
@@ -834,7 +847,6 @@ struct kbase_csf_user_reg_context {
  * @link:             Link to this csf context in the 'runnable_kctxs' list of
  *                    the scheduler instance
  * @sched:            Object representing the scheduler's context
- * @pending_submission_work: Work item to process pending kicked GPU command queues.
  * @cpu_queue:        CPU queue information. Only be available when DEBUG_FS
  *                    is enabled.
  * @user_reg:         Collective information to support mapping to USER Register page.
@@ -853,7 +865,6 @@ struct kbase_csf_context {
 	struct workqueue_struct *wq;
 	struct list_head link;
 	struct kbase_csf_scheduler_context sched;
-	struct work_struct pending_submission_work;
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	struct kbase_csf_cpu_queue_context cpu_queue;
 #endif
@@ -1002,17 +1013,14 @@ struct kbase_csf_mcu_shared_regions {
  *                          periodic scheduling tasks. If this value is 0
  *                          then it will only perform scheduling under the
  *                          influence of external factors e.g., IRQs, IOCTLs.
- * @wq:                     Dedicated workqueue to execute the @tick_work.
  * @tick_timer:             High-resolution timer employed to schedule tick
  *                          workqueue items (kernel-provided delayed_work
  *                          items do not use hrtimer and for some reason do
  *                          not provide sufficiently reliable periodicity).
- * @tick_work:              Work item that performs the "schedule on tick"
- *                          operation to implement timeslice-based scheduling.
- * @tock_work:              Work item that would perform the schedule on tock
- *                          operation to implement the asynchronous scheduling.
- * @pending_tock_work:      Indicates that the tock work item should re-execute
- *                          once it's finished instead of going back to sleep.
+ * @pending_tick_work:      Indicates that kbase_csf_scheduler_kthread() should perform
+ *                          a scheduling tick.
+ * @pending_tock_work:      Indicates that kbase_csf_scheduler_kthread() should perform
+ *                          a scheduling tock.
  * @ping_work:              Work item that would ping the firmware at regular
  *                          intervals, only if there is a single active CSG
  *                          slot, to check if firmware is alive and would
@@ -1063,13 +1071,6 @@ struct kbase_csf_mcu_shared_regions {
  *                          after GPU and L2 cache have been powered up. So when
  *                          this count is zero, MCU will not be powered up.
  * @csg_scheduling_period_ms: Duration of Scheduling tick in milliseconds.
- * @tick_timer_active:      Indicates whether the @tick_timer is effectively
- *                          active or not, as the callback function of
- *                          @tick_timer will enqueue @tick_work only if this
- *                          flag is true. This is mainly useful for the case
- *                          when scheduling tick needs to be advanced from
- *                          interrupt context, without actually deactivating
- *                          the @tick_timer first and then enqueing @tick_work.
  * @tick_protm_pending_seq: Scan out sequence number of the group that has
  *                          protected mode execution pending for the queue(s)
  *                          bound to it and will be considered first for the
@@ -1081,6 +1082,12 @@ struct kbase_csf_mcu_shared_regions {
  * @mcu_regs_data:          Scheduler MCU shared regions data for managing the
  *                          shared interface mappings for on-slot queues and
  *                          CSG suspend buffers.
+ * @kthread_signal:         Used to wake up the GPU queue submission
+ *                          thread when a queue needs attention.
+ * @kthread_running:        Whether the GPU queue submission thread should keep
+ *                          executing.
+ * @gpuq_kthread:           High-priority thread used to handle GPU queue
+ *                          submissions.
  */
 struct kbase_csf_scheduler {
 	struct mutex lock;
@@ -1102,11 +1109,9 @@ struct kbase_csf_scheduler {
 	DECLARE_BITMAP(csg_slots_idle_mask, MAX_SUPPORTED_CSGS);
 	DECLARE_BITMAP(csg_slots_prio_update, MAX_SUPPORTED_CSGS);
 	unsigned long last_schedule;
-	bool timer_enabled;
-	struct workqueue_struct *wq;
+	atomic_t timer_enabled;
 	struct hrtimer tick_timer;
-	struct work_struct tick_work;
-	struct delayed_work tock_work;
+	atomic_t pending_tick_work;
 	atomic_t pending_tock_work;
 	struct delayed_work ping_work;
 	struct kbase_context *top_ctx;
@@ -1122,11 +1127,13 @@ struct kbase_csf_scheduler {
 	u32 non_idle_scanout_grps;
 	u32 pm_active_count;
 	unsigned int csg_scheduling_period_ms;
-	bool tick_timer_active;
 	u32 tick_protm_pending_seq;
 	ktime_t protm_enter_time;
 	struct kbase_csf_sched_heap_reclaim_mgr reclaim_mgr;
 	struct kbase_csf_mcu_shared_regions mcu_regs_data;
+	struct completion kthread_signal;
+	bool kthread_running;
+	struct task_struct *gpuq_kthread;
 };
 
 /*
@@ -1373,7 +1380,7 @@ struct kbase_csf_mcu_fw {
 /*
  * Firmware log polling period.
  */
-#define KBASE_CSF_FIRMWARE_LOG_POLL_PERIOD_MS 25
+#define KBASE_CSF_FIRMWARE_LOG_POLL_PERIOD_MS_DEFAULT 25
 
 /**
  * enum kbase_csf_firmware_log_mode - Firmware log operating mode
@@ -1385,10 +1392,16 @@ struct kbase_csf_mcu_fw {
  * @KBASE_CSF_FIRMWARE_LOG_MODE_AUTO_PRINT: Automatic printing mode, firmware log
  * will be periodically emptied into dmesg, manual reading through debugfs is
  * disabled.
+ *
+ * @KBASE_CSF_FIRMWARE_LOG_MODE_AUTO_DISCARD: Automatic discarding mode, firmware
+ * log will be periodically discarded, the remaining log can be read manually by
+ * the userspace (and it will also be dumped automatically into dmesg on GPU
+ * reset).
  */
 enum kbase_csf_firmware_log_mode {
 	KBASE_CSF_FIRMWARE_LOG_MODE_MANUAL,
-	KBASE_CSF_FIRMWARE_LOG_MODE_AUTO_PRINT
+	KBASE_CSF_FIRMWARE_LOG_MODE_AUTO_PRINT,
+	KBASE_CSF_FIRMWARE_LOG_MODE_AUTO_DISCARD
 };
 
 /**
@@ -1402,6 +1415,7 @@ enum kbase_csf_firmware_log_mode {
  * @dump_buf:                  Buffer used for dumping the log.
  * @func_call_list_va_start:   Virtual address of the start of the call list of FW log functions.
  * @func_call_list_va_end:     Virtual address of the end of the call list of FW log functions.
+ * @poll_period_ms:            Firmware log polling period in milliseconds.
  */
 struct kbase_csf_firmware_log {
 	enum kbase_csf_firmware_log_mode mode;
@@ -1410,6 +1424,7 @@ struct kbase_csf_firmware_log {
 	u8 *dump_buf;
 	u32 func_call_list_va_start;
 	u32 func_call_list_va_end;
+	atomic_t poll_period_ms;
 };
 
 /**
@@ -1594,6 +1609,10 @@ struct kbase_csf_user_reg {
  * @dof:                    Structure for dump on fault.
  * @user_reg:               Collective information to support the mapping to
  *                          USER Register page for user processes.
+ * @pending_gpuq_kicks:     Lists of GPU queue that have been kicked but not
+ *                          yet processed, categorised by queue group's priority.
+ * @pending_gpuq_kicks_lock: Protect @pending_gpu_kicks and
+ *                           kbase_queue.pending_kick_link.
  */
 struct kbase_csf_device {
 	struct kbase_mmu_table mcu_mmu;
@@ -1644,6 +1663,9 @@ struct kbase_csf_device {
 	struct kbase_debug_coresight_device coresight;
 #endif /* IS_ENABLED(CONFIG_MALI_CORESIGHT) */
 	struct kbase_csf_user_reg user_reg;
+	struct list_head pending_gpuq_kicks[KBASE_QUEUE_GROUP_PRIORITY_COUNT];
+	spinlock_t pending_gpuq_kicks_lock;
+
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
 	ktime_t glb_start_tm;
 	ktime_t glb_end_tm;

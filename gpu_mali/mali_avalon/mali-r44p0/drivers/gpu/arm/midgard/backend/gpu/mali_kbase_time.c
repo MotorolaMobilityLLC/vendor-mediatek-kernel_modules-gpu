@@ -187,6 +187,10 @@ unsigned int kbase_get_timeout_ms(struct kbase_device *kbdev,
 		selector_str = "CSF_SCHED_PROTM_PROGRESS_TIMEOUT";
 		nr_cycles = kbase_csf_timeout_get(kbdev);
 		break;
+	case KCPU_FENCE_SIGNAL_TIMEOUT:
+		selector_str = "KCPU_FENCE_SIGNAL_TIMEOUT";
+		nr_cycles = KCPU_FENCE_SIGNAL_TIMEOUT_CYCLES;
+		break;
 #endif
 	}
 

@@ -252,6 +252,9 @@ struct kbase_kcpu_command {
  *				the function which handles processing of kcpu
  *				commands enqueued into a kcpu command queue;
  *				part of kernel API for processing workqueues
+ * @dump_work:			struct work_struct which contains a pointer to the
+ *				function which handles dumping the state of a kcpu
+ *				queue when a fence signal timeout occurs.
  * @start_offset:		Index of the command to be executed next
  * @id:				KCPU command queue ID.
  * @num_pending_cmds:		The number of commands enqueued but not yet
@@ -283,6 +286,9 @@ struct kbase_kcpu_command {
  * @fence_timeout:		Timer used to detect the fence wait timeout.
  * @metadata:                   Metadata structure containing basic information about
  *                              this queue for any fence objects associated with this queue.
+ * @fence_signal_timeout:	Timer used for detect a fence signal command has
+ *				been blocked for too long.
+ * @fence_signal_pending_cnt:	Enqueued fence signal commands in the queue.
  */
 struct kbase_kcpu_command_queue {
 	struct mutex lock;
@@ -290,6 +296,7 @@ struct kbase_kcpu_command_queue {
 	struct kbase_kcpu_command commands[KBASEP_KCPU_QUEUE_SIZE];
 	struct workqueue_struct *wq;
 	struct work_struct work;
+	struct work_struct dump_work;
 	u8 start_offset;
 	u8 id;
 	u16 num_pending_cmds;
@@ -307,6 +314,8 @@ struct kbase_kcpu_command_queue {
 #if IS_ENABLED(CONFIG_SYNC_FILE)
 	struct kbase_kcpu_dma_fence_meta *metadata;
 #endif /* CONFIG_SYNC_FILE */
+	struct timer_list fence_signal_timeout;
+	atomic_t fence_signal_pending_cnt;
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 	bool pending_cmds_timer_active;
 	u64 pending_cmd_prev_offset;

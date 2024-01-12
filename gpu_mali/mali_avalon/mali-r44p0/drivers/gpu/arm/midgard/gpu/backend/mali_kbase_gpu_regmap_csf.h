@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2019-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -112,7 +112,6 @@
 
 /* GPU control registers */
 #define CORE_FEATURES           0x008   /* () Shader Core Features */
-#define MCU_CONTROL             0x700
 #define MCU_STATUS              0x704
 
 #define MCU_CNTRL_ENABLE        (1 << 0)
@@ -123,14 +122,6 @@
 #define MCU_CNTRL_DOORBELL_DISABLE_MASK (1 << MCU_CNTRL_DOORBELL_DISABLE_SHIFT)
 
 #define MCU_STATUS_HALTED        (1 << 1)
-
-#define L2_CONFIG_PBHA_HWU_SHIFT GPU_U(12)
-#define L2_CONFIG_PBHA_HWU_MASK (GPU_U(0xF) << L2_CONFIG_PBHA_HWU_SHIFT)
-#define L2_CONFIG_PBHA_HWU_GET(reg_val)                                                            \
-	(((reg_val)&L2_CONFIG_PBHA_HWU_MASK) >> L2_CONFIG_PBHA_HWU_SHIFT)
-#define L2_CONFIG_PBHA_HWU_SET(reg_val, value)                                                     \
-	(((reg_val) & ~L2_CONFIG_PBHA_HWU_MASK) |                                                  \
-	 (((value) << L2_CONFIG_PBHA_HWU_SHIFT) & L2_CONFIG_PBHA_HWU_MASK))
 
 /* JOB IRQ flags */
 #define JOB_IRQ_GLOBAL_IF (1u << 31) /* Global interface interrupt received */

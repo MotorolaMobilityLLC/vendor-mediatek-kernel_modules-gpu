@@ -1204,6 +1204,8 @@ int kbase_csf_firmware_load_init(struct kbase_device *kbdev)
 	if (ret != 0)
 		goto error;
 
+	kbase_csf_pending_gpuq_kicks_init(kbdev);
+
 	ret = kbase_csf_scheduler_init(kbdev);
 	if (ret != 0)
 		goto error;
@@ -1231,9 +1233,11 @@ void kbase_csf_firmware_unload_term(struct kbase_device *kbdev)
 
 	/* NO_MALI: Don't stop firmware or unload MMU tables */
 
+	kbase_csf_free_dummy_user_reg_page(kbdev);
+
 	kbase_csf_scheduler_term(kbdev);
 
-	kbase_csf_free_dummy_user_reg_page(kbdev);
+	kbase_csf_pending_gpuq_kicks_term(kbdev);
 
 	kbase_csf_doorbell_mapping_term(kbdev);
 
@@ -1582,7 +1586,7 @@ int kbase_csf_firmware_mcu_shared_mapping_init(
 		goto vmap_error;
 
 	va_reg = kbase_alloc_free_region(kbdev, &kbdev->csf.shared_reg_rbtree, 0, num_pages,
-					 KBASE_REG_ZONE_MCU_SHARED);
+					 MCU_SHARED_ZONE);
 	if (!va_reg)
 		goto va_region_alloc_error;
 

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 #
-# (C) COPYRIGHT 2021-2022 ARM Limited. All rights reserved.
+# (C) COPYRIGHT 2021-2023 ARM Limited. All rights reserved.
 #
 # This program is free software and is provided to you under the terms of the
 # GNU General Public License version 2 as published by the Free Software
@@ -133,7 +133,7 @@ KBUILD_CFLAGS += -Wdisabled-optimization
 KBUILD_CFLAGS += $(call cc-option, -Wlogical-op)
 KBUILD_CFLAGS += -Wmissing-field-initializers
 # -Wtype-limits must be disabled due to build failures on kernel 5.x
-KBUILD_CFLAGS += -Wno-type-limit
+KBUILD_CFLAGS += -Wno-type-limits
 KBUILD_CFLAGS += $(call cc-option, -Wmaybe-uninitialized)
 KBUILD_CFLAGS += $(call cc-option, -Wunused-macros)
 

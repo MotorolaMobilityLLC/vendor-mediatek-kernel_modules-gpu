@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1408,6 +1408,7 @@ static int kbasep_cs_queue_group_create_1_6(
 	struct kbase_context *kctx,
 	union kbase_ioctl_cs_queue_group_create_1_6 *create)
 {
+	int ret, i;
 	union kbase_ioctl_cs_queue_group_create
 		new_create = { .in = {
 				       .tiler_mask = create->in.tiler_mask,
@@ -1421,16 +1422,61 @@ static int kbasep_cs_queue_group_create_1_6(
 				       .compute_max = create->in.compute_max,
 			       } };
 
-	int ret = kbase_csf_queue_group_create(kctx, &new_create);
+	for (i = 0; i < ARRAY_SIZE(create->in.padding); i++) {
+		if (create->in.padding[i] != 0) {
+			dev_warn(kctx->kbdev->dev, "Invalid padding not 0 in queue group create\n");
+			return -EINVAL;
+		}
+	}
+
+	ret = kbase_csf_queue_group_create(kctx, &new_create);
 
 	create->out.group_handle = new_create.out.group_handle;
 	create->out.group_uid = new_create.out.group_uid;
 
 	return ret;
 }
+
+static int kbasep_cs_queue_group_create_1_18(struct kbase_context *kctx,
+					     union kbase_ioctl_cs_queue_group_create_1_18 *create)
+{
+	int ret, i;
+	union kbase_ioctl_cs_queue_group_create
+		new_create = { .in = {
+				       .tiler_mask = create->in.tiler_mask,
+				       .fragment_mask = create->in.fragment_mask,
+				       .compute_mask = create->in.compute_mask,
+				       .cs_min = create->in.cs_min,
+				       .priority = create->in.priority,
+				       .tiler_max = create->in.tiler_max,
+				       .fragment_max = create->in.fragment_max,
+				       .compute_max = create->in.compute_max,
+				       .csi_handlers = create->in.csi_handlers,
+				       .dvs_buf = create->in.dvs_buf,
+			       } };
+
+	for (i = 0; i < ARRAY_SIZE(create->in.padding); i++) {
+		if (create->in.padding[i] != 0) {
+			dev_warn(kctx->kbdev->dev, "Invalid padding not 0 in queue group create\n");
+			return -EINVAL;
+		}
+	}
+
+	ret = kbase_csf_queue_group_create(kctx, &new_create);
+
+	create->out.group_handle = new_create.out.group_handle;
+	create->out.group_uid = new_create.out.group_uid;
+
+	return ret;
+}
+
 static int kbasep_cs_queue_group_create(struct kbase_context *kctx,
 			     union kbase_ioctl_cs_queue_group_create *create)
 {
+	if (create->in.reserved != 0) {
+		dev_warn(kctx->kbdev->dev, "Invalid reserved field not 0 in queue group create\n");
+		return -EINVAL;
+	}
 	return kbase_csf_queue_group_create(kctx, create);
 }
 
@@ -2025,6 +2071,11 @@ static long kbase_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			kbasep_cs_queue_group_create_1_6,
 			union kbase_ioctl_cs_queue_group_create_1_6, kctx);
 		break;
+	case KBASE_IOCTL_CS_QUEUE_GROUP_CREATE_1_18:
+		KBASE_HANDLE_IOCTL_INOUT(KBASE_IOCTL_CS_QUEUE_GROUP_CREATE_1_18,
+					 kbasep_cs_queue_group_create_1_18,
+					 union kbase_ioctl_cs_queue_group_create_1_18, kctx);
+		break;
 	case KBASE_IOCTL_CS_QUEUE_GROUP_CREATE:
 		KBASE_HANDLE_IOCTL_INOUT(KBASE_IOCTL_CS_QUEUE_GROUP_CREATE,
 				kbasep_cs_queue_group_create,
@@ -2259,7 +2310,10 @@ KBASE_EXPORT_TEST_API(kbase_event_wakeup);
 #if MALI_USE_CSF
 int kbase_event_pending(struct kbase_context *ctx)
 {
-	WARN_ON_ONCE(!ctx);
+	KBASE_DEBUG_ASSERT(ctx);
+
+	if (unlikely(!ctx))
+		return -EPERM;
 
 	return (atomic_read(&ctx->event_count) != 0) ||
 		kbase_csf_event_error_pending(ctx) ||
@@ -2269,6 +2323,9 @@ int kbase_event_pending(struct kbase_context *ctx)
 int kbase_event_pending(struct kbase_context *ctx)
 {
 	KBASE_DEBUG_ASSERT(ctx);
+
+	if (unlikely(!ctx))
+		return -EPERM;
 
 	return (atomic_read(&ctx->event_count) != 0) ||
 		(atomic_read(&ctx->event_closed) != 0);
@@ -5916,7 +5973,7 @@ static struct platform_driver kbase_platform_driver = {
 	.probe = kbase_platform_device_probe,
 	.remove = kbase_platform_device_remove,
 	.driver = {
-		   .name = kbase_drv_name,
+		   .name = KBASE_DRV_NAME,
 		   .pm = &kbase_pm_ops,
 		   .of_match_table = of_match_ptr(kbase_dt_ids),
 		   .probe_type = PROBE_PREFER_ASYNCHRONOUS,
