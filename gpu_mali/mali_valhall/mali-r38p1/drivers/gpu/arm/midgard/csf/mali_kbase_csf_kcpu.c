@@ -1672,25 +1672,24 @@ static void kcpu_queue_cmds_timeout_worker(struct work_struct *data)
 		spin_lock(&kctx->kbdev->reset_force_change);
 		kctx->kbdev->reset_force_evict_group_work = true;
 		spin_unlock(&kctx->kbdev->reset_force_change);
-		if (kctx->kbdev->pm.backend.gpu_powered) {
-			if (kbase_prepare_to_reset_gpu(kctx->kbdev, RESET_FLAGS_NONE)) {
-				dev_info(kctx->kbdev->dev, "KCPU queue command timeouts(%d ms)! Trigger GPU reset", COMMAND_TIMEOUT_MS);
+
+		if (kbase_prepare_to_reset_gpu(kctx->kbdev, RESET_FLAGS_NONE)) {
+			dev_info(kctx->kbdev->dev, "KCPU queue command timeouts(%d ms)! Trigger GPU reset", COMMAND_TIMEOUT_MS);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-				mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
-					"[%llxt] KCPU queue command timeouts(%d ms)! Trigger GPU reset\n",
-					mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
-					COMMAND_TIMEOUT_MS);
+			mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
+				"[%llxt] KCPU queue command timeouts(%d ms)! Trigger GPU reset\n",
+				mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
+				COMMAND_TIMEOUT_MS);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-				kbase_reset_gpu(kctx->kbdev);
-			} else {
-				dev_info(kctx->kbdev->dev, "KCPU queue command timeouts(%d ms)! Other threads are already resetting the GPU", COMMAND_TIMEOUT_MS);
+			kbase_reset_gpu(kctx->kbdev);
+		} else {
+			dev_info(kctx->kbdev->dev, "KCPU queue command timeouts(%d ms)! Other threads are already resetting the GPU", COMMAND_TIMEOUT_MS);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-				mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
-					"[%llxt] KCPU queue command timeouts(%d ms)! Other threads are already resetting the GPU\n",
-					mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
-					COMMAND_TIMEOUT_MS);
+			mtk_logbuffer_print(&kctx->kbdev->logbuf_exception,
+				"[%llxt] KCPU queue command timeouts(%d ms)! Other threads are already resetting the GPU\n",
+				mtk_logbuffer_get_timestamp(kctx->kbdev, &kctx->kbdev->logbuf_exception),
+				COMMAND_TIMEOUT_MS);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-			}
 		}
 	}
 #endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
