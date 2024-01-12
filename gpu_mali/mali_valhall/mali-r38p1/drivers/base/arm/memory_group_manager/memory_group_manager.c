@@ -579,6 +579,7 @@ struct page* mtk_fetch_page(struct mgm_groups *data, int order, int i32Rank)
 		p = list_first_entry(&data->free_list_r[o][i], struct page, lru);
 		list_del_init(&p->lru);
 		data->nr_rank[o][i]--;
+		/* remove records from pools */
 		mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, -(1 << order));
 	}
 	spin_unlock(&data->MGMFree_lst_lk);
@@ -598,6 +599,8 @@ struct page* mtk_fetch_page(struct mgm_groups *data, int order, int i32Rank)
 				}
 				data->nr_rank[o][i] += 511;
 				spin_unlock(&data->MGMFree_lst_lk);
+				/* Add remaining page records back to cache pool */
+				mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, 511);
 			}
 		}
 	}
@@ -644,6 +647,7 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 
 		p = alloc_pages(gfp_mask | __GFP_NOWARN, order_scan_walk);
 		if (p) {
+			/* add batch records from system to cache memory */
 			mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, (1 << order_scan_walk));
 			split_page(p, order_scan_walk);
 			count = (1 << order_scan_walk ) - 1;
@@ -668,7 +672,9 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 
 FALLBACK:
 	p = alloc_pages(gfp_mask, order);
-	mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, (1 << order));
+	/* This page would insert into high order rank pool */
+	if (p)
+		mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, (1 << order));
 	return p;
 }
 
@@ -778,7 +784,7 @@ static unsigned long mtk_mgm_pool_reclaim_count_objects(struct shrinker *s,
 	ret += mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[0][0], data->szRefillTarget);
 	ret += mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[0][1], data->szRefillTarget);
 	
-	ret += ((mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[1][1], data->szRefillTarget >> 9)) << 9);
+	ret += ((mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[1][0], data->szRefillTarget >> 9)) << 9);
 	ret += ((mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[1][1], data->szRefillTarget >> 9)) << 9);
 
 	return ret;
@@ -1077,6 +1083,7 @@ static void example_mgm_free_page(
 				goto BUD_SYS;
 			}
 		}
+		/* If pool is not full, add records to cache memory */
 		mod_node_page_state(page_pgdat(page), NR_KERNEL_MISC_RECLAIMABLE, 1 << order);
 		spin_unlock(&data->MGMFree_lst_lk);
 	} else {
