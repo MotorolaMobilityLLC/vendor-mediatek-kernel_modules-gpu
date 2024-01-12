@@ -64,6 +64,14 @@ endif
 # Configurations
 #
 
+# *** MTK ***
+$(info *GPU [mtk-Kbuild] src = $(src))
+$(info *GPU [mtk-Kbuild] srctree = $(srctree))
+include $(src)/Kbuild-mtk-custom-env
+include $(src)/platform/mtk_platform_common/Kbuild
+ccflags-y += -I$(src)/include
+subdir-ccflags-y += -I$(src)/include
+
 # Driver version string which is returned to userspace via an ioctl
 MALI_RELEASE_NAME ?= '"r32p0-00cet0"'
 # Set up defaults if not defined by build system
@@ -74,6 +82,7 @@ MALI_COVERAGE ?= 0
 CONFIG_MALI_PLATFORM_NAME ?= "devicetree"
 # Kconfig passes in the name with quotes for in-tree builds - remove them.
 MALI_PLATFORM_DIR := $(shell echo $(CONFIG_MALI_PLATFORM_NAME))
+include $(src)/platform/$(MALI_PLATFORM_DIR)/Kbuild
 
 ifeq ($(CONFIG_MALI_CSF_SUPPORT),y)
     MALI_JIT_PRESSURE_LIMIT_BASE = 0
@@ -100,7 +109,7 @@ MALI_INCREMENTAL_RENDERING ?= 0
 #
 # ccflags
 #
-ccflags-y = \
+ccflags-y += \
     -DMALI_CUSTOMER_RELEASE=$(MALI_CUSTOMER_RELEASE) \
     -DMALI_USE_CSF=$(MALI_USE_CSF) \
     -DMALI_KERNEL_TEST_API=$(MALI_KERNEL_TEST_API) \
@@ -110,7 +119,7 @@ ccflags-y = \
     -DMALI_JIT_PRESSURE_LIMIT_BASE=$(MALI_JIT_PRESSURE_LIMIT_BASE) \
     -DMALI_INCREMENTAL_RENDERING=$(MALI_INCREMENTAL_RENDERING) \
     -DMALI_KBASE_BUILD \
-    -DMALI_PLATFORM_DIR=$(MALI_PLATFORM_DIR)
+#    -DMALI_PLATFORM_DIR=$(MALI_PLATFORM_DIR)
 
 
 ifeq ($(KBUILD_EXTMOD),)
@@ -134,13 +143,24 @@ subdir-ccflags-y += $(ccflags-y)
 #
 # Kernel Modules
 #
+#obj-$(CONFIG_MALI_MIDGARD) += mali_kbase.o
+
+# MTK: Tell the Linux build system from which .o file to create the kernel module
+# LD1.0
+ifneq ($(CONFIG_MTK_GPU_VERSION),"")
 obj-$(CONFIG_MALI_MIDGARD) += mali_kbase.o
+# LD2.0
+else ifneq ($(wildcard $(src)/platform/$(MTK_PLATFORM)),)
+obj-$(CONFIG_MALI_MIDGARD) += mali_kbase_$(MTK_PLATFORM).o
+mali_kbase_$(MTK_PLATFORM)-y := mali_kbase.o
+endif
+
 ifeq ($(CONFIG_MALI_ARBITRATION),y)
 obj-$(CONFIG_MALI_ARBITRATION) += arbitration/
 endif
 obj-$(CONFIG_MALI_KUTF)    += tests/
 
-mali_kbase-y := \
+mali_kbase-y += \
     mali_kbase_cache_policy.o \
     mali_kbase_ccswe.o \
     mali_kbase_mem.o \
@@ -227,7 +247,7 @@ INCLUDE_SUBDIR = \
     $(src)/tl/Kbuild \
     $(src)/gpu/Kbuild \
     $(src)/thirdparty/Kbuild \
-    $(src)/platform/$(MALI_PLATFORM_DIR)/Kbuild
+#    $(src)/platform/$(MALI_PLATFORM_DIR)/Kbuild
 
 ifeq ($(CONFIG_MALI_CSF_SUPPORT),y)
     INCLUDE_SUBDIR += $(src)/csf/Kbuild
