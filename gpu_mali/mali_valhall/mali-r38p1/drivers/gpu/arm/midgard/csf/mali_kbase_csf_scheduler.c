@@ -1742,6 +1742,10 @@ static void halt_csg_slot(struct kbase_queue_group *group, bool suspend)
 				kbase_backend_get_cycle_cnt(kbdev),
 				slot, kbdev->csf.fw_timeout_ms);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_GSG_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 		}
 	}
 
@@ -2719,6 +2723,10 @@ static int term_group_sync(struct kbase_queue_group *group)
 				group->kctx->id, group->csg_nr);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, group->kctx->tgid, MTK_DBG_HOOK_GSG_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
 			kbase_reset_gpu(kbdev);
 
@@ -3371,6 +3379,10 @@ static void wait_csg_slots_start(struct kbase_device *kbdev)
 				kbdev->csf.fw_timeout_ms,
 				num_groups, slot_mask);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_GSG_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 			if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
 				kbase_reset_gpu(kbdev);
@@ -4221,6 +4233,10 @@ static void scheduler_update_idle_slots_status(struct kbase_device *kbdev,
 				csg_bitmap[0]);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_GSG_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 			/* Store the bitmap of timed out slots */
 			bitmap_copy(failed_csg_bitmap, csg_bitmap, num_groups);
 			csg_bitmap[0] = ~csg_bitmap[0] & db_slots;
@@ -4792,6 +4808,11 @@ static void schedule_actions(struct kbase_device *kbdev, bool is_tick)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"Wait for MCU power on failed on scheduling tick/tock\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_MCUPOWERON_FAIL);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 		return;
 	}
 
@@ -5132,6 +5153,11 @@ static int wait_csg_slots_suspend(struct kbase_device *kbdev,
 				kbase_backend_get_cycle_cnt(kbdev),
 				num_groups, slot_mask_local);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_GSG_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 			err = -ETIMEDOUT;
 		}
 	}
