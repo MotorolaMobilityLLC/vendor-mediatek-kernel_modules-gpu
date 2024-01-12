@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -84,14 +84,10 @@ static inline vm_fault_t vmf_insert_pfn_prot(struct vm_area_struct *vma,
  * debugfs. Display is organized per group with small and large sized pages.
  */
 struct mgm_group {
-#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_MGM_KE)
 	atomic_t size;
-#else
-	size_t size;
-#endif /* CONFIG_MALI_MTK_PREVENT_MGM_KE */
-	size_t lp_size;
-	size_t insert_pfn;
-	size_t update_gpu_pte;
+	atomic_t lp_size;
+	atomic_t insert_pfn;
+	atomic_t update_gpu_pte;
 };
 
 /**
@@ -134,11 +130,8 @@ struct mgm_groups {
 static int mgm_size_get(void *data, u64 *val)
 {
 	struct mgm_group *group = data;
-#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_MGM_KE)
+
 	*val = atomic_read(&group->size);
-#else
-	*val = group->size;
-#endif /* CONFIG_MALI_MTK_PREVENT_MGM_KE */
 
 	return 0;
 }
@@ -146,27 +139,21 @@ static int mgm_size_get(void *data, u64 *val)
 static int mgm_lp_size_get(void *data, u64 *val)
 {
 	struct mgm_group *group = data;
-
-	*val = group->lp_size;
-
+	*val = atomic_read(&group->lp_size);
 	return 0;
 }
 
 static int mgm_insert_pfn_get(void *data, u64 *val)
 {
 	struct mgm_group *group = data;
-
-	*val = group->insert_pfn;
-
+	*val = atomic_read(&group->insert_pfn);
 	return 0;
 }
 
 static int mgm_update_gpu_pte_get(void *data, u64 *val)
 {
 	struct mgm_group *group = data;
-
-	*val = group->update_gpu_pte;
-
+	*val = atomic_read(&group->update_gpu_pte);
 	return 0;
 }
 
@@ -563,7 +550,6 @@ static void update_size(struct memory_group_manager_device *mgm_dev, int
 	struct mgm_groups *data = mgm_dev->data;
 
 	switch (order) {
-#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_MGM_KE)
 	case ORDER_SMALL_PAGE:
 		if (alloc)
 			atomic_inc(&data->groups[group_id].size);
@@ -572,23 +558,13 @@ static void update_size(struct memory_group_manager_device *mgm_dev, int
 			atomic_dec(&data->groups[group_id].size);
 		}
 	break;
-#else
-	case ORDER_SMALL_PAGE:
-		if (alloc)
-			data->groups[group_id].size++;
-		else {
-			WARN_ON(data->groups[group_id].size == 0);
-			data->groups[group_id].size--;
-		}
-	break;
-#endif /* CONFIG_MALI_MTK_PREVENT_MGM_KE */
 
 	case ORDER_LARGE_PAGE:
 		if (alloc)
-			data->groups[group_id].lp_size++;
+			atomic_inc(&data->groups[group_id].lp_size);
 		else {
-			WARN_ON(data->groups[group_id].lp_size == 0);
-			data->groups[group_id].lp_size--;
+			WARN_ON(atomic_read(&data->groups[group_id].lp_size) == 0);
+			atomic_dec(&data->groups[group_id].lp_size);
 		}
 	break;
 
@@ -707,7 +683,7 @@ FALLBACK:
 	p = alloc_pages(gfp_mask, order);
 	/* This page would insert into high order rank pool */
 	if (p)
-		mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, (1 << order));
+	mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, (1 << order));
 	return p;
 }
 
@@ -1145,7 +1121,7 @@ static u64 example_mgm_update_gpu_pte(
 	/* Address could be translated into a different bus address here */
 	pte |= ((u64)1 << PTE_RES_BIT_MULTI_AS_SHIFT);
 
-	data->groups[group_id].update_gpu_pte++;
+	atomic_inc(&data->groups[group_id].update_gpu_pte);
 
 	return pte;
 }
@@ -1181,7 +1157,7 @@ static vm_fault_t example_mgm_vmf_insert_pfn_prot(
 	fault = vmf_insert_pfn_prot(vma, addr, pfn, prot);
 
 	if (fault == VM_FAULT_NOPAGE)
-		data->groups[group_id].insert_pfn++;
+		atomic_inc(&data->groups[group_id].insert_pfn);
 	else
 		dev_err(data->dev, "vmf_insert_pfn_prot failed\n");
 
@@ -1193,14 +1169,10 @@ static int mgm_initialize_data(struct mgm_groups *mgm_data)
 	int i;
 
 	for (i = 0; i < MEMORY_GROUP_MANAGER_NR_GROUPS; i++) {
-#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_MGM_KE)
-		atomic_set(&mgm_data->groups[i].size,0);
-#else
-		mgm_data->groups[i].size = 0;
-#endif /* CONFIG_MALI_MTK_PREVENT_MGM_KE */
-		mgm_data->groups[i].lp_size = 0;
-		mgm_data->groups[i].insert_pfn = 0;
-		mgm_data->groups[i].update_gpu_pte = 0;
+		atomic_set(&mgm_data->groups[i].size, 0);
+		atomic_set(&mgm_data->groups[i].lp_size, 0);
+		atomic_set(&mgm_data->groups[i].insert_pfn, 0);
+		atomic_set(&mgm_data->groups[i].update_gpu_pte, 0);
 	}
 
 	return mgm_initialize_debugfs(mgm_data);
@@ -1211,21 +1183,12 @@ static void mgm_term_data(struct mgm_groups *data)
 	int i;
 
 	for (i = 0; i < MEMORY_GROUP_MANAGER_NR_GROUPS; i++) {
-#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_MGM_KE)
 		if (atomic_read(&data->groups[i].size) != 0)
-			dev_warn(data->dev,
-				"%d 0-order pages in group(%d) leaked\n",
-				atomic_read(&data->groups[i].size), i);
-#else
-		if (data->groups[i].size != 0)
-			dev_warn(data->dev,
-				"%zu 0-order pages in group(%d) leaked\n",
-				data->groups[i].size, i);
-#endif /* CONFIG_MALI_MTK_PREVENT_MGM_KE */
-		if (data->groups[i].lp_size != 0)
-			dev_warn(data->dev,
-				"%zu 9 order pages in group(%d) leaked\n",
-				data->groups[i].lp_size, i);
+			dev_warn(data->dev, "%d 0-order pages in group(%d) leaked\n",
+				 atomic_read(&data->groups[i].size), i);
+		if (atomic_read(&data->groups[i].lp_size) != 0)
+			dev_warn(data->dev, "%d 9 order pages in group(%d) leaked\n",
+				 atomic_read(&data->groups[i].lp_size), i);
 	}
 
 	mgm_term_debugfs(data);
@@ -1314,6 +1277,7 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 		mgm_data->ui64RankBoundary = MTK_EMI_DRAM_OFFSET + mtk_emicen_get_rk_size(0);
 		mgm_data->rank_mode = NORMAL_MODE;
 		mgm_data->szRefillTarget = REFILL_TARGET;
+
 
 		mtk_mgm_pool_fill(mgm_data, 9, 1, PREFILL_TARGET >> 9);
 		mtk_mgm_pool_fill(mgm_data, 9, 0, PREFILL_TARGET >> 9);
