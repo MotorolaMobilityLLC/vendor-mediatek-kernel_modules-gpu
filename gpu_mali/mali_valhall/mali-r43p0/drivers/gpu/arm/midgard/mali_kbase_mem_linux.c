@@ -1270,7 +1270,11 @@ static int kbase_mem_umm_map_attachment(struct kbase_context *kctx,
 			u64 sec_handle = dmabuf_to_secure_handle(dma_buf);
 
 			if (sec_handle) {
+#if IS_ENABLED(CONFIG_ARM_FFA_TRANSPORT)
+				trusted_mem_ffa_query_pa(&sec_handle, &phy_addr);
+#else
 				trusted_mem_api_query_pa(0, 0, 0, NULL, &sec_handle, NULL, 0, 0, &phy_addr);
+#endif
 			} else {
 				// page_base heap have no sec_handle.
 				// use sg_phys to get PA
