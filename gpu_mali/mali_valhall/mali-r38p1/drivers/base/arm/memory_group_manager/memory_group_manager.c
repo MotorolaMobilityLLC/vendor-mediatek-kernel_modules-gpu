@@ -593,7 +593,7 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 			return p;
 		}
 		else
-			dev_vdbg(data->dev, "Impossible! This is a bug\n");
+			dev_info(data->dev, "Impossible! This is a bug\n");
 	}
 	spin_unlock(&data->free_4K_lst_lk);
 
@@ -618,7 +618,7 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 			return p;
 		}
 		order_scan_walk--;
-		dev_info(data->dev, "Order: empty; Try next order %u \n", order_scan_walk);
+		dev_dbg(data->dev, "Order: empty; Try next order %u \n", order_scan_walk);
 	}
 
 
@@ -666,6 +666,7 @@ void mtk_mgm_pool_flush(struct mgm_groups *data, int order, int rank, size_t tar
 	int count = 0, o = 0;
 	bool bFlip;
 	size_t nr_pages_in;
+	size_t w_count = 0;
 	
 	if (order == 9)
 		o = 1;
@@ -673,7 +674,7 @@ void mtk_mgm_pool_flush(struct mgm_groups *data, int order, int rank, size_t tar
 	nr_pages_in = data->nr_rank[o][rank];
 
 	if (target_waste)
-		dev_info(data->dev, "Tried leak %llu pages\n", target_waste);
+		dev_dbg(data->dev, "Tried leak %llu pages\n", target_waste);
 
 	while (data->nr_rank[o][rank] > target && (nr_pages_in - count)){
 		pp = mtk_fetch_page(data, order, rank);
@@ -681,7 +682,8 @@ void mtk_mgm_pool_flush(struct mgm_groups *data, int order, int rank, size_t tar
 		if (bFlip || target_waste <= (nr_pages_in - count)) {
 			__free_pages(pp, order);
 			count++;
-		}
+		} else
+			w_count++;
 
 		if (ktime_get()&0x1)
 			bFlip = true;
@@ -689,13 +691,12 @@ void mtk_mgm_pool_flush(struct mgm_groups *data, int order, int rank, size_t tar
 			bFlip = false;
 	}
 
-
-	while (target_waste > (nr_pages_in - count)) {
+	while (target_waste > w_count) {
 		pp = alloc_pages(GFP_HIGHUSER|__GFP_ZERO, order);
 		if(pp)
-			nr_pages_in++;
+			w_count++;
 	}
-	dev_info(data->dev, "Flush %d-pool[%d]: %llu, %llu pages wasted\n", order, rank, target_waste, nr_pages_in - count - data->nr_rank[o][rank]);
+	dev_dbg(data->dev, "Flush %d-pool[%d]: %llu freed, (%llu / %llu) pages wasted\n", order, rank, count, w_count, target_waste);
 }
 
 
@@ -770,7 +771,7 @@ static unsigned long mtk_mgm_pool_reclaim_scan_objects(struct shrinker *s,
 			break;
 	}
 
-	dev_info(data->dev, "mGMM pool[0]: reclaimed %llu (rank0:%d, rank1:%d)\n", j+i, j ,i);
+	dev_dbg(data->dev, "mGMM pool[0]: reclaimed %llu (rank0:%d, rank1:%d)\n", j+i, j ,i);
 	
 	target = mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[1][0], data->szRefillTarget >> 9);
 	for (i = 0; i < target; i++){
@@ -794,7 +795,7 @@ static unsigned long mtk_mgm_pool_reclaim_scan_objects(struct shrinker *s,
 			break;
 	}
 
-	dev_info(data->dev, "mGMM pool[1]: reclaimed %llu (rank0:%d, rank1:%d)\n", j+i, j ,i);
+	dev_dbg(data->dev, "mGMM pool[1]: reclaimed %llu (rank0:%d, rank1:%d)\n", j+i, j ,i);
 
 	return ret;
 }
@@ -812,12 +813,12 @@ void mtk_mgm_pool_fill(struct mgm_groups *data, int order, int i32Rank, size_t t
 	while (data->nr_rank[o][i32Rank] < target) {
 		nr_pages = MTKAllocPage(data, data->gfp_mask, order, i32Rank);
 		if (nr_pages == 0 || tried >= target) {
-			dev_info(data->dev, "mtk_mgm_pool_fill %d-pool[%d]: incompleted (%llu) / (%llu) | %u\n", order, i32Rank, data->nr_rank[o][i32Rank], tried, nr_pages);
+			dev_dbg(data->dev, "mtk_mgm_pool_fill %d-pool[%d]: incompleted (%llu) / (%llu) | %u\n", order, i32Rank, data->nr_rank[o][i32Rank], tried, nr_pages);
 			return;
 		}
 		tried++;
 	}
-	dev_info(data->dev, "mtk_mgm_pool_fill %d-pool[%d]: %llu -> %llu\n", order, i32Rank, in_nr_pages, target);
+	dev_dbg(data->dev, "mtk_mgm_pool_fill %d-pool[%d]: %llu -> %llu\n", order, i32Rank, in_nr_pages, target);
 }
 
 #if IS_ENABLED(CONFIG_MTK_GMM_STAT_OVERRIDE)
@@ -903,24 +904,24 @@ static struct page *example_mgm_alloc_page(
 				while (refill < data->szRefillTarget) {
 					tmp = MTKAllocPage(data, gfp_mask, order, 0);
 					if (tmp == 0) {
-						dev_info(data->dev, "pool refill encounter OOM\n");
+						dev_dbg(data->dev, "pool refill encounter OOM\n");
 						break;
 					}
 					refill += tmp;
 				}
-				dev_info(data->dev, "Refill %d-pool[%d]: (%d) / (%d)\n", order, rank, refill, data->szRefillTarget);
+				dev_dbg(data->dev, "Refill %d-pool[%d]: (%d) / (%d)\n", order, rank, refill, data->szRefillTarget);
 
 				spin_lock(&data->MGMFree_lst_lk);
 				if (*pbRank0) {// rank 0
 					if(data->nr_rank[o][0] < (data->szRefillTarget >> (order + 1)) ) {
 						*pbRank0 = !(*pbRank0);
-						dev_info(data->dev, "Select rank0->1 (%d)\n", count);
+						dev_dbg(data->dev, "Select rank0->1 (%d)\n", count);
 						count = 0;
 					}
 				} else {
 					if (data->nr_rank[o][1] < (data->szRefillTarget >> (order + 1)) ) {
 						*pbRank0 = !(*pbRank0);
-						dev_info(data->dev, "Select rank1->0 (%d)\n", count);
+						dev_dbg(data->dev, "Select rank1->0 (%d)\n", count);
 						count = 0;
 					}
 				}
@@ -1165,6 +1166,7 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 	struct memory_group_manager_device *mgm_dev;
 	struct mgm_groups *mgm_data;
 #if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
+	struct sysinfo info;
 	size_t *nr_rank;
 	size_t *nr_LP_rank;
 #if IS_ENABLED(CONFIG_MTK_GMM_STAT_OVERRIDE)
@@ -1203,6 +1205,8 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 	dev_info(&pdev->dev, "Memory group manager probed successfully\n");
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
+	si_meminfo(&info);
+	dev_info(&pdev->dev,"Total memory: %llu (pages)\n", info.totalram);
 	spin_lock_init(&mgm_data->MGMFree_lst_lk);
 	spin_lock_init(&mgm_data->free_4K_lst_lk);
 	mgm_data->free_4K_lst.next = mgm_data->free_4K_lst.prev = &mgm_data->free_4K_lst;
@@ -1235,8 +1239,10 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 	mtk_mgm_pool_trim(mgm_data, 9, mgm_data->szPrefillTarget >> 9, 0);
 	mtk_mgm_pool_trim(mgm_data, 9, mgm_data->szPrefillTarget >> 9, 1);
 
-	dev_info(&pdev->dev, "mGMM init completed: rank[0] = %llu, rank[1] = %llu\n", nr_rank[0], nr_rank[1]);
-	dev_info(&pdev->dev, "\tLP: rank[0] = %llu, rank[1] = %llu\n", nr_LP_rank[0], nr_LP_rank[1]);
+	dev_info(&pdev->dev,
+		"mGMM init completed: [0] {%llu, %llu}, [1] {%llu, %llu}\n",
+		nr_rank[0], nr_rank[1], nr_LP_rank[0], nr_LP_rank[1]);
+
 #endif	/* CONFIG_MALI_MTK_MGMM */
 	return 0;
 }
