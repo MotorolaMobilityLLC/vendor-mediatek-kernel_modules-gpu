@@ -233,6 +233,13 @@ int kbase_csf_firmware_cfg_init(struct kbase_device *kbdev)
 	list_for_each_entry(config, &kbdev->csf.firmware_config, node) {
 		int err;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CSFFWLOG)
+		/* modify fwlog default enable */
+		if (strcmp(config->name, "Log verbosity") == 0) { /* find cfg:Log verbosity, set default Log verbosity:3 */
+			config->cur_val = 0x1234ABCD; /* 0x1234ABCD is for 'kbase_csf_read_firmware_memory' to judge Log verbosity & modify default value from 0 to 3 */
+			dev_info(kbdev->dev, "Modify Log verbosity = 3,  config->cur_val=0x%x\n", config->cur_val);
+		}
+#endif /* CONFIG_MALI_MTK_CSFFWLOG */
 		kbase_csf_read_firmware_memory(kbdev, config->address,
 			&config->cur_val);
 
