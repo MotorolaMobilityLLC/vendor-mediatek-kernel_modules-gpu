@@ -156,8 +156,8 @@ static int wait_ready(struct kbase_device *kbdev,
 			"AS_ACTIVE bit stuck for as %u, might be caused by slow/unstable GPU clock or possible faulty FPGA connector\n",
 			as_nr);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_NA);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
 		return -1;
 	}
 #else /* CONFIG_MALI_MTK_DEBUG */

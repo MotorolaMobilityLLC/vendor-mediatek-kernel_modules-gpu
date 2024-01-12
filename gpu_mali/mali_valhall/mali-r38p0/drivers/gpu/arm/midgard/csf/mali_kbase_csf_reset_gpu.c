@@ -429,8 +429,8 @@ static enum kbasep_soft_reset_status kbase_csf_reset_gpu_once(struct kbase_devic
 
 	if (WARN_ON(err)) {
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_RESET_FAIL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_RESET_FAIL);
 #endif /* CONFIG_MALI_MTK_DEBUG */
 		return SOFT_RESET_FAILED;
 	}
@@ -456,8 +456,8 @@ static enum kbasep_soft_reset_status kbase_csf_reset_gpu_once(struct kbase_devic
 		else if (!kbase_pm_mcu_is_in_desired_state(kbdev))
 			ret = MCU_REINIT_FAILED;
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_FWRELOAD_FAIL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_FWRELOAD_FAIL);
 #endif /* CONFIG_MALI_MTK_DEBUG */
 	}
 
