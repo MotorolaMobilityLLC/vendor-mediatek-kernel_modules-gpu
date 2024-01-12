@@ -67,7 +67,7 @@ static int kbase_kcpu_map_import_prepare(
 	long i;
 	int ret = 0;
 
-	lockdep_assert_held(&kcpu_queue->lock);
+	lockdep_assert_held(&kctx->csf.kcpu_queues.lock);
 
 	/* Take the processes mmap lock */
 	down_read(kbase_mem_get_process_mmap_lock());
@@ -126,7 +126,7 @@ static int kbase_kcpu_unmap_import_prepare_internal(
 	struct kbase_va_region *reg;
 	int ret = 0;
 
-	lockdep_assert_held(&kcpu_queue->lock);
+	lockdep_assert_held(&kctx->csf.kcpu_queues.lock);
 
 	kbase_gpu_vm_lock(kctx);
 
@@ -194,9 +194,7 @@ static void kbase_jit_add_to_pending_alloc_list(
 			&kctx->csf.kcpu_queues.jit_blocked_queues;
 	struct kbase_kcpu_command_queue *blocked_queue;
 
-	lockdep_assert_held(&queue->lock);
-
-	spin_lock(&kctx->csf.kcpu_queues.jit_lock);
+	lockdep_assert_held(&kctx->csf.kcpu_queues.lock);
 
 	list_for_each_entry(blocked_queue,
 			&kctx->csf.kcpu_queues.jit_blocked_queues,
@@ -212,8 +210,6 @@ static void kbase_jit_add_to_pending_alloc_list(
 	}
 
 	list_add_tail(&queue->jit_blocked, target_list_head);
-
-	spin_unlock(&kctx->csf.kcpu_queues.jit_lock);
 }
 
 /**
@@ -243,12 +239,10 @@ static int kbase_kcpu_jit_allocate_process(
 	u32 i;
 	int ret;
 
-	lockdep_assert_held(&queue->lock);
+	lockdep_assert_held(&kctx->csf.kcpu_queues.lock);
 
 	if (alloc_info->blocked) {
-		spin_lock(&kctx->csf.kcpu_queues.jit_lock);
 		list_del(&queue->jit_blocked);
-		spin_unlock(&kctx->csf.kcpu_queues.jit_lock);
 		alloc_info->blocked = false;
 	}
 
@@ -272,7 +266,6 @@ static int kbase_kcpu_jit_allocate_process(
 			bool can_block = false;
 			struct kbase_kcpu_command const *jit_cmd;
 
-			spin_lock(&kctx->csf.kcpu_queues.jit_lock);
 			list_for_each_entry(jit_cmd, &kctx->csf.kcpu_queues.jit_cmds_head, info.jit_alloc.node) {
 				if (jit_cmd == cmd)
 					break;
@@ -291,7 +284,6 @@ static int kbase_kcpu_jit_allocate_process(
 					}
 				}
 			}
-			spin_unlock(&kctx->csf.kcpu_queues.jit_lock);
 
 			if (!can_block) {
 				/*
@@ -374,7 +366,7 @@ static int kbase_kcpu_jit_allocate_prepare(
 	int ret = 0;
 	u32 i;
 
-	lockdep_assert_held(&kcpu_queue->lock);
+	lockdep_assert_held(&kctx->csf.kcpu_queues.lock);
 
 	if (!data || count > kcpu_queue->kctx->jit_max_allocations ||
 			count > ARRAY_SIZE(kctx->jit_alloc)) {
@@ -412,10 +404,8 @@ static int kbase_kcpu_jit_allocate_prepare(
 	}
 
 	current_command->type = BASE_KCPU_COMMAND_TYPE_JIT_ALLOC;
-	spin_lock(&kctx->csf.kcpu_queues.jit_lock);
 	list_add_tail(&current_command->info.jit_alloc.node,
 			&kctx->csf.kcpu_queues.jit_cmds_head);
-	spin_unlock(&kctx->csf.kcpu_queues.jit_lock);
 	current_command->info.jit_alloc.info = info;
 	current_command->info.jit_alloc.count = count;
 	current_command->info.jit_alloc.blocked = false;
@@ -437,9 +427,7 @@ static void kbase_kcpu_jit_allocate_finish(
 		struct kbase_kcpu_command_queue *queue,
 		struct kbase_kcpu_command *cmd)
 {
-	lockdep_assert_held(&queue->lock);
-
-	spin_lock(&queue->kctx->csf.kcpu_queues.jit_lock);
+	lockdep_assert_held(&queue->kctx->csf.kcpu_queues.lock);
 
 	/* Remove this command from the jit_cmds_head list */
 	list_del(&cmd->info.jit_alloc.node);
@@ -453,8 +441,6 @@ static void kbase_kcpu_jit_allocate_finish(
 		cmd->info.jit_alloc.blocked = false;
 	}
 
-	spin_unlock(&queue->kctx->csf.kcpu_queues.jit_lock);
-
 	kfree(cmd->info.jit_alloc.info);
 }
 
@@ -467,6 +453,8 @@ static void kbase_kcpu_jit_retry_pending_allocs(struct kbase_context *kctx)
 {
 	struct kbase_kcpu_command_queue *blocked_queue;
 
+	lockdep_assert_held(&kctx->csf.kcpu_queues.lock);
+
 	/*
 	 * Reschedule all queues blocked by JIT_ALLOC commands.
 	 * NOTE: This code traverses the list of blocked queues directly. It
@@ -474,10 +462,9 @@ static void kbase_kcpu_jit_retry_pending_allocs(struct kbase_context *kctx)
 	 * time. This precondition is true since we're holding the
 	 * kbase_csf_kcpu_queue_context.lock .
 	 */
-	spin_lock(&kctx->csf.kcpu_queues.jit_lock);
-	list_for_each_entry(blocked_queue, &kctx->csf.kcpu_queues.jit_blocked_queues, jit_blocked)
-		queue_work(blocked_queue->wq, &blocked_queue->work);
-	spin_unlock(&kctx->csf.kcpu_queues.jit_lock);
+	list_for_each_entry(blocked_queue,
+			&kctx->csf.kcpu_queues.jit_blocked_queues, jit_blocked)
+		queue_work(kctx->csf.kcpu_queues.wq, &blocked_queue->work);
 }
 
 static int kbase_kcpu_jit_free_process(struct kbase_kcpu_command_queue *queue,
@@ -494,7 +481,7 @@ static int kbase_kcpu_jit_free_process(struct kbase_kcpu_command_queue *queue,
 	if (WARN_ON(!ids))
 		return -EINVAL;
 
-	lockdep_assert_held(&queue->lock);
+	lockdep_assert_held(&kctx->csf.kcpu_queues.lock);
 
 	KBASE_TLSTREAM_TL_KBASE_ARRAY_BEGIN_KCPUQUEUE_EXECUTE_JIT_FREE_END(queue->kctx->kbdev,
 									   queue);
@@ -526,17 +513,15 @@ static int kbase_kcpu_jit_free_process(struct kbase_kcpu_command_queue *queue,
 			queue->kctx->kbdev, queue, item_err, pages_used);
 	}
 
+	/* Free the list of ids */
+	kfree(ids);
+
 	/*
 	 * Remove this command from the jit_cmds_head list and retry pending
 	 * allocations.
 	 */
-	spin_lock(&kctx->csf.kcpu_queues.jit_lock);
 	list_del(&cmd->info.jit_free.node);
-	spin_unlock(&kctx->csf.kcpu_queues.jit_lock);
 	kbase_kcpu_jit_retry_pending_allocs(kctx);
-
-	/* Free the list of ids */
-	kfree(ids);
 
 	return rc;
 }
@@ -553,7 +538,7 @@ static int kbase_kcpu_jit_free_prepare(
 	int ret;
 	u32 i;
 
-	lockdep_assert_held(&kcpu_queue->lock);
+	lockdep_assert_held(&kctx->csf.kcpu_queues.lock);
 
 	/* Sanity checks */
 	if (!count || count > ARRAY_SIZE(kctx->jit_alloc)) {
@@ -599,10 +584,8 @@ static int kbase_kcpu_jit_free_prepare(
 	}
 
 	current_command->type = BASE_KCPU_COMMAND_TYPE_JIT_FREE;
-	spin_lock(&kctx->csf.kcpu_queues.jit_lock);
 	list_add_tail(&current_command->info.jit_free.node,
 			&kctx->csf.kcpu_queues.jit_cmds_head);
-	spin_unlock(&kctx->csf.kcpu_queues.jit_lock);
 	current_command->info.jit_free.ids = ids;
 	current_command->info.jit_free.count = count;
 
@@ -630,7 +613,7 @@ static int kbase_csf_queue_group_suspend_prepare(
 	int pinned_pages = 0, ret = 0;
 	struct kbase_va_region *reg;
 
-	lockdep_assert_held(&kcpu_queue->lock);
+	lockdep_assert_held(&kctx->csf.kcpu_queues.lock);
 
 	if (suspend_buf->size < csg_suspend_buf_size)
 		return -EINVAL;
@@ -732,8 +715,9 @@ static enum kbase_csf_event_callback_action event_cqs_callback(void *param)
 {
 	struct kbase_kcpu_command_queue *kcpu_queue =
 		(struct kbase_kcpu_command_queue *)param;
+	struct kbase_context *const kctx = kcpu_queue->kctx;
 
-	queue_work(kcpu_queue->wq, &kcpu_queue->work);
+	queue_work(kctx->csf.kcpu_queues.wq, &kcpu_queue->work);
 
 	return KBASE_CSF_EVENT_CALLBACK_KEEP;
 }
@@ -763,7 +747,7 @@ static int kbase_kcpu_cqs_wait_process(struct kbase_device *kbdev,
 {
 	u32 i;
 
-	lockdep_assert_held(&queue->lock);
+	lockdep_assert_held(&queue->kctx->csf.kcpu_queues.lock);
 
 	if (WARN_ON(!cqs_wait->objs))
 		return -EINVAL;
@@ -831,7 +815,7 @@ static int kbase_kcpu_cqs_wait_prepare(struct kbase_kcpu_command_queue *queue,
 	struct base_cqs_wait_info *objs;
 	unsigned int nr_objs = cqs_wait_info->nr_objs;
 
-	lockdep_assert_held(&queue->lock);
+	lockdep_assert_held(&queue->kctx->csf.kcpu_queues.lock);
 
 	if (nr_objs > BASEP_KCPU_CQS_MAX_NUM_OBJS)
 		return -EINVAL;
@@ -885,7 +869,7 @@ static void kbase_kcpu_cqs_set_process(struct kbase_device *kbdev,
 {
 	unsigned int i;
 
-	lockdep_assert_held(&queue->lock);
+	lockdep_assert_held(&queue->kctx->csf.kcpu_queues.lock);
 
 	if (WARN_ON(!cqs_set->objs))
 		return;
@@ -926,10 +910,11 @@ static int kbase_kcpu_cqs_set_prepare(
 		struct base_kcpu_command_cqs_set_info *cqs_set_info,
 		struct kbase_kcpu_command *current_command)
 {
+	struct kbase_context *const kctx = kcpu_queue->kctx;
 	struct base_cqs_set *objs;
 	unsigned int nr_objs = cqs_set_info->nr_objs;
 
-	lockdep_assert_held(&kcpu_queue->lock);
+	lockdep_assert_held(&kctx->csf.kcpu_queues.lock);
 
 	if (nr_objs > BASEP_KCPU_CQS_MAX_NUM_OBJS)
 		return -EINVAL;
@@ -979,7 +964,7 @@ static int kbase_kcpu_cqs_wait_operation_process(struct kbase_device *kbdev,
 {
 	u32 i;
 
-	lockdep_assert_held(&queue->lock);
+	lockdep_assert_held(&queue->kctx->csf.kcpu_queues.lock);
 
 	if (WARN_ON(!cqs_wait_operation->objs))
 		return -EINVAL;
@@ -1066,7 +1051,7 @@ static int kbase_kcpu_cqs_wait_operation_prepare(struct kbase_kcpu_command_queue
 	struct base_cqs_wait_operation_info *objs;
 	unsigned int nr_objs = cqs_wait_operation_info->nr_objs;
 
-	lockdep_assert_held(&queue->lock);
+	lockdep_assert_held(&queue->kctx->csf.kcpu_queues.lock);
 
 	if (nr_objs > BASEP_KCPU_CQS_MAX_NUM_OBJS)
 		return -EINVAL;
@@ -1121,7 +1106,7 @@ static void kbase_kcpu_cqs_set_operation_process(
 {
 	unsigned int i;
 
-	lockdep_assert_held(&queue->lock);
+	lockdep_assert_held(&queue->kctx->csf.kcpu_queues.lock);
 
 	if (WARN_ON(!cqs_set_operation->objs))
 		return;
@@ -1188,10 +1173,11 @@ static int kbase_kcpu_cqs_set_operation_prepare(
 		struct base_kcpu_command_cqs_set_operation_info *cqs_set_operation_info,
 		struct kbase_kcpu_command *current_command)
 {
+	struct kbase_context *const kctx = kcpu_queue->kctx;
 	struct base_cqs_set_operation_info *objs;
 	unsigned int nr_objs = cqs_set_operation_info->nr_objs;
 
-	lockdep_assert_held(&kcpu_queue->lock);
+	lockdep_assert_held(&kctx->csf.kcpu_queues.lock);
 
 	if (nr_objs > BASEP_KCPU_CQS_MAX_NUM_OBJS)
 		return -EINVAL;
@@ -1232,13 +1218,13 @@ static void kbase_csf_fence_wait_callback(struct dma_fence *fence,
 
 #ifdef CONFIG_MALI_FENCE_DEBUG
 	/* Fence gets signaled. Deactivate the timer for fence-wait timeout */
-	del_timer(&kcpu_queue->fence_timeout);
+	del_timer_sync(&kcpu_queue->fence_timeout);
 #endif
 	KBASE_KTRACE_ADD_CSF_KCPU(kctx->kbdev, KCPU_FENCE_WAIT_END, kcpu_queue,
 				  fence->context, fence->seqno);
 
 	/* Resume kcpu command queue processing. */
-	queue_work(kcpu_queue->wq, &kcpu_queue->work);
+	queue_work(kctx->csf.kcpu_queues.wq, &kcpu_queue->work);
 }
 
 static void kbase_kcpu_fence_wait_cancel(
@@ -1247,7 +1233,7 @@ static void kbase_kcpu_fence_wait_cancel(
 {
 	struct kbase_context *const kctx = kcpu_queue->kctx;
 
-	lockdep_assert_held(&kcpu_queue->lock);
+	lockdep_assert_held(&kctx->csf.kcpu_queues.lock);
 
 	if (WARN_ON(!fence_info->fence))
 		return;
@@ -1257,10 +1243,7 @@ static void kbase_kcpu_fence_wait_cancel(
 				&fence_info->fence_cb);
 
 #ifdef CONFIG_MALI_FENCE_DEBUG
-		/* Fence-wait cancelled or fence signaled. In the latter case
-		 * the timer would already have been deactivated inside
-		 * kbase_csf_fence_wait_callback().
-		 */
+		/* Fence-wait cancelled. Deactivate the timer for fence-wait timeout */
 		del_timer_sync(&kcpu_queue->fence_timeout);
 #endif
 		if (removed)
@@ -1331,7 +1314,7 @@ static void fence_timeout_callback(struct timer_list *timer)
 	kbase_sync_fence_info_get(fence, &info);
 
 	if (info.status == 1) {
-		queue_work(kcpu_queue->wq, &kcpu_queue->work);
+		queue_work(kctx->csf.kcpu_queues.wq, &kcpu_queue->work);
 	} else if (info.status == 0) {
 		dev_warn(kctx->kbdev->dev, "fence has not yet signalled in %ums",
 			 FENCE_WAIT_TIMEOUT_MS);
@@ -1349,7 +1332,6 @@ static void fence_timeout_callback(struct timer_list *timer)
 			kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name,
 			fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-		queue_work(kcpu_queue->timeout_wq, &kcpu_queue->timeout_work);
 	} else {
 		dev_warn(kctx->kbdev->dev, "fence has got error");
 		dev_warn(kctx->kbdev->dev,
@@ -1404,7 +1386,6 @@ static int kbase_kcpu_fence_wait_process(
 #else
 	struct dma_fence *fence;
 #endif
-	struct kbase_context *const kctx = kcpu_queue->kctx;
 
 	lockdep_assert_held(&kcpu_queue->lock);
 
@@ -1429,17 +1410,8 @@ static int kbase_kcpu_fence_wait_process(
 #ifdef CONFIG_MALI_FENCE_DEBUG
 			fence_timeout_start(kcpu_queue);
 #endif
-		} else if (cb_err == -ENOENT) {
+		} else if (cb_err == -ENOENT)
 			fence_status = dma_fence_get_status(fence);
-			if (!fence_status) {
-				struct kbase_sync_fence_info info;
-
-				kbase_sync_fence_info_get(fence, &info);
-				dev_info(kctx->kbdev->dev,
-					 "Unexpected status for fence %s of ctx:%d_%d kcpu queue:%u",
-					 info.name, kctx->tgid, kctx->id, kcpu_queue->id);
-			}
-		}
 	}
 
 	/*
@@ -1462,6 +1434,7 @@ static int kbase_kcpu_fence_wait_prepare(
 		struct base_kcpu_command_fence_info *fence_info,
 		struct kbase_kcpu_command *current_command)
 {
+	struct kbase_context *const kctx = kcpu_queue->kctx;
 #if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
 	struct fence *fence_in;
 #else
@@ -1469,7 +1442,7 @@ static int kbase_kcpu_fence_wait_prepare(
 #endif
 	struct base_fence fence;
 
-	lockdep_assert_held(&kcpu_queue->lock);
+	lockdep_assert_held(&kctx->csf.kcpu_queues.lock);
 
 	if (copy_from_user(&fence, u64_to_user_ptr(fence_info->fence),
 			sizeof(fence)))
@@ -1520,6 +1493,7 @@ static int kbase_kcpu_fence_signal_prepare(
 		struct base_kcpu_command_fence_info *fence_info,
 		struct kbase_kcpu_command *current_command)
 {
+	struct kbase_context *const kctx = kcpu_queue->kctx;
 #if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
 	struct fence *fence_out;
 #else
@@ -1530,7 +1504,7 @@ static int kbase_kcpu_fence_signal_prepare(
 	int ret = 0;
 	int fd;
 
-	lockdep_assert_held(&kcpu_queue->lock);
+	lockdep_assert_held(&kctx->csf.kcpu_queues.lock);
 
 	if (copy_from_user(&fence, u64_to_user_ptr(fence_info->fence),
 			sizeof(fence)))
@@ -1641,11 +1615,11 @@ static void kcpu_queue_process_worker(struct work_struct *data)
 	struct kbase_kcpu_command_queue *queue = container_of(data,
 				struct kbase_kcpu_command_queue, work);
 
-	mutex_lock(&queue->lock);
+	mutex_lock(&queue->kctx->csf.kcpu_queues.lock);
 
 	kcpu_queue_process(queue, false);
 
-	mutex_unlock(&queue->lock);
+	mutex_unlock(&queue->kctx->csf.kcpu_queues.lock);
 }
 
 static int delete_queue(struct kbase_context *kctx, u32 id)
@@ -1661,17 +1635,6 @@ static int delete_queue(struct kbase_context *kctx, u32 id)
 		KBASE_KTRACE_ADD_CSF_KCPU(kctx->kbdev, KCPU_QUEUE_DELETE,
 			queue, queue->num_pending_cmds, queue->cqs_wait_count);
 
-		/* Disassociate the queue from the system to prevent further
-		 * submissions. Draining pending commands would be acceptable
-		 * even if a new queue is created using the same ID.
-		 */
-		kctx->csf.kcpu_queues.array[id] = NULL;
-		bitmap_clear(kctx->csf.kcpu_queues.in_use, id, 1);
-
-		mutex_unlock(&kctx->csf.kcpu_queues.lock);
-
-		mutex_lock(&queue->lock);
-
 		/* Drain the remaining work for this queue first and go past
 		 * all the waits.
 		 */
@@ -1683,21 +1646,22 @@ static int delete_queue(struct kbase_context *kctx, u32 id)
 		/* All CQS wait commands should have been cleaned up */
 		WARN_ON(queue->cqs_wait_count);
 
+		kctx->csf.kcpu_queues.array[id] = NULL;
+		bitmap_clear(kctx->csf.kcpu_queues.in_use, id, 1);
+
 		/* Fire the tracepoint with the mutex held to enforce correct
 		 * ordering with the summary stream.
 		 */
 		KBASE_TLSTREAM_TL_KBASE_DEL_KCPUQUEUE(kctx->kbdev, queue);
 
-		mutex_unlock(&queue->lock);
+		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 
 		cancel_work_sync(&queue->work);
-		destroy_workqueue(queue->wq);
+
 #ifdef CONFIG_MALI_FENCE_DEBUG
 		cancel_work_sync(&queue->timeout_work);
 		destroy_workqueue(queue->timeout_wq);
 #endif /* CONFIG_MALI_FENCE_DEBUG */
-
-		mutex_destroy(&queue->lock);
 
 		kfree(queue);
 	} else {
@@ -1764,7 +1728,7 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 	bool process_next = true;
 	size_t i;
 
-	lockdep_assert_held(&queue->lock);
+	lockdep_assert_held(&queue->kctx->csf.kcpu_queues.lock);
 
 	for (i = 0; i != queue->num_pending_cmds; ++i) {
 		struct kbase_kcpu_command *cmd =
@@ -2184,14 +2148,12 @@ int kbase_csf_kcpu_queue_enqueue(struct kbase_context *kctx,
 
 	mutex_lock(&kctx->csf.kcpu_queues.lock);
 
+	if (!kctx->csf.kcpu_queues.array[enq->id]) {
+		ret = -EINVAL;
+		goto out;
+	}
+
 	queue = kctx->csf.kcpu_queues.array[enq->id];
-
-	mutex_unlock(&kctx->csf.kcpu_queues.lock);
-
-	if (queue == NULL)
-		return -EINVAL;
-
-	mutex_lock(&queue->lock);
 
 	if (kcpu_queue_get_space(queue) < enq->nr_commands) {
 		ret = -EBUSY;
@@ -2206,7 +2168,7 @@ int kbase_csf_kcpu_queue_enqueue(struct kbase_context *kctx,
 	 * for the possibility to roll back.
 	 */
 
-	for (i = 0; (i != enq->nr_commands) && !ret; ++i) {
+	for (i = 0; (i != enq->nr_commands) && !ret; ++i, ++kctx->csf.kcpu_queues.num_cmds) {
 		struct kbase_kcpu_command *kcpu_cmd =
 			&queue->commands[(u8)(queue->start_offset + queue->num_pending_cmds + i)];
 		struct base_kcpu_command command;
@@ -2229,7 +2191,7 @@ int kbase_csf_kcpu_queue_enqueue(struct kbase_context *kctx,
 			}
 		}
 
-		kcpu_cmd->enqueue_ts = atomic64_read(&kctx->csf.kcpu_queues.num_cmds);
+		kcpu_cmd->enqueue_ts = kctx->csf.kcpu_queues.num_cmds;
 		switch (command.type) {
 		case BASE_KCPU_COMMAND_TYPE_FENCE_WAIT:
 #if IS_ENABLED(CONFIG_SYNC_FILE)
@@ -2300,8 +2262,6 @@ int kbase_csf_kcpu_queue_enqueue(struct kbase_context *kctx,
 			ret = -EINVAL;
 			break;
 		}
-
-		atomic64_inc(&kctx->csf.kcpu_queues.num_cmds);
 	}
 
 	if (!ret) {
@@ -2321,11 +2281,11 @@ int kbase_csf_kcpu_queue_enqueue(struct kbase_context *kctx,
 		kcpu_queue_process(queue, false);
 	} else {
 		/* Roll back the number of enqueued commands */
-		atomic64_sub(i, &kctx->csf.kcpu_queues.num_cmds);
+		kctx->csf.kcpu_queues.num_cmds -= i;
 	}
 
 out:
-	mutex_unlock(&queue->lock);
+	mutex_unlock(&kctx->csf.kcpu_queues.lock);
 
 	return ret;
 }
@@ -2339,9 +2299,14 @@ int kbase_csf_kcpu_queue_context_init(struct kbase_context *kctx)
 	for (idx = 0; idx < KBASEP_MAX_KCPU_QUEUES; ++idx)
 		kctx->csf.kcpu_queues.array[idx] = NULL;
 
+	kctx->csf.kcpu_queues.wq = alloc_workqueue("mali_kbase_csf_kcpu",
+					WQ_UNBOUND | WQ_HIGHPRI, 0);
+	if (!kctx->csf.kcpu_queues.wq)
+		return -ENOMEM;
+
 	mutex_init(&kctx->csf.kcpu_queues.lock);
 
-	atomic64_set(&kctx->csf.kcpu_queues.num_cmds, 0);
+	kctx->csf.kcpu_queues.num_cmds = 0;
 
 	return 0;
 }
@@ -2359,6 +2324,7 @@ void kbase_csf_kcpu_queue_context_term(struct kbase_context *kctx)
 			(void)delete_queue(kctx, id);
 	}
 
+	destroy_workqueue(kctx->csf.kcpu_queues.wq);
 	mutex_destroy(&kctx->csf.kcpu_queues.lock);
 }
 
@@ -2402,14 +2368,6 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx,
 		goto out;
 	}
 
-	queue->wq = alloc_workqueue("mali_kbase_csf_kcpu_wq_%i", WQ_UNBOUND | WQ_HIGHPRI, 0, idx);
-	if (queue->wq == NULL) {
-		kfree(queue);
-		ret = -ENOMEM;
-
-		goto out;
-	}
-
 #ifdef CONFIG_MALI_FENCE_DEBUG
 	queue->timeout_wq = alloc_workqueue("mali_kbase_csf_kcpu_timeout_wq_%i", WQ_UNBOUND | WQ_HIGHPRI, 0, idx);
 	if (queue->timeout_wq == NULL) {
@@ -2422,7 +2380,6 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx,
 
 	bitmap_set(kctx->csf.kcpu_queues.in_use, idx, 1);
 	kctx->csf.kcpu_queues.array[idx] = queue;
-	mutex_init(&queue->lock);
 	queue->kctx = kctx;
 	queue->start_offset = 0;
 	queue->num_pending_cmds = 0;
