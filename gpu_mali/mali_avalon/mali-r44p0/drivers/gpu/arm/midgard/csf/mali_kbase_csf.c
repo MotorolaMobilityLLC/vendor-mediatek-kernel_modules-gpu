@@ -2717,7 +2717,7 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 						queue->kctx->id);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 					mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-						"Tiler OOM work pending: queue %d group %d (ctx %d_%d)",
+						"Tiler OOM work pending: queue %d group %d (ctx %d_%d)\n",
 						queue->csi_index, group->handle, queue->kctx->tgid,
 						queue->kctx->id);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */

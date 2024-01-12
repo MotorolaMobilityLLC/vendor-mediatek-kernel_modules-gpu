@@ -1748,7 +1748,7 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 	         fence_wait->pid);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			 "Internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u",
+			 "Internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u\n",
 	         fence_wait->time_in_microseconds,
 	         fence_wait->flags,
 	         fence_wait->pid);

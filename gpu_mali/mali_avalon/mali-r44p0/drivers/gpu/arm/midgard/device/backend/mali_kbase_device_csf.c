@@ -532,7 +532,7 @@ int kbase_device_firmware_init_once(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_DEBUG */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_EXCEPTION,
-			 "[%llxt] CSF firmware was successfully initialized by process '%s'",
+			 "[%llxt] CSF firmware was successfully initialized by process '%s'\n",
 			 mtk_logbuffer_get_timestamp(kbdev), current->comm);
 #if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
 	ts_nsec = ktime_get_ns();

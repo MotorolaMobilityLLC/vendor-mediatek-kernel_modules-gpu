@@ -213,7 +213,7 @@ static int wait_ready(struct kbase_device *kbdev, unsigned int as_nr)
 		as_nr);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-		"AS_ACTIVE bit stuck for as %u. Might be caused by unstable GPU clk/pwr or faulty system",
+		"AS_ACTIVE bit stuck for as %u. Might be caused by unstable GPU clk/pwr or faulty system\n",
 		as_nr);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	kbdev->as[as_nr].is_unresponsive = true;
@@ -244,7 +244,7 @@ static int write_cmd(struct kbase_device *kbdev, int as_nr, u32 cmd)
 			as_nr, cmd);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_ALL,
-			"Wait for AS_ACTIVE bit failed for as %u, before sending MMU command %u",
+			"Wait for AS_ACTIVE bit failed for as %u, before sending MMU command %u\n",
 			as_nr, cmd);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
