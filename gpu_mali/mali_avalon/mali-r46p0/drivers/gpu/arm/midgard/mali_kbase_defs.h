@@ -746,7 +746,7 @@ struct kbase_mem_migrate {
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
 #define MMU_DEBUG_INFO_BUFFER_SIZE 4096
 
-enum kbase_mmu_op_type {
+enum kbase_mmu_dbg_op_type {
 	MMU_OP_MAP = 0,
 	MMU_OP_UNMAP = 1,
 };
@@ -773,7 +773,7 @@ struct kbase_mmu_debug_info {
 	u32 id;
 	int as_nr;
 	bool ipm;
-	enum kbase_mmu_op_type mmu_op_type;
+	enum kbase_mmu_dbg_op_type mmu_op_type;
 };
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
@@ -1446,7 +1446,6 @@ struct kbase_device {
 	struct kbase_mem_migrate mem_migrate;
 
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
-	bool bypass_register_check;
 	struct mutex register_check_lock;
 	struct kbase_mmu_debug_info mmu_dbg[MMU_DEBUG_INFO_BUFFER_SIZE];
 	struct mutex mmu_debug_info_lock;
