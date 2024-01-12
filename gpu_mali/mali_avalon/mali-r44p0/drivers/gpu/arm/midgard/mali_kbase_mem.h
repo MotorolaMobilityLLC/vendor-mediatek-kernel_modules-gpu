@@ -994,7 +994,7 @@ static inline int kbase_reg_prepare_native(struct kbase_va_region *reg,
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
 	if(group_id == GPU_ONLY_PBHA || group_id == GPU_TLS_PBHA){
 		slbc_gid_request(ID_GPU, &gid, &slbc_data);
-		slbc_validate(ID_GPU, gid);
+		slbc_validate(ID_GPU, GPU_ONLY_GID);
 	}
 #endif
 
