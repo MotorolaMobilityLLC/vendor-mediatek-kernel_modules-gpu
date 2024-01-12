@@ -1323,21 +1323,16 @@ static void mtk_debug_csf_dump_kcpu_queues(struct kbase_device *kbdev, struct kb
 
 			for (i = 0; i < queue->num_pending_cmds; i++) {
 				struct kbase_kcpu_command *cmd;
-				u8 cmd_idx = queue->start_offset + i;
+				u8 cmd_idx = (u8)(queue->start_offset + i);
 
-				if (cmd_idx >= KBASEP_KCPU_QUEUE_SIZE) {
-					mtk_log_all(kbdev, true,
-						"[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
-						kctx->tgid, kctx->id);
-					mtk_log_all(kbdev, true,
-						"[%d_%d] %9lu(  %s ), %7d,      None, (command index out of size limits %lu)",
-						kctx->tgid, kctx->id,
-						idx,
-						queue->has_error ? "InErr" : "NoErr",
-						cmd_idx,
-						KBASEP_KCPU_QUEUE_SIZE);
-					break;
-				}
+				/* The offset to the first command that is being processed or yet to
+				 * be processed is of u8 type, so the number of commands inside the
+				 * queue cannot be more than 256. The current implementation expects
+				 * exactly 256, any other size will require the addition of wrapping
+				 * logic.
+				 */
+				BUILD_BUG_ON(KBASEP_KCPU_QUEUE_SIZE != 256);
+
 				cmd = &queue->commands[cmd_idx];
 				if (cmd->type >= BASE_KCPU_COMMAND_TYPE_COUNT) {
 					mtk_log_all(kbdev, true,
