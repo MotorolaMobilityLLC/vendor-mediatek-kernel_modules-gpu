@@ -16,13 +16,6 @@
 #include <linux/scmi_protocol.h>
 #include <linux/module.h>
 #include <tinysys-scmi.h>
-#include "platform/mtk_platform_common.h"
-
-
-#if MALI_USE_CSF
-#include "csf/mali_kbase_csf_firmware.h"
-#endif
-
 
 static int init_flag;
 static bool ipi_register_flag;
@@ -175,21 +168,6 @@ void MTKGPUPower_model_resume(void){
 }
 EXPORT_SYMBOL(MTKGPUPower_model_resume);
 
-/* only work if CSF exit */
-void MTKGPUSet_idle_time(unsigned int val){
-	struct kbase_device *kbdev;
-
-	kbdev = (struct kbase_device *)mtk_common_get_kbdev();
-	if (IS_ERR_OR_NULL(kbdev)) {
-		return;
-	}
-#if MALI_USE_CSF
-	kbase_csf_firmware_set_gpu_idle_hysteresis_time(kbdev, val);
-#endif
-
-
-}
-
 int MTKGPUPower_model_init(void) {
 #ifdef CONFIG_MALI_SCMI_ENABLE
 	int ret;
@@ -206,7 +184,6 @@ int MTKGPUPower_model_init(void) {
 	mtk_ltr_gpu_pmu_start_fp = MTKGPUPower_model_start;
 	mtk_ltr_gpu_pmu_stop_fp = MTKGPUPower_model_stop;
 	mtk_swpm_gpu_pm_start_fp = MTKGPUPower_model_sspm_enable;
-	mtk_set_gpu_idle_fp = MTKGPUSet_idle_time;
 
 	return 0;
 }
@@ -214,8 +191,6 @@ int MTKGPUPower_model_init(void) {
 void MTKGPUPower_model_destroy(void) {
 	mtk_ltr_gpu_pmu_start_fp = NULL;
 	mtk_ltr_gpu_pmu_stop_fp = NULL;
-	mtk_swpm_gpu_pm_start_fp = NULL;
-	mtk_set_gpu_idle_fp = NULL;
 
 }
 
