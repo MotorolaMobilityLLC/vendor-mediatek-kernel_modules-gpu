@@ -1328,7 +1328,8 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 						struct kbase_queue *queue,
 						struct mtk_debug_cs_queue_data *cs_queue_data)
 {
-	u32 *addr;
+	u64 *addr;
+	u32 *addr32;
 	u64 cs_extract;
 	u64 cs_insert;
 	u32 cs_active;
@@ -1360,12 +1361,14 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 
 	glb_version = queue->kctx->kbdev->csf.global_iface.version;
 
-	addr = (u32 *)queue->user_io_addr;
-	cs_insert = addr[CS_INSERT_LO/4] | ((u64)addr[CS_INSERT_HI/4] << 32);
+	addr = queue->user_io_addr;
+	cs_insert = addr[CS_INSERT_LO / sizeof(*addr)];
 
-	addr = (u32 *)(queue->user_io_addr + PAGE_SIZE);
-	cs_extract = addr[CS_EXTRACT_LO/4] | ((u64)addr[CS_EXTRACT_HI/4] << 32);
-	cs_active = addr[CS_ACTIVE/4];
+	addr = queue->user_io_addr + PAGE_SIZE / sizeof(*addr);
+	cs_extract = addr[CS_EXTRACT_LO / sizeof(*addr)];
+
+	addr32 = (u32 *)(queue->user_io_addr + PAGE_SIZE / sizeof(*addr));
+	cs_active = addr32[CS_ACTIVE / sizeof(*addr32)];
 
 	if (cs_queue_data) {
 		struct mtk_debug_cs_queue_mem_data *queue_mem = mtk_debug_cs_queue_mem_allocate();

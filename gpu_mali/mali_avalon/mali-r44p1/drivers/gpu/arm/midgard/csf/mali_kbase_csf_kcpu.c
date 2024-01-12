@@ -1417,7 +1417,7 @@ static void pending_cmds_timer_callback(struct timer_list *timer)
 #ifdef CONFIG_MALI_FENCE_DEBUG
 
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
-static void fence_timeout_start(struct kbase_kcpu_command_queue *cmd);
+static void fence_wait_timeout_start(struct kbase_kcpu_command_queue *cmd);
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 /**
@@ -1536,7 +1536,7 @@ static void fence_timeout_callback(struct timer_list *timer)
 		}
 
 		/* Raise the fence timeout timer again */
-		fence_timeout_start(kcpu_queue);
+		fence_wait_timeout_start(kcpu_queue);
 #else /* CONFIG_MALI_MTK_FENCE_DEBUG */
 		dev_warn(kctx->kbdev->dev, "fence has not yet signalled in %ums",
 			 FENCE_WAIT_TIMEOUT_MS);
@@ -1715,7 +1715,11 @@ static void fence_signal_timeout_cb(struct timer_list *timer)
 		container_of(timer, struct kbase_kcpu_command_queue, fence_signal_timeout);
 	struct kbase_context *const kctx = kcpu_queue->kctx;
 #ifdef CONFIG_MALI_FENCE_DEBUG
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	dev_vdbg(kctx->kbdev->dev, "kbase KCPU fence signal timeout callback triggered");
+#else /* CONFIG_MALI_MTK_FENCE_DEBUG */
 	dev_warn(kctx->kbdev->dev, "kbase KCPU fence signal timeout callback triggered");
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 #endif
 
 	/* If we have additional pending fence signal commands in the queue, re-arm for the
@@ -1723,7 +1727,11 @@ static void fence_signal_timeout_cb(struct timer_list *timer)
 	 * global configuration option is set.
 	 */
 	if (atomic_read(&kctx->kbdev->fence_signal_timeout_enabled)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+		if (atomic_read(&kcpu_queue->fence_signal_pending_cnt) > 0)
+#else /* CONFIG_MALI_MTK_FENCE_DEBUG */
 		if (atomic_read(&kcpu_queue->fence_signal_pending_cnt) > 1)
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 			fence_signal_timeout_start(kcpu_queue);
 
 		queue_work(kcpu_queue->wq, &kcpu_queue->dump_work);
@@ -1939,12 +1947,12 @@ static void kcpu_queue_cmds_timeout_worker(struct work_struct *data)
 	struct kbase_kcpu_command *cmd = &kcpu_queue->commands[kcpu_queue->start_offset];
 
 	dev_info(kctx->kbdev->dev,
-		 "Command pending in kcpu queue(%d ms), ctx=%d_%d queue_idx=%u cmd_type=%u",
-		 COMMAND_TIMEOUT_MS, kctx->tgid, kctx->id, kcpu_queue->id, cmd->type);
+		 "Command pending in kcpu queue(%d ms), ctx=%d_%d queue_idx=%u cmd_idx= %u cmd_type=%u",
+		 COMMAND_TIMEOUT_MS, kctx->tgid, kctx->id, kcpu_queue->id, kcpu_queue->start_offset, cmd->type);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
-		"Command pending in kcpu queue(%d ms), ctx=%d_%d queue_idx=%u cmd_type=%u\n",
-		 COMMAND_TIMEOUT_MS, kctx->tgid, kctx->id, kcpu_queue->id, cmd->type);
+		"Command pending in kcpu queue(%d ms), ctx=%d_%d queue_idx=%u cmd_idx= %u cmd_type=%u\n",
+		 COMMAND_TIMEOUT_MS, kctx->tgid, kctx->id, kcpu_queue->id, kcpu_queue->start_offset, cmd->type);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
        mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, kctx->tgid, MTK_DBG_HOOK_FENCE_EXTERNAL_KCPU_TIMEOUT);
@@ -2071,6 +2079,23 @@ static void kcpu_queue_dump_worker(struct work_struct *data)
 			}
 		}
 #endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
+	} else if ((queue->fence_signal_command_timeout_counter % 5) == 0) {
+		unsigned int fence_signal_command_timeout_ms =
+			queue->fence_signal_command_timeout_counter * kbase_get_timeout_ms(kctx->kbdev, KCPU_FENCE_SIGNAL_TIMEOUT);
+		dev_info(kctx->kbdev->dev,
+			"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms) on fence[%pK] context#seqno:%s (driver=%s, timeline=%s)",
+			kctx->tgid, kctx->id, queue->id,
+			fence_signal_command_timeout_ms,
+			fence, info.name,
+			fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_ALL,
+			"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms) on fence[%pK] context#seqno:%s (driver=%s, timeline=%s)\n",
+			kctx->tgid, kctx->id, queue->id,
+			fence_signal_command_timeout_ms,
+			fence, info.name,
+			fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	} else {
 		kbase_fence_put(fence);
 		mutex_unlock(&queue->lock);
@@ -3048,6 +3073,15 @@ int kbase_csf_kcpu_queue_halt_timers(struct kbase_device *kbdev)
 {
 	struct kbase_context *kctx;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	/*
+	 * Not to have the timer halt/resume when GPU power off/on to prevent the gpu off
+	 * caused by the error and timeout will not be triggered
+	 */
+	(void)kctx;
+	return 0;
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+
 	list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
 		unsigned long queue_idx;
 		struct kbase_csf_kcpu_queue_context *kcpu_ctx = &kctx->csf.kcpu_queues;
@@ -3103,6 +3137,15 @@ int kbase_csf_kcpu_queue_halt_timers(struct kbase_device *kbdev)
 void kbase_csf_kcpu_queue_resume_timers(struct kbase_device *kbdev)
 {
 	struct kbase_context *kctx;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	/*
+	 * Not to have the timer halt/resume when GPU power off/on to prevent the gpu off
+	 * caused by the error and timeout will not be triggered
+	 */
+	(void)kctx;
+	return;
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 	list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
 		unsigned long queue_idx;
