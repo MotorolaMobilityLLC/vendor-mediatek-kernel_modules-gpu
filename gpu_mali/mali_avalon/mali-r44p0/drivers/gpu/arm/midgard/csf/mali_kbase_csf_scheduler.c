@@ -3886,8 +3886,13 @@ void kbase_csf_scheduler_evict_ctx_slots(struct kbase_device *kbdev,
 		if (group && group->kctx == kctx) {
 			bool as_fault;
 
-			dev_vdbg(kbdev->dev, "Evicting group [%d] running on slot [%d] due to reset",
+			dev_info(kbdev->dev, "Evicting group [%d] running on slot [%d] due to reset",
 				group->handle, group->csg_nr);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL,
+				"Evicting group [%d] running on slot [%d] due to reset\n",
+				group->handle, group->csg_nr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 			term_csg_slot(group);
 			as_fault = cleanup_csg_slot(group);
@@ -3903,6 +3908,11 @@ void kbase_csf_scheduler_evict_ctx_slots(struct kbase_device *kbdev,
 
 	dev_info(kbdev->dev, "Evicting context %d_%d slots: 0x%*pb\n",
 			kctx->tgid, kctx->id, num_groups, slot_mask);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL,
+			"Evicting context %d_%d slots: 0x%lx\n",
+			kctx->tgid, kctx->id, slot_mask);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	/* Fatal errors may have been the cause of the GPU reset
 	 * taking place, in which case we want to make sure that
