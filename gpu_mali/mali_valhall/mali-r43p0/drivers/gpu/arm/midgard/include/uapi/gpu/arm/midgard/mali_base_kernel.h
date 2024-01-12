@@ -640,4 +640,13 @@ struct base_gpu_props {
  */
 #define BASE_MEM_ALIAS_MAX_ENTS ((size_t)24576)
 
+/***************
+ * CONFIG_MALI_MTK_FENCE_DEBUG
+ ***************
+ * For internal fence timeouts.
+ */
+#define BASE_INTERNAL_FENCE_WAIT_IDLE_FLAG (1UL << 0)
+#define BASE_INTERNAL_FENCE_WAIT_RESULT_FLAG (1UL << 1)
+#define BASE_INTERNAL_FENCE_WAIT_DUMP_FLAG (1UL << 31)
+
 #endif /* _UAPI_BASE_KERNEL_H_ */

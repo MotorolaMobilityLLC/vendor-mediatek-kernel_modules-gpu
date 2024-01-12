@@ -60,6 +60,10 @@
 
 #include <linux/of.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 #ifdef CONFIG_MALI_CORESTACK
 bool corestack_driver_control = true;
 #else
@@ -2370,6 +2374,10 @@ static void kbase_pm_timed_out(struct kbase_device *kbdev)
 			kbase_reg_read(kbdev, GPU_CONTROL_REG(
 					L2_PWRTRANS_LO)));
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_PM_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 	dev_err(kbdev->dev, "Sending reset to GPU - all running jobs will be lost\n");
 	if (kbase_prepare_to_reset_gpu(kbdev,
 				       RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
@@ -3135,6 +3143,14 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		 * interrupts are not getting to the CPU
 		 */
 		dev_err(kbdev->dev, "Reset interrupt didn't reach CPU. Check interrupt assignments.\n");
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		dev_info(kbdev->dev, "GPU_IRQ_RAWSTAT=0x%08x GPU_IRQ_MASK=0x%08x GPU_IRQ_STATUS=0x%08x\n",
+						kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_RAWSTAT)),
+						kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_MASK)),
+						kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_STATUS)));
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_PM_RESET_FAIL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_PM_RESET_FAIL);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 		/* If interrupts aren't working we can't continue. */
 		destroy_hrtimer_on_stack(&rtdata.timer);
 		return -EINVAL;

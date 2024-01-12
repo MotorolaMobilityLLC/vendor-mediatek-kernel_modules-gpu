@@ -26,6 +26,10 @@
 #include "mali_kbase_csf.h"
 #include <linux/export.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 #if IS_ENABLED(CONFIG_SYNC_FILE)
 #include "mali_kbase_fence.h"
 #include "mali_kbase_sync.h"
@@ -36,6 +40,10 @@ static DEFINE_SPINLOCK(kbase_csf_fence_lock);
 #ifdef CONFIG_MALI_FENCE_DEBUG
 #define FENCE_WAIT_TIMEOUT_MS 3000
 #endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+#define COMMAND_TIMEOUT_MS 10000
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 static void kcpu_queue_process(struct kbase_kcpu_command_queue *kcpu_queue,
 			       bool drain_queue);
@@ -1391,6 +1399,22 @@ static void kbasep_kcpu_fence_wait_cancel(struct kbase_kcpu_command_queue *kcpu_
 	fence_info->fence = NULL;
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+static void pending_cmds_timer_callback(struct timer_list *timer)
+{
+	struct kbase_kcpu_command_queue *kcpu_queue =
+		container_of(timer, struct kbase_kcpu_command_queue, pending_cmds_timer);
+	struct kbase_context *const kctx = kcpu_queue->kctx;
+	struct kbase_kcpu_command *cmd = &kcpu_queue->commands[kcpu_queue->start_offset];
+
+	dev_vdbg(kctx->kbdev->dev,
+		 "KCPU queue has stuck in %ums! ctx=%d_%d queue_idx=%u cmd_type=%u start_offset=%u",
+		 COMMAND_TIMEOUT_MS, kctx->tgid, kctx->id, kcpu_queue->id, cmd->type, kcpu_queue->start_offset);
+
+	queue_work(kcpu_queue->cmds_timeout_wq, &kcpu_queue->cmds_timeout_work);
+}
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+
 #ifdef CONFIG_MALI_FENCE_DEBUG
 /**
  * fence_timeout_callback() - Timeout callback function for fence-wait
@@ -1441,6 +1465,12 @@ static void fence_timeout_callback(struct timer_list *timer)
 		dev_warn(kctx->kbdev->dev,
 			 "ctx:%d_%d kcpu queue:%u still waiting for fence[%pK] context#seqno:%s",
 			 kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, kctx->tgid, MTK_DBG_HOOK_FENCE_EXTERNAL_KCPU_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, kctx->tgid, MTK_DBG_HOOK_FENCE_EXTERNAL_KCPU_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, kctx->tgid, MTK_DBG_HOOK_FENCE_EXTERNAL_KCPU_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, kctx->tgid, MTK_DBG_HOOK_FENCE_EXTERNAL_KCPU_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 	} else {
 		dev_warn(kctx->kbdev->dev, "fence has got error");
 		dev_warn(kctx->kbdev->dev,
@@ -1731,6 +1761,25 @@ int kbase_kcpu_fence_signal_init(struct kbase_kcpu_command_queue *kcpu_queue,
 KBASE_EXPORT_TEST_API(kbase_kcpu_fence_signal_init);
 #endif /* CONFIG_SYNC_FILE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+static void kcpu_queue_cmds_timeout_worker(struct work_struct *data)
+{
+	struct kbase_kcpu_command_queue *kcpu_queue = container_of(data,
+				struct kbase_kcpu_command_queue, cmds_timeout_work);
+	struct kbase_context *const kctx = kcpu_queue->kctx;
+	struct kbase_kcpu_command *cmd = &kcpu_queue->commands[kcpu_queue->start_offset];
+
+	dev_info(kctx->kbdev->dev,
+		 "KCPU queue fence command timeouts(%d ms)! ctx=%d_%d queue_idx=%u cmd_type=%u start_offset=%u",
+		 COMMAND_TIMEOUT_MS, kctx->tgid, kctx->id, kcpu_queue->id, cmd->type, kcpu_queue->start_offset);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, kctx->tgid, MTK_DBG_HOOK_FENCE_EXTERNAL_KCPU_TIMEOUT);
+	mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, kctx->tgid, MTK_DBG_HOOK_FENCE_EXTERNAL_KCPU_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+}
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+
 static void kcpu_queue_process_worker(struct work_struct *data)
 {
 	struct kbase_kcpu_command_queue *queue = container_of(data,
@@ -1790,6 +1839,11 @@ static int delete_queue(struct kbase_context *kctx, u32 id)
 		destroy_workqueue(queue->wq);
 
 		mutex_destroy(&queue->lock);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+		cancel_work_sync(&queue->cmds_timeout_work);
+		destroy_workqueue(queue->cmds_timeout_wq);
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 		kfree(queue);
 	} else {
@@ -1855,6 +1909,11 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 	struct kbase_device *kbdev = queue->kctx->kbdev;
 	bool process_next = true;
 	size_t i;
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	u16 num_pending_fence_cmds = 0;
+	bool record_the_first_pending_cmd_done = false;
+	u64 pending_cmd_cur_offset;
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 	lockdep_assert_held(&queue->lock);
 
@@ -2136,6 +2195,46 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 			kbase_csf_event_signal_cpu_only(queue->kctx);
 		}
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	for (i = 0; i != queue->num_pending_cmds; ++i) {
+		struct kbase_kcpu_command *cmd =
+			&queue->commands[(u8)(queue->start_offset + i)];
+
+		switch (cmd->type) {
+		case BASE_KCPU_COMMAND_TYPE_FENCE_WAIT:
+		case BASE_KCPU_COMMAND_TYPE_CQS_WAIT:
+		case BASE_KCPU_COMMAND_TYPE_CQS_WAIT_OPERATION:
+		case BASE_KCPU_COMMAND_TYPE_JIT_ALLOC:
+			if (!record_the_first_pending_cmd_done) {
+				pending_cmd_cur_offset = cmd->enqueue_ts;
+				record_the_first_pending_cmd_done = true;
+			}
+
+			num_pending_fence_cmds++;
+			break;
+		default:
+			break;
+		} /* switch */
+	}
+	if (num_pending_fence_cmds) {
+		if (!queue->pending_cmds_timer_active) {
+			/* has pending cmds, timer not acitve -> start timer */
+			queue->pending_cmds_timer_active = true;
+			queue->pending_cmd_prev_offset = pending_cmd_cur_offset;
+			mod_timer(&queue->pending_cmds_timer, jiffies + msecs_to_jiffies(COMMAND_TIMEOUT_MS));
+		} else if (queue->pending_cmd_prev_offset != pending_cmd_cur_offset) {
+			/* has pending cmds, timer active,
+			   pending offeset is different with previous -> modify timer */
+			queue->pending_cmd_prev_offset = pending_cmd_cur_offset;
+			mod_timer(&queue->pending_cmds_timer, jiffies + msecs_to_jiffies(COMMAND_TIMEOUT_MS));
+		}
+	} else if (queue->pending_cmds_timer_active) {
+		/* no pending cmds -> del timer */
+		del_timer_sync(&queue->pending_cmds_timer);
+		queue->pending_cmds_timer_active = false;
+	}
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 }
 
 static size_t kcpu_queue_get_space(struct kbase_kcpu_command_queue *queue)
@@ -2585,6 +2684,19 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx,
 #ifdef CONFIG_MALI_FENCE_DEBUG
 	kbase_timer_setup(&queue->fence_timeout, fence_timeout_callback);
 #endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	queue->cmds_timeout_wq = alloc_workqueue("mali_kbase_csf_kcpu_cmds_timeout_wq_%i", WQ_UNBOUND | WQ_HIGHPRI, 0, idx);
+	if (queue->cmds_timeout_wq == NULL) {
+		kfree(queue);
+		ret = -ENOMEM;
+
+		goto out;
+	}
+	INIT_WORK(&queue->cmds_timeout_work, kcpu_queue_cmds_timeout_worker);
+	kbase_timer_setup(&queue->pending_cmds_timer, pending_cmds_timer_callback);
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+
 out:
 	mutex_unlock(&kctx->csf.kcpu_queues.lock);
 

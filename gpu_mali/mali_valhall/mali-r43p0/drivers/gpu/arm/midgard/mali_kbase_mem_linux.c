@@ -687,12 +687,15 @@ unsigned long kbase_mem_evictable_reclaim_count_objects(struct shrinker *s,
 	lockdep_off();
 #endif /* CONFIG_MALI_MTK_COMMON */
 
+#if !IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	// avoid to report when shrinking for mtk_iova_dbg_alloc
 	WARN((sc->gfp_mask & __GFP_ATOMIC),
 	     "Shrinkers cannot be called for GFP_ATOMIC allocations. Check kernel mm for problems. gfp_mask==%x\n",
 	     sc->gfp_mask);
 	WARN(in_atomic(),
 	     "Shrinker called in atomic context. The caller must use GFP_ATOMIC or similar, then Shrinkers must not be called. gfp_mask==%x\n",
 	     sc->gfp_mask);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 	if (unlikely(evict_nents < 0)) {
 		dev_err(kctx->kbdev->dev, "invalid evict_nents(%d)", evict_nents);
