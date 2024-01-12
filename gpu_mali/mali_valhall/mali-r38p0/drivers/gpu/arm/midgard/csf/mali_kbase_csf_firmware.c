@@ -312,6 +312,7 @@ static void wait_ready(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_LOADMMUTABLE_FAIL);
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_LOADMMUTABLE_FAIL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_LOADMMUTABLE_FAIL);
 	}
 #else
 	if (max_loops == 0)
@@ -1454,6 +1455,11 @@ static int wait_for_global_request(struct kbase_device *const kbdev,
 			kbdev->csf.fw_timeout_ms,
 			req_mask);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_GLOBALREQUEST_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 		err = -ETIMEDOUT;
 
 	}
@@ -1673,6 +1679,11 @@ static void kbase_csf_firmware_reload_worker(struct work_struct *work)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"!! Reload of FW had failed, MCU won't be re-enabled !!\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_FWRELOAD_FAIL);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 		return;
 	}
 
