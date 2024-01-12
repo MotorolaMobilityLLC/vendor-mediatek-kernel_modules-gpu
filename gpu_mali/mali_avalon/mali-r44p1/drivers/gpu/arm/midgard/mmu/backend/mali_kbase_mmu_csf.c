@@ -553,15 +553,16 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 		"exception type 0x%X: %s\n"
 		"access type 0x%X: %s\n"
 		"source id 0x%X\n"
-		"ctx_id: %d_%d, pid: %d, comm: %s\n",
-		kbdev->protected_mode,
-		as_no, fault->addr,
+		"ctx_id: %d_%d, pid: %d\n"
+		"group_leader : %s, comm: %s\n",
+		kbdev->protected_mode, as_no, fault->addr,
 		reason_str,
 		status,
 		exception_type, kbase_gpu_exception_name(exception_type),
 		access_type, kbase_gpu_access_type_name(status),
 		source_id,
-		kctx->tgid, kctx->id, kctx->pid, kctx->comm);
+		kctx->tgid, kctx->id, kctx->pid,
+		kctx->group_leader_comm, kctx->comm);
 #else
 	/* terminal fault, print info about the fault */
 	dev_err(kbdev->dev,
@@ -587,16 +588,20 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 		"raw fault status: 0x%X\n"
 		"exception type 0x%X: %s\n"
 		"access type 0x%X: %s\n"
-		"source id 0x%X\n"
-		"ctx_id: %d_%d, pid: %d, comm: %s\n",
-		kbdev->protected_mode,
-		as_no, fault->addr,
+		"source id 0x%X\n",
+		kbdev->protected_mode, as_no, fault->addr,
 		reason_str,
 		status,
 		exception_type, kbase_gpu_exception_name(exception_type),
 		access_type, kbase_gpu_access_type_name(status),
-		source_id,
-		kctx->tgid, kctx->id, kctx->pid, kctx->comm);
+		source_id);
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		"\nctx_id: %d_%d, pid: %d\n"
+		"group_leader : %s, comm: %s\n",
+		kctx->tgid, kctx->id, kctx->pid,
+		kctx->group_leader_comm, kctx->comm);
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)

@@ -145,6 +145,11 @@ struct kbase_context *kbase_create_context(struct kbase_device *kbdev,
 
 	memcpy(kctx->comm, current->comm, sizeof(current->comm));
 
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	if (current->group_leader)
+		memcpy(kctx->group_leader_comm, current->group_leader->comm, sizeof(current->group_leader->comm));
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+
 	if (is_compat)
 		kbase_ctx_flag_set(kctx, KCTX_COMPAT);
 #if defined(CONFIG_64BIT)
