@@ -61,6 +61,7 @@
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <mtk_gpufreq.h>
+#include "platform/mtk_platform_common.h"
 #if IS_ENABLED(CONFIG_MTK_IRQ_DBG)
 #include <linux/of_irq.h>
 extern void mt_irq_dump_status(int irq);
@@ -2629,6 +2630,7 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 				mt_irq_dump_status(irq);
 		}
 #endif
+		mtk_common_debug_dump();
 #if defined(CONFIG_MTK_GPUFREQ_V2)
 		gpufreq_dump_infra_status();
 #else

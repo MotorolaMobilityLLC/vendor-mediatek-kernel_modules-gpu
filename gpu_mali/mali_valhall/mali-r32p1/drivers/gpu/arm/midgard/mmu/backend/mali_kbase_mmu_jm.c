@@ -131,6 +131,7 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	if (!mtk_common_gpufreq_bringup()) {
+		mtk_common_debug_dump();
 #if defined(CONFIG_MTK_GPUFREQ_V2)
 		gpufreq_dump_infra_status();
 #else

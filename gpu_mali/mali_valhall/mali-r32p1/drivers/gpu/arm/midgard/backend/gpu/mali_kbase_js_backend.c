@@ -202,6 +202,7 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 								/ 1000000u;
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 					if (!mtk_common_gpufreq_bringup()) {
+						mtk_common_debug_dump();
 #if defined(CONFIG_MTK_GPUFREQ_V2)
 						gpufreq_dump_infra_status();
 						gpufreq_hardstop_dump_slog();
@@ -263,6 +264,7 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 								/ 1000000u;
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 					if (!mtk_common_gpufreq_bringup()) {
+						mtk_common_debug_dump();
 #if defined(CONFIG_MTK_GPUFREQ_V2)
 						gpufreq_dump_infra_status();
 						gpufreq_hardstop_dump_slog();

@@ -24,7 +24,9 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ)
 #include "mtk_gpu_devfreq_governor.h"
 #endif
-
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include "mtk_platform_debug.h"
+#endif
 #if IS_ENABLED(CONFIG_MALI_MTK_MEM_TRACK)
 extern unsigned int (*mtk_get_gpu_memory_usage_fp)(void);
 #endif
@@ -58,6 +60,13 @@ void mtk_common_pm_mfg_idle(void)
 	mutex_lock(&mfg_pm_lock);
 	mfg_powered = false;
 	mutex_unlock(&mfg_pm_lock);
+}
+
+void mtk_common_debug_dump(void)
+{
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_common_debug_dump_status();
+#endif
 }
 
 int mtk_common_gpufreq_bringup(void)
