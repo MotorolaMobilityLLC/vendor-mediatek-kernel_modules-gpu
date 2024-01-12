@@ -81,6 +81,9 @@ static DEFINE_MUTEX(mfg_pm_lock);
 static DEFINE_MUTEX(common_debug_lock);
 
 static struct kbase_device *mali_kbdev;
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+static char *gpufreq_logbuf;
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
 
 struct kbase_device *mtk_common_get_kbdev(void)
 {
@@ -260,22 +263,25 @@ int mtk_common_gpufreq_bringup(void)
 
 void mtk_common_gpufreq_dump_infra_status(struct kbase_device *kbdev)
 {
-	char *buf = NULL, *token = NULL;
+	char *sep_logbuf = NULL, *token = NULL;
 	const char *delim = "\n";
 	int len = 0;
 
 	if (!mtk_common_gpufreq_bringup() && kbdev->pm.backend.gpu_powered) {
 #if defined(CONFIG_MTK_GPUFREQ_V2)
-		buf = kmalloc(GPUFREQ_DUMP_INFRA_SIZE, GFP_KERNEL);
-		gpufreq_dump_infra_status_logbuffer(buf, &len, GPUFREQ_DUMP_INFRA_SIZE);
+		if (gpufreq_logbuf) {
+			memset((void *)gpufreq_logbuf, 0, GPUFREQ_DUMP_INFRA_SIZE);
+			gpufreq_dump_infra_status_logbuffer(gpufreq_logbuf, &len, GPUFREQ_DUMP_INFRA_SIZE);
 
-		token = strsep(&buf, delim);
-		while (token != NULL) {
-			mtk_logbuffer_type_print(kbdev,
-				MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "%s\n", token);
-			token = strsep(&buf, delim);
-		}
-		kfree(buf);
+			sep_logbuf = gpufreq_logbuf;
+			token = strsep(&sep_logbuf, delim);
+			while (token != NULL) {
+				mtk_logbuffer_type_print(kbdev,
+					MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "%s\n", token);
+				token = strsep(&sep_logbuf, delim);
+			}
+		} else
+			gpufreq_dump_infra_status();
 #else
 		mt_gpufreq_dump_infra_status();
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
@@ -584,6 +590,9 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_init(kbdev);
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+	gpufreq_logbuf = kmalloc(GPUFREQ_DUMP_INFRA_SIZE, GFP_KERNEL);
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
@@ -646,6 +655,9 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 	}
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+	kfree(gpufreq_logbuf);
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
 	mtk_logbuffer_term(kbdev);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
