@@ -123,7 +123,7 @@ static unsigned int gpu_pmu_index[] = {
 			, [VINSTR_POINTS] = 136
 			, [VINSTR_LINES] = 135
 			, [VINSTR_LS_MEM_ATOMIC] = 816
-	
+
 #elif IS_ENABLED(CONFIG_MALI_PMU_LP4)
 
 			  [VINSTR_GPU_ACTIVE] = 4

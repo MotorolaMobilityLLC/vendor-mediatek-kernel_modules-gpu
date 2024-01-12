@@ -60,17 +60,16 @@ void MTK_LTR_gpu_pmu_start(unsigned int interval_ns) {
 	int pm_tool = MTK_get_mtk_pm();
 	mutex_lock(&gpu_pmu_info_lock);
 	if (pm_tool == pm_swpm) {
-		//gpu stall counter on		
-		//mtk_gpu_stall_create_subfs();		
-		//mtk_gpu_stall_start();		
-		MTK_kbasep_vinstr_hwcnt_set_interval(0);		
-		MTK_update_mtk_pm(pm_ltr);		
-		MTK_kbasep_vinstr_hwcnt_set_interval(interval_ns);	
-		} 
-	else {		
-		//gpu stall counter on		
-		//mtk_gpu_stall_create_subfs();		
-		//mtk_gpu_stall_start();		
+		//gpu stall counter on
+		//mtk_gpu_stall_create_subfs();
+		//mtk_gpu_stall_start();
+		MTK_kbasep_vinstr_hwcnt_set_interval(0);
+		MTK_update_mtk_pm(pm_ltr);
+		MTK_kbasep_vinstr_hwcnt_set_interval(interval_ns);
+	} else {
+		//gpu stall counter on
+		//mtk_gpu_stall_create_subfs();
+		//mtk_gpu_stall_start();
 		MTK_LTR_gpu_pmu_kbase_setup(pm_ltr, interval_ns);
 	}
 	if (init_flag != gpm_sspm_side)

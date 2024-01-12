@@ -27,6 +27,6 @@
 
 #include "mali_kbase_gator_hwcnt_names_ttux.h"
 
-
+#include "mali_kbase_gator_hwcnt_names_ttix.h"
 
 #endif
