@@ -223,3 +223,23 @@ void kbase_add_dma_buf_usage(struct kbase_context *kctx,
 
 	mutex_unlock(&kbdev->dma_buf_lock);
 }
+
+void kbase_clean_dma_buf_usage(struct rb_root * root)
+{
+        struct rb_node * node = NULL;
+        struct kbase_dma_buf *buf_node = NULL;
+	if(RB_EMPTY_ROOT(root))
+		return;
+	do
+	{
+		node = rb_first(root);
+		if(node)
+		{
+			rb_erase(node,root);
+			buf_node = rb_entry(node,struct kbase_dma_buf,dma_buf_node);
+			if(buf_node)
+				kfree(buf_node);
+			buf_node = NULL;
+		}
+	}while(node);
+}
