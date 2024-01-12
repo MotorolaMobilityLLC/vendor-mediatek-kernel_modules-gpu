@@ -2462,6 +2462,11 @@ void kbase_pm_clock_on(struct kbase_device *kbdev, bool is_resume)
 		return;
 	} else if (backend->callback_power_on) {
 		reset_required = backend->callback_power_on(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_MFGSYS_PM)
+		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+		backend->mfgsys_powered = true;
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+#endif /* CONFIG_MALI_MTK_MFGSYS_PM */
 	}
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
@@ -2621,8 +2626,15 @@ bool kbase_pm_clock_off(struct kbase_device *kbdev)
 	kbase_arbiter_pm_vm_event(kbdev, KBASE_VM_GPU_IDLE_EVENT);
 #endif /* CONFIG_MALI_ARBITER_SUPPORT */
 
-	if (kbdev->pm.backend.callback_power_off)
+	if (kbdev->pm.backend.callback_power_off) {
 		kbdev->pm.backend.callback_power_off(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_MFGSYS_PM)
+		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+		/* The GPU power must be turned off from this point */
+		kbdev->pm.backend.mfgsys_powered = false;
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+#endif /* CONFIG_MALI_MTK_MFGSYS_PM */
+	}
 	return true;
 }
 
@@ -3049,8 +3061,14 @@ int kbase_pm_init_hw(struct kbase_device *kbdev, unsigned int flags)
 
 	/* Ensure the clock is on before attempting to access the hardware */
 	if (!kbdev->pm.backend.gpu_powered) {
-		if (kbdev->pm.backend.callback_power_on)
+		if (kbdev->pm.backend.callback_power_on) {
 			kbdev->pm.backend.callback_power_on(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_MFGSYS_PM)
+			spin_lock_irqsave(&kbdev->hwaccess_lock, irq_flags);
+			kbdev->pm.backend.mfgsys_powered = true;
+			spin_unlock_irqrestore(&kbdev->hwaccess_lock, irq_flags);
+#endif /* CONFIG_MALI_MTK_MFGSYS_PM */
+		}
 
 		kbdev->pm.backend.gpu_powered = true;
 	}
