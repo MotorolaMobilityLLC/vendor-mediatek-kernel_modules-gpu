@@ -5,6 +5,10 @@ curr := platform/mtk_platform_common
 mali_kbase-y += $(curr)/mtk_platform_common.o
 mali_kbase-y += $(curr)/mtk_platform_debug.o
 
+ifeq ($(CONFIG_MALI_MTK_LOG_BUFFER),y)
+    mali_kbase-y += $(curr)/mtk_platform_logbuffer.o
+endif ## CONFIG_MALI_MTK_LOG_BUFFER ##
+
 ifeq ($(CONFIG_MALI_MTK_DEVFREQ),y)
     mali_kbase-y += $(curr)/mtk_gpu_dvfs.o
     mali_kbase-y += $(curr)/mtk_gpu_devfreq_governor.o

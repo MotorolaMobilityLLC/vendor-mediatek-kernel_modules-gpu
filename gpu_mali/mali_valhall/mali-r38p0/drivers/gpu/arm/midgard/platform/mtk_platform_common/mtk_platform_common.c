@@ -31,6 +31,10 @@
 #include "mtk_platform_debug.h"
 #endif /* CONFIG_MALI_MTK_DEBUG*/
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include "mtk_platform_logbuffer.h"
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
 #include <mt-plat/aee.h>
 #endif
@@ -253,11 +257,20 @@ DEFINE_PROC_SHOW_ATTRIBUTE(mtk_common_gpu_memory);
 
 void mtk_common_procfs_init(void)
 {
+	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return;
+
   	mtk_mali_root = proc_mkdir("mtk_mali", NULL);
   	if (!mtk_mali_root) {
   		pr_info("cannot create /proc/%s\n", "mtk_mali");
   		return;
   	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_log_buffer_procfs_init(kbdev, mtk_mali_root);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEM_TRACK)
 	proc_create("gpu_memory", 0444, mtk_mali_root, &mtk_common_gpu_memory_proc_ops);
@@ -266,12 +279,20 @@ void mtk_common_procfs_init(void)
 
 void mtk_common_procfs_exit(void)
 {
-	mtk_mali_root = NULL;
+	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_log_buffer_procfs_term(kbdev, mtk_mali_root);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEM_TRACK)
 	remove_proc_entry("gpu_memory", mtk_mali_root);
 #endif /* CONFIG_MALI_MTK_MEM_TRACK */
 
+	mtk_mali_root = NULL;
 	remove_proc_entry("mtk_mali", NULL);
 }
 #endif /* CONFIG_PROC_FS */
@@ -309,6 +330,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	mtk_common_devfreq_init();
 #endif /* CONFIG_MALI_MTK_DEVFREQ */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_log_buffer_init(kbdev);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 	return 0;
 }
 
@@ -340,4 +365,8 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ)
 	mtk_common_devfreq_term();
 #endif /* CONFIG_MALI_MTK_DEVFREQ */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_log_buffer_term(kbdev);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 }
