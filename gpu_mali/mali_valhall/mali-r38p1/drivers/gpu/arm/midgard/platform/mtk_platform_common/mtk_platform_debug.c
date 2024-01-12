@@ -2202,12 +2202,22 @@ static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int tim
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, pid, MTK_DBG_HOOK_FENCE_EXTERNAL_TIMEOUT);
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, pid, MTK_DBG_HOOK_FENCE_EXTERNAL_TIMEOUT);
 		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, pid, MTK_DBG_HOOK_FENCE_EXTERNAL_TIMEOUT);
-
-		if (kbdev->pm.backend.gpu_powered)
-			if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
-				kbase_reset_gpu(kbdev);
 	}
 #endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET)
+	if (timeouts > 3000)
+		if (kbdev->pm.backend.gpu_powered)
+			if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
+			{
+				dev_info(kbdev->dev, "external fence timeouts(%d ms)! reset gpu", timeouts);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+				mtk_logbuffer_print(&kbdev->logbuf_exception,
+								     "external fence timeouts(%d ms)! reset gpu\n", timeouts);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+				kbase_reset_gpu(kbdev);
+			}
+#endif /* CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET */
 
 	mutex_unlock(&fence_debug_lock);
 }
