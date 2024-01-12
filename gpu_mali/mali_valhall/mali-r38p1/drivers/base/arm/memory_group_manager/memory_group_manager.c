@@ -36,7 +36,8 @@
 #include <linux/ktime.h>
 #include <soc/mediatek/emi.h>
 #define RANK_BOUNDARY (0x1c0000000)
-#define PREFILL_TARGET (0x0)
+#define PREFILL_TARGET (SZ_256M >> PAGE_SHIFT)
+#define RANK_POOL_LIMIT (SZ_256M >> PAGE_SHIFT)
 #define REFILL_TARGET (SZ_64M >> PAGE_SHIFT)
 #define HALF_REFILL_TARGET (REFILL_TARGET >> 1)
 #endif /* CONFIG_MALI_MTK_MGMM */
@@ -1048,16 +1049,28 @@ static void example_mgm_free_page(
 		i = (page_to_phys(page) <= data->ui64RankBoundary) ? 0 : 1; // true: rank0, false: rank1
 		spin_lock(&data->MGMFree_lst_lk);
 		if (order == 0) {
+			if (data->nr_rank[0][i] < RANK_POOL_LIMIT) {
 			list_add(&page->lru, &data->free_list_r[0][i]);
 			data->nr_rank[0][i]++;
+			} else  {
+				spin_unlock(&data->MGMFree_lst_lk);
+				goto BUD_SYS;
+			}
 		} else if (order == 9) {
+			if (data->nr_rank[1][i] < (RANK_POOL_LIMIT >> 9)) {
 			list_add(&page->lru, &data->free_list_r[1][i]);
 			data->nr_rank[1][i]++;
+			} else {
+				spin_unlock(&data->MGMFree_lst_lk);
+				goto BUD_SYS;
+			}
 		}
 		mod_node_page_state(page_pgdat(page), NR_KERNEL_MISC_RECLAIMABLE, 1 << order);
 		spin_unlock(&data->MGMFree_lst_lk);
-	} else
+	} else {
+BUD_SYS:
 		__free_pages(page, order);
+	}
 #else /* CONFIG_MALI_MTK_MGMM */
 	__free_pages(page, order);
 #endif /* CONFIG_MALI_MTK_MGMM */
