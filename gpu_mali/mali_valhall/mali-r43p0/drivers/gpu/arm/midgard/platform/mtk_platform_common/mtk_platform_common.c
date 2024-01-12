@@ -25,6 +25,20 @@
 #include <platform/mtk_platform_common/mtk_platform_debug.h>
 #endif /* CONFIG_MALI_MTK_DEBUG*/
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
+#include "mtk_platform_diagnosis_mode.h"
+
+#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+#include "csf/mali_kbase_csf_trace_buffer.h"
+#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_CM7_TRACE)
+#include <bus_tracer_v1.h>
+#include "mtk_platform_cm7_trace.h"
+#endif /* CONFIG_MALI_MTK_CM7_TRACE */
+
+#endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
+
 #if IS_ENABLED(CONFIG_PROC_FS)
 #include <linux/proc_fs.h>
 #endif /* CONFIG_PROC_FS */
@@ -36,10 +50,6 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 #include <platform/mtk_platform_common/mtk_platform_adaptive_power_policy.h>
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
-
-#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
-#include "csf/mali_kbase_csf_trace_buffer.h"
-#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
 #include <platform/mtk_platform_common/mtk_platform_memtrack.h>
@@ -58,11 +68,6 @@ static struct proc_dir_entry *proc_root;
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
 #include <platform/mtk_platform_common/mtk_platform_irq_trace.h>
 #endif /* CONFIG_MALI_MTK_IRQ_TRACE */
-
-#if IS_ENABLED(CONFIG_MALI_MTK_CM7_TRACE)
-#include <bus_tracer_v1.h>
-#include "mtk_platform_cm7_trace.h"
-#endif /* CONFIG_MALI_MTK_CM7_TRACE */
 
 static bool mfg_powered;
 static DEFINE_MUTEX(mfg_pm_lock);
@@ -97,12 +102,35 @@ void mtk_common_pm_mfg_idle(void)
 void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 {
 	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+#if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
+	u64 diagnosis_mode = 0;
+	u64 diagnosis_dump_mask = 0;
+#endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
 
 	if (IS_ERR_OR_NULL(kbdev))
 		return;
 
-	if (type == MTK_COMMON_DBG_DUMP_DB_BY_SETTING) {
+	if (type == MTK_COMMON_DBG_DUMP_DB_BY_SETTING)
+	{
+#if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
+		diagnosis_mode = mtk_diagnosis_mode_get_mode();
+		diagnosis_dump_mask = mtk_diagnosis_mode_get_dump_mask();
+
+		dev_info(kbdev->dev, "diagnosis hook = 0x%08llx, mode = %llu, mask = 0x%08llx", hook_point, diagnosis_mode, diagnosis_dump_mask);
+		if (hook_point & diagnosis_dump_mask) {
+			if (diagnosis_mode == 0) {
+				return; //do no thing if diagnosis mode is not enabled
+			} else if (diagnosis_mode == 1) {
+				type = MTK_COMMON_DBG_TRIGGER_KERNEL_EXCEPTION;
+			} else if (diagnosis_mode == 2) {
+				type = MTK_COMMON_DBG_DUMP_FULL_DB;
+			}
+		} else {
+			return; // do nothing if hook point is not matched
+		}
+#else
 		return;
+#endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
 	}
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
@@ -135,6 +163,13 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 		break;
 #endif /* CONFIG_MALI_CSF_SUPPORT */
 	case MTK_COMMON_DBG_DUMP_FULL_DB:
+#if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
+		dev_info(kbdev->dev, "trigger gpu full DB dump");
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+		if (!(diagnosis_dump_mask & MTK_DBG_COMMON_DUMP_SKIP_GROUPS_QUEUES)) {
+			mtk_debug_csf_dump_groups_and_queues(kbdev, pid);
+		}
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 #if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
 		if (!(diagnosis_dump_mask & MTK_DBG_COMMON_DUMP_SKIP_FWLOG)) {
 			mtk_kbase_csf_firmware_ke_dump_fwlog(kbdev); /* dump fwlog, reserve 1MB for fwlog*/
@@ -145,6 +180,8 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 		disable_etb_capture(); /* stop ETB capture before DFD trig */
 #endif /*CONFIG_MTK_GPU_DIAGNOSIS_DEBUG*/
 #endif /* CONFIG_MALI_MTK_CM7_TRACE */
+		BUG_ON(1);
+#endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
 		break;
 	case MTK_COMMON_DBG_TRIGGER_KERNEL_EXCEPTION:
 #if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
@@ -259,6 +296,10 @@ void mtk_common_sysfs_init(struct kbase_device *kbdev)
 	if (IS_ERR_OR_NULL(kbdev))
 		return;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
+        mtk_diagnosis_mode_sysfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_CM7_TRACE)
         mtk_cm7_trace_sysfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_CM7_TRACE */
@@ -272,6 +313,10 @@ void mtk_common_sysfs_term(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_CM7_TRACE)
         mtk_cm7_trace_sysfs_term(kbdev);
 #endif /* CONFIG_MALI_MTK_CM7_TRACE */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
+        mtk_diagnosis_mode_sysfs_term(kbdev);
+#endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
 }
 #endif /* CONFIG_MALI_MTK_SYSFS */
 
