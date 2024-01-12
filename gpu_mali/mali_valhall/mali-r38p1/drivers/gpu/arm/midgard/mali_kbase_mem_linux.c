@@ -532,6 +532,24 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	}
 #endif /* MALI_JIT_PRESSURE_LIMIT_BASE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
+		if ((reg->flags & KBASE_REG_SHARE_BOTH) != 0 &&
+			kctx->kbdev->system_coherency != COHERENCY_NONE) {
+			mutex_lock(&kctx->coherenct_region_lock);
+			for (r_index = 0; r_index < MAX_COHERENT_REGION; r_index++) {
+				if (!kctx->coherenct_regions[r_index]) {  //array element empty
+					kctx->coherenct_regions[r_index] = reg;
+					kctx->coherent_region_nr++;
+					dev_vdbg(dev, "Add coherent region in index %d, reg 0x%p, starting Page 0x%llx flags: 0x%x, tgid %d, reg_nr: %u",
+						r_index, reg ,reg->cpu_alloc->pages[0], reg->flags, kctx->tgid, kctx->coherent_region_nr);
+					break;
+				}
+			}
+			if (r_index == MAX_COHERENT_REGION)
+				dev_warn(dev, "Coherent region overflow on tgid: %d\n", kctx->tgid);
+			mutex_unlock(&kctx->coherenct_region_lock);
+		}
+#endif
 	kbase_gpu_vm_unlock(kctx);
 
 #if MALI_USE_CSF
@@ -539,23 +557,6 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 		atomic64_inc(&kctx->num_fixable_allocs);
 	else if (*flags & BASE_MEM_FIXED)
 		atomic64_inc(&kctx->num_fixed_allocs);
-#endif
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
-	if ((reg->flags & KBASE_REG_SHARE_BOTH) != 0) {
-		mutex_lock(&kctx->coherenct_region_lock);
-		for (r_index = 0; r_index < MAX_COHERENT_REGION; r_index++) {
-			if (!kctx->coherenct_regions[r_index]) {  //array element empty
-				kctx->coherenct_regions[r_index] = reg;
-				kctx->coherent_region_nr++;
-				dev_vdbg(dev, "Add coherent region in index %d, reg 0x%p, starting Page 0x%llx flags: 0x%x, tgid %d, reg_nr: %u",
-					r_index, reg ,reg->cpu_alloc->pages[0], reg->flags, kctx->tgid, kctx->coherent_region_nr);
-				break;
-			}
-		}
-		if (r_index == MAX_COHERENT_REGION)
-			dev_warn(dev, "Coherent region overflow on tgid: %d\n", kctx->tgid);
-		mutex_unlock(&kctx->coherenct_region_lock);
-	}
 #endif
 	return reg;
 
