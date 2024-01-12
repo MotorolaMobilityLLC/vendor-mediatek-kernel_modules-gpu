@@ -2074,11 +2074,15 @@ static int handle_oom_event(struct kbase_queue_group *const group,
 	err = kbase_csf_tiler_heap_alloc_new_chunk(kctx,
 		gpu_heap_va, renderpasses_in_flight, pending_frag_count, &new_chunk_ptr);
 
+	if ( 0x6000601000 - 0x200000 <= new_chunk_ptr && new_chunk_ptr <= 0x6000601000 + 0x200000)
+		dev_info(kctx->kbdev->dev, "pid %d slot-%d, new heap address 0x%lx, heap va 0x%lx",
+			kctx->pid, group->csg_nr, new_chunk_ptr, gpu_heap_va);
+
 	if ((group->csi_handlers & BASE_CSF_TILER_OOM_EXCEPTION_FLAG) &&
 	    (pending_frag_count == 0) && (err == -ENOMEM || err == -EBUSY)) {
 		/* The group allows incremental rendering, trigger it */
 		new_chunk_ptr = 0;
-		dev_vdbg(kctx->kbdev->dev, "Group-%d (slot-%d) enter incremental render\n",
+		dev_info(kctx->kbdev->dev, "Group-%d (slot-%d) enter incremental render\n",
 			group->handle, group->csg_nr);
 	} else if (err == -EBUSY) {
 		/* Acknowledge with a NULL chunk (firmware will then wait for

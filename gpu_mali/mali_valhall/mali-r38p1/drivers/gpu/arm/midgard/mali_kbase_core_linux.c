@@ -1507,13 +1507,18 @@ static int kbasep_kcpu_queue_enqueue(struct kbase_context *kctx,
 static int kbasep_cs_tiler_heap_init(struct kbase_context *kctx,
 		union kbase_ioctl_cs_tiler_heap_init *heap_init)
 {
+	int ret;
 	kctx->jit_group_id = heap_init->in.group_id;
 
-	return kbase_csf_tiler_heap_init(kctx, heap_init->in.chunk_size,
+	ret =  kbase_csf_tiler_heap_init(kctx, heap_init->in.chunk_size,
 					 heap_init->in.initial_chunks, heap_init->in.max_chunks,
 					 heap_init->in.target_in_flight, heap_init->in.buf_desc_va,
 					 &heap_init->out.gpu_heap_va,
 					 &heap_init->out.first_chunk_va);
+
+	dev_info(kctx->kbdev->dev, "init heap  pid=%d heap va 0x%lx, first chunk 0x%lx",
+		kctx->pid, heap_init->out.gpu_heap_va, heap_init->out.first_chunk_va);
+	return ret;
 }
 
 static int kbasep_cs_tiler_heap_init_1_13(struct kbase_context *kctx,
