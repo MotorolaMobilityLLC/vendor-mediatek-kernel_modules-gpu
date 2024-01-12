@@ -28,6 +28,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MIDGARD_DVFS := y
         CONFIG_MALI_DEVFREQ := y
         CONFIG_MALI_FENCE_DEBUG := y
+        CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD := y
         CONFIG_MALI_MTK_DEBUG := y
         CONFIG_MALI_MTK_LOG_BUFFER := y
         CONFIG_MALI_MTK_SYSFS := y
@@ -76,6 +77,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MIDGARD_DVFS := y
         CONFIG_MALI_DEVFREQ := y
         CONFIG_MALI_FENCE_DEBUG := y
+        CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD := y
         CONFIG_MALI_MTK_DEBUG := y
         CONFIG_MALI_MTK_LOG_BUFFER := y
         CONFIG_MALI_MTK_SYSFS := y
@@ -181,7 +183,7 @@ ccflags-y += -I$(KO_CODE_PATH)/include
 subdir-ccflags-y += -I$(KO_CODE_PATH)/include
 
 # Driver version string which is returned to userspace via an ioctl
-MALI_RELEASE_NAME ?= '"r44p1-00dev1"'
+MALI_RELEASE_NAME ?= '"r44p1-01bet1"'
 # Set up defaults if not defined by build system
 ifeq ($(CONFIG_MALI_DEBUG), y)
     MALI_UNIT_TEST = 1
@@ -329,6 +331,10 @@ mali_kbase-$(CONFIG_SYNC_FILE) += \
     mali_kbase_fence_ops.o \
     mali_kbase_sync_file.o \
     mali_kbase_sync_common.o
+
+mali_kbase-$(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD) += \
+        mali_power_gpu_work_period_trace.o \
+        mali_kbase_gpu_metrics.o
 
 ifneq ($(CONFIG_MALI_CSF_SUPPORT),y)
     mali_kbase-y += \

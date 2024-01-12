@@ -298,5 +298,9 @@ enum {
  */
 #define MMU_AS_INACTIVE_WAIT_TIMEOUT_CYCLES ((u64)50 * 1024 * 1024)
 
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+/* Default value of the time interval at which GPU metrics tracepoints are emitted. */
+#define DEFAULT_GPU_METRICS_TP_EMIT_INTERVAL_NS (500000000u) /* 500 ms */
+#endif
 
 #endif /* _KBASE_CONFIG_DEFAULTS_H_ */

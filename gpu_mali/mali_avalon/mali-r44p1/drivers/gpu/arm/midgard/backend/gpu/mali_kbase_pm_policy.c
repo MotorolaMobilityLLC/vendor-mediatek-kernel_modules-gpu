@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -295,6 +295,8 @@ void kbase_pm_set_policy(struct kbase_device *kbdev,
 	bool reset_gpu = false;
 	bool reset_op_prevented = true;
 	struct kbase_csf_scheduler *scheduler = NULL;
+	u32 pwroff;
+	bool switching_to_always_on;
 #endif
 
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
@@ -303,6 +305,16 @@ void kbase_pm_set_policy(struct kbase_device *kbdev,
 	KBASE_KTRACE_ADD(kbdev, PM_SET_POLICY, NULL, new_policy->id);
 
 #if MALI_USE_CSF
+	pwroff = kbase_csf_firmware_get_mcu_core_pwroff_time(kbdev);
+	switching_to_always_on = new_policy == &kbase_pm_always_on_policy_ops;
+	if (pwroff == 0 && !switching_to_always_on) {
+		dev_warn(kbdev->dev,
+			"power_policy: cannot switch away from always_on with mcu_shader_pwroff_timeout set to 0\n");
+		dev_warn(kbdev->dev,
+			"power_policy: resetting mcu_shader_pwroff_timeout to default value to switch policy from always_on\n");
+		kbase_csf_firmware_reset_mcu_core_pwroff_time(kbdev);
+	}
+
 	scheduler = &kbdev->csf.scheduler;
 	KBASE_DEBUG_ASSERT(scheduler != NULL);
 

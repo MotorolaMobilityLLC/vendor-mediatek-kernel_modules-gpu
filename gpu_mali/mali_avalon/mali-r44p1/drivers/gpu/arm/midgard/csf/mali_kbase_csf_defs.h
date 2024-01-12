@@ -1142,6 +1142,12 @@ struct kbase_csf_scheduler {
 	struct completion kthread_signal;
 	bool kthread_running;
 	struct task_struct *gpuq_kthread;
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+	/**
+	 *  @gpu_metrics_tb: Handler of firmware trace buffer for gpu_metrics
+	 */
+	struct firmware_trace_buffer *gpu_metrics_tb;
+#endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
 };
 
 /*
@@ -1628,6 +1634,8 @@ struct kbase_csf_user_reg {
  *                          yet processed, categorised by queue group's priority.
  * @pending_gpuq_kicks_lock: Protect @pending_gpu_kicks and
  *                           kbase_queue.pending_kick_link.
+ * @quirks_ext:             Pointer to an allocated buffer containing the firmware
+ *                          workarounds configuration.
  */
 struct kbase_csf_device {
 	struct kbase_mmu_table mcu_mmu;
@@ -1680,6 +1688,7 @@ struct kbase_csf_device {
 	struct kbase_csf_user_reg user_reg;
 	struct list_head pending_gpuq_kicks[KBASE_QUEUE_GROUP_PRIORITY_COUNT];
 	spinlock_t pending_gpuq_kicks_lock;
+	u32 *quirks_ext;
 
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
 	ktime_t glb_start_tm;

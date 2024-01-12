@@ -593,6 +593,14 @@ void kbase_job_done(struct kbase_device *kbdev, u32 done)
 							BASE_JD_EVENT_DONE,
 							0,
 							&end_timestamp);
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+					/* Increment the end timestamp value by 1 ns to
+					 * avoid having the same value for 'start_time_ns'
+					 * and 'end_time_ns' for the 2nd atom whose job
+					 * completion IRQ got merged with the 1st atom.
+					 */
+					end_timestamp = ktime_add(end_timestamp, ns_to_ktime(1));
+#endif
 				}
 				nr_done--;
 			}

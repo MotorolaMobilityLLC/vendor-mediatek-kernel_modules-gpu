@@ -870,6 +870,22 @@ u32 kbase_csf_firmware_get_mcu_core_pwroff_time(struct kbase_device *kbdev);
 u32 kbase_csf_firmware_set_mcu_core_pwroff_time(struct kbase_device *kbdev, u32 dur);
 
 /**
+ * kbase_csf_firmware_reset_mcu_core_pwroff_time - Reset the MCU shader Core power-off
+ *                                               time value
+ *
+ * @kbdev:   Instance of a GPU platform device that implements a CSF interface.
+ *
+ * Sets the MCU Shader Core power-off time value to the default.
+ *
+ * The configured MCU shader Core power-off timer will only have effect when the host
+ * driver has delegated the shader cores' power management to MCU.
+ *
+ * Return: the actual internal core power-off timer value in register defined
+ *         format.
+ */
+u32 kbase_csf_firmware_reset_mcu_core_pwroff_time(struct kbase_device *kbdev);
+
+/**
  * kbase_csf_interface_version - Helper function to build the full firmware
  *                               interface version in a format compatible with
  *                               GLB_VERSION register

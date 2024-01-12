@@ -2034,6 +2034,10 @@ static void kbase_csf_firmware_reload_worker(struct work_struct *work)
 
 	kbase_csf_tl_reader_reset(&kbdev->timeline->csf_tl_reader);
 
+	err = kbase_csf_firmware_cfg_fw_wa_enable(kbdev);
+	if (WARN_ON(err))
+		return;
+
 	/* Reboot the firmware */
 	kbase_csf_firmware_enable_mcu(kbdev);
 }
@@ -2113,12 +2117,9 @@ static u32 convert_dur_to_idle_count(struct kbase_device *kbdev, const u32 dur_u
 
 	reg_val_u32 = GLB_IDLE_TIMER_TIMEOUT_SET(0, cnt_val_u32);
 	/* add the source flag */
-	if (src_system_timestamp)
-		reg_val_u32 = GLB_IDLE_TIMER_TIMER_SOURCE_SET(reg_val_u32,
-				GLB_IDLE_TIMER_TIMER_SOURCE_SYSTEM_TIMESTAMP);
-	else
-		reg_val_u32 = GLB_IDLE_TIMER_TIMER_SOURCE_SET(reg_val_u32,
-				GLB_IDLE_TIMER_TIMER_SOURCE_GPU_COUNTER);
+	reg_val_u32 = GLB_IDLE_TIMER_TIMER_SOURCE_SET(
+		reg_val_u32, (src_system_timestamp ? GLB_IDLE_TIMER_TIMER_SOURCE_SYSTEM_TIMESTAMP :
+						     GLB_IDLE_TIMER_TIMER_SOURCE_GPU_COUNTER));
 
 	return reg_val_u32;
 }
@@ -2230,6 +2231,9 @@ static u32 convert_dur_to_core_pwroff_count(struct kbase_device *kbdev, const u3
 	u32 cnt_val_u32, reg_val_u32;
 	bool src_system_timestamp = freq > 0;
 
+	const struct kbase_pm_policy *current_policy = kbase_pm_get_policy(kbdev);
+	bool always_on = current_policy == &kbase_pm_always_on_policy_ops;
+
 	if (!src_system_timestamp) {
 		/* Get the cycle_counter source alternative */
 		spin_lock(&kbdev->pm.clk_rtm.lock);
@@ -2248,17 +2252,22 @@ static u32 convert_dur_to_core_pwroff_count(struct kbase_device *kbdev, const u3
 	dur_val = (dur_val * freq) >> HYSTERESIS_VAL_UNIT_SHIFT;
 	dur_val = div_u64(dur_val, 1000000);
 
-	/* Interface limits the value field to S32_MAX */
-	cnt_val_u32 = (dur_val > S32_MAX) ? S32_MAX : (u32)dur_val;
+	if (dur_val == 0 && !always_on) {
+		/* Lower Bound - as 0 disables timeout and host controls shader-core power management. */
+		cnt_val_u32 = 1;
+	} else if (dur_val > S32_MAX) {
+		/* Upper Bound - as interface limits the field to S32_MAX */
+		cnt_val_u32 = S32_MAX;
+	} else {
+		cnt_val_u32 = (u32)dur_val;
+	}
 
 	reg_val_u32 = GLB_PWROFF_TIMER_TIMEOUT_SET(0, cnt_val_u32);
 	/* add the source flag */
-	if (src_system_timestamp)
-		reg_val_u32 = GLB_PWROFF_TIMER_TIMER_SOURCE_SET(reg_val_u32,
-				GLB_PWROFF_TIMER_TIMER_SOURCE_SYSTEM_TIMESTAMP);
-	else
-		reg_val_u32 = GLB_PWROFF_TIMER_TIMER_SOURCE_SET(reg_val_u32,
-				GLB_PWROFF_TIMER_TIMER_SOURCE_GPU_COUNTER);
+	reg_val_u32 = GLB_PWROFF_TIMER_TIMER_SOURCE_SET(
+				reg_val_u32,
+				(src_system_timestamp ? GLB_PWROFF_TIMER_TIMER_SOURCE_SYSTEM_TIMESTAMP :
+							GLB_PWROFF_TIMER_TIMER_SOURCE_GPU_COUNTER));
 
 	return reg_val_u32;
 }
@@ -2288,6 +2297,11 @@ u32 kbase_csf_firmware_set_mcu_core_pwroff_time(struct kbase_device *kbdev, u32 
 	dev_dbg(kbdev->dev, "MCU shader Core Poweroff input update: 0x%.8x", pwroff);
 
 	return pwroff;
+}
+
+u32 kbase_csf_firmware_reset_mcu_core_pwroff_time(struct kbase_device *kbdev)
+{
+	return kbase_csf_firmware_set_mcu_core_pwroff_time(kbdev, DEFAULT_GLB_PWROFF_TIMEOUT_US);
 }
 
 /**
@@ -2366,9 +2380,7 @@ int kbase_csf_firmware_early_init(struct kbase_device *kbdev)
 	kbdev->csf.fw_timeout_ms =
 		kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT);
 
-	kbdev->csf.mcu_core_pwroff_dur_us = DEFAULT_GLB_PWROFF_TIMEOUT_US;
-	kbdev->csf.mcu_core_pwroff_dur_count = convert_dur_to_core_pwroff_count(
-		kbdev, DEFAULT_GLB_PWROFF_TIMEOUT_US);
+	kbase_csf_firmware_reset_mcu_core_pwroff_time(kbdev);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GLB_PWROFF_TIMEOUT)
 	node = of_find_compatible_node(NULL, NULL, "arm,mali-valhall");
@@ -2598,6 +2610,12 @@ int kbase_csf_firmware_load_init(struct kbase_device *kbdev)
 		goto err_out;
 	}
 
+	ret = kbase_csf_firmware_cfg_fw_wa_init(kbdev);
+	if (ret != 0) {
+		dev_err(kbdev->dev, "Failed to initialize firmware workarounds");
+		goto err_out;
+	}
+
 	/* Make sure L2 cache is powered up */
 	kbase_pm_wait_for_l2_powered(kbdev);
 
@@ -2705,6 +2723,8 @@ void kbase_csf_firmware_unload_term(struct kbase_device *kbdev)
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	unload_mmu_tables(kbdev);
+
+	kbase_csf_firmware_cfg_fw_wa_term(kbdev);
 
 	kbase_csf_firmware_trace_buffers_term(kbdev);
 

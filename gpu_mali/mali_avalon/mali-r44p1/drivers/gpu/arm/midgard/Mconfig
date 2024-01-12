@@ -354,6 +354,14 @@ config MALI_HW_ERRATA_1485982_USE_CLOCK_ALTERNATIVE
 	  tree using the property, opp-mali-errata-1485982. Otherwise the
 	  slowest clock will be selected.
 
+config MALI_TRACE_POWER_GPU_WORK_PERIOD
+	bool "Enable per-application GPU metrics tracepoints"
+	depends on MALI_MIDGARD
+	default y
+	help
+	  This option enables per-application GPU metrics tracepoints.
+
+	  If unsure, say N.
 
 choice
 	prompt "CSF Firmware trace mode"

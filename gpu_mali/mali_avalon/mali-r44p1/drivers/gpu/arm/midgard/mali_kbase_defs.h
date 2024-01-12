@@ -166,6 +166,61 @@ struct kbase_as;
 struct kbase_mmu_setup;
 struct kbase_kinstr_jm;
 
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+/**
+ * struct kbase_gpu_metrics - Object containing members that are used to emit
+ *                            GPU metrics tracepoints for all applications that
+ *                            created Kbase context(s) for a GPU.
+ *
+ * @active_list:   List of applications that did some GPU activity in the recent work period.
+ * @inactive_list: List of applications that didn't do any GPU activity in the recent work period.
+ */
+struct kbase_gpu_metrics {
+	struct list_head active_list;
+	struct list_head inactive_list;
+};
+
+/**
+ * struct kbase_gpu_metrics_ctx - Object created for every application, that created
+ *                                Kbase context(s), containing members that are used
+ *                                to emit GPU metrics tracepoints for the application.
+ *
+ * @link:                    Links the object in kbase_device::gpu_metrics::active_list
+ *                           or kbase_device::gpu_metrics::inactive_list.
+ * @first_active_start_time: Records the time at which the application first became
+ *                           active in the current work period.
+ * @last_active_start_time:  Records the time at which the application last became
+ *                           active in the current work period.
+ * @last_active_end_time:    Records the time at which the application last became
+ *                           inactive in the current work period.
+ * @total_active:            Tracks the time for which application has been active
+ *                           in the current work period.
+ * @aid:                     Unique identifier for an application.
+ * @kctx_count:              Counter to keep a track of the number of Kbase contexts
+ *                           created for an application. There may be multiple Kbase
+ *                           contexts contributing GPU activity data to a single GPU
+ *                           metrics context.
+ * @active_cnt:              Counter that is updated every time the GPU activity starts
+ *                           and ends in the current work period for an application.
+ * @flags:                   Flags to track the state of GPU metrics context.
+ * @prev_wp_active_end_time: Records the time at which the application last became
+ *                           inactive in the previous work period.
+ */
+struct kbase_gpu_metrics_ctx {
+	struct list_head link;
+	u64 first_active_start_time;
+	u64 last_active_start_time;
+	u64 last_active_end_time;
+	u64 total_active;
+	unsigned int aid;
+	unsigned int kctx_count;
+	u8 active_cnt;
+	u8 flags;
+#ifdef CONFIG_MALI_DEBUG
+	u64 prev_wp_active_end_time;
+#endif
+};
+#endif
 
 /**
  * struct kbase_io_access - holds information about 1 register access
@@ -1422,6 +1477,12 @@ struct kbase_device {
 	u32 mmu_or_gpu_cache_op_wait_time_ms;
 	struct kmem_cache *va_region_slab;
 
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+	/**
+	 * @gpu_metrics: GPU device wide structure used for emitting GPU metrics tracepoints.
+	 */
+	struct kbase_gpu_metrics gpu_metrics;
+#endif
 #if MALI_USE_CSF
 	atomic_t fence_signal_timeout_enabled;
 #endif
@@ -2095,7 +2156,16 @@ struct kbase_context {
 #if !MALI_USE_CSF
 	void *platform_data;
 #endif
+
 	struct task_struct *task;
+
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+	/**
+	 * @gpu_metrics_ctx: Pointer to the GPU metrics context corresponding to the
+	 *                   application that created the Kbase context.
+	 */
+	struct kbase_gpu_metrics_ctx *gpu_metrics_ctx;
+#endif
 
 	char comm[TASK_COMM_LEN];
 

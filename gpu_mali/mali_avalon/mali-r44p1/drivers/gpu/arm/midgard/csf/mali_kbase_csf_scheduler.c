@@ -36,6 +36,10 @@
 #include "mali_kbase_csf_tiler_heap_reclaim.h"
 #include "mali_kbase_csf_mcu_shared_reg.h"
 #include <linux/version_compat_defs.h>
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+#include <mali_kbase_gpu_metrics.h>
+#include <csf/mali_kbase_csf_trace_buffer.h>
+#endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
 #include <linux/sched.h>
 #include <uapi/linux/sched/types.h>
 
@@ -104,6 +108,187 @@ static void enqueue_gpu_idle_work(struct kbase_csf_scheduler *const scheduler);
 
 #define kctx_as_enabled(kctx) (!kbase_ctx_flag(kctx, KCTX_AS_DISABLED_ON_FAULT))
 
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+/**
+ * gpu_metrics_ctx_init() - Take a reference on GPU metrics context if it exists,
+ *                          otherwise allocate and initialise one.
+ *
+ * @kctx: Pointer to the Kbase context.
+ *
+ * The GPU metrics context represents an "Application" for the purposes of GPU metrics
+ * reporting. There may be multiple kbase_contexts contributing data to a single GPU
+ * metrics context.
+ * This function takes a reference on GPU metrics context if it already exists
+ * corresponding to the Application that is creating the Kbase context, otherwise
+ * memory is allocated for it and initialised.
+ *
+ * Return: 0 on success, or negative on failure.
+ */
+static inline int gpu_metrics_ctx_init(struct kbase_context *kctx)
+{
+	struct kbase_gpu_metrics_ctx *gpu_metrics_ctx;
+	struct kbase_device *kbdev = kctx->kbdev;
+	int ret = 0;
+
+	const struct cred *cred = get_current_cred();
+	const unsigned int aid = cred->euid.val;
+
+	put_cred(cred);
+
+	/* Return early if this is not a Userspace created context */
+	if (unlikely(!kctx->kfile))
+		return 0;
+
+	/* Serialize against the other threads trying to create/destroy Kbase contexts. */
+	mutex_lock(&kbdev->kctx_list_lock);
+	mutex_lock(&kbdev->csf.scheduler.lock);
+	gpu_metrics_ctx = kbase_gpu_metrics_ctx_get(kbdev, aid);
+	mutex_unlock(&kbdev->csf.scheduler.lock);
+
+	if (!gpu_metrics_ctx) {
+		gpu_metrics_ctx = kmalloc(sizeof(*gpu_metrics_ctx), GFP_KERNEL);
+
+		if (gpu_metrics_ctx) {
+			mutex_lock(&kbdev->csf.scheduler.lock);
+			kbase_gpu_metrics_ctx_init(kbdev, gpu_metrics_ctx, aid);
+			mutex_unlock(&kbdev->csf.scheduler.lock);
+		} else {
+			dev_err(kbdev->dev, "Allocation for gpu_metrics_ctx failed");
+			ret = -ENOMEM;
+		}
+	}
+
+	kctx->gpu_metrics_ctx = gpu_metrics_ctx;
+	mutex_unlock(&kbdev->kctx_list_lock);
+
+	return ret;
+}
+
+/**
+ * gpu_metrics_ctx_term() - Drop a reference on a GPU metrics context and free it
+ *                          if the refcount becomes 0.
+ *
+ * @kctx: Pointer to the Kbase context.
+ */
+static inline void gpu_metrics_ctx_term(struct kbase_context *kctx)
+{
+	/* Return early if this is not a Userspace created context */
+	if (unlikely(!kctx->kfile))
+		return;
+
+	/* Serialize against the other threads trying to create/destroy Kbase contexts. */
+	mutex_lock(&kctx->kbdev->kctx_list_lock);
+	mutex_lock(&kctx->kbdev->csf.scheduler.lock);
+	kbase_gpu_metrics_ctx_put(kctx->kbdev, kctx->gpu_metrics_ctx);
+	mutex_unlock(&kctx->kbdev->csf.scheduler.lock);
+	mutex_unlock(&kctx->kbdev->kctx_list_lock);
+}
+
+/**
+ * struct gpu_metrics_event - A GPU metrics event recorded in trace buffer.
+ *
+ * @csg_slot_act:  The 32bit data consisting of a GPU metrics event.
+ *                 5 bits[4:0] represents CSG slot number.
+ *                 1 bit [5]  represents the transition of the CSG group on the slot.
+ *                            '1' means idle->active whilst '0' does active->idle.
+ * @timestamp:     64bit timestamp consisting of a GPU metrics event.
+ *
+ * Note: It's packed and word-aligned as agreed layout with firmware.
+ */
+struct gpu_metrics_event {
+	u32 csg_slot_act;
+	u64 timestamp;
+} __packed __aligned(4);
+#define GPU_METRICS_EVENT_SIZE sizeof(struct gpu_metrics_event)
+
+#define GPU_METRICS_ACT_SHIFT 5
+#define GPU_METRICS_ACT_MASK (0x1 << GPU_METRICS_ACT_SHIFT)
+#define GPU_METRICS_ACT_GET(val) (((val)&GPU_METRICS_ACT_MASK) >> GPU_METRICS_ACT_SHIFT)
+
+#define GPU_METRICS_CSG_MASK 0x1f
+#define GPU_METRICS_CSG_GET(val) ((val)&GPU_METRICS_CSG_MASK)
+
+/**
+ * gpu_metrics_read_event() - Read a GPU metrics trace from trace buffer
+ *
+ * @kbdev: Pointer to the device
+ * @kctx:  Kcontext that is derived from CSG slot field of a GPU metrics.
+ * @act:   CSG activity transition in a GPU metrics.
+ * @ts:    CSG activity transition timestamp in a GPU metrics.
+ *
+ * This function reads firmware trace buffer, named 'gpu_metrics' and
+ * parse one 12-byte data packet into following information.
+ * - The number of CSG slot on which CSG was transitioned to active or idle.
+ * - Activity transition (1: idle->active, 0: active->idle).
+ * - Timestamp in nanoseconds when the transition occurred.
+ *
+ * Return: true on success.
+ */
+static bool gpu_metrics_read_event(struct kbase_device *kbdev, struct kbase_context **kctx,
+				   bool *act, uint64_t *ts)
+{
+	struct firmware_trace_buffer *tb = kbdev->csf.scheduler.gpu_metrics_tb;
+	struct gpu_metrics_event e;
+
+	if (kbase_csf_firmware_trace_buffer_read_data(tb, (u8 *)&e, GPU_METRICS_EVENT_SIZE) ==
+	    GPU_METRICS_EVENT_SIZE) {
+		const u8 slot = GPU_METRICS_CSG_GET(e.csg_slot_act);
+		struct kbase_queue_group *group =
+			kbdev->csf.scheduler.csg_slots[slot].resident_group;
+
+		if (unlikely(!group)) {
+			dev_err(kbdev->dev, "failed to find CSG group from CSG slot(%u)", slot);
+			return false;
+		}
+
+		*act = GPU_METRICS_ACT_GET(e.csg_slot_act);
+		*ts = kbase_backend_time_convert_gpu_to_cpu(kbdev, e.timestamp);
+		*kctx = group->kctx;
+
+		return true;
+	}
+
+	dev_err(kbdev->dev, "failed to read a GPU metrics from trace buffer");
+
+	return false;
+}
+
+/**
+ * emit_gpu_metrics_to_frontend() - Emit GPU metrics events to the frontend.
+ *
+ * @kbdev: Pointer to the device
+ *
+ * This function must be called to emit GPU metrics data to the
+ * frontend whenever needed.
+ * Calls to this function will be serialized by scheduler lock.
+ */
+static void emit_gpu_metrics_to_frontend(struct kbase_device *kbdev)
+{
+	const u64 ts_before_drain = ktime_get_raw_ns();
+	u64 ts = 0;
+
+	lockdep_assert_held(&kbdev->csf.scheduler.lock);
+
+#if IS_ENABLED(CONFIG_MALI_NO_MALI)
+	return;
+#endif
+
+	while (!kbase_csf_firmware_trace_buffer_is_empty(kbdev->csf.scheduler.gpu_metrics_tb)) {
+		struct kbase_context *kctx;
+		bool act;
+
+		if (gpu_metrics_read_event(kbdev, &kctx, &act, &ts)) {
+			if (act)
+				kbase_gpu_metrics_ctx_start_activity(kctx, ts);
+			else
+				kbase_gpu_metrics_ctx_end_activity(kctx, ts);
+		} else
+			break;
+	}
+
+	kbase_gpu_metrics_emit_tracepoint(kbdev, ts >= ts_before_drain ? ts + 1 : ts_before_drain);
+}
+#endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
 
 /**
  * wait_for_dump_complete_on_group_deschedule() - Wait for dump on fault and
@@ -2649,6 +2834,9 @@ static bool cleanup_csg_slot(struct kbase_queue_group *group)
 		as_fault = true;
 	spin_unlock_irqrestore(&kctx->kbdev->hwaccess_lock, flags);
 
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+	emit_gpu_metrics_to_frontend(kbdev);
+#endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
 
 	/* now marking the slot is vacant */
 	spin_lock_irqsave(&kbdev->csf.scheduler.interrupt_lock, flags);
@@ -4716,7 +4904,6 @@ static void scheduler_scan_group_list(struct kbase_device *kbdev, struct list_he
 	struct kbase_queue_group *group, *n;
 
 	list_for_each_entry_safe(group, n, groups, link_to_schedule) {
-
 		if (!scheduler->ngrp_to_schedule) {
 			/* keep the top csg's origin */
 			scheduler->top_ctx = group->kctx;
@@ -4970,6 +5157,9 @@ static void scheduler_sleep_on_idle(struct kbase_device *kbdev)
 	scheduler_pm_idle_before_sleep(kbdev);
 	scheduler->state = SCHED_SLEEPING;
 	KBASE_KTRACE_ADD(kbdev, SCHED_SLEEPING, NULL, scheduler->state);
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+	emit_gpu_metrics_to_frontend(kbdev);
+#endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
 }
 #endif
 
@@ -5350,7 +5540,7 @@ static void evict_lru_or_blocked_csg(struct kbase_device *kbdev)
 		 * idle.
 		 */
 		if ((group->run_state == KBASE_CSF_GROUP_IDLE) &&
-		    (group->priority != BASE_QUEUE_GROUP_PRIORITY_REALTIME) &&
+		    (group->priority != KBASE_QUEUE_GROUP_PRIORITY_REALTIME) &&
 		    ((lru_idle_group == NULL) ||
 		     (lru_idle_group->prepared_seq_num < group->prepared_seq_num))) {
 			if (WARN_ON(group->kctx->as_nr < 0))
@@ -5630,6 +5820,9 @@ static void schedule_on_tock(struct kbase_device *kbdev)
 	KBASE_KTRACE_ADD(kbdev, SCHED_INACTIVE, NULL, scheduler->state);
 	if (!scheduler->total_runnable_grps)
 		enqueue_gpu_idle_work(scheduler);
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+	emit_gpu_metrics_to_frontend(kbdev);
+#endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
 	mutex_unlock(&scheduler->lock);
 	kbase_reset_gpu_allow(kbdev);
 
@@ -5681,6 +5874,9 @@ static void schedule_on_tick(struct kbase_device *kbdev)
 	}
 
 	scheduler->state = SCHED_INACTIVE;
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+	emit_gpu_metrics_to_frontend(kbdev);
+#endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
 	mutex_unlock(&scheduler->lock);
 	KBASE_KTRACE_ADD(kbdev, SCHED_INACTIVE, NULL, scheduler->state);
 	kbase_reset_gpu_allow(kbdev);
@@ -6565,6 +6761,11 @@ int kbase_csf_scheduler_context_init(struct kbase_context *kctx)
 	int err;
 	struct kbase_device *kbdev = kctx->kbdev;
 
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+	err = gpu_metrics_ctx_init(kctx);
+	if (err)
+		return err;
+#endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
 
 	kbase_ctx_sched_init_ctx(kctx);
 
@@ -6605,6 +6806,9 @@ event_wait_add_failed:
 	destroy_workqueue(kctx->csf.sched.sync_update_wq);
 alloc_wq_failed:
 	kbase_ctx_sched_remove_ctx(kctx);
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+	gpu_metrics_ctx_term(kctx);
+#endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
 	return err;
 }
 
@@ -6615,6 +6819,9 @@ void kbase_csf_scheduler_context_term(struct kbase_context *kctx)
 	destroy_workqueue(kctx->csf.sched.sync_update_wq);
 
 	kbase_ctx_sched_remove_ctx(kctx);
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+	gpu_metrics_ctx_term(kctx);
+#endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
 }
 
 #if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
@@ -6653,7 +6860,8 @@ static int kbase_csf_scheduler_kthread(void *data)
 		}
 		reinit_completion(&scheduler->kthread_signal);
 #else
-		wait_for_completion(&scheduler->kthread_signal);
+		if (wait_for_completion_interruptible(&scheduler->kthread_signal) != 0)
+			continue;
 		reinit_completion(&scheduler->kthread_signal);
 #endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
@@ -6705,6 +6913,22 @@ static int kbase_csf_scheduler_kthread(void *data)
 		dev_dbg(kbdev->dev, "Waking up for event after a scheduling iteration.");
 		wake_up_all(&kbdev->csf.event_wait);
 	}
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD) && !IS_ENABLED(CONFIG_MALI_NO_MALI)
+	scheduler->gpu_metrics_tb =
+		kbase_csf_firmware_get_trace_buffer(kbdev, KBASE_CSFFW_GPU_METRICS_BUF_NAME);
+	if (!scheduler->gpu_metrics_tb) {
+		scheduler->kthread_running = false;
+		complete(&scheduler->kthread_signal);
+		kthread_stop(scheduler->gpuq_kthread);
+		scheduler->gpuq_kthread = NULL;
+
+		kfree(scheduler->csg_slots);
+		scheduler->csg_slots = NULL;
+
+		dev_err(kbdev->dev, "Failed to get the handler of gpu_metrics from trace buffer");
+		return -ENOENT;
+	}
+#endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
 
 	return 0;
 }
@@ -6738,6 +6962,23 @@ int kbase_csf_scheduler_init(struct kbase_device *kbdev)
 		return -ENOMEM;
 	}
 	sched_setscheduler_nocheck(scheduler->gpuq_kthread, SCHED_FIFO, &param);
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD) && !IS_ENABLED(CONFIG_MALI_NO_MALI)
+	scheduler->gpu_metrics_tb =
+		kbase_csf_firmware_get_trace_buffer(kbdev, KBASE_CSFFW_GPU_METRICS_BUF_NAME);
+	if (!scheduler->gpu_metrics_tb) {
+		scheduler->kthread_running = false;
+		complete(&scheduler->kthread_signal);
+		kthread_stop(scheduler->gpuq_kthread);
+		scheduler->gpuq_kthread = NULL;
+
+		kfree(scheduler->csg_slots);
+		scheduler->csg_slots = NULL;
+
+		dev_err(kbdev->dev, "Failed to get the handler of gpu_metrics from trace buffer");
+		return -ENOENT;
+	}
+#endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
+
 	return kbase_csf_mcu_shared_regs_data_init(kbdev);
 }
 

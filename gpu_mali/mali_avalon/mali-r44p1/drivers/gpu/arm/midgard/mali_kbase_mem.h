@@ -1959,8 +1959,9 @@ static inline dma_addr_t kbase_dma_addr_from_tagged(struct tagged_addr tagged_pa
 {
 	phys_addr_t pa = as_phys_addr_t(tagged_pa);
 	struct page *page = pfn_to_page(PFN_DOWN(pa));
-	dma_addr_t dma_addr =
-		is_huge(tagged_pa) ? kbase_dma_addr_as_priv(page) : kbase_dma_addr(page);
+	dma_addr_t dma_addr = (is_huge(tagged_pa) || is_partial(tagged_pa)) ?
+					    kbase_dma_addr_as_priv(page) :
+					    kbase_dma_addr(page);
 
 	return dma_addr;
 }

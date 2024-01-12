@@ -304,6 +304,7 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	struct kbase_va_region *reg;
 	enum kbase_memory_zone zone;
 	struct device *dev;
+
 	KBASE_DEBUG_ASSERT(kctx);
 	KBASE_DEBUG_ASSERT(flags);
 	KBASE_DEBUG_ASSERT(gpu_va);
@@ -3706,8 +3707,6 @@ static vm_fault_t kbase_csf_user_io_pages_vm_fault(struct vm_fault *vmf)
 		input_page_pgprot = vma->vm_page_prot;
 		output_page_pgprot = vma->vm_page_prot;
 	}
-
-
 
 	doorbell_cpu_addr = vma->vm_start;
 

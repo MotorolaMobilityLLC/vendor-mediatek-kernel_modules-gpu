@@ -1794,7 +1794,7 @@ static void kcpu_force_signal_fence(struct kbase_kcpu_command_queue *kcpu_queue)
 					kcpu_queue, i+1, fence);
 
 			/* set ETIMEDOUT error flag before signal the fence*/
-			dma_fence_set_error(fence, -ETIMEDOUT);
+			dma_fence_set_error_helper(fence, -ETIMEDOUT);
 
 			/* force signal fence */
 			status = kbase_kcpu_fence_force_signal_process(
@@ -2178,12 +2178,6 @@ static void kcpu_queue_dump(struct kbase_kcpu_command_queue *queue)
 		return;
 	}
 
-	fence_info = &cmd->info.fence;
-	if (kbase_kcpu_command_fence_has_force_signaled(fence_info)) {
-		dev_info(kctx->kbdev->dev, "dumped fence already be forced signaled\n");
-		mutex_unlock(&kctx->csf.kcpu_queues.lock);
-		return;
-	}
 
 	fence = kbase_fence_get(fence_info);
 	if (!fence) {
@@ -3332,6 +3326,7 @@ int kbase_csf_kcpu_queue_halt_timers(struct kbase_device *kbdev)
 
 			if (atomic_read(&kcpu_queue->fence_signal_pending_cnt)) {
 				int ret = del_timer_sync(&kcpu_queue->fence_signal_timeout);
+
 				dev_dbg(kbdev->dev,
 					"Fence signal timeout on KCPU queue(%lu), kctx (%d_%d) was %s on suspend",
 					queue_idx, kctx->tgid, kctx->id,
@@ -3341,6 +3336,7 @@ int kbase_csf_kcpu_queue_halt_timers(struct kbase_device *kbdev)
 #ifdef CONFIG_MALI_FENCE_DEBUG
 			if (kcpu_queue->fence_wait_processed) {
 				int ret = del_timer_sync(&kcpu_queue->fence_timeout);
+
 				dev_dbg(kbdev->dev,
 					"Fence wait timeout on KCPU queue(%lu), kctx (%d_%d) was %s on suspend",
 					queue_idx, kctx->tgid, kctx->id,

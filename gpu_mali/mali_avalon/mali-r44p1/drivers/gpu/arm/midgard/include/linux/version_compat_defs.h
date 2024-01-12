@@ -163,6 +163,61 @@ static inline void kbase_kunmap_atomic(void *address)
 #define check_mul_overflow(a, b, d) __builtin_mul_overflow(a, b, d)
 #endif
 
+/*
+ * There was a big rename in the 4.10 kernel (fence* -> dma_fence*),
+ * with most of the related functions keeping the same signatures.
+ */
+
+#if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
+
+#include <linux/fence.h>
+
+#define dma_fence fence
+#define dma_fence_ops fence_ops
+#define dma_fence_context_alloc(a) fence_context_alloc(a)
+#define dma_fence_init(a, b, c, d, e) fence_init(a, b, c, d, e)
+#define dma_fence_get(a) fence_get(a)
+#define dma_fence_put(a) fence_put(a)
+#define dma_fence_signal(a) fence_signal(a)
+#define dma_fence_is_signaled(a) fence_is_signaled(a)
+#define dma_fence_add_callback(a, b, c) fence_add_callback(a, b, c)
+#define dma_fence_remove_callback(a, b) fence_remove_callback(a, b)
+#define dma_fence_default_wait fence_default_wait
+
+#if (KERNEL_VERSION(4, 9, 68) <= LINUX_VERSION_CODE)
+#define dma_fence_get_status(a) (fence_is_signaled(a) ? (a)->error ?: 1 : 0)
+#else
+#define dma_fence_get_status(a) (fence_is_signaled(a) ? (a)->status ?: 1 : 0)
+#endif
+
+#else
+
+#include <linux/dma-fence.h>
+
+#if (KERNEL_VERSION(4, 11, 0) > LINUX_VERSION_CODE)
+#define dma_fence_get_status(a) (dma_fence_is_signaled(a) ? (a)->status ?: 1 : 0)
+#endif
+
+#endif /* < 4.10.0 */
+
+static inline void dma_fence_set_error_helper(
+#if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
+					      struct fence *fence,
+#else
+					      struct dma_fence *fence,
+#endif
+					      int error)
+{
+#if (KERNEL_VERSION(4, 11, 0) <= LINUX_VERSION_CODE)
+	dma_fence_set_error(fence, error);
+#elif (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE && \
+		KERNEL_VERSION(4, 9, 68) <= LINUX_VERSION_CODE)
+	fence_set_error(fence, error);
+#else
+	fence->status = error;
+#endif
+}
+
 #include <linux/mm.h>
 #if !((KERNEL_VERSION(6, 3, 0) <= LINUX_VERSION_CODE) || \
       ((KERNEL_VERSION(6, 1, 25) <= LINUX_VERSION_CODE) && defined(__ANDROID_COMMON_KERNEL__)))

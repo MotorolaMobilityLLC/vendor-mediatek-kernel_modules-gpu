@@ -21,6 +21,7 @@
 #
 # ccflags
 #
+src:=$(if $(patsubst /%,,$(src)),$(srctree)/$(src),$(src))
 ccflags-y += -I$(srctree)/$(src)/../../../include
 
 subdir-ccflags-y += $(ccflags-y)

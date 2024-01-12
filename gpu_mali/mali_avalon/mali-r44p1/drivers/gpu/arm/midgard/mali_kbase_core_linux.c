@@ -5912,12 +5912,21 @@ static ssize_t mcu_shader_pwroff_timeout_store(struct device *dev, struct device
 {
 	struct kbase_device *kbdev = dev_get_drvdata(dev);
 	u32 dur;
+
+	const struct kbase_pm_policy *current_policy;
+	bool always_on;
+
 	unsigned long flags;
 
 	if (!kbdev)
 		return -ENODEV;
 
 	if (kstrtouint(buf, 0, &dur))
+		return -EINVAL;
+
+	current_policy = kbase_pm_get_policy(kbdev);
+	always_on = current_policy == &kbase_pm_always_on_policy_ops;
+	if (dur == 0 && !always_on)
 		return -EINVAL;
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);

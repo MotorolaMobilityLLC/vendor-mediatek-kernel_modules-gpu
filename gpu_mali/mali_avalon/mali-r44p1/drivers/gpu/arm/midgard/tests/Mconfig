@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 #
-# (C) COPYRIGHT 2018-2022 ARM Limited. All rights reserved.
+# (C) COPYRIGHT 2018-2023 ARM Limited. All rights reserved.
 #
 # This program is free software and is provided to you under the terms of the
 # GNU General Public License version 2 as published by the Free Software
@@ -63,6 +63,43 @@ config MALI_KUTF_MGM_INTEGRATION_TEST
 
 	  Modules:
 	  - mali_kutf_mgm_integration_test.ko
+
+config MALI_KUTF_IPA_UNIT_TEST
+	bool "Build Mali KUTF IPA Unit test module"
+	depends on MALI_KUTF
+	default y if NO_MALI && MALI_DEVFREQ
+	help
+	  This option will build the IPA unit test module.
+
+	  Modules:
+	  - mali_kutf_ipa_unit_test.ko
+
+config MALI_KUTF_CSF_TESTS
+	bool "Build Mali KUTF CSF test modules"
+	depends on MALI_KUTF
+	default y if MALI_CSF_SUPPORT
+	help
+	  This option will build the CSF test modules.
+
+config MALI_KUTF_KERNEL_DEFECT_TEST
+	bool "Build Mali KUTF Kernel Defect test module"
+	depends on MALI_KUTF
+	default y
+	help
+	  This option will build the kernel defect test module.
+
+	  Modules:
+	  - mali_kutf_kernel_defect_test.ko
+
+config MALI_KUTF_KERNEL_POWER_TEST
+	bool "Build Mali KUTF Kernel Power test module"
+	depends on MALI_KUTF
+	default y
+	help
+	  This option will build the kernel power test module.
+
+	  Modules:
+	  - mali_kutf_kernel_power_test.ko
 
 
 # Enable MALI_DEBUG for KUTF modules support

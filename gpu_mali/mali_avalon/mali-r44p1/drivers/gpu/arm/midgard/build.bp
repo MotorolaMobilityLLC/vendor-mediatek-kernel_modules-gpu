@@ -152,6 +152,9 @@ bob_defaults {
     mali_fw_trace_mode_auto_discard: {
         kbuild_options: ["CONFIG_MALI_FW_TRACE_MODE_AUTO_DISCARD=y"],
     },
+    mali_trace_power_gpu_work_period: {
+        kbuild_options: ["CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD=y"],
+    },
     kbuild_options: [
         "CONFIG_MALI_PLATFORM_NAME={{.mali_platform_name}}",
         "MALI_CUSTOMER_RELEASE={{.release}}",

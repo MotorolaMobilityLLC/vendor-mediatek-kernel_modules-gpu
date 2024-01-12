@@ -83,8 +83,8 @@
  *   before allocating GPU memory for the context.
  * - CPU mappings of USER_BUFFER imported memory handles must be cached.
  * 1.19:
- *   - Add Neural Engine support in queue_group_create IOCTL fields
- *   - Previous version retained as KBASE_IOCTL_CS_QUEUE_GROUP_CREATE_1_18 for
+ * - Add NE support in queue_group_create IOCTL fields
+ * - Previous version retained as KBASE_IOCTL_CS_QUEUE_GROUP_CREATE_1_18 for
  *     backward compatibility.
  * 1.20:
  * - Restrict child process from doing supported file operations (like mmap, ioctl,

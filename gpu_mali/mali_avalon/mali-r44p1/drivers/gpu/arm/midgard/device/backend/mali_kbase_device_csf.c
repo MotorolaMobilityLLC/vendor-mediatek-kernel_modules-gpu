@@ -41,6 +41,9 @@
 #include <mali_kbase_kinstr_prfcnt.h>
 #include <mali_kbase_vinstr.h>
 #include <tl/mali_kbase_timeline.h>
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+#include <mali_kbase_gpu_metrics.h>
+#endif
 
 #include <platform/mtk_platform_common.h>
 
@@ -296,6 +299,9 @@ static const struct kbase_device_init dev_init[] = {
 #if !IS_ENABLED(CONFIG_MALI_NO_MALI)
 	{ registers_map, registers_unmap, "Register map failed" },
 #endif /* !IS_ENABLED(CONFIG_MALI_NO_MALI) */
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+	{ kbase_gpu_metrics_init, kbase_gpu_metrics_term, "GPU metrics initialization failed" },
+#endif /* IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD) */
 	{ power_control_init, power_control_term, "Power control initialization failed" },
 	{ kbase_device_io_history_init, kbase_device_io_history_term,
 	  "Register access history initialization failed" },
