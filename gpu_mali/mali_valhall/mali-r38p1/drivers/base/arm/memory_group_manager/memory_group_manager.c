@@ -666,7 +666,7 @@ void mtk_mgm_pool_flush(struct mgm_groups *data, int order, int rank, size_t tar
 	struct page* pp = NULL;
 	int o = 0;
 	size_t count = 0;
-	bool bFlip;
+	bool bFlip = false;
 	size_t nr_pages_in;
 	size_t w_count = 0;
 	
