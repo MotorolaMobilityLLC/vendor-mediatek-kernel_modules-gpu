@@ -1140,6 +1140,25 @@ static bool sb_source_supported(u32 glb_version)
 	return supported;
 }
 
+static const char *condition_to_string(u32 condition)
+{
+	static char condition_str_buf[16];
+	int ret;
+
+	if (condition == CS_STATUS_WAIT_SYNC_WAIT_CONDITION_LE)
+		return "less or equal";
+	else if (condition == CS_STATUS_WAIT_SYNC_WAIT_CONDITION_GT)
+		return "greater than";
+	else if (condition == CS_STATUS_WAIT_SYNC_WAIT_CONDITION_GE)
+		return "greater or equal";
+
+	ret = snprintf(condition_str_buf, sizeof(condition_str_buf), "unknown(%u)", condition & 0xF);
+	if (ret > 0)
+		return condition_str_buf;
+	else
+		return "unknown";
+}
+
 #define WAITING "Waiting"
 #define NOT_WAITING "Not waiting"
 
@@ -1164,7 +1183,7 @@ static void mtk_debug_csf_scheduler_dump_active_queue_cs_status_wait(
 		"[%d_%d] SYNC_WAIT: %s, WAIT_CONDITION: %s, SYNC_POINTER: 0x%llx",
 		tgid, id,
 		CS_STATUS_WAIT_SYNC_WAIT_GET(wait_status) ? WAITING : NOT_WAITING,
-		CS_STATUS_WAIT_SYNC_WAIT_CONDITION_GET(wait_status) ? "greater than" : "less or equal",
+		condition_to_string(CS_STATUS_WAIT_SYNC_WAIT_CONDITION_GET(wait_status)),
 		wait_sync_pointer);
 	mtk_log_critical_exception(kbdev, true,
 		"[%d_%d] SYNC_VALUE: %d, SYNC_LIVE_VALUE: 0x%016llx, SB_STATUS: %u",
@@ -1209,7 +1228,7 @@ static void mtk_debug_csf_scheduler_dump_queue_cs_status_wait(
 			"[%d_%d] SYNC_WAIT: %s, WAIT_CONDITION: %s, SYNC_POINTER: 0x%llx",
 			tgid, id,
 			CS_STATUS_WAIT_SYNC_WAIT_GET(wait_status) ? WAITING : NOT_WAITING,
-			CS_STATUS_WAIT_SYNC_WAIT_CONDITION_GET(wait_status) ? "greater than" : "less or equal",
+			condition_to_string(CS_STATUS_WAIT_SYNC_WAIT_CONDITION_GET(wait_status)),
 			wait_sync_pointer);
 		mtk_log_critical_exception(kbdev, true,
 			"[%d_%d] SYNC_VALUE: %d, SYNC_LIVE_VALUE: 0x%016llx, SB_STATUS: %u",
@@ -1900,6 +1919,7 @@ static void mtk_debug_csf_dump_kcpu_queues(struct kbase_device *kbdev, struct kb
 			mtk_log_critical_exception(kbdev, true,
 				"[%d_%d] %9lu( lock held, bypass dump )",
 				kctx->tgid, kctx->id, idx);
+			idx = find_next_bit(kctx->csf.kcpu_queues.in_use, KBASEP_MAX_KCPU_QUEUES, idx + 1);
 			continue;
 		}
 
@@ -2164,7 +2184,6 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 #if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
 	int active_group_dump_ret = NO_ISSUE_FOUND;
 #endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG */
-
 
 	/* init mtk_debug_cs_queue_data for dump bound queues */
 	mtk_debug_cs_dump_mode = mem_dump_mode & MTK_DEBUG_MEM_DUMP_CS_BUFFER;

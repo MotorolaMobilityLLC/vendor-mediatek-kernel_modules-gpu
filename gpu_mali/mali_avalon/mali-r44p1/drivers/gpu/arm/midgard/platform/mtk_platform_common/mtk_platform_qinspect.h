@@ -9,8 +9,15 @@
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
 
 /*
- * mtk queue/fence/cqs/command extensions
+ * mtk wait_operation/queue/fence/cqs/command extensions
  */
+
+/* basep_cqs_wait_operation_op extension */
+enum mtk_qinspect_cqs_wait_operation_op {
+	MTK_BASEP_CQS_WAIT_OPERATION_LE = 0,
+	MTK_BASEP_CQS_WAIT_OPERATION_GT = 1,
+	MTK_BASEP_CQS_WAIT_OPERATION_GE = 5
+};
 
 /* queue extension */
 enum mtk_qinspect_queue_type {

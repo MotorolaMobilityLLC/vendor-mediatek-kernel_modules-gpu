@@ -108,10 +108,11 @@ static void mtk_qinspect_reset_global_list(void) {
 static void mtk_qinspect_cqs_unlock_32(uintptr_t evt, u8 operation, u64 val)
 {
 	switch (operation) {
-	case BASEP_CQS_WAIT_OPERATION_GT:
+	case MTK_BASEP_CQS_WAIT_OPERATION_GT:
 		*(u32 *)evt = (u32)val+1;
 		break;
-	case BASEP_CQS_WAIT_OPERATION_LE:
+	case MTK_BASEP_CQS_WAIT_OPERATION_LE:
+	case MTK_BASEP_CQS_WAIT_OPERATION_GE:
 		*(u32 *)evt = val;
 		break;
 	default:
@@ -123,10 +124,11 @@ static void mtk_qinspect_cqs_unlock_32(uintptr_t evt, u8 operation, u64 val)
 static void mtk_qinspect_cqs_unlock_64(uintptr_t evt, u8 operation, u64 val)
 {
 	switch (operation) {
-	case BASEP_CQS_WAIT_OPERATION_GT:
+	case MTK_BASEP_CQS_WAIT_OPERATION_GT:
 		*(u64 *)evt = val+1;
 		break;
-	case BASEP_CQS_WAIT_OPERATION_LE:
+	case MTK_BASEP_CQS_WAIT_OPERATION_LE:
+	case MTK_BASEP_CQS_WAIT_OPERATION_GE:
 		*(u64 *)evt = val;
 		break;
 	default:
@@ -202,8 +204,11 @@ static void mtk_qinspect_save_cqs_root_locker(struct mtk_qinspect_cqs_wait_it *w
 		wait_it->objs_failure_map ^ wait_it->objs_match_map ^ wait_it->objs_deadlock_map;
 	unsigned int idx = 0;
 
-	if (!objs_root_locker_map)
+	if (!objs_root_locker_map) {
+		if (wait_it->objs_failure_map)
+			mtk_qinspect_log("objs_failure_map=%llx", wait_it->objs_failure_map);
 		return;
+	}
 
 	mtk_qinspect_log("objs_root_locker_map=%llx", objs_root_locker_map);
 	mtk_qinspect_log("objs_map_mask=%llx", wait_it->objs_map_mask);

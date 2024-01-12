@@ -27,7 +27,7 @@
 
 #define qinspect_err(kbdev, fmt, args...) mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR, fmt "\n", ##args)
 
-#define QINSPECT_DBG 1
+#define QINSPECT_DBG 0
 
 #if QINSPECT_DBG
 
@@ -655,7 +655,7 @@ static struct mtk_qinspect_fence_wait_on *mtk_qinspect_query_internal_fence_sign
 					return &wait_it->wait_on;
 				}
 			} else
-				qinspect_dbg(wait_it->kctx->kbdev,
+				qinspect_err(wait_it->kctx->kbdev,
 					"[qinspect] cmd_idx_%u is fence_signal, fence = NULL, force_signaled = %d",
 					cmd_idx,
 					(int)fence_info->fence_has_force_signaled);
@@ -964,6 +964,11 @@ void mtk_qinspect_query_internal_fence_wait_it_init(enum mtk_qinspect_queue_type
 	case QINSPECT_KCPU_QUEUE:
 		wait_it->kctx = ((struct kbase_kcpu_command_queue *)queue)->kctx;
 		wait_it->kbdev = wait_it->kctx->kbdev;
+		if (!((struct kbase_kcpu_command_fence_info *)fence_info)->fence) {
+			qinspect_err(wait_it->kbdev, "[qinspect] warning: fence_info->fence = NULL");
+			wait_it->kctx_next = NULL;
+			return;
+		}
 		wait_it->context = (u64)((struct kbase_kcpu_command_fence_info *)fence_info)->fence->context;
 		wait_it->seqno = (u64)((struct kbase_kcpu_command_fence_info *)fence_info)->fence->seqno;
 		break;
@@ -1307,7 +1312,7 @@ int mtk_qinspect_query_internal_cqs_wait_obj(struct mtk_qinspect_cqs_wait_it *wa
 
 			wait_obj->addr = obj->addr;
 			wait_obj->val = obj->val;
-			wait_obj->operation = BASEP_CQS_WAIT_OPERATION_GT;
+			wait_obj->operation = MTK_BASEP_CQS_WAIT_OPERATION_GT;
 			wait_obj->data_type = BASEP_CQS_DATA_TYPE_U32;
 			return 0;
 		} else if (cmd->type == BASE_KCPU_COMMAND_TYPE_CQS_WAIT_OPERATION) {
@@ -1409,11 +1414,14 @@ static int mtk_qinspect_query_internal_cqs_wait_activity(struct mtk_qinspect_cqs
 		return -1;
 	}
 
-	if (wait_obj->operation == BASEP_CQS_WAIT_OPERATION_LE) {
+	if (wait_obj->operation == MTK_BASEP_CQS_WAIT_OPERATION_LE) {
 		if (val64 <= wait_obj->val)	/* cqs is signaled */
 			return 1;
-	} else if (wait_obj->operation == BASEP_CQS_WAIT_OPERATION_GT) {
+	} else if (wait_obj->operation == MTK_BASEP_CQS_WAIT_OPERATION_GT) {
 		if (val64 > wait_obj->val)	/* cqs is signaled */
+			return 1;
+	} else if (wait_obj->operation == MTK_BASEP_CQS_WAIT_OPERATION_GE) {
+		if (val64 >= wait_obj->val)	/* cqs is signaled */
 			return 1;
 	} else {
 		qinspect_err(wait_it->kctx->kbdev,
