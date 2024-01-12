@@ -2844,18 +2844,7 @@ static void process_csg_interrupts(struct kbase_device *const kbdev, int const c
 		return;
 
 	KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_INTERRUPT_PROCESS_START, group, csg_nr);
-
-	if ((req ^ ack) & CSG_REQ_SYNC_UPDATE_MASK) {
-		kbase_csf_firmware_csg_input_mask(ginfo,
-			CSG_REQ, ack, CSG_REQ_SYNC_UPDATE_MASK);
-
-		KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_INTERRUPT_SYNC_UPDATE, group, req ^ ack);
-
-		/* SYNC_UPDATE events shall invalidate GPU idle event */
-		atomic_set(&kbdev->csf.scheduler.gpu_no_longer_idle, true);
-
-		kbase_csf_event_signal_cpu_only(group->kctx);
-	}
+	kbase_csf_handle_csg_sync_update(kbdev, ginfo, group, req, ack);
 
 	if ((req ^ ack) & CSG_REQ_IDLE_MASK) {
 		struct kbase_csf_scheduler *scheduler =	&kbdev->csf.scheduler;
@@ -3346,6 +3335,24 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
 	kbdev->csf.csf_interrupt_end_tm = ktime_get();
 #endif
+}
+
+void kbase_csf_handle_csg_sync_update(struct kbase_device *const kbdev,
+				      struct kbase_csf_cmd_stream_group_info *ginfo,
+				      struct kbase_queue_group *group, u32 req, u32 ack)
+{
+	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
+
+	if ((req ^ ack) & CSG_REQ_SYNC_UPDATE_MASK) {
+		kbase_csf_firmware_csg_input_mask(ginfo, CSG_REQ, ack, CSG_REQ_SYNC_UPDATE_MASK);
+
+		KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_INTERRUPT_SYNC_UPDATE, group, req ^ ack);
+
+		/* SYNC_UPDATE events shall invalidate GPU idle event */
+		atomic_set(&kbdev->csf.scheduler.gpu_no_longer_idle, true);
+
+		kbase_csf_event_signal_cpu_only(group->kctx);
+	}
 }
 
 void kbase_csf_doorbell_mapping_term(struct kbase_device *kbdev)

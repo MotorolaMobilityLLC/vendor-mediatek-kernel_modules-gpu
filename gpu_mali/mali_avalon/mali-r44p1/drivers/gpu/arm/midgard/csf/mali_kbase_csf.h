@@ -313,6 +313,19 @@ void kbase_csf_add_group_fatal_error(
 void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val);
 
 /**
+ * kbase_csf_handle_csg_sync_update - Handle SYNC_UPDATE notification for the group.
+ *
+ * @kbdev: The kbase device to handle the SYNC_UPDATE interrupt.
+ * @ginfo: Pointer to the CSG interface used by the @group
+ * @group: Pointer to the GPU command stream queue group.
+ * @req:   CSG_REQ register value corresponding to @group.
+ * @ack:   CSG_ACK register value corresponding to @group.
+ */
+void kbase_csf_handle_csg_sync_update(struct kbase_device *const kbdev,
+				      struct kbase_csf_cmd_stream_group_info *ginfo,
+				      struct kbase_queue_group *group, u32 req, u32 ack);
+
+/**
  * kbase_csf_doorbell_mapping_init - Initialize the fields that facilitates
  *                                   the update of userspace mapping of HW
  *                                   doorbell page.
