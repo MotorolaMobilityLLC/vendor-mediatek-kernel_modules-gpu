@@ -321,6 +321,9 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	struct kbase_va_region *reg;
 	struct rb_root *rbtree;
 	struct device *dev;
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
+	int r_index;
+#endif
 
 	KBASE_DEBUG_ASSERT(kctx);
 	KBASE_DEBUG_ASSERT(flags);
@@ -536,7 +539,22 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	else if (*flags & BASE_MEM_FIXED)
 		atomic64_inc(&kctx->num_fixed_allocs);
 #endif
-
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
+	if ((reg->flags & KBASE_REG_SHARE_BOTH) != 0) {
+	mutex_lock(&kctx->coherenct_region_lock);
+			for (r_index = 0; r_index < MAX_COHERENT_REGION; r_index++) {
+				if (!kctx->coherenct_regions[r_index]) {  //array element empty
+					kctx->coherenct_regions[r_index] = reg;
+					kctx->coherent_region_nr++;
+					dev_vdbg(dev, "Add coherent region in index %d, reg 0x%p, starting Page 0x%llx flags: 0x%x, tgid %d, reg_nr: %u",
+						r_index, reg ,reg->cpu_alloc->pages[0], reg->flags, kctx->tgid, kctx->coherent_region_nr);
+					break;
+				}
+			}
+			WARN(r_index == MAX_COHERENT_REGION, "Coherent region overflow on tgid: %d\n", kctx->tgid);
+	}
+	mutex_unlock(&kctx->coherenct_region_lock);
+#endif
 	return reg;
 
 no_mmap:
@@ -3423,6 +3441,10 @@ static vm_fault_t kbase_csf_user_io_pages_vm_fault(struct vm_fault *vmf)
 	/* Always map the doorbell page as uncached */
 	doorbell_pgprot = pgprot_device(vma->vm_page_prot);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
+	input_page_pgprot = pgprot_writecombine(vma->vm_page_prot);
+	output_page_pgprot = pgprot_writecombine(vma->vm_page_prot);
+#else
 	if (kbdev->system_coherency == COHERENCY_NONE) {
 		input_page_pgprot = pgprot_writecombine(vma->vm_page_prot);
 		output_page_pgprot = pgprot_writecombine(vma->vm_page_prot);
@@ -3430,6 +3452,7 @@ static vm_fault_t kbase_csf_user_io_pages_vm_fault(struct vm_fault *vmf)
 		input_page_pgprot = vma->vm_page_prot;
 		output_page_pgprot = vma->vm_page_prot;
 	}
+#endif
 
 	doorbell_cpu_addr = vma->vm_start;
 

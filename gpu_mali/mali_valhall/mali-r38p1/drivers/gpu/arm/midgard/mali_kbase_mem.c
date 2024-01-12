@@ -877,6 +877,11 @@ void kbase_region_tracker_term(struct kbase_context *kctx)
 	kbase_region_tracker_erase_rbtree(&kctx->reg_rbtree_fixed);
 
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
+	if (kctx->coherent_region_nr != 0)
+		dev_warn(kctx->kbdev->dev, "kctx %p, tgid: %d, %u coherent region not freed!",
+			kctx, kctx->tgid, kctx->coherent_region_nr);
+#endif
 	kbase_gpu_vm_unlock(kctx);
 }
 
@@ -1046,7 +1051,9 @@ int kbase_region_tracker_init(struct kbase_context *kctx)
 	kctx->gpu_va_end = same_va_base + same_va_pages + custom_va_size;
 #endif
 	kctx->jit_va = false;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
+	kctx->coherent_region_nr = 0;
+#endif
 	kbase_gpu_vm_unlock(kctx);
 	return 0;
 
@@ -1665,7 +1672,9 @@ void kbase_free_alloced_region(struct kbase_va_region *reg)
 #endif
 	if (!(reg->flags & KBASE_REG_FREE)) {
 		struct kbase_context *kctx = kbase_reg_flags_to_kctx(reg);
-
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
+		int r_index;
+#endif
 		if (WARN_ON(!kctx))
 			return;
 
@@ -1680,6 +1689,20 @@ void kbase_free_alloced_region(struct kbase_va_region *reg)
 #endif
 
 		mutex_lock(&kctx->jit_evict_lock);
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
+		mutex_unlock(&kctx->coherenct_region_lock);
+		for (r_index = 0; r_index < MAX_COHERENT_REGION; r_index++) {
+			if (kctx->coherenct_regions[r_index] == reg) {
+				dev_vdbg(kctx->kbdev->dev,
+				"Free alloced coherent region[%d]=0x%p, tgid: %d, reg_nr: %u",
+					r_index, reg , kctx->tgid, kctx->coherent_region_nr);
+				kctx->coherent_region_nr--;
+				kctx->coherenct_regions[r_index] = NULL;
+				break;
+			}
+		}
+		mutex_unlock(&kctx->coherenct_region_lock);
+#endif
 
 		/*
 		 * The physical allocation should have been removed from the
@@ -2216,13 +2239,31 @@ KBASE_EXPORT_TEST_API(kbase_sync_now);
 int kbase_mem_free_region(struct kbase_context *kctx, struct kbase_va_region *reg)
 {
 	int err;
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
+	int r_index;
+#endif
 
 	KBASE_DEBUG_ASSERT(kctx != NULL);
 	KBASE_DEBUG_ASSERT(reg != NULL);
 	dev_vdbg(kctx->kbdev->dev, "%s %pK in kctx %pK\n",
 		__func__, (void *)reg, (void *)kctx);
 	lockdep_assert_held(&kctx->reg_lock);
-
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
+	if ((reg->flags & KBASE_REG_SHARE_BOTH)) {
+			mutex_unlock(&kctx->coherenct_region_lock);
+			for (r_index = 0; r_index < MAX_COHERENT_REGION; r_index++) {
+				if (kctx->coherenct_regions[r_index] == reg) {
+					dev_vdbg(kctx->kbdev->dev,
+						"Free coherent region[%d]=0x%p, tgid %d, reg_nr: %u",
+						r_index, reg , kctx->tgid, kctx->coherent_region_nr);
+					kctx->coherent_region_nr--;
+					kctx->coherenct_regions[r_index] = NULL;
+					break;
+				}
+			}
+			mutex_unlock(&kctx->coherenct_region_lock);
+	}
+#endif
 	if (reg->flags & KBASE_REG_NO_USER_FREE) {
 		dev_warn(kctx->kbdev->dev, "Attempt to free GPU memory whose freeing by user space is forbidden!\n");
 		return -EINVAL;

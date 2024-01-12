@@ -348,7 +348,9 @@ static void kbase_mmu_sync_pgd_cpu(struct kbase_device *kbdev, dma_addr_t handle
 	/* In non-coherent system, ensure the GPU can read
 	 * the pages from memory
 	 */
+#if !IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
 	if (kbdev->system_coherency == COHERENCY_NONE)
+#endif
 		dma_sync_single_for_device(kbdev->dev, handle, size,
 				DMA_TO_DEVICE);
 }
