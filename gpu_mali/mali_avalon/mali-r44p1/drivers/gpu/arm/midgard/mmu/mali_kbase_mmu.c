@@ -3008,6 +3008,10 @@ static int mmu_teardown_pages(struct kbase_device *kbdev, struct kbase_mmu_table
 	struct kbase_mmu_hw_op_param op_param;
 	int err = -EFAULT;
 	u64 dirty_pgds = 0;
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	struct kbase_mmu_debug_info mmu_debug_info;
+	u64 time_in_ns;
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 	LIST_HEAD(free_pgds_list);
 
 	/* Calls to this function are inherently asynchronous, with respect to
@@ -3077,15 +3081,22 @@ static int mmu_teardown_pages(struct kbase_device *kbdev, struct kbase_mmu_table
 
 	kbase_mmu_free_pgds_list(kbdev, mmut);
 
-	mutex_unlock(&mmut->mmu_lock);
-
-	/* This log is for local debug only */
-#if 0 && IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
-	dev_info(kbdev->dev, "Unmapped %zu pages from GPU at VA %llx for ctx %d_%d (as_nr %d), imported %d",
-		nr_phys_pages, vpfn << PAGE_SHIFT,
-		mmut->kctx ? mmut->kctx->tgid : 0, mmut->kctx ? mmut->kctx->id : 0, as_nr,
-		ignore_page_migration);
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	mutex_lock(&kbdev->mmu_debug_info_lock);
+	time_in_ns = ktime_get_raw_ns() / 1000;
+	mmu_debug_info = (struct kbase_mmu_debug_info) { time_in_ns,
+							 nr_phys_pages,
+							 vpfn << PAGE_SHIFT,
+							 mmut->kctx ? mmut->kctx->tgid : 0,
+							 mmut->kctx ? mmut->kctx->id : 0,
+							 as_nr,
+							 ignore_page_migration };
+	kbdev->mmu_dbg[kbdev->mmu_debug_info_head % MMU_DEBUG_INFO_BUFFER_SIZE] = mmu_debug_info;
+	kbdev->mmu_debug_info_head++;
+	mutex_unlock(&kbdev->mmu_debug_info_lock);
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+
+	mutex_unlock(&mmut->mmu_lock);
 
 	return err;
 }

@@ -835,6 +835,34 @@ struct kbase_mem_migrate {
 #endif
 };
 
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+#define MMU_DEBUG_INFO_BUFFER_SIZE 4096
+
+/**
+ * struct kbase_mmu_debug_info - Kernel mmu debug information
+ *
+ * @time:  Kernel time of the record (ns).
+ * @pgds:  Number of pyhsical pages.
+ * @va:    Shifted page frame number of the GPU virtual pages to unmap.
+ * @tgid:  Thread group ID of the process whose thread created the context.
+ * @id:    Unique identifier for the context, indicates the number of
+ *         contexts which have been created for the device so far.
+ * @as_nr: Address space number, for GPU cache maintenance operations
+ *         that happen outside a specific kbase context.
+ * @ipm:   Whether page migration metadata should be ignored.
+ *
+ */
+struct kbase_mmu_debug_info {
+	u64 time;
+	size_t pgds;
+	u64 va;
+	pid_t tgid;
+	u32 id;
+	int as_nr;
+	bool ipm;
+};
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+
 /**
  * struct kbase_device   - Object representing an instance of GPU platform device,
  *                         allocated from the probe method of mali driver.
@@ -1499,6 +1527,9 @@ struct kbase_device {
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
 	bool bypass_register_check;
 	struct mutex register_check_lock;
+	struct kbase_mmu_debug_info mmu_dbg[MMU_DEBUG_INFO_BUFFER_SIZE];
+	struct mutex mmu_debug_info_lock;
+	size_t mmu_debug_info_head;
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)

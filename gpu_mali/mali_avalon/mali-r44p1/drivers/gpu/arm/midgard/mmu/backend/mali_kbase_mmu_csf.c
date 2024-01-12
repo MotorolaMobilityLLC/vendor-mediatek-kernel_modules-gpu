@@ -350,6 +350,10 @@ static void print_group_queues_data(struct kbase_queue_group *const group)
 
 			page = as_page(queue->queue_reg->gpu_alloc->pages[page_off]);
 			ringbuffer = vmap(&page, 1, VM_MAP, pgprot_noncached(PAGE_KERNEL));
+
+			if (!ringbuffer)
+				break;
+
 			ptr = &ringbuffer[offset/8];
 
 			pr_err("%016llx %016llx %016llx %016llx %016llx %016llx %016llx %016llx\n",
@@ -539,6 +543,63 @@ static void dump_hwif_registers(struct kbase_device *kbdev, int faulty_as)
 		}
 	}
 }
+
+static void dump_mmu_teardown_records(struct kbase_device *kbdev) {
+	size_t idx;
+	size_t tail;
+
+	mutex_lock(&kbdev->mmu_debug_info_lock);
+
+	tail = kbdev->mmu_debug_info_head < MMU_DEBUG_INFO_BUFFER_SIZE ? kbdev->mmu_debug_info_head : MMU_DEBUG_INFO_BUFFER_SIZE;
+
+	dev_err(kbdev->dev, "[mmu] Dumping mmu debug info : %zu records", tail);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR, "[mmu] Dumping mmu debug info : %zu records\n", tail);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+	/* Each line include 5 records. */
+	for (idx = 0; (idx + 5) <= tail; idx += 5) {
+		dev_err(kbdev->dev,
+			"[mmu] "
+			"%llu,%zu,%llx,%d,%d,%d,%d "
+			"%llu,%zu,%llx,%d,%d,%d,%d "
+			"%llu,%zu,%llx,%d,%d,%d,%d "
+			"%llu,%zu,%llx,%d,%d,%d,%d "
+			"%llu,%zu,%llx,%d,%d,%d,%d",
+			kbdev->mmu_dbg[idx].time, kbdev->mmu_dbg[idx].pgds, kbdev->mmu_dbg[idx].va, kbdev->mmu_dbg[idx].tgid, kbdev->mmu_dbg[idx].id, kbdev->mmu_dbg[idx].as_nr, kbdev->mmu_dbg[idx].ipm,
+			kbdev->mmu_dbg[idx+1].time, kbdev->mmu_dbg[idx+1].pgds, kbdev->mmu_dbg[idx+1].va, kbdev->mmu_dbg[idx+1].tgid, kbdev->mmu_dbg[idx+1].id, kbdev->mmu_dbg[idx+1].as_nr, kbdev->mmu_dbg[idx+1].ipm,
+			kbdev->mmu_dbg[idx+2].time, kbdev->mmu_dbg[idx+2].pgds, kbdev->mmu_dbg[idx+2].va, kbdev->mmu_dbg[idx+2].tgid, kbdev->mmu_dbg[idx+2].id, kbdev->mmu_dbg[idx+2].as_nr, kbdev->mmu_dbg[idx+2].ipm,
+			kbdev->mmu_dbg[idx+3].time, kbdev->mmu_dbg[idx+3].pgds, kbdev->mmu_dbg[idx+3].va, kbdev->mmu_dbg[idx+3].tgid, kbdev->mmu_dbg[idx+3].id, kbdev->mmu_dbg[idx+3].as_nr, kbdev->mmu_dbg[idx+3].ipm,
+			kbdev->mmu_dbg[idx+4].time, kbdev->mmu_dbg[idx+4].pgds, kbdev->mmu_dbg[idx+4].va, kbdev->mmu_dbg[idx+4].tgid, kbdev->mmu_dbg[idx+4].id, kbdev->mmu_dbg[idx+4].as_nr, kbdev->mmu_dbg[idx+4].ipm);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR,
+			"[mmu] "
+			"%llu,%zu,%llx,%d,%d,%d,%d "
+			"%llu,%zu,%llx,%d,%d,%d,%d "
+			"%llu,%zu,%llx,%d,%d,%d,%d "
+			"%llu,%zu,%llx,%d,%d,%d,%d "
+			"%llu,%zu,%llx,%d,%d,%d,%d\n",
+			kbdev->mmu_dbg[idx].time, kbdev->mmu_dbg[idx].pgds, kbdev->mmu_dbg[idx].va, kbdev->mmu_dbg[idx].tgid, kbdev->mmu_dbg[idx].id, kbdev->mmu_dbg[idx].as_nr, kbdev->mmu_dbg[idx].ipm,
+			kbdev->mmu_dbg[idx+1].time, kbdev->mmu_dbg[idx+1].pgds, kbdev->mmu_dbg[idx+1].va, kbdev->mmu_dbg[idx+1].tgid, kbdev->mmu_dbg[idx+1].id, kbdev->mmu_dbg[idx+1].as_nr, kbdev->mmu_dbg[idx+1].ipm,
+			kbdev->mmu_dbg[idx+2].time, kbdev->mmu_dbg[idx+2].pgds, kbdev->mmu_dbg[idx+2].va, kbdev->mmu_dbg[idx+2].tgid, kbdev->mmu_dbg[idx+2].id, kbdev->mmu_dbg[idx+2].as_nr, kbdev->mmu_dbg[idx+2].ipm,
+			kbdev->mmu_dbg[idx+3].time, kbdev->mmu_dbg[idx+3].pgds, kbdev->mmu_dbg[idx+3].va, kbdev->mmu_dbg[idx+3].tgid, kbdev->mmu_dbg[idx+3].id, kbdev->mmu_dbg[idx+3].as_nr, kbdev->mmu_dbg[idx+3].ipm,
+			kbdev->mmu_dbg[idx+4].time, kbdev->mmu_dbg[idx+4].pgds, kbdev->mmu_dbg[idx+4].va, kbdev->mmu_dbg[idx+4].tgid, kbdev->mmu_dbg[idx+4].id, kbdev->mmu_dbg[idx+4].as_nr, kbdev->mmu_dbg[idx+4].ipm);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		}
+
+	/* Dump the rest of the records. */
+	for (; idx < tail; idx++) {
+		dev_err(kbdev->dev, "[mmu] %llu,%zu,%llx,%d,%d,%d,%d",
+			kbdev->mmu_dbg[idx].time, kbdev->mmu_dbg[idx].pgds, kbdev->mmu_dbg[idx].va, kbdev->mmu_dbg[idx].tgid, kbdev->mmu_dbg[idx].id, kbdev->mmu_dbg[idx].as_nr, kbdev->mmu_dbg[idx].ipm);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR,
+			"[mmu] %llu,%zu,%llx,%d,%d,%d,%d\n",
+			kbdev->mmu_dbg[idx].time, kbdev->mmu_dbg[idx].pgds, kbdev->mmu_dbg[idx].va, kbdev->mmu_dbg[idx].tgid, kbdev->mmu_dbg[idx].id, kbdev->mmu_dbg[idx].as_nr, kbdev->mmu_dbg[idx].ipm);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	}
+
+	mutex_unlock(&kbdev->mmu_debug_info_lock);
+}
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
 /*
@@ -660,6 +721,8 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 
 	kbdev->bypass_register_check = false;
 	mutex_unlock(&kbdev->register_check_lock);
+
+	dump_mmu_teardown_records(kbdev);
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
