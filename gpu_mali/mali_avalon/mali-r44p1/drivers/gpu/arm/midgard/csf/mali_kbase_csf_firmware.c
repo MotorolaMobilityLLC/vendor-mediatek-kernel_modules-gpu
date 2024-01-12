@@ -2420,6 +2420,9 @@ int kbase_csf_firmware_late_init(struct kbase_device *kbdev)
 		if (!of_property_read_u32(node, "firmware-idle-hysteresis-time-ms",
 			&gpu_idle_time))
 			kbdev->csf.gpu_idle_hysteresis_us = gpu_idle_time * 1000;
+		else if (!of_property_read_u32(node, "firmware-idle-hysteresis-time-us",
+			&gpu_idle_time))
+			kbdev->csf.gpu_idle_hysteresis_us = gpu_idle_time;
 	}
 #endif /* CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME */
 
