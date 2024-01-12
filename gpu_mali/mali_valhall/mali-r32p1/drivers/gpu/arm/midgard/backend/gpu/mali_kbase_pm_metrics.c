@@ -317,7 +317,7 @@ static void kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 			if (gpu_active_counter[0] > (diff_ns + margin_ns)) {
-				dev_info(
+				dev_vdbg(
 					kbdev->dev,
 					"GPU activity takes longer than time interval: %llu ns > %llu ns",
 					(unsigned long long)gpu_active_counter[0],
@@ -325,11 +325,11 @@ static void kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 			}
 #else
 			if (gpu_active_counter > (diff_ns + margin_ns)) {
-			dev_info(
-				kbdev->dev,
-				"GPU activity takes longer than time interval: %llu ns > %llu ns",
-				(unsigned long long)gpu_active_counter,
-				(unsigned long long)diff_ns);
+				dev_vdbg(
+					kbdev->dev,
+					"GPU activity takes longer than time interval: %llu ns > %llu ns",
+					(unsigned long long)gpu_active_counter,
+					(unsigned long long)diff_ns);
 			}
 #endif
 		}

@@ -47,8 +47,17 @@ static irqreturn_t kbase_job_irq_handler(int irq, void *data)
 	unsigned long flags;
 	struct kbase_device *kbdev = kbase_untag(data);
 	u32 val;
+#if MALI_USE_CSF
+	u32 remaining;
+	s64 diff_us;
+	ktime_t start, spin_start;
 
+	start = spin_start = ktime_get();
+#endif
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+#if MALI_USE_CSF
+	kbdev->csf.spin_delta_us_0 = ktime_to_us(ktime_sub(ktime_get(), spin_start));
+#endif
 
 	if (!kbdev->pm.backend.gpu_powered) {
 		/* GPU is turned off - IRQ is not for us */
@@ -79,6 +88,44 @@ static irqreturn_t kbase_job_irq_handler(int irq, void *data)
 #endif
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+#if MALI_USE_CSF
+	diff_us = ktime_to_us(ktime_sub(ktime_get(), start));
+	if(diff_us >= 5000) {
+		dev_info(kbdev->dev,
+			"kbase_job_irq_handler long hit, irq: %d, val: 0x%x, %lld us\n",
+			irq,
+			val,
+			diff_us);
+		dev_info(kbdev->dev,
+			"kbase_csf_interrupt duration: %lld us\n",
+			ktime_to_us(ktime_sub(kbdev->csf.csf_interrupt_end_tm, kbdev->csf.csf_interrupt_start_tm)));
+		dev_info(kbdev->dev,
+			"total glb interrupt, duration: %lld us, req: 0x%x, ack: 0x%x\n",
+			ktime_to_us(ktime_sub(kbdev->csf.glb_end_tm, kbdev->csf.glb_start_tm)),
+			kbdev->csf.glb_req,
+			kbdev->csf.glb_ack);
+
+		remaining = kbdev->csf.csg_remaining;
+		if(!remaining) dev_info(kbdev->dev, "no csg\n");
+		while(remaining != 0) {
+			int const i = ffs(remaining) - 1;
+			dev_info(kbdev->dev,
+				"csg[%d] interrupt, duration: %lld us, req: 0x%x, ack: 0x%x, irqreq: 0x%x, irqack: 0x%x\n",
+				i,
+				ktime_to_us(ktime_sub(kbdev->csf.csg_end_tm[i], kbdev->csf.csg_start_tm[i])),
+				kbdev->csf.csg_req[i],
+				kbdev->csf.csg_ack[i],
+				kbdev->csf.csg_irqreq[i],
+				kbdev->csf.csg_irqack[i]);
+			remaining &= ~(1 << i);
+		}
+		dev_info(kbdev->dev,
+			"csf_scheduler_spin_lock duration: %lld us, %lld us, %lld us\n",
+			kbdev->csf.spin_delta_us_0,
+			kbdev->csf.spin_delta_us_1,
+			kbdev->csf.spin_delta_us_2);
+	}
+#endif
 
 	return IRQ_HANDLED;
 }
