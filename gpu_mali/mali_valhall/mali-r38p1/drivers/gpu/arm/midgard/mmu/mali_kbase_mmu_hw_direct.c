@@ -37,6 +37,13 @@
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+/* Max loop is 100000000 which roughly equals to 50s.
+ * 1s roughly equals to 2000000 loops.
+ */
+#define KBASE_AS_INACTIVE_DUMP_POINT_3S     (KBASE_AS_INACTIVE_MAX_LOOPS - (2000000 * 3))
+#define KBASE_AS_INACTIVE_DUMP_POINT_5S     (KBASE_AS_INACTIVE_MAX_LOOPS - (2000000 * 5))
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 /**
  * lock_region() - Generate lockaddr to lock memory region in MMU
@@ -147,6 +154,13 @@ static int wait_ready(struct kbase_device *kbdev,
 	while (--max_loops &&
 	       kbase_reg_read(kbdev, MMU_AS_REG(as_nr, AS_STATUS)) &
 		       AS_STATUS_AS_ACTIVE) {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		if((max_loops == KBASE_AS_INACTIVE_DUMP_POINT_3S) ||
+			(max_loops == KBASE_AS_INACTIVE_DUMP_POINT_5S)) {
+			pr_info("%s: mmu not ready early dump, remain loops: %d", __func__, max_loops);
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
+		}
+#endif /* CONFIG_MALI_MTK_DEBUG */
 		;
 	}
 
