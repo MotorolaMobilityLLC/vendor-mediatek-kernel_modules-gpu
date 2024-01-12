@@ -1058,6 +1058,8 @@ struct kbase_csf_mcu_shared_regions {
  *                          queued for execution, this indicates whether the
  *                          GPU has become non-idle since the last time the
  *                          idle notification was received.
+ * @gpu_adaptive_power_off  Effective only when the GPU adaptive power off has been
+ *                          executed.
  * @non_idle_offslot_grps:  Count of off-slot non-idle groups. Reset during
  *                          the scheduler active phase in a tick. It then
  *                          tracks the count of non-idle groups across all the
@@ -1123,6 +1125,9 @@ struct kbase_csf_scheduler {
 	struct work_struct gpu_idle_work;
 	bool fast_gpu_idle_handling;
 	atomic_t gpu_no_longer_idle;
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+	atomic_t gpu_adaptive_power_off;
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 	atomic_t non_idle_offslot_grps;
 	u32 non_idle_scanout_grps;
 	u32 pm_active_count;

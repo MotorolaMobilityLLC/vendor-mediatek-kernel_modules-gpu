@@ -75,6 +75,10 @@
 #include <ged_log.h>
 #endif /* CONFIG_MALI_MTK_DEBUG || CONFIG_MALI_MTK_PROTECTED_PATCH */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+#include <ged_dvfs.h>
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
+
 #ifdef CONFIG_MALI_CORESTACK
 bool corestack_driver_control = true;
 #else
@@ -1337,6 +1341,10 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 					kbase_pm_invoke(kbdev, KBASE_PM_CORE_TILER, tiler_present,
 							ACTION_PWRON);
 				} else {
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+					ged_get_active_time();
+					ged_check_power_duration();
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 					kbase_pm_invoke(kbdev, KBASE_PM_CORE_L2, l2_present,
 							ACTION_PWRON);
 				}
@@ -1544,14 +1552,17 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 			if (kbase_pm_is_l2_desired(kbdev))
 				backend->l2_state = KBASE_L2_PEND_ON;
 			else if (can_power_down_l2(kbdev)) {
-				if (!backend->l2_always_on)
+				if (!backend->l2_always_on) {
 					/* Powering off the L2 will also power off the
 					 * tiler.
 					 */
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+					ged_get_idle_time();
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 					kbase_pm_invoke(kbdev, KBASE_PM_CORE_L2,
 							l2_present,
 							ACTION_PWROFF);
-				else
+				} else
 					/* If L2 cache is powered then we must flush it
 					 * before we power off the GPU. Normally this
 					 * would have been handled when the L2 was
