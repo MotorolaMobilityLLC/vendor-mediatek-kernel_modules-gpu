@@ -44,6 +44,12 @@
 
 #include <platform/mtk_platform_common.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+#define FWLOG_CONTENT_LEN 64
+extern u8 *g_fw_dump_dest;
+char fw_content[FWLOG_CONTENT_LEN] = "======CSF fwlog is empy!======";
+#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
+
 /**
  * kbase_device_firmware_hwcnt_term - Terminate CSF firmware and HWC
  *
@@ -522,6 +528,20 @@ int kbase_device_firmware_init_once(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 		dev_info(kbdev->dev, "CSF firmware was successfully initialized by process '%s'", current->comm);
 #endif /* CONFIG_MALI_MTK_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+	ts_nsec = local_clock();
+	rem_nsec = do_div(ts_nsec, 1000000000);
+	snprintf(fw_content, FWLOG_CONTENT_LEN,
+		"[%5lu.%06lu] [%llxt]====fwlog End Of File====\n",
+		(unsigned long)ts_nsec,
+		(unsigned long)rem_nsec / 1000,
+		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_regular));
+
+	if (g_fw_dump_dest != NULL)
+		memcpy(g_fw_dump_dest, fw_content, FWLOG_CONTENT_LEN);
+#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
+
 out:
 		kbase_pm_context_idle(kbdev);
 	}
