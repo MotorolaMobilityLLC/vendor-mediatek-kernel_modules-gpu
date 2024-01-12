@@ -1834,6 +1834,9 @@ static int kbasep_kcpu_fence_signal_process(struct kbase_kcpu_command_queue *kcp
 {
 	struct kbase_context *const kctx = kcpu_queue->kctx;
 	int ret;
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	struct kbase_sync_fence_info info;
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 	/* already force signaled */
 	if (kbase_kcpu_command_fence_has_force_signaled(fence_info))
@@ -1841,6 +1844,25 @@ static int kbasep_kcpu_fence_signal_process(struct kbase_kcpu_command_queue *kcp
 
 	if (WARN_ON(!fence_info->fence))
 		return -EINVAL;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	kbase_sync_fence_info_get(fence_info->fence, &info);
+	if (!strcmp(kcpu_queue->fence_signal_command_timeout_fence, info.name) &&
+		kcpu_queue->fence_signal_command_timeout_counter >= 2) {
+		dev_info(kctx->kbdev->dev,
+			"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout fence[%pK] context#seqno:%s is signaled!! (driver=%s, timeline=%s)",
+			kctx->tgid, kctx->id, kcpu_queue->id, fence_info->fence, info.name,
+			fence_info->fence->ops->get_driver_name(fence_info->fence),
+			fence_info->fence->ops->get_timeline_name(fence_info->fence));
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout fence[%pK] context#seqno:%s is signaled!! (driver=%s, timeline=%s)\n",
+			kctx->tgid, kctx->id, kcpu_queue->id, fence_info->fence, info.name,
+			fence_info->fence->ops->get_driver_name(fence_info->fence),
+			fence_info->fence->ops->get_timeline_name(fence_info->fence));
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	}
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 	ret = dma_fence_signal(fence_info->fence);
 
