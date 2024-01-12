@@ -28,21 +28,12 @@
 #include <linux/atomic.h>
 #include <linux/version.h>
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #define pool_dbg(pool, format, ...) \
 	dev_vdbg (pool->kbdev->dev, "%s-pool [%zu/%zu]: " format,	\
 		(pool->next_pool) ? "kctx" : "kbdev",	\
 		kbase_mem_pool_size(pool),	\
 		kbase_mem_pool_max_size(pool),	\
 		##__VA_ARGS__)
-#else
-#define pool_dbg(pool, format, ...) \
-	dev_dbg(pool->kbdev->dev, "%s-pool [%zu/%zu]: " format,	\
-		(pool->next_pool) ? "kctx" : "kbdev",	\
-		kbase_mem_pool_size(pool),	\
-		kbase_mem_pool_max_size(pool),	\
-		##__VA_ARGS__)
-#endif /* CONFIG_MALI_MTK_DEBUG */
 
 #define NOT_DIRTY false
 #define NOT_RECLAIMED false

@@ -49,7 +49,7 @@ static int set_timeout(struct kbase_device *const kbdev, u64 const timeout)
 		return -ERANGE;
 	}
 
-	dev_dbg(kbdev->dev, "New progress timeout: %llu cycles\n", timeout);
+	dev_vdbg(kbdev->dev, "New progress timeout: %llu cycles\n", timeout);
 
 	atomic64_set(&kbdev->csf.progress_timeout, timeout);
 

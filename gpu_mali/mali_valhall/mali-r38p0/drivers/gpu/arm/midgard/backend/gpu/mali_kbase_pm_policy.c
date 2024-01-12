@@ -280,7 +280,7 @@ static int policy_change_wait_for_L2_off(struct kbase_device *kbdev)
 		err = (int)remaining;
 	}
 
-	dev_dbg(kbdev->dev, "%s: err=%d mcu_state=%d, L2_state=%d\n", __func__,
+	dev_vdbg(kbdev->dev, "%s: err=%d mcu_state=%d, L2_state=%d\n", __func__,
 		err, kbdev->pm.backend.mcu_state, kbdev->pm.backend.l2_state);
 
 	return err;

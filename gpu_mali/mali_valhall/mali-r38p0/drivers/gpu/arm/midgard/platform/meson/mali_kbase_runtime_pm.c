@@ -149,7 +149,7 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 	int ret = 1; /* Assume GPU has been powered off */
 	int error;
 
-	dev_dbg(kbdev->dev, "%s %p\n", __func__, (void *)kbdev->dev->pm_domain);
+	dev_vdbg(kbdev->dev, "%s %p\n", __func__, (void *)kbdev->dev->pm_domain);
 
 #ifdef KBASE_PM_RUNTIME
 	error = pm_runtime_get_sync(kbdev->dev);
@@ -160,7 +160,7 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 		 */
 		ret = 0;
 	}
-	dev_dbg(kbdev->dev, "pm_runtime_get_sync returned %d\n", error);
+	dev_vdbg(kbdev->dev, "pm_runtime_get_sync returned %d\n", error);
 #else
 	enable_gpu_power_control(kbdev);
 #endif
@@ -170,7 +170,7 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 
 static void pm_callback_power_off(struct kbase_device *kbdev)
 {
-	dev_dbg(kbdev->dev, "%s\n", __func__);
+	dev_vdbg(kbdev->dev, "%s\n", __func__);
 
 #ifdef KBASE_PM_RUNTIME
 	pm_runtime_mark_last_busy(kbdev->dev);
@@ -186,7 +186,7 @@ static int kbase_device_runtime_init(struct kbase_device *kbdev)
 {
 	int ret = 0;
 
-	dev_dbg(kbdev->dev, "%s\n", __func__);
+	dev_vdbg(kbdev->dev, "%s\n", __func__);
 
 	pm_runtime_set_autosuspend_delay(kbdev->dev, AUTO_SUSPEND_DELAY);
 	pm_runtime_use_autosuspend(kbdev->dev);
@@ -208,7 +208,7 @@ static int kbase_device_runtime_init(struct kbase_device *kbdev)
 
 static void kbase_device_runtime_disable(struct kbase_device *kbdev)
 {
-	dev_dbg(kbdev->dev, "%s\n", __func__);
+	dev_vdbg(kbdev->dev, "%s\n", __func__);
 
 	if (atomic_read(&kbdev->dev->power.usage_count))
 		dev_warn(kbdev->dev, "%s: Device runtime usage count unexpectedly non zero %d",
@@ -220,7 +220,7 @@ static void kbase_device_runtime_disable(struct kbase_device *kbdev)
 
 static int pm_callback_runtime_on(struct kbase_device *kbdev)
 {
-	dev_dbg(kbdev->dev, "%s\n", __func__);
+	dev_vdbg(kbdev->dev, "%s\n", __func__);
 
 	enable_gpu_power_control(kbdev);
 	return 0;
@@ -228,7 +228,7 @@ static int pm_callback_runtime_on(struct kbase_device *kbdev)
 
 static void pm_callback_runtime_off(struct kbase_device *kbdev)
 {
-	dev_dbg(kbdev->dev, "%s\n", __func__);
+	dev_vdbg(kbdev->dev, "%s\n", __func__);
 
 	disable_gpu_power_control(kbdev);
 }

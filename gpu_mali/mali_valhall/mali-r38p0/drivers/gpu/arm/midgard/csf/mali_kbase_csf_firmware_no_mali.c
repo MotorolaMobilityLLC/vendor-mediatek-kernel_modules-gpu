@@ -60,11 +60,6 @@ MODULE_PARM_DESC(fw_debug,
 
 #define DUMMY_FW_PAGE_SIZE SZ_4K
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-// MTK: replace all dev_dbg with dev_vdbg in this file
-#endif /* CONFIG_MALI_MTK_DEBUG */
-
-
 /**
  * struct dummy_firmware_csi - Represents a dummy interface for MCU firmware CSs
  *

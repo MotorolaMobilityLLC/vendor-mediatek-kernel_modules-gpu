@@ -752,7 +752,7 @@ int kbase_add_va_region_rbtree(struct kbase_device *kbdev,
 					start_pfn, nr_pages);
 			}
 		} else {
-			dev_dbg(dev, "Failed to find a suitable region: %zu nr_pages, %zu align_offset, %zu align_mask\n",
+			dev_vdbg(dev, "Failed to find a suitable region: %zu nr_pages, %zu align_offset, %zu align_mask\n",
 				nr_pages, align_offset, align_mask);
 			err = -ENOMEM;
 		}
@@ -1285,7 +1285,7 @@ int kbase_region_tracker_init_jit(struct kbase_context *kctx, u64 jit_va_pages,
 		kctx->jit_group_id = group_id;
 #if MALI_JIT_PRESSURE_LIMIT_BASE
 		kctx->jit_phys_pages_limit = phys_pages_limit;
-		dev_dbg(kctx->kbdev->dev, "phys_pages_limit set to %llu\n",
+		dev_vdbg(kctx->kbdev->dev, "phys_pages_limit set to %llu\n",
 				phys_pages_limit);
 #endif /* MALI_JIT_PRESSURE_LIMIT_BASE */
 	}
@@ -1672,7 +1672,7 @@ void kbase_free_alloced_region(struct kbase_va_region *reg)
 		if (WARN_ON(kbase_is_region_invalid(reg)))
 			return;
 
-		dev_dbg(kctx->kbdev->dev, "Freeing memory region %pK\n",
+		dev_vdbg(kctx->kbdev->dev, "Freeing memory region %pK\n",
 			(void *)reg);
 #if MALI_USE_CSF
 		if (reg->flags & KBASE_REG_CSF_EVENT)
@@ -2219,7 +2219,7 @@ int kbase_mem_free_region(struct kbase_context *kctx, struct kbase_va_region *re
 
 	KBASE_DEBUG_ASSERT(kctx != NULL);
 	KBASE_DEBUG_ASSERT(reg != NULL);
-	dev_dbg(kctx->kbdev->dev, "%s %pK in kctx %pK\n",
+	dev_vdbg(kctx->kbdev->dev, "%s %pK in kctx %pK\n",
 		__func__, (void *)reg, (void *)kctx);
 	lockdep_assert_held(&kctx->reg_lock);
 
@@ -2291,7 +2291,7 @@ int kbase_mem_free(struct kbase_context *kctx, u64 gpu_addr)
 	struct kbase_va_region *reg;
 
 	KBASE_DEBUG_ASSERT(kctx != NULL);
-	dev_dbg(kctx->kbdev->dev, "%s 0x%llx in kctx %pK\n",
+	dev_vdbg(kctx->kbdev->dev, "%s 0x%llx in kctx %pK\n",
 		__func__, gpu_addr, (void *)kctx);
 
 	if ((gpu_addr & ~PAGE_MASK) && (gpu_addr >= PAGE_SIZE)) {
@@ -3947,7 +3947,7 @@ static int kbase_mem_jit_trim_pages_from_region(struct kbase_context *kctx,
 						reg->start_pfn << PAGE_SHIFT,
 						reg->nr_pages);
 			else
-				dev_dbg(kctx->kbdev->dev,
+				dev_vdbg(kctx->kbdev->dev,
 						"%s: no need to trim, current backed pages %zu < reported used pages %zu on size-report for JIT 0x%llx vapages %zu\n",
 						__func__,
 						old_pages, reg->used_pages,
@@ -4266,7 +4266,7 @@ static bool jit_allow_allocate(struct kbase_context *kctx,
 	if (!ignore_pressure_limit &&
 			((kctx->jit_phys_pages_limit <= kctx->jit_current_phys_pressure) ||
 			(info->va_pages > (kctx->jit_phys_pages_limit - kctx->jit_current_phys_pressure)))) {
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Max JIT page allocations limit reached: active pages %llu, max pages %llu\n",
 			kctx->jit_current_phys_pressure + info->va_pages,
 			kctx->jit_phys_pages_limit);
@@ -4276,7 +4276,7 @@ static bool jit_allow_allocate(struct kbase_context *kctx,
 
 	if (kctx->jit_current_allocations >= kctx->jit_max_allocations) {
 		/* Too many current allocations */
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Max JIT allocations limit reached: active allocations %d, max allocations %d\n",
 			kctx->jit_current_allocations,
 			kctx->jit_max_allocations);
@@ -4287,7 +4287,7 @@ static bool jit_allow_allocate(struct kbase_context *kctx,
 			kctx->jit_current_allocations_per_bin[info->bin_id] >=
 			info->max_allocations) {
 		/* Too many current allocations in this bin */
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Per bin limit of max JIT allocations reached: bin_id %d, active allocations %d, max allocations %d\n",
 			info->bin_id,
 			kctx->jit_current_allocations_per_bin[info->bin_id],
@@ -4460,7 +4460,7 @@ struct kbase_va_region *kbase_jit_allocate(struct kbase_context *kctx,
 			 * better so return the allocation to the pool and
 			 * return the function with failure.
 			 */
-			dev_dbg(kctx->kbdev->dev,
+			dev_vdbg(kctx->kbdev->dev,
 				"JIT allocation resize failed: va_pages 0x%llx, commit_pages 0x%llx\n",
 				info->va_pages, info->commit_pages);
 #if MALI_JIT_PRESSURE_LIMIT_BASE
@@ -4513,7 +4513,7 @@ struct kbase_va_region *kbase_jit_allocate(struct kbase_context *kctx,
 			/* Most likely not enough GPU virtual space left for
 			 * the new JIT allocation.
 			 */
-			dev_dbg(kctx->kbdev->dev,
+			dev_vdbg(kctx->kbdev->dev,
 				"Failed to allocate JIT memory: va_pages 0x%llx, commit_pages 0x%llx\n",
 				info->va_pages, info->commit_pages);
 			goto end;

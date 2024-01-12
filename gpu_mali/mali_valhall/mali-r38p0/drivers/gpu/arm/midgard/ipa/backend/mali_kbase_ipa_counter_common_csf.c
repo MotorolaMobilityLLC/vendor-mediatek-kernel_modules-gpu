@@ -22,10 +22,6 @@
 #include "mali_kbase_ipa_counter_common_csf.h"
 #include "ipa/mali_kbase_ipa_debugfs.h"
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-// MTK: replace all dev_vdbg with dev_vdbg in this file
-#endif /* CONFIG_MALI_MTK_DEBUG */
-
 #define DEFAULT_SCALING_FACTOR 5
 
 /* If the value of GPU_ACTIVE is below this, use the simple model

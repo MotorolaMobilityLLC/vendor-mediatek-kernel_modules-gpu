@@ -365,12 +365,12 @@ static ssize_t debug_mem_write(struct file *file, const char __user *ubuf,
 	if (ret)
 		return ret;
 	if (!is_power_of_2(column_width)) {
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Column width %u not a multiple of power of 2", column_width);
 		return  -EINVAL;
 	}
 	if (column_width > 8) {
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Column width %u greater than 8 not supported", column_width);
 		return  -EINVAL;
 	}

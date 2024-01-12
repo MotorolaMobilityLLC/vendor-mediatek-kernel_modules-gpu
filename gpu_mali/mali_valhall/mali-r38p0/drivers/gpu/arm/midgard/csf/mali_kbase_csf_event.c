@@ -60,7 +60,7 @@ int kbase_csf_event_wait_add(struct kbase_context *kctx,
 
 		spin_lock_irqsave(&kctx->csf.event.lock, flags);
 		list_add_tail(&event_cb->link, &kctx->csf.event.callback_list);
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Added event handler %pK with param %pK\n", event_cb,
 			event_cb->param);
 		spin_unlock_irqrestore(&kctx->csf.event.lock, flags);
@@ -82,7 +82,7 @@ void kbase_csf_event_wait_remove(struct kbase_context *kctx,
 	list_for_each_entry(event_cb, &kctx->csf.event.callback_list, link) {
 		if ((event_cb->callback == callback) && (event_cb->param == param)) {
 			list_del(&event_cb->link);
-			dev_dbg(kctx->kbdev->dev,
+			dev_vdbg(kctx->kbdev->dev,
 				"Removed event handler %pK with param %pK\n",
 				event_cb, event_cb->param);
 			kfree(event_cb);
@@ -207,7 +207,7 @@ bool kbase_csf_event_read_error(struct kbase_context *kctx,
 			struct kbase_csf_notification, link);
 		list_del_init(&error_data->link);
 		*event_data = error_data->data;
-		dev_dbg(kctx->kbdev->dev, "Dequeued error %pK in context %pK\n",
+		dev_vdbg(kctx->kbdev->dev, "Dequeued error %pK in context %pK\n",
 			(void *)error_data, (void *)kctx);
 	}
 	spin_unlock_irqrestore(&kctx->csf.event.lock, flags);
@@ -233,11 +233,11 @@ void kbase_csf_event_add_error(struct kbase_context *const kctx,
 	if (list_empty(&error->link)) {
 		error->data = *data;
 		list_add_tail(&error->link, &kctx->csf.event.error_list);
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Added error %pK of type %d in context %pK\n",
 			(void *)error, data->type, (void *)kctx);
 	} else {
-		dev_dbg(kctx->kbdev->dev, "Error %pK of type %d already pending in context %pK",
+		dev_vdbg(kctx->kbdev->dev, "Error %pK of type %d already pending in context %pK",
 			(void *)error, error->data.type, (void *)kctx);
 	}
 	spin_unlock_irqrestore(&kctx->csf.event.lock, flags);

@@ -1181,7 +1181,7 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 
 			if (backend->hwcnt_disabled) {
 				backend->l2_state = KBASE_L2_OFF;
-				dev_dbg(kbdev->dev, "GPU lost has occurred - L2 off\n");
+				dev_vdbg(kbdev->dev, "GPU lost has occurred - L2 off\n");
 			}
 			break;
 		}

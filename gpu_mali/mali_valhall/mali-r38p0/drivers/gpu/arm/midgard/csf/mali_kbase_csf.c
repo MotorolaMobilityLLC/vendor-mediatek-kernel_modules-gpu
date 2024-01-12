@@ -466,7 +466,7 @@ static int csf_queue_register_internal(struct kbase_context *kctx,
 
 	/* Only one pointer expected, otherwise coding error */
 	if ((reg == NULL && reg_ex == NULL) || (reg && reg_ex)) {
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Error, one and only one param-ptr expected!");
 		return -EINVAL;
 	}
@@ -1328,7 +1328,7 @@ static int create_queue_group(struct kbase_context *const kctx,
 	int group_handle = find_free_group_handle(kctx);
 
 	if (group_handle < 0) {
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"All queue group handles are already in use");
 	} else {
 		struct kbase_queue_group * const group =
@@ -1417,15 +1417,15 @@ int kbase_csf_queue_group_create(struct kbase_context *const kctx,
 	if ((create->in.tiler_max > tiler_count) ||
 	    (create->in.fragment_max > fragment_count) ||
 	    (create->in.compute_max > compute_count)) {
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"Invalid maximum number of endpoints for a queue group");
 		err = -EINVAL;
 	} else if (create->in.priority >= BASE_QUEUE_GROUP_PRIORITY_COUNT) {
-		dev_dbg(kctx->kbdev->dev, "Invalid queue group priority %u",
+		dev_vdbg(kctx->kbdev->dev, "Invalid queue group priority %u",
 			(unsigned int)create->in.priority);
 		err = -EINVAL;
 	} else if (!iface_has_enough_streams(kctx->kbdev, create->in.cs_min)) {
-		dev_dbg(kctx->kbdev->dev,
+		dev_vdbg(kctx->kbdev->dev,
 			"No CSG has at least %d CSs",
 			create->in.cs_min);
 		err = -EINVAL;
@@ -1594,7 +1594,7 @@ static void remove_pending_group_fatal_error(struct kbase_queue_group *group)
 {
 	struct kbase_context *kctx = group->kctx;
 
-	dev_dbg(kctx->kbdev->dev,
+	dev_vdbg(kctx->kbdev->dev,
 		"Remove any pending group fatal error from context %pK\n",
 		(void *)group->kctx);
 
@@ -2030,7 +2030,7 @@ static int handle_oom_event(struct kbase_queue_group *const group,
 	    (pending_frag_count == 0) && (err == -ENOMEM || err == -EBUSY)) {
 		/* The group allows incremental rendering, trigger it */
 		new_chunk_ptr = 0;
-		dev_dbg(kctx->kbdev->dev, "Group-%d (slot-%d) enter incremental render\n",
+		dev_vdbg(kctx->kbdev->dev, "Group-%d (slot-%d) enter incremental render\n",
 			group->handle, group->csg_nr);
 	} else if (err == -EBUSY) {
 		/* Acknowledge with a NULL chunk (firmware will then wait for
@@ -2674,7 +2674,7 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 		if (test_bit(group->csg_nr, scheduler->csg_slots_idle_mask)) {
 			clear_bit(group->csg_nr,
 				  scheduler->csg_slots_idle_mask);
-			dev_dbg(kbdev->dev,
+			dev_vdbg(kbdev->dev,
 				"Group-%d on slot %d de-idled by protm request",
 				group->handle, group->csg_nr);
 		}
