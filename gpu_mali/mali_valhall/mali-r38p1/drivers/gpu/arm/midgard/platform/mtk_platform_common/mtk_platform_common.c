@@ -151,6 +151,14 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 		if (!mtk_common_gpufreq_bringup() && kbdev->pm.backend.gpu_powered) {
 #if defined(CONFIG_MTK_GPUFREQ_V2)
 			gpufreq_dump_infra_status();
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_print(&kbdev->logbuf_exception,
+				"[gpu_greq] GPU: cur_volt=%u cur_greq=%u, STACK: cur_volt=%u cur_greq=%u\n",
+				gpufreq_get_cur_volt(TARGET_GPU), gpufreq_get_cur_freq(TARGET_GPU),
+				gpufreq_get_cur_volt(TARGET_STACK), gpufreq_get_cur_freq(TARGET_STACK));
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #else
 			mt_gpufreq_dump_infra_status();
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
