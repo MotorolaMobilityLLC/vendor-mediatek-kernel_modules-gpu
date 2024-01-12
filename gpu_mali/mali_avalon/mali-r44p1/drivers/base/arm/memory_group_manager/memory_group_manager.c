@@ -35,11 +35,14 @@
 #include <linux/shrinker.h>
 #include <linux/ktime.h>
 #include <soc/mediatek/emi.h>
-#define RANK_BOUNDARY (0x1c0000000)
+#define MTK_EMI_DRAM_OFFSET 0x40000000
 #define PREFILL_TARGET (SZ_256M >> PAGE_SHIFT)
 #define RANK_POOL_LIMIT (SZ_256M >> PAGE_SHIFT)
-#define REFILL_TARGET (SZ_64M >> PAGE_SHIFT)
-#define HALF_REFILL_TARGET (REFILL_TARGET >> 1)
+#define X_GUARD (SZ_16M >> PAGE_SHIFT)
+#define REFILL_TARGET (X_GUARD << 1)
+#define NORMAL_MODE (3)
+#define RELAX_MODE (4)
+#define BYPASS_MODE (5)
 #endif /* CONFIG_MALI_MTK_MGMM */
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
 #include <mtk_heap.h>
@@ -109,14 +112,15 @@ struct mgm_groups {
 	struct list_head free_4K_lst;
 	struct list_head free_list_r[2][2];
 	size_t nr_rank[2][2];
+	size_t max_pool[2];
 	bool bRank0[2]; // true: rank0, false: rank1
 	int rank_mode;
 	gfp_t gfp_mask;
 	size_t count;
 	struct shrinker reclaim;
 	uint64_t ui64RankBoundary;
-	size_t szPrefillTarget;
 	size_t szRefillTarget;
+	size_t szSelectTarget;
 #endif /* CONFIG_MALI_MTK_MGMM */
 };
 
@@ -302,6 +306,26 @@ static int refill_set(void *data, u64 val)
 	return 0;
 }
 
+static int sel_target_get(void *data, u64 *val)
+{
+	struct mgm_groups *mgm_data;
+
+	mgm_data = (struct mgm_groups *)data;
+	*val = mgm_data->szSelectTarget;
+
+	return 0;
+}
+
+static int sel_target_set(void *data, u64 val)
+{
+	struct mgm_groups *mgm_data;
+
+	mgm_data = (struct mgm_groups *)data;
+	mgm_data->szSelectTarget = val;
+
+	return 0;
+}
+
 static int sel_count_get(void *data, u64 *val)
 {
 	struct mgm_groups *mgm_data;
@@ -326,14 +350,38 @@ static int sel_get(void *data, u64 *val)
 	return 0;
 }
 
+static int max_pool_mb_set(void *data, u64 val)
+{
+	struct mgm_groups *mgm_data;
+
+	mgm_data = (struct mgm_groups *)data;
+
+	mgm_data->max_pool[0] = (val & 0xffffffff) << 8;
+	mgm_data->max_pool[1] = ((val >> 32) << 8);
+
+	return 0;
+}
+
+static int max_pool_mb_get(void *data, u64 *val)
+{
+	struct mgm_groups *mgm_data;
+
+	mgm_data = (struct mgm_groups *)data;
+	*val = (mgm_data->max_pool[1] >> 8) << 32 | (mgm_data->max_pool[0] >> 8);
+
+	return 0;
+}
+
 DEFINE_DEBUGFS_ATTRIBUTE(fops_rank_mode, rank_mode_get, rank_mode_set, "%llu\n");
 DEFINE_DEBUGFS_ATTRIBUTE(fops_rank0, rank0_get, rank0_set, "%llu\n");
 DEFINE_DEBUGFS_ATTRIBUTE(fops_rank1, rank1_get, rank1_set, "%llu\n");
 DEFINE_DEBUGFS_ATTRIBUTE(fops_LPrank0, lp_rank0_get, lp_rank0_set, "%llu\n");
 DEFINE_DEBUGFS_ATTRIBUTE(fops_LPrank1, lp_rank1_get, lp_rank1_set, "%llu\n");
 DEFINE_DEBUGFS_ATTRIBUTE(fops_refill, refill_get, refill_set, "%llu\n");
+DEFINE_DEBUGFS_ATTRIBUTE(fops_sel_target, sel_target_get, sel_target_set, "%llu\n");
 DEFINE_DEBUGFS_ATTRIBUTE(fops_sel_count, sel_count_get, NULL, "%#2llx\n");
 DEFINE_DEBUGFS_ATTRIBUTE(fops_sel, sel_get, NULL, "%llx\n");
+DEFINE_DEBUGFS_ATTRIBUTE(fops_max_pool_mb, max_pool_mb_get, max_pool_mb_set, "%#2llx\n");
 #endif /* CONFIG_MALI_MTK_MGMM */
 DEFINE_DEBUGFS_ATTRIBUTE(fops_mgm_size, mgm_size_get, NULL, "%llu\n");
 DEFINE_DEBUGFS_ATTRIBUTE(fops_mgm_lp_size, mgm_lp_size_get, NULL, "%llu\n");
@@ -451,6 +499,13 @@ static int mgm_initialize_debugfs(struct mgm_groups *mgm_data)
 		goto remove_debugfs;
 	}
 
+	e = debugfs_create_file("sel_target", 0444, mgm_data->mgm_debugfs_root, mgm_data,
+			&fops_sel_target);
+	if (IS_ERR_OR_NULL(e)) {
+		dev_vdbg(mgm_data->dev, "fail to create sel_target\n");
+		goto remove_debugfs;
+	}
+
 	e = debugfs_create_file("sel_count", 0444, mgm_data->mgm_debugfs_root, mgm_data,
 			&fops_sel_count);
 	if (IS_ERR_OR_NULL(e)) {
@@ -462,6 +517,13 @@ static int mgm_initialize_debugfs(struct mgm_groups *mgm_data)
 			&fops_sel);
 	if (IS_ERR_OR_NULL(e)) {
 		dev_vdbg(mgm_data->dev, "fail to create sel\n");
+		goto remove_debugfs;
+	}
+
+	e = debugfs_create_file("max_pool_mb", 0444, mgm_data->mgm_debugfs_root, mgm_data,
+			&fops_max_pool_mb);
+	if (IS_ERR_OR_NULL(e)) {
+		dev_vdbg(mgm_data->dev, "fail to create max_pool_mb\n");
 		goto remove_debugfs;
 	}
 #endif /* CONFIG_MALI_MTK_MGMM */
@@ -533,6 +595,7 @@ struct page* mtk_fetch_page(struct mgm_groups *data, int order, int i32Rank)
 		p = list_first_entry(&data->free_list_r[o][i], struct page, lru);
 		list_del_init(&p->lru);
 		data->nr_rank[o][i]--;
+		/* remove records from pools */
 		mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, -(1 << order));
 	}
 	spin_unlock(&data->MGMFree_lst_lk);
@@ -552,6 +615,8 @@ struct page* mtk_fetch_page(struct mgm_groups *data, int order, int i32Rank)
 				}
 				data->nr_rank[o][i] += 511;
 				spin_unlock(&data->MGMFree_lst_lk);
+				/* Add remaining page records back to cache pool */
+				mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, 511);
 			}
 		}
 	}
@@ -560,15 +625,13 @@ struct page* mtk_fetch_page(struct mgm_groups *data, int order, int i32Rank)
 }
 
 
-
-
-
 static struct page *__MTKAllocPage(struct mgm_groups *data,
 									gfp_t gfp_mask, unsigned int order)
 {
 	static size_t nr_4Kfree_lst = 0;
 	unsigned int order_scan_walk = 10;
 	unsigned int count;
+	gfp_t horder_gfp_mask;
 	struct page* p = NULL;
 	struct page* pp = NULL;
 
@@ -593,11 +656,16 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 	spin_unlock(&data->free_4K_lst_lk);
 
 	/* Try to alloc big page start from 10 */
-	gfp_mask &= ~__GFP_DIRECT_RECLAIM;
+	if (data->rank_mode == RELAX_MODE)
+		horder_gfp_mask = ((gfp_mask & ~__GFP_RECLAIM) | __GFP_NORETRY | __GFP_NOWARN);
+	else
+		horder_gfp_mask = ((gfp_mask & ~__GFP_DIRECT_RECLAIM) | __GFP_NOWARN);
+
 	while (order_scan_walk > order) {
 
-		p = alloc_pages(gfp_mask | __GFP_NOWARN, order_scan_walk);
+		p = alloc_pages(horder_gfp_mask, order_scan_walk);
 		if (p) {
+			/* add batch records from system to cache memory */
 			mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, (1 << order_scan_walk));
 			split_page(p, order_scan_walk);
 			count = (1 << order_scan_walk ) - 1;
@@ -616,12 +684,10 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 		dev_dbg(data->dev, "Order: empty; Try next order %u \n", order_scan_walk);
 	}
 
-
-	/* Cannot found from list, fallback to order 0 */
-	gfp_mask |= __GFP_DIRECT_RECLAIM;
-
 FALLBACK:
 	p = alloc_pages(gfp_mask, order);
+	/* This page would insert into high order rank pool */
+	if (p)
 	mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, (1 << order));
 	return p;
 }
@@ -732,7 +798,7 @@ static unsigned long mtk_mgm_pool_reclaim_count_objects(struct shrinker *s,
 	ret += mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[0][0], data->szRefillTarget);
 	ret += mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[0][1], data->szRefillTarget);
 
-	ret += ((mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[1][1], data->szRefillTarget >> 9)) << 9);
+	ret += ((mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[1][0], data->szRefillTarget >> 9)) << 9);
 	ret += ((mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[1][1], data->szRefillTarget >> 9)) << 9);
 
 	return ret;
@@ -874,32 +940,32 @@ static struct page *example_mgm_alloc_page(
 			mtk_mgm_pool_flush(data, 9, 1, 0, 0);
 			data->gfp_mask = gfp_mask;
 		}
-		
+
 		if (order == 9)
 			o = 1;
-		
+
 		pbRank0 = data->bRank0 + o;
 		rank = (*pbRank0) ? 0 : 1;
-		
-		if (data->rank_mode == 0) {
+
+		if (data->rank_mode == 0) { /* rank-0 only */
 			p = mtk_fetch_page(data, order, 0);
 			if (!p)
 				p = mtk_fetch_page(data, order, 1);
-		} else if(data->rank_mode == 1) {
+		} else if(data->rank_mode == 1) { /* rank-1 only */
 			p = mtk_fetch_page(data, order, 1);
 			if (!p)
 				p = mtk_fetch_page(data, order, 0);
-		} else if (data->rank_mode == 2) {
+		} else if (data->rank_mode == 2) { /* per-4K flip */
 			p = mtk_fetch_page(data, order, rank);
 			*pbRank0 = !(*pbRank0);
-		} else if (data->rank_mode >= 512) {
+		} else if (data->rank_mode >= 512) { /* per-rank_mode size flip */
 			p = mtk_fetch_page(data, order, rank);
 			count++;
 			if (count == data->rank_mode) {
 				count = 0;
 				*pbRank0 = !(*pbRank0);
 			}
-		} else if(data->rank_mode >= 3) { /* production mode */
+		} else if(data->rank_mode < BYPASS_MODE) { /* production mode */
 			p = mtk_fetch_page(data, order, rank);
 			if (!p) {
 				refill = 0;
@@ -915,14 +981,14 @@ static struct page *example_mgm_alloc_page(
 
 				spin_lock(&data->MGMFree_lst_lk);
 				if (*pbRank0) {// rank 0
-					if(data->nr_rank[o][0] < (data->szRefillTarget >> (order + 1)) ) {
+					if(data->nr_rank[o][0] < (data->szSelectTarget >> (order + 1)) ) {
 						*pbRank0 = !(*pbRank0);
 						dev_dbg(data->dev, "Select rank0->1 (%d)\n", count);
 						count = 0;
 						data->count++;
 					}
 				} else {
-					if (data->nr_rank[o][1] < (data->szRefillTarget >> (order + 1)) ) {
+					if (data->nr_rank[o][1] < (data->szSelectTarget >> (order + 1)) ) {
 						*pbRank0 = !(*pbRank0);
 						dev_dbg(data->dev, "Select rank1->0 (%d)\n", count);
 						count = 0;
@@ -983,6 +1049,18 @@ static struct page *example_mgm_alloc_page(
 
 	return p;
 }
+#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
+static size_t mgmm_cache_pool_size(struct memory_group_manager_device *mgm_dev)
+{
+	struct mgm_groups *const data = mgm_dev->data;
+	size_t ret;
+
+	ret = data->nr_rank[0][0] + data->nr_rank[0][1];
+	ret += ((data->nr_rank[1][0] + data->nr_rank[1][1]) << 9);
+
+	return ret;
+}
+#endif
 
 static void example_mgm_free_page(
 	struct memory_group_manager_device *mgm_dev, int group_id,
@@ -1003,7 +1081,7 @@ static void example_mgm_free_page(
 		i = (page_to_phys(page) <= data->ui64RankBoundary) ? 0 : 1; // true: rank0, false: rank1
 		spin_lock(&data->MGMFree_lst_lk);
 		if (order == 0) {
-			if (data->nr_rank[0][i] < RANK_POOL_LIMIT) {
+			if (data->nr_rank[0][i] < data->max_pool[0]) {
 			list_add(&page->lru, &data->free_list_r[0][i]);
 			data->nr_rank[0][i]++;
 			} else  {
@@ -1011,7 +1089,7 @@ static void example_mgm_free_page(
 				goto BUD_SYS;
 			}
 		} else if (order == 9) {
-			if (data->nr_rank[1][i] < (RANK_POOL_LIMIT >> 9)) {
+			if (data->nr_rank[1][i] < (data->max_pool[1] >> 9)) {
 			list_add(&page->lru, &data->free_list_r[1][i]);
 			data->nr_rank[1][i]++;
 			} else {
@@ -1019,6 +1097,7 @@ static void example_mgm_free_page(
 				goto BUD_SYS;
 			}
 		}
+		/* If pool is not full, add records to cache memory */
 		mod_node_page_state(page_pgdat(page), NR_KERNEL_MISC_RECLAIMABLE, 1 << order);
 		spin_unlock(&data->MGMFree_lst_lk);
 	} else {
@@ -1186,6 +1265,9 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 	mgm_dev->ops.mgm_vmf_insert_pfn_prot = example_mgm_vmf_insert_pfn_prot;
 	mgm_dev->ops.mgm_update_gpu_pte = example_mgm_update_gpu_pte;
 	mgm_dev->ops.mgm_pte_to_original_pte = example_mgm_pte_to_original_pte;
+#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
+	mgm_dev->ops.mgm_mtk_cache_pool_size = mgmm_cache_pool_size;
+#endif
 
 	mgm_data = kzalloc(sizeof(*mgm_data), GFP_KERNEL);
 	if (!mgm_data) {
@@ -1221,8 +1303,9 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 	nr_LP_rank = mgm_data->nr_rank[1];
 	nr_rank[0] = nr_rank[1] = 0;
 	nr_LP_rank[0] = nr_LP_rank[1] = 0;
-	mgm_data->rank_mode = 3;
+
 	mgm_data->bRank0[0] = mgm_data->bRank0[1] = true;
+	mgm_data->max_pool[0] = mgm_data->max_pool[1] = RANK_POOL_LIMIT;
 	mgm_data->count = 0;
 	mgm_data->gfp_mask = GFP_HIGHUSER|__GFP_ZERO;
 	mgm_data->reclaim.count_objects = mtk_mgm_pool_reclaim_count_objects;
@@ -1234,19 +1317,29 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 #else
 	register_shrinker(&mgm_data->reclaim, "mali-mGMM");
 #endif
-	mgm_data->ui64RankBoundary = 0x40000000 + mtk_emicen_get_rk_size(0);
-	mgm_data->szPrefillTarget = PREFILL_TARGET;
-	mgm_data->szRefillTarget = REFILL_TARGET;
+	mgm_data->szSelectTarget = X_GUARD;
+	/*
+	 * Enable only in multiple rank env
+	 */
+	if (mtk_emicen_get_rk_cnt() == 2) {
+		mgm_data->ui64RankBoundary = MTK_EMI_DRAM_OFFSET + mtk_emicen_get_rk_size(0);
+		mgm_data->rank_mode = NORMAL_MODE;
+		mgm_data->szRefillTarget = REFILL_TARGET;
 
-	mtk_mgm_pool_fill(mgm_data, 9, 1, mgm_data->szPrefillTarget >> 9);
-	mtk_mgm_pool_fill(mgm_data, 9, 0, mgm_data->szPrefillTarget >> 9);
 
-	mtk_mgm_pool_trim(mgm_data, 9, 0, mgm_data->szPrefillTarget >> 9);
-	mtk_mgm_pool_trim(mgm_data, 9, 1, mgm_data->szPrefillTarget >> 9);
+		mtk_mgm_pool_fill(mgm_data, 9, 1, PREFILL_TARGET >> 9);
+		mtk_mgm_pool_fill(mgm_data, 9, 0, PREFILL_TARGET >> 9);
+
+		mtk_mgm_pool_trim(mgm_data, 9, 0, PREFILL_TARGET >> 9);
+		mtk_mgm_pool_trim(mgm_data, 9, 1, PREFILL_TARGET >> 9);
+	} else {
+		mgm_data->ui64RankBoundary = MTK_EMI_DRAM_OFFSET;
+		mgm_data->rank_mode = BYPASS_MODE;
+	}
 
 	dev_info(&pdev->dev,
-		"mGMM init completed: [0] {%zu, %zu}, [1] {%zu, %zu}\n",
-		nr_rank[0], nr_rank[1], nr_LP_rank[0], nr_LP_rank[1]);
+		"mGMM init completed(%d): [0] {%zu, %zu}, [1] {%zu, %zu}\n",
+		mgm_data->rank_mode, nr_rank[0], nr_rank[1], nr_LP_rank[0], nr_LP_rank[1]);
 
 #endif	/* CONFIG_MALI_MTK_MGMM */
 	return 0;

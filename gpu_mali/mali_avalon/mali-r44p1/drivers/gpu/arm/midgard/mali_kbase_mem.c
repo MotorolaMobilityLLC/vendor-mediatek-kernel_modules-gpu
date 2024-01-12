@@ -51,6 +51,10 @@
 #include <linux/memory_group_manager.h>
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
+#include <soc/mediatek/emi.h>
+#endif
+
 #define VA_REGION_SLAB_NAME_PREFIX "va-region-slab-"
 #define VA_REGION_SLAB_NAME_SIZE (DEVNAME_SIZE + sizeof(VA_REGION_SLAB_NAME_PREFIX) + 1)
 
@@ -1481,10 +1485,21 @@ int kbase_mem_init(struct kbase_device *kbdev)
 
 	if (likely(!err)) {
 		struct kbase_mem_pool_group_config mem_pool_defaults;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
+/*
+ * mGMM cotains kbdev-wide pool, disable kbdev-mem_pool if mGMM enabled
+ */
+		if (mtk_emicen_get_rk_cnt() == 2) {
+			kbase_mem_pool_group_config_set_max_size(&mem_pool_defaults,
+				0x0);
+		} else {
 		kbase_mem_pool_group_config_set_max_size(&mem_pool_defaults,
 			KBASE_MEM_POOL_MAX_SIZE_KBDEV);
-
+		}
+#else
+		kbase_mem_pool_group_config_set_max_size(&mem_pool_defaults,
+			KBASE_MEM_POOL_MAX_SIZE_KBDEV);
+#endif
 		err = kbase_mem_pool_group_init(&kbdev->mem_pools, kbdev, &mem_pool_defaults, NULL);
 	}
 

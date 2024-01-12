@@ -1011,14 +1011,7 @@ static inline int kbase_reg_prepare_native(struct kbase_va_region *reg,
 /*
  * Max size for kbdev memory pool (in pages)
  */
-#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
-/*
- * mGMM cotains kbdev-wide pool, disable kbdev-mem_pool if mGMM enabled
- */
-#define KBASE_MEM_POOL_MAX_SIZE_KBDEV (0)
-#else
 #define KBASE_MEM_POOL_MAX_SIZE_KBDEV (SZ_64M >> PAGE_SHIFT)
-#endif
 
 /*
  * Max size for kctx memory pool (in pages)
