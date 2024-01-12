@@ -86,6 +86,11 @@ static void kbase_gpu_fault_interrupt(struct kbase_device *kbdev)
 	} else
 		kbase_report_gpu_fault(kbdev, status, as_nr, as_valid);
 
+#ifndef MALI_STRIP_KBASE_DEVELOPMENT
+#if IS_ENABLED(CONFIG_MALI_BUSLOG) && IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	queue_work(kbdev->buslog_callback_wq, &kbdev->buslog_callback_work);
+#endif /* CONFIG_MALI_BUSLOG && CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+#endif /* MALI_STRIP_KBASE_DEVELOPMENT */
 }
 
 void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
@@ -257,8 +262,14 @@ void kbase_reg_write(struct kbase_device *kbdev, u32 offset, u32 value)
 	if (WARN_ON(kbdev->dev == NULL))
 		return;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	if (!kbdev->bypass_register_check)
+		if (!kbase_is_register_accessible(offset))
+			return;
+#else
 	if (!kbase_is_register_accessible(offset))
 		return;
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
 	writel(value, kbdev->reg + offset);
 

@@ -558,6 +558,11 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	mtk_debug_irq_trace_init(kbdev);
 #endif /* CONFIG_MALI_MTK_IRQ_TRACE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	kbdev->bypass_register_check = false;
+	mutex_init(&kbdev->register_check_lock);
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+
 	return 0;
 }
 
@@ -597,6 +602,10 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
 	mtk_debug_irq_trace_term(kbdev);
 #endif /* CONFIG_MALI_MTK_IRQ_TRACE */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	mutex_destroy(&kbdev->register_check_lock);
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
 	mtk_platform_pm_term(kbdev);
 }
