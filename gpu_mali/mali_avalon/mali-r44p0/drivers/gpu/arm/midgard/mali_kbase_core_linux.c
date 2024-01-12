@@ -128,6 +128,10 @@
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if defined(CONFIG_MALI_MTK_GPU_BM_CSF)
+#include <ged_gpu_bm.h>
+#endif /* CONFIG_MALI_MTK_GPU_BM_CSF */
+
 #define KERNEL_SIDE_DDK_VERSION_STRING "K:" MALI_RELEASE_NAME "(GPL)"
 
 /**
@@ -5740,6 +5744,13 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		mutex_unlock(&kbase_probe_mutex);
 #endif
 	} else {
+
+#if defined(CONFIG_MALI_MTK_GPU_BM_CSF)
+		err = mtk_bandwidth_resource_init();
+		if (err)
+			pr_info("@%s: GPU BM init failed (CSF)\n", __func__);
+#endif /* CONFIG_MALI_MTK_GPU_BM_CSF */
+
 		dev_info(kbdev->dev,
 			"Probed as %s\n", dev_name(kbdev->mdev.this_device));
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
