@@ -30,6 +30,18 @@ static unsigned int current_util_iter;
 static unsigned int current_util_mcu;
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE)
+#define UTIL_ACTIVE_ID   0
+#define UTIL_TA_ID       1
+#define UTIL_COMPUTE_ID  2
+#define UTIL_3D_ID       3
+#define UTIL_ITER_ID     4
+#define UTIL_MCU_ID      5
+#define UTIL_IRQ_ID      6
+#define UTIL_SC_COMP_ID  7
+#define UTIL_l2ext_ID    8
+#endif
+
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 void mtk_common_ged_dvfs_commit(unsigned long ui32NewFreqID,
                                 GED_DVFS_COMMIT_TYPE eCommitType,
@@ -100,7 +112,7 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 #endif
 	unsigned long long delta_time;
 
-	int utilisation[NUM_PERF_COUNTERS];
+	int utilisation[NUM_PERF_COUNTERS*2];
 	struct kbasep_pm_metrics *diff;
 	int index = 0;
 
@@ -115,15 +127,23 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 	for (index = 0; index < NUM_PERF_COUNTERS; index++) {
 		// delta time should be the same for all PMU, so simply reuse it
 		utilisation[index] = (100 * diff->time_busy[index]) / delta_time;
+		utilisation[index + NUM_PERF_COUNTERS] = diff->counterRaw[index];
 	}
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE)
-	util_ex->util_active    = utilisation[0];
-	util_ex->util_ta        = utilisation[1];
-	util_ex->util_compute   = utilisation[2];
-	util_ex->util_3d        = utilisation[3];
-	util_ex->util_iter      = utilisation[4];
-	util_ex->util_mcu       = utilisation[5];
+	util_ex->util_active    = utilisation[UTIL_ACTIVE_ID];
+	util_ex->util_ta        = utilisation[UTIL_TA_ID];
+	util_ex->util_compute   = utilisation[UTIL_COMPUTE_ID];
+	util_ex->util_3d        = utilisation[UTIL_3D_ID];
+	util_ex->util_iter      = utilisation[UTIL_ITER_ID];
+	util_ex->util_mcu       = utilisation[UTIL_MCU_ID];
+
+	util_ex->util_iter_raw      = utilisation[UTIL_ITER_ID + NUM_PERF_COUNTERS];
+	util_ex->util_mcu_raw       = utilisation[UTIL_MCU_ID + NUM_PERF_COUNTERS];
+	util_ex->util_irq_raw       = utilisation[UTIL_IRQ_ID + NUM_PERF_COUNTERS];
+	util_ex->util_sc_comp_raw   = utilisation[UTIL_SC_COMP_ID + NUM_PERF_COUNTERS];
+	util_ex->util_l2ext_raw     = utilisation[UTIL_l2ext_ID + NUM_PERF_COUNTERS];
+
 	util_ex->delta_time     = delta_time << 8;   // 8 = KBASE_PM_TIME_SHIFT
 #endif
 

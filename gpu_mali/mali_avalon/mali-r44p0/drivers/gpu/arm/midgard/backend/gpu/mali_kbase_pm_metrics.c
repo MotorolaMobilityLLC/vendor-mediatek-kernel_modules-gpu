@@ -168,6 +168,27 @@ int kbasep_pm_metrics_init(struct kbase_device *kbdev)
 	perf_counter[5].type		   = KBASE_IPA_CORE_TYPE_CSHW;
 	perf_counter[5].idx 		   = MCU_ACTIVE_IDX;
 
+	/* *
+	 * add 3 counters for dvfs async ratio
+	 * */
+	// 054:CSHWCounters.CSHWIF1_IRQ_ACTIVE
+	perf_counter[6].scaling_factor = GPU_ACTIVE_SCALING_FACTOR;
+	perf_counter[6].gpu_norm       = true;
+	perf_counter[6].type           = KBASE_IPA_CORE_TYPE_CSHW;
+	perf_counter[6].idx            = CSHWIF1_IRQ_ACTIVE_IDX;
+
+	// 022:SCCounters.COMPUTE_ACTIVE
+	perf_counter[7].scaling_factor = GPU_ACTIVE_SCALING_FACTOR;
+	perf_counter[7].gpu_norm       = true;
+	perf_counter[7].type           = KBASE_IPA_CORE_TYPE_SHADER;
+	perf_counter[7].idx            = COMPUTE_ACTIVE_IDX;
+
+	// 029:MemSysCounters.L2_EXT_READ
+	perf_counter[8].scaling_factor = GPU_ACTIVE_SCALING_FACTOR;
+	perf_counter[8].gpu_norm       = true;
+	perf_counter[8].type           = KBASE_IPA_CORE_TYPE_MEMSYS;
+	perf_counter[8].idx            = L2_EXT_READ_IDX;
+
 	err = kbase_ipa_control_register(
 		kbdev, perf_counter, NUM_PERF_COUNTERS,
 		&kbdev->pm.backend.metrics.ipa_control_client);
@@ -272,7 +293,7 @@ static void kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 	int err;
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
-	u64 gpu_active_counter[NUM_PERF_COUNTERS];
+	u64 gpu_active_counter[NUM_PERF_COUNTERS*2];
 #else
 	u64 gpu_active_counter;
 #endif  /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
@@ -397,6 +418,9 @@ static void kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 
 			kbdev->pm.backend.metrics.values.time_idle[index] +=
 				ns_time - gpu_active_counter[index];
+
+			kbdev->pm.backend.metrics.values.counterRaw[index] +=
+				gpu_active_counter[index + NUM_PERF_COUNTERS];
 			}
 #else
 		gpu_active_counter >>= KBASE_PM_TIME_SHIFT;
@@ -498,6 +522,7 @@ void kbase_pm_get_dvfs_metrics(struct kbase_device *kbdev,
 	for (index = 0; index < NUM_PERF_COUNTERS; index++) {
 		diff->time_busy[index] = cur->time_busy[index] - last->time_busy[index];
 		diff->time_idle[index] = cur->time_idle[index] - last->time_idle[index];
+		diff->counterRaw[index] = cur->counterRaw[index] - last->counterRaw[index];
 	}
 #else
 	diff->time_busy = cur->time_busy - last->time_busy;
