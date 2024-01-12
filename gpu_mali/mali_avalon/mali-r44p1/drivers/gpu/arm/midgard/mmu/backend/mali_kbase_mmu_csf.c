@@ -264,7 +264,7 @@ static void print_group_queues_data(struct kbase_queue_group *const group)
 				group->bound_queues[i];
 		if (queue) {
 			u64 *input_addr = (u64 *)queue->user_io_addr;
-			u64 *output_addr = (u64 *)(queue->user_io_addr + PAGE_SIZE);
+			u64 *output_addr = (u64 *)(queue->user_io_addr + PAGE_SIZE / sizeof(u64));
 
 			insert[i] = input_addr[CS_INSERT_LO / sizeof(u64)];
 			extract[i] = output_addr[CS_EXTRACT_LO / sizeof(u64)];
