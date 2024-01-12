@@ -10,11 +10,14 @@
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
 #include <csf/mali_kbase_csf_csg_debugfs.h>
 #include <csf/mali_kbase_csf.h>
-#endif
+#endif /* CONFIG_MALI_CSF_SUPPORT */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #include <platform/mtk_platform_common/mtk_platform_qinspect.h>
+#if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
+#include <mt-plat/aee.h>
+#endif /* CONFIG_MTK_AEE_FEATURE */
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
 /********************************/
@@ -174,6 +177,9 @@ static void mtk_qinspect_unlock_root_locker(void) {
 	// unlock cqs root locker
 	for (i = 0; i < g_cqs_rootlocker_idx; i++)
 		mtk_qinspect_unlock_cqs(&g_cqs_rootlocker_list[i]);
+
+	if (g_cqs_rootlocker_idx)
+		aee_kernel_warning("GPU_RECOVERY", "found blocked cqs_wait");
 }
 
 #if 0
