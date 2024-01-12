@@ -602,7 +602,7 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)
 	{
 		u32 tmp = 0;
-		kbdev->bit_stuck = true;
+		kbdev->bit_stuck = false;
 		kbdev->trans_timeout = false;
 		if (!of_property_read_u32(kbdev->dev->of_node, "exception-mask", &tmp)) {
 			kbdev->bit_stuck = (tmp & 0x1);
