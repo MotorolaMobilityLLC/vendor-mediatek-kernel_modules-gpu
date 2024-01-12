@@ -1111,6 +1111,9 @@ struct kbase_csf_scheduler {
 #define ITER_FRAG_ACTIVE_IDX  (32)
 #define ITER_ITER_ACTIVE_IDX  (6)
 #define MCU_ACTIVE_IDX  (5)
+#define CSHWIF1_IRQ_ACTIVE_IDX (54)
+#define COMPUTE_ACTIVE_IDX (22)
+#define L2_EXT_READ_IDX (29)
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 /*
@@ -1171,6 +1174,7 @@ struct kbase_ipa_control_prfcnt {
 	u64 latest_raw_value;
 	u64 scaling_factor;
 	u64 accumulated_diff;
+	u64 accumulated_raw_diff;
 	enum kbase_ipa_core_type type;
 	u8 select_idx;
 	bool gpu_norm;

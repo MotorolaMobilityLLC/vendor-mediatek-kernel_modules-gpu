@@ -249,6 +249,7 @@ static inline void calc_prfcnt_delta(struct kbase_device *kbdev,
 	} else {
 		delta_value = raw_value - prfcnt->latest_raw_value;
 	}
+	prfcnt->accumulated_raw_diff += delta_value;
 
 	delta_value *= prfcnt->scaling_factor;
 
@@ -863,6 +864,8 @@ int kbase_ipa_control_query(struct kbase_device *kbdev, const void *client,
 		/* Return all the accumulated difference */
 		values[i] = prfcnt->accumulated_diff;
 		prfcnt->accumulated_diff = 0;
+		values[i + session->num_prfcnts] = prfcnt->accumulated_raw_diff;
+		prfcnt->accumulated_raw_diff = 0;
 	}
 
 	if (protected_time) {

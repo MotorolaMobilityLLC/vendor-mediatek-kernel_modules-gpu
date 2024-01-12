@@ -36,7 +36,7 @@
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 /* counters defined in mali_kbase_csf_defs.h */
-#define NUM_PERF_COUNTERS (6)
+#define NUM_PERF_COUNTERS (9)
 #endif
 
 /* Forward definition - see mali_kbase.h */
@@ -130,6 +130,7 @@ struct kbasep_pm_metrics {
 	//[0]: Active, [1]: TILER, [2]: COMP, [3]: FRAGP, [4]: ITER
 	u32 time_busy[NUM_PERF_COUNTERS];
 	u32 time_idle[NUM_PERF_COUNTERS];
+	u32 counterRaw[NUM_PERF_COUNTERS];
 
 	u32 busy_cl[2];
 	u32 busy_gl;
