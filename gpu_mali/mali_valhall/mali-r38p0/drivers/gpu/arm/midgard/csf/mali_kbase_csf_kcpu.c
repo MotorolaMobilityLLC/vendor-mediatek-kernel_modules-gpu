@@ -1217,7 +1217,7 @@ static void kbase_csf_fence_wait_callback(struct dma_fence *fence,
 
 #ifdef CONFIG_MALI_FENCE_DEBUG
 	/* Fence gets signaled. Deactivate the timer for fence-wait timeout */
-	del_timer_sync(&kcpu_queue->fence_timeout);
+	del_timer(&kcpu_queue->fence_timeout);
 #endif
 	KBASE_KTRACE_ADD_CSF_KCPU(kctx->kbdev, FENCE_WAIT_END, kcpu_queue,
 				  fence->context, fence->seqno);
@@ -1242,7 +1242,10 @@ static void kbase_kcpu_fence_wait_cancel(
 				&fence_info->fence_cb);
 
 #ifdef CONFIG_MALI_FENCE_DEBUG
-		/* Fence-wait cancelled. Deactivate the timer for fence-wait timeout */
+		/* Fence-wait cancelled or fence signaled. In the latter case
+		 * the timer would already have been deactivated inside
+		 * kbase_csf_fence_wait_callback().
+		 */
 		del_timer_sync(&kcpu_queue->fence_timeout);
 #endif
 		if (removed)
@@ -1351,8 +1354,9 @@ static int kbase_kcpu_fence_wait_process(
 #else
 	struct dma_fence *fence;
 #endif
+	struct kbase_context *const kctx = kcpu_queue->kctx;
 
-	lockdep_assert_held(&kcpu_queue->lock);
+	lockdep_assert_held(&kctx->csf.kcpu_queues.lock);
 
 	if (WARN_ON(!fence_info->fence))
 		return -EINVAL;
@@ -1366,7 +1370,7 @@ static int kbase_kcpu_fence_wait_process(
 			&fence_info->fence_cb,
 			kbase_csf_fence_wait_callback);
 
-		KBASE_KTRACE_ADD_CSF_KCPU(kcpu_queue->kctx->kbdev,
+		KBASE_KTRACE_ADD_CSF_KCPU(kctx->kbdev,
 					  FENCE_WAIT_START, kcpu_queue,
 					  fence->context, fence->seqno);
 		fence_status = cb_err;
@@ -1375,8 +1379,17 @@ static int kbase_kcpu_fence_wait_process(
 #ifdef CONFIG_MALI_FENCE_DEBUG
 			fence_timeout_start(kcpu_queue);
 #endif
-		} else if (cb_err == -ENOENT)
+		} else if (cb_err == -ENOENT) {
 			fence_status = dma_fence_get_status(fence);
+			if (!fence_status) {
+				struct kbase_sync_fence_info info;
+
+				kbase_sync_fence_info_get(fence, &info);
+				dev_info(kctx->kbdev->dev,
+					 "Unexpected status for fence %s of ctx:%d_%d kcpu queue:%u",
+					 info.name, kctx->tgid, kctx->id, kcpu_queue->id);
+			}
+		}
 	}
 
 	/*
