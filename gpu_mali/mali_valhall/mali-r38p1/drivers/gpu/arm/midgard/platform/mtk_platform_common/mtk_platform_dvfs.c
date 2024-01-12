@@ -26,6 +26,8 @@ static unsigned int current_util_active;
 static unsigned int current_util_3d;
 static unsigned int current_util_ta;
 static unsigned int current_util_compute;
+static unsigned int current_util_iter;
+static unsigned int current_util_mcu;
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
@@ -119,6 +121,7 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 	util_ex->util_compute   = utilisation[2];
 	util_ex->util_3d        = utilisation[3];
 	util_ex->util_iter      = utilisation[4];
+	util_ex->util_mcu       = utilisation[5];
 #endif
 
 	if (pui32Loading)
@@ -128,16 +131,21 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 		*pui32Idle = 100 - utilisation[0];
 
 	if (utilisation[0] < 0 || utilisation[1] < 0 ||
-	    utilisation[2] < 0 || utilisation[3] < 0) {
+	    utilisation[2] < 0 || utilisation[3] < 0 ||
+		utilisation[4] < 0 || utilisation[5] < 0) {
 		utilisation[0] = 0;
 		utilisation[1] = 0;
 		utilisation[2] = 0;
 		utilisation[3] = 0;
+		utilisation[4] = 0;
+		utilisation[5] = 0;
 	} else {
 		current_util_active  = utilisation[0];
 		current_util_ta      = utilisation[1];
 		current_util_compute = utilisation[2];
 		current_util_3d      = utilisation[3];
+		current_util_iter    = utilisation[4];
+		current_util_mcu     = utilisation[5];
 	}
 #else // MALI_USE_CSF
 
