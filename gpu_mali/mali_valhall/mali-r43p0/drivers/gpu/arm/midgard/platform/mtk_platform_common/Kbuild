@@ -1,4 +1,4 @@
-include $(src)/Kbuild-mtk-custom-env
+#include $(src)/Kbuild-mtk-custom-env
 
 curr := platform/mtk_platform_common
 
