@@ -59,6 +59,9 @@
 /* The maximum allowed buffers per client */
 #define MAX_BUFFER_COUNT 32
 
+
+#define PRINT_BUFFER_SIZE 1024
+
 /**
  * struct kbase_vinstr_context - IOCTL interface for userspace hardware
  *                               counters.
@@ -155,7 +158,7 @@ int ds5_used = 1;
 
 static struct kbase_vinstr_client *mtk_cli = NULL;
 struct mtk_gpu_perf{
-	uint32_t counter[VINSTR_PERF_COUNTER_LAST];
+	uint64_t counter[VINSTR_PERF_COUNTER_LAST];
 };
 
 /**
@@ -212,7 +215,6 @@ static int kbasep_vinstr_client_dump(
 	struct kbase_hwcnt_dump_buffer_narrow *dump_buf;
 	struct kbase_hwcnt_reader_metadata *meta;
 	u8 clk_cnt;
-
 	WARN_ON(!vcli);
 	lockdep_assert_held(&vcli->vctx->lock);
 
@@ -236,6 +238,7 @@ static int kbasep_vinstr_client_dump(
 	
 	errcode = kbase_hwcnt_virtualizer_client_dump(
 		vcli->hvcli, &ts_start_ns, &ts_end_ns, tmp_buf);
+
 	if (errcode)
 		return errcode;
 
@@ -1238,36 +1241,61 @@ void MTK_kbasep_vinstr_hwcnt_release(void)
 	}
 }
 
+static inline void format_gpu_data(char *buf, u64 size, u64 *gpu_data, u32 lens)
+{
+	char *ptr = buf;
+	char *buffer_end = buf + size;
+	int i;
+
+	ptr += snprintf(ptr, buffer_end - ptr, "ARRAY[");
+	for (i = 0; i < lens; i++) {
+		ptr += snprintf(ptr, buffer_end - ptr, "%02x, %02x, %02x, %02x, %02x, %02x, %02x, %02x, ",
+				(*(gpu_data+i)) & 0xff, (*(gpu_data+i) >> 8) & 0xff,
+				(*(gpu_data+i) >> 16) & 0xff, (*(gpu_data+i) >> 24) & 0xff,
+				(*(gpu_data+i) >> 32) & 0xff, (*(gpu_data+i) >> 40) & 0xff,
+				(*(gpu_data+i) >> 48) & 0xff, (*(gpu_data+i) >> 56) & 0xff);
+	}
+	ptr -= 2;
+	ptr += snprintf(ptr, buffer_end - ptr, "]");
+}
+
 void MTK_update_gpu_LTR(void)
 {
 	unsigned int pm_gpu_loading = 0;
 	struct mtk_gpu_perf gpu_perf_counter;
 	unsigned int stall_counter[4] = {0};
 	int i = 0;
+
+	char gpu_data_print[PRINT_BUFFER_SIZE] = {0};
+	u32 gpu_data_ctl = 0;
+
 	mtk_get_gpu_loading(&pm_gpu_loading);
 	gpu_perf_counter.counter[VINSTR_GPU_FREQ] = gpufreq_get_cur_freq(TARGET_DEFAULT);
 	gpu_perf_counter.counter[VINSTR_GPU_VOLT] = gpufreq_get_cur_volt(TARGET_DEFAULT);
 	gpu_perf_counter.counter[VINSTR_GPU_LOADING] = pm_gpu_loading;
 
+	for (i = VINSTR_GPU_ACTIVE; i <= VINSTR_LS_MEM_ATOMIC; i++) {
+	int pmu_index = gpu_pmu_index[i];
+	int j = 0;
+	int stall_index =0;
 
-	for (i = VINSTR_GPU_ACTIVE; i <= VINSTR_JS1_ACTIVE; i++) {
-		int pmu_index = gpu_pmu_index[i] & 0x1FF;
-		int index_cnt = gpu_pmu_index[i] >> 9;
-		int j = 0;
-		for (j = 0; j < index_cnt; j++) {
+	if (i >= VINSTR_STALL0 && i <= VINSTR_STALL3) {
+		gpu_perf_counter.counter[i] = stall_counter[stall_index];
+		stall_index ++;
+		continue;
+	} else if  (i >= VINSTR_L2_EXT_WRITE_BEATS &&i <= VINSTR_L2_ANY_LOOKUP) {
+		for (j = 0; j < L2_CNT; j++) {
 			gpu_perf_counter.counter[i] += kernel_dump[pmu_index];
-			pmu_index += 64;
-		}
+			pmu_index += MALI_COUNTERS_PER_BLOCK;
+		}			
+	} else {
+		gpu_perf_counter.counter[i] += kernel_dump[pmu_index];
 	}
-	gpu_perf_counter.counter[VINSTR_STALL0] = stall_counter[0];
-	gpu_perf_counter.counter[VINSTR_STALL1] = stall_counter[1];
-	gpu_perf_counter.counter[VINSTR_STALL2] = stall_counter[2];
-	gpu_perf_counter.counter[VINSTR_STALL3] = stall_counter[3];
-	gpu_perf_counter.counter[VINSTR_TRIANGLES] = kernel_dump[70];
-	gpu_perf_counter.counter[VINSTR_POINTS] = kernel_dump[72];
-	gpu_perf_counter.counter[VINSTR_LINES] = kernel_dump[71];
-	gpu_perf_counter.counter[VINSTR_LS_MEM_ATOMIC] = kernel_dump[432];
+}
+
 #if IS_ENABLED(CONFIG_MTK_PERF_TRACKER) && IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+	//format_gpu_data(sbin_data_print, sizeof(sbin_data_print), gpu_perf_counter.counter, VINSTR_PERF_COUNTER_LAST);
+	//trace_perf_index_sbin(sbin_data_print, VINSTR_PERF_COUNTER_LAST, sbin_data_ctl);
 	trace_perf_index_gpu(gpu_perf_counter.counter, VINSTR_PERF_COUNTER_LAST);
 #endif
 
