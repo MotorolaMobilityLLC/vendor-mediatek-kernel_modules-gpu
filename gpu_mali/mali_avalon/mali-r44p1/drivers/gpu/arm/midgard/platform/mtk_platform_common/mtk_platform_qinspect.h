@@ -176,12 +176,21 @@ union mtk_qinspect_csf_instruction {
 		u64 res2: 3;
 		u64 opcode: 8;
 	} shared_sb_inc;
+	struct {
+		u64 res0: 32;
+		u64 pi: 1;
+		u64 res1: 15;
+		u64 se: 4;
+		u64 res2: 4;
+		u64 opcode: 8;
+	} shared_sb_dec;
 };
 
 enum mtk_qinspect_gpu_command_type {
 	GPU_COMMAND_TYPE_SYNC_WAIT,
 	GPU_COMMAND_TYPE_SYNC_SET,
 	GPU_COMMAND_TYPE_SHARED_SB_WAIT,
+	GPU_COMMAND_TYPE_OTHERS,
 };
 
 struct mtk_qinspect_gpu_sync_info {
@@ -244,7 +253,7 @@ struct mtk_qinspect_gpu_command *mtk_qinspect_query_gpuq_internal_top_wait_cmd(s
  */
 
 /* API: fence/wait object build operations */
-void mtk_qinspect_build_fence_info(struct mtk_qinspect_fence_info *fence, u64 context, u64 seqno);
+void mtk_qinspect_build_fence_info(struct mtk_qinspect_fence_info *fence_info, u64 context, u64 seqno);
 void mtk_qinspect_build_cqs_wait_obj(struct mtk_qinspect_cqs_wait_obj *cmd,
 	u64 addr, u64 val, u8 operation, u8 data_type);
 
@@ -257,13 +266,12 @@ void mtk_qinspect_build_cqs_wait_obj(struct mtk_qinspect_cqs_wait_obj *cmd,
 struct mtk_qinspect_fence_wait_on {
 	struct kbase_context *kctx;
 	struct kbase_kcpu_command_queue *kcpu_queue;
-	struct kbase_kcpu_command_fence_info *fence;
 };
 
 struct mtk_qinspect_fence_wait_it {
 	struct kbase_device *kbdev;
 	struct kbase_context *kctx;
-	struct kbase_kcpu_command_fence_info *fence;
+	struct kbase_kcpu_command_fence_info *fence_info;
 
 	/* current wait info */
 	u64 context;
@@ -282,7 +290,7 @@ struct mtk_qinspect_fence_wait_it {
 
 /* API: fence iteration */
 void mtk_qinspect_query_internal_fence_wait_it_init(enum mtk_qinspect_queue_type queue_type,
-	void *queue, void *fence, struct mtk_qinspect_fence_wait_it *wait_it);
+	void *queue, void *fence_info, struct mtk_qinspect_fence_wait_it *wait_it);
 struct mtk_qinspect_fence_wait_on *mtk_qinspect_query_internal_fence_wait_it(
 	struct mtk_qinspect_fence_wait_it *wait_it);
 void mtk_qinspect_query_internal_fence_wait_it_done(struct mtk_qinspect_fence_wait_it *wait_it);
@@ -298,20 +306,12 @@ struct mtk_qinspect_cqs_wait_on {
 	union {
 		struct {	/* QINSPECT_CPU_QUEUE */
 			union mtk_qinspect_cpu_command_buf *cpu_queue_buf;
-			struct mtk_qinspect_cpu_command *cpu_command;
-			struct mtk_qinspect_cpu_object *cpu_obj;
 		};
 		struct {	/* QINSPECT_KCPU_QUEUE */
 			struct kbase_kcpu_command_queue *kcpu_queue;
-			struct kbase_kcpu_command *kcpu_cmd;
-			union {
-				struct base_cqs_set *kcpu_obj;
-				struct base_cqs_set_operation_info *kcpu_op_obj;
-			};
 		};
 		struct {	/* QINSPECT_GPU_QUEUE */
 			struct kbase_queue *gpu_queue;
-			struct mtk_qinspect_gpu_sync_info *gpu_sync_set_info;
 		};
 	};
 };
@@ -337,11 +337,11 @@ struct mtk_qinspect_cqs_wait_it {
 	};
 	enum mtk_qinspect_queue_type queue_type;
 	unsigned int wait_obj_nr;
-	u32 objs_signaled_map;
-	u32 objs_failure_map;
-	u32 objs_match_map;
-	u32 objs_deadlock_map;
-	u32 objs_map_mask;
+	u64 objs_signaled_map;
+	u64 objs_failure_map;
+	u64 objs_match_map;
+	u64 objs_deadlock_map;
+	u64 objs_map_mask;
 
 	/* current wait info */
 	u64 cqs_addr;
@@ -369,7 +369,7 @@ struct mtk_qinspect_cqs_wait_it {
 void mtk_qinspect_query_internal_cqs_wait_it_init(enum mtk_qinspect_queue_type queue_type,
 	void *queue, void *cmd, struct mtk_qinspect_cqs_wait_it *wait_it);
 struct mtk_qinspect_cqs_wait_on *mtk_qinspect_query_internal_cqs_wait_it(struct mtk_qinspect_cqs_wait_it *wait_it);
-int mtk_qinspect_query_internal_cqs_wait_obj(struct mtk_qinspect_cqs_wait_it *wait_it, int obj_nr,
+int mtk_qinspect_query_internal_cqs_wait_obj(struct mtk_qinspect_cqs_wait_it *wait_it, unsigned int obj_nr,
 	struct mtk_qinspect_cqs_wait_obj *wait_obj);
 void mtk_qinspect_query_internal_cqs_wait_it_update_deadlock_map(struct mtk_qinspect_cqs_wait_it *wait_it);
 

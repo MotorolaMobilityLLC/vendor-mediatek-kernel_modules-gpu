@@ -641,19 +641,24 @@ static struct mtk_qinspect_fence_wait_on *mtk_qinspect_query_internal_fence_sign
 
 		cmd = &queue->commands[cmd_idx];
 		if (cmd->type == BASE_KCPU_COMMAND_TYPE_FENCE_SIGNAL) {
-			unsigned int nr;
-			struct kbase_kcpu_command_fence_info *fence = &cmd->info.fence;
+			struct kbase_kcpu_command_fence_info *fence_info = &cmd->info.fence;
 
-			if ((u64)fence->fence->context == wait_it->context
-				&& (u64)fence->fence->seqno == wait_it->seqno) {
+			if (fence_info->fence) {
+				if ((u64)fence_info->fence->context == wait_it->context
+					&& (u64)fence_info->fence->seqno == wait_it->seqno) {
+					qinspect_dbg(wait_it->kctx->kbdev,
+						"[qinspect] cmd_idx_%u fence %llu#%llu matched, force_signaled = %d",
+						cmd_idx, wait_it->context, wait_it->seqno,
+						(int)fence_info->fence_has_force_signaled);
+					wait_it->wait_on.kctx = wait_it->kctx_next;
+					wait_it->wait_on.kcpu_queue = queue;
+					return &wait_it->wait_on;
+				}
+			} else
 				qinspect_dbg(wait_it->kctx->kbdev,
-					"[qinspect] fence %llu#%llu matched!",
-					wait_it->context, wait_it->seqno);
-				wait_it->wait_on.kctx = wait_it->kctx_next;
-				wait_it->wait_on.kcpu_queue = queue;
-				wait_it->wait_on.fence = fence;
-				return &wait_it->wait_on;
-			}
+					"[qinspect] cmd_idx_%u is fence_signal, fence = NULL, force_signaled = %d",
+					cmd_idx,
+					(int)fence_info->fence_has_force_signaled);
 		}
 	}
 #endif
@@ -696,8 +701,6 @@ static struct mtk_qinspect_cqs_wait_on *mtk_qinspect_query_internal_cqs_set_sear
 						"[qinspect] cqs_addr matched!");
 					wait_it->wait_on.queue_type = QINSPECT_CPU_QUEUE;
 					wait_it->wait_on.cpu_queue_buf = queue_buf;
-					wait_it->wait_on.cpu_command = command;
-					wait_it->wait_on.cpu_obj = object;
 					return &wait_it->wait_on;
 				}
 			}
@@ -744,8 +747,6 @@ static struct mtk_qinspect_cqs_wait_on *mtk_qinspect_query_internal_cqs_set_sear
 						"[qinspect] cqs_addr matched!");
 					wait_it->wait_on.queue_type = QINSPECT_KCPU_QUEUE;
 					wait_it->wait_on.kcpu_queue = queue;
-					wait_it->wait_on.kcpu_cmd = cmd;
-					wait_it->wait_on.kcpu_obj = &(set->objs[nr]);
 					return &wait_it->wait_on;
 				}
 			}
@@ -762,8 +763,6 @@ static struct mtk_qinspect_cqs_wait_on *mtk_qinspect_query_internal_cqs_set_sear
 						"[qinspect] cqs_addr matched!");
 					wait_it->wait_on.queue_type = QINSPECT_KCPU_QUEUE;
 					wait_it->wait_on.kcpu_queue = queue;
-					wait_it->wait_on.kcpu_cmd = cmd;
-					wait_it->wait_on.kcpu_op_obj = &(set_op->objs[nr]);
 					return &wait_it->wait_on;
 				}
 			}
@@ -796,7 +795,6 @@ static struct mtk_qinspect_cqs_wait_on *mtk_qinspect_query_internal_sync_set_sea
 
 		wait_it->wait_on.queue_type = QINSPECT_GPU_QUEUE;
 		wait_it->wait_on.gpu_queue = queue;
-		wait_it->wait_on.gpu_sync_set_info = &wait_it->gpu_sync_info_ret;
 
 		return &wait_it->wait_on;
 	}
@@ -833,49 +831,11 @@ struct mtk_qinspect_cpu_command *mtk_qinspect_query_cpuq_internal_top_wait_cmd(
 	union mtk_qinspect_cpu_command_buf *queue_buf, int *completed)
 {
 	struct mtk_qinspect_cpu_command_queue *queue = &(queue_buf->queue);
-	struct mtk_qinspect_cpu_command *command;
-	struct mtk_qinspect_cpu_object *object;
-	u32 obj_no;
 
 	*completed = (int)queue->completed;
 
-	if (queue->num_cmds) {
-		command = &(queue_buf[1].command);
-
-		switch (command->work_type) {
-		case MTK_BASE_CPU_QUEUE_WORK_WAIT:
-			/* check cqs object activity */
-			for (obj_no = 0; obj_no < command->num_objs; obj_no++) {
-				object = &(command->objs[obj_no].object);
-				if (object->cqs_type == MTK_BASE_CQS_TYPE_COUNTING) {
-					if (object->value <= object->pending)
-						return command;
-				} else if (object->cqs_type == MTK_BASE_CQS_TYPE_FIXED_SIZE_BATCH) {
-					if (object->value <= object->batch_size)
-						return command;
-				} else {
-					if (!object->value)
-						return command;
-				}
-			}
-			break;
-		case MTK_BASE_CPU_QUEUE_WORK_WAIT_OP:
-			/* check cqs object activity */
-			for (obj_no = 0; obj_no < command->num_objs; obj_no++) {
-				object = &(command->objs[obj_no].object);
-				if (object->data_operation == BASEP_CQS_WAIT_OPERATION_LE) {
-					if (object->value > object->data_value)
-						return command;
-				} else {
-					if (object->value <= object->data_value)
-						return command;
-				}
-			}
-			break;
-		default:
-			break;
-		}
-	}
+	if (queue->num_cmds && queue_buf[1].command.cmd_idx == 0)
+		return &(queue_buf[1].command);
 
 	return NULL;
 }
@@ -883,35 +843,12 @@ struct mtk_qinspect_cpu_command *mtk_qinspect_query_cpuq_internal_top_wait_cmd(
 struct kbase_kcpu_command *mtk_qinspect_query_kcpuq_internal_top_wait_cmd(struct kbase_kcpu_command_queue *queue,
 	int *blocked)
 {
-	struct kbase_kcpu_command *cmd;
-	int i;
-
 	*blocked = queue->command_started ? 1 : 0;
 
-	if (queue->num_pending_cmds) {
-		/* The offset to the first command that is being processed or yet to
-		 * be processed is of u8 type, so the number of commands inside the
-		 * queue cannot be more than 256. The current implementation expects
-		 * exactly 256, any other size will require the addition of wrapping
-		 * logic.
-		 */
-		BUILD_BUG_ON(KBASEP_KCPU_QUEUE_SIZE != 256);
-
-		cmd = &queue->commands[queue->start_offset];
-		switch (cmd->type) {
-#if IS_ENABLED(CONFIG_SYNC_FILE)
-		case BASE_KCPU_COMMAND_TYPE_FENCE_WAIT:
-#endif
-		case BASE_KCPU_COMMAND_TYPE_CQS_WAIT:
-		case BASE_KCPU_COMMAND_TYPE_CQS_WAIT_OPERATION:
-			return cmd;
-		default:
-			break;
-		}
-	}
+	if (queue->num_pending_cmds)
+		return &queue->commands[queue->start_offset];
 
 	return NULL;
-
 }
 
 struct mtk_qinspect_gpu_command *mtk_qinspect_query_gpuq_internal_top_wait_cmd(struct kbase_queue *queue,
@@ -921,8 +858,10 @@ struct mtk_qinspect_gpu_command *mtk_qinspect_query_gpuq_internal_top_wait_cmd(s
 
 	if (queue->group->csg_nr < 0) {
 		/* save_slot_cs() will indicate wait status in queue->status_wait, check it first. */
-		if (!queue->status_wait)
+		if (!queue->status_wait) {
+			*blocked_reason = 0;
 			return NULL;
+		}
 
 		*blocked_reason = queue->blocked_reason;
 		switch (*blocked_reason) {
@@ -934,13 +873,16 @@ struct mtk_qinspect_gpu_command *mtk_qinspect_query_gpuq_internal_top_wait_cmd(s
 			gpu_cmd->type = GPU_COMMAND_TYPE_SYNC_WAIT;
 			break;
 		case CS_STATUS_BLOCKED_REASON_REASON_WAIT:
-			if (mtk_qinspect_gpuq_internal_get_u64(queue->kctx, queue->saved_cmd_ptr, (u64 *)&inst))
-				return NULL;
-			gpu_cmd->gpu_shared_sb_info.shared_entry = (u8)inst.shared_sb_inc.se;
-			gpu_cmd->type = GPU_COMMAND_TYPE_SHARED_SB_WAIT;
+			if (!mtk_qinspect_gpuq_internal_get_u64(queue->kctx, queue->saved_cmd_ptr, (u64 *)&inst) &&
+				inst.inst.opcode == (u64)0x1f) {
+				gpu_cmd->gpu_shared_sb_info.shared_entry = (u8)inst.shared_sb_dec.se;
+				gpu_cmd->type = GPU_COMMAND_TYPE_SHARED_SB_WAIT;
+			} else
+				gpu_cmd->type = GPU_COMMAND_TYPE_OTHERS;
 			break;
 		default:
-			return NULL;
+			gpu_cmd->type = GPU_COMMAND_TYPE_OTHERS;
+			break;
 		}
 	} else {
 		u32 status_wait;
@@ -974,13 +916,16 @@ struct mtk_qinspect_gpu_command *mtk_qinspect_query_gpuq_internal_top_wait_cmd(s
 		case CS_STATUS_BLOCKED_REASON_REASON_WAIT:
 			cmd_ptr = kbase_csf_firmware_cs_output(stream, CS_STATUS_WAIT_SYNC_POINTER_LO);
 			cmd_ptr |= ((u64)kbase_csf_firmware_cs_output(stream, CS_STATUS_WAIT_SYNC_POINTER_HI)) << 32;
-			if (mtk_qinspect_gpuq_internal_get_u64(queue->kctx, cmd_ptr, (u64 *)&inst))
-				return NULL;
-			gpu_cmd->gpu_shared_sb_info.shared_entry = (u8)inst.shared_sb_inc.se;
-			gpu_cmd->type = GPU_COMMAND_TYPE_SHARED_SB_WAIT;
+			if (!mtk_qinspect_gpuq_internal_get_u64(queue->kctx, queue->saved_cmd_ptr, (u64 *)&inst) &&
+				inst.inst.opcode == (u64)0x1f) {
+				gpu_cmd->gpu_shared_sb_info.shared_entry = (u8)inst.shared_sb_dec.se;
+				gpu_cmd->type = GPU_COMMAND_TYPE_SHARED_SB_WAIT;
+			} else
+				gpu_cmd->type = GPU_COMMAND_TYPE_OTHERS;
 			break;
 		default:
-			return NULL;
+			gpu_cmd->type = GPU_COMMAND_TYPE_OTHERS;
+			break;
 		}
 	}
 
@@ -991,10 +936,10 @@ struct mtk_qinspect_gpu_command *mtk_qinspect_query_gpuq_internal_top_wait_cmd(s
  * wait_cmd build operations
  */
 
-void mtk_qinspect_build_fence_info(struct mtk_qinspect_fence_info *fence, u64 context, u64 seqno)
+void mtk_qinspect_build_fence_info(struct mtk_qinspect_fence_info *fence_info, u64 context, u64 seqno)
 {
-	fence->context = context;
-	fence->seqno = seqno;
+	fence_info->context = context;
+	fence_info->seqno = seqno;
 }
 
 void mtk_qinspect_build_cqs_wait_obj(struct mtk_qinspect_cqs_wait_obj *cmd,
@@ -1013,73 +958,32 @@ void mtk_qinspect_build_cqs_wait_obj(struct mtk_qinspect_cqs_wait_obj *cmd,
 #if IS_ENABLED(CONFIG_SYNC_FILE)
 
 void mtk_qinspect_query_internal_fence_wait_it_init(enum mtk_qinspect_queue_type queue_type,
-	void *queue, void *fence, struct mtk_qinspect_fence_wait_it *wait_it)
+	void *queue, void *fence_info, struct mtk_qinspect_fence_wait_it *wait_it)
 {
-	struct kbase_context *kctx_next;
-
-	wait_it->kctx_next = NULL;
-
 	switch (queue_type) {
 	case QINSPECT_KCPU_QUEUE:
 		wait_it->kctx = ((struct kbase_kcpu_command_queue *)queue)->kctx;
 		wait_it->kbdev = wait_it->kctx->kbdev;
-		wait_it->context = (u64)((struct kbase_kcpu_command_fence_info *)fence)->fence->context;
-		wait_it->seqno = (u64)((struct kbase_kcpu_command_fence_info *)fence)->fence->seqno;
+		wait_it->context = (u64)((struct kbase_kcpu_command_fence_info *)fence_info)->fence->context;
+		wait_it->seqno = (u64)((struct kbase_kcpu_command_fence_info *)fence_info)->fence->seqno;
 		break;
 	case QINSPECT_NONE_QUEUE:
 		wait_it->kctx = (struct kbase_context *)queue;
 		wait_it->kbdev = wait_it->kctx->kbdev;
-		wait_it->context = (u64)((struct mtk_qinspect_fence_info *)fence)->context;
-		wait_it->seqno = (u64)((struct mtk_qinspect_fence_info *)fence)->seqno;
+		wait_it->context = (u64)((struct mtk_qinspect_fence_info *)fence_info)->context;
+		wait_it->seqno = (u64)((struct mtk_qinspect_fence_info *)fence_info)->seqno;
 		break;
 	default:
+		wait_it->kctx_next = NULL;
 		return;
 	}
 
 	/* init kctx search record */
-	if (!mtk_qinspect_mutex_trylock(&wait_it->kbdev->kctx_list_lock)) {
-		qinspect_err(wait_it->kctx->kbdev,
-			"[qinspect] query_internal_fence_wait_it_init: kctx_list_lock held!");
-		return;
-	}
-	kctx_next = list_first_entry(&wait_it->kbdev->kctx_list, struct kbase_context, kctx_list_link);
-	if (list_entry_is_head(kctx_next, &wait_it->kbdev->kctx_list, kctx_list_link)) {
-		mutex_unlock(&wait_it->kbdev->kctx_list_lock);
-		return;
-	}
+	/* search start from wait_it->kctx and then by the order in kctx_list */
+	wait_it->kctx_next = wait_it->kctx;
 
-	do {
-		/* is wait_it->kctx itself, locks already locked */
-		if (kctx_next == wait_it->kctx) {
-			wait_it->kctx_next = kctx_next;
-			break;
-		}
-
-		/* lock kctx_next->csf.lock and kctx_next->csf.kcpu_queues.lock */
-		if (mtk_qinspect_mutex_trylock(&kctx_next->csf.lock)) {
-			if (mtk_qinspect_mutex_trylock(&kctx_next->csf.kcpu_queues.lock)) {
-				wait_it->kctx_next = kctx_next;
-				break;
-			}
-			qinspect_err(wait_it->kctx->kbdev,
-				"[qinspect] Ctx %d_%d csf.kcpu_queues.lock held, skip it!",
-				kctx_next->tgid, kctx_next->id);
-			mutex_unlock(&kctx_next->csf.lock);
-		} else
-			qinspect_err(wait_it->kctx->kbdev,
-				"[qinspect] Ctx %d_%d csf.lock held, skip it!",
-				kctx_next->tgid, kctx_next->id);
-
-		/* lock failed, move to next kctx */
-		kctx_next = list_next_entry(kctx_next, kctx_list_link);
-	} while (!list_entry_is_head(kctx_next, &wait_it->kbdev->kctx_list, kctx_list_link));
-
-	if (wait_it->kctx_next == kctx_next)
-		/* init kcpu_queue search record */
-		wait_it->kcpu_queue_idx = find_first_bit(wait_it->kctx_next->csf.kcpu_queues.in_use,
-			KBASEP_MAX_KCPU_QUEUES);
-
-	mutex_unlock(&wait_it->kbdev->kctx_list_lock);
+	/* init kcpu_queue search record */
+	wait_it->kcpu_queue_idx = find_first_bit(wait_it->kctx_next->csf.kcpu_queues.in_use, KBASEP_MAX_KCPU_QUEUES);
 }
 
 struct mtk_qinspect_fence_wait_on *mtk_qinspect_query_internal_fence_wait_it(
@@ -1088,9 +992,8 @@ struct mtk_qinspect_fence_wait_on *mtk_qinspect_query_internal_fence_wait_it(
 	struct mtk_qinspect_fence_wait_on *wait_on;
 
 	while (wait_it->kctx_next) {
-		/* a. search at kctx_next */
+		/* a. search kcpu_queue at wait_it->kctx_next */
 		lockdep_assert_held(&wait_it->kctx_next->csf.kcpu_queues.lock);
-		lockdep_assert_held(&wait_it->kctx_next->csf.lock);
 
 		qinspect_dbg(wait_it->kctx->kbdev,
 			"[qinspect] search fence_signal %llu#%llu at Ctx %d_%d",
@@ -1117,10 +1020,10 @@ struct mtk_qinspect_fence_wait_on *mtk_qinspect_query_internal_fence_wait_it(
 			if (wait_on)
 				return wait_on;
 		}
-		mutex_unlock(&wait_it->kctx_next->csf.kcpu_queues.lock);
-		mutex_unlock(&wait_it->kctx_next->csf.lock);
+		if (wait_it->kctx_next != wait_it->kctx)
+			mutex_unlock(&wait_it->kctx_next->csf.kcpu_queues.lock);
 
-		/* b. move kctx_next */
+		/* b. move wait_it->kctx_next */
 		if (!mtk_qinspect_mutex_trylock(&wait_it->kbdev->kctx_list_lock)) {
 			qinspect_err(wait_it->kctx->kbdev,
 				"[qinspect] Ctx %d_%d kctx_list_lock held!",
@@ -1129,25 +1032,40 @@ struct mtk_qinspect_fence_wait_on *mtk_qinspect_query_internal_fence_wait_it(
 			break;
 		}
 		while (1) {
-			wait_it->kctx_next = list_next_entry(wait_it->kctx_next, kctx_list_link);
-			if (list_entry_is_head(wait_it->kctx_next, &wait_it->kbdev->kctx_list, kctx_list_link)) {
-				wait_it->kctx_next = NULL;
-				break;
+			struct kbase_context *kctx, *kctx_next;
+			bool kctx_next_matched;
+
+			/* find kctx_next (wait_it->kctx is the first one and already been processed) */
+			kctx_next = NULL;
+			if (wait_it->kctx_next == wait_it->kctx) {
+				list_for_each_entry(kctx, &wait_it->kbdev->kctx_list, kctx_list_link) {
+					if (kctx != wait_it->kctx) {
+						kctx_next = kctx;
+						break;
+					}
+				}
+			} else {
+				kctx_next_matched = false;
+				list_for_each_entry(kctx, &wait_it->kbdev->kctx_list, kctx_list_link) {
+					if (kctx_next_matched) {
+						if (kctx != wait_it->kctx) {
+							kctx_next = kctx;
+							break;
+						}
+					} else if (kctx == wait_it->kctx_next)
+						kctx_next_matched = true;
+				}
 			}
-			if (wait_it->kctx_next != wait_it->kctx) {
-				if (!mtk_qinspect_mutex_trylock(&wait_it->kctx_next->csf.lock)) {
-					qinspect_err(wait_it->kctx->kbdev,
-						"[qinspect] Ctx %d_%d csf.lock held, skip it!",
-						wait_it->kctx_next->tgid, wait_it->kctx_next->id);
-					continue;
-				}
-				if (!mtk_qinspect_mutex_trylock(&wait_it->kctx_next->csf.kcpu_queues.lock)) {
-					mutex_unlock(&wait_it->kctx_next->csf.lock);
-					qinspect_err(wait_it->kctx->kbdev,
-						"[qinspect] Ctx %d_%d csf.kcpu_queues.lock held, skip it!",
-						wait_it->kctx_next->tgid, wait_it->kctx_next->id);
-					continue;
-				}
+
+			wait_it->kctx_next = kctx_next;
+			if (!wait_it->kctx_next)
+				break;
+
+			if (!mtk_qinspect_mutex_trylock(&wait_it->kctx_next->csf.kcpu_queues.lock)) {
+				qinspect_err(wait_it->kctx->kbdev,
+					"[qinspect] Ctx %d_%d csf.kcpu_queues.lock held, skip it!",
+					wait_it->kctx_next->tgid, wait_it->kctx_next->id);
+				continue;
 			}
 
 			/* init kcpu_queue search record */
@@ -1164,11 +1082,10 @@ struct mtk_qinspect_fence_wait_on *mtk_qinspect_query_internal_fence_wait_it(
 void mtk_qinspect_query_internal_fence_wait_it_done(struct mtk_qinspect_fence_wait_it *wait_it)
 {
 	if (wait_it->kctx_next) {
-		lockdep_assert_held(&wait_it->kctx_next->csf.kcpu_queues.lock);
-		lockdep_assert_held(&wait_it->kctx_next->csf.lock);
-
-		mutex_unlock(&wait_it->kctx_next->csf.kcpu_queues.lock);
-		mutex_unlock(&wait_it->kctx_next->csf.lock);
+		if (wait_it->kctx_next != wait_it->kctx) {
+			lockdep_assert_held(&wait_it->kctx_next->csf.kcpu_queues.lock);
+			mutex_unlock(&wait_it->kctx_next->csf.kcpu_queues.lock);
+		}
 		wait_it->kctx_next = NULL;
 	}
 }
@@ -1225,7 +1142,7 @@ void mtk_qinspect_query_internal_cqs_wait_it_init(enum mtk_qinspect_queue_type q
 	wait_it->objs_failure_map = 0;
 	wait_it->objs_match_map = 0;
 	wait_it->objs_deadlock_map = 0;
-	wait_it->objs_map_mask = (1 << (objs_nr)) - 1;
+	wait_it->objs_map_mask = (1ull << (objs_nr)) - 1;
 	if (objs_nr > sizeof(wait_it->objs_signaled_map) * 8)
 		qinspect_err(wait_it->kctx->kbdev,
 			"[qinspect] query_internal_cqs_wait_it_init: number of objects > %lu!",
@@ -1234,34 +1151,34 @@ void mtk_qinspect_query_internal_cqs_wait_it_init(enum mtk_qinspect_queue_type q
 
 static void mtk_qinspect_query_internal_cqs_wait_it_update_signaled_map(struct mtk_qinspect_cqs_wait_it *wait_it)
 {
-	const int update_nr = wait_it->wait_obj_nr - 1;
+	const unsigned int update_nr = wait_it->wait_obj_nr - 1;
 
 	if (update_nr < sizeof(wait_it->objs_signaled_map) * 8)
-		wait_it->objs_signaled_map |= 1 << update_nr;
+		wait_it->objs_signaled_map |= 1ull << update_nr;
 }
 
 static void mtk_qinspect_query_internal_cqs_wait_it_update_failure_map(struct mtk_qinspect_cqs_wait_it *wait_it)
 {
-	const int update_nr = wait_it->wait_obj_nr - 1;
+	const unsigned int update_nr = wait_it->wait_obj_nr - 1;
 
 	if (update_nr < sizeof(wait_it->objs_failure_map) * 8)
-		wait_it->objs_failure_map |= 1 << update_nr;
+		wait_it->objs_failure_map |= 1ull << update_nr;
 }
 
 static void mtk_qinspect_query_internal_cqs_wait_it_update_match_map(struct mtk_qinspect_cqs_wait_it *wait_it)
 {
-	const int update_nr = wait_it->wait_obj_nr - 1;
+	const unsigned int update_nr = wait_it->wait_obj_nr - 1;
 
 	if (update_nr < sizeof(wait_it->objs_match_map) * 8)
-		wait_it->objs_match_map |= 1 << update_nr;
+		wait_it->objs_match_map |= 1ull << update_nr;
 }
 
 void mtk_qinspect_query_internal_cqs_wait_it_update_deadlock_map(struct mtk_qinspect_cqs_wait_it *wait_it)
 {
-	const int update_nr = wait_it->wait_obj_nr - 1;
+	const unsigned int update_nr = wait_it->wait_obj_nr - 1;
 
 	if (update_nr < sizeof(wait_it->objs_deadlock_map) * 8)
-		wait_it->objs_deadlock_map |= 1 << update_nr;
+		wait_it->objs_deadlock_map |= 1ull << update_nr;
 }
 
 static struct mtk_qinspect_cqs_wait_on *mtk_qinspect_query_internal_cqs_wait_it_search_cpuq(
@@ -1350,7 +1267,7 @@ static struct mtk_qinspect_cqs_wait_on *mtk_qinspect_query_internal_cqs_wait_it_
 	return NULL;
 }
 
-int mtk_qinspect_query_internal_cqs_wait_obj(struct mtk_qinspect_cqs_wait_it *wait_it, int obj_nr,
+int mtk_qinspect_query_internal_cqs_wait_obj(struct mtk_qinspect_cqs_wait_it *wait_it, unsigned int obj_nr,
 	struct mtk_qinspect_cqs_wait_obj *wait_obj)
 {
 	if (wait_it->queue_type == QINSPECT_CPU_QUEUE) {
