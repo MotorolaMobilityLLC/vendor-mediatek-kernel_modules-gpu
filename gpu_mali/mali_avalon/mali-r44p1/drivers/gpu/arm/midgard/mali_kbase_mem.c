@@ -1708,9 +1708,7 @@ void kbase_free_alloced_region(struct kbase_va_region *reg)
 #endif
 	if (!(reg->flags & KBASE_REG_FREE)) {
 		struct kbase_context *kctx = kbase_reg_to_kctx(reg);
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
-				int r_index;
-#endif
+
 		if (WARN_ON(!kctx))
 			return;
 
@@ -1729,22 +1727,6 @@ void kbase_free_alloced_region(struct kbase_va_region *reg)
 			 */
 
 			kbase_unlink_event_mem_page(kctx, reg);
-#endif
-
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
-		if (kctx->kbdev->system_coherency != COHERENCY_NONE) {
-			mutex_lock(&kctx->coherenct_region_lock);
-			for (r_index = 0; r_index < kctx->coherent_region_nr; r_index++) {
-				if (kctx->coherenct_regions[r_index] == reg) {
-					dev_vdbg(kctx->kbdev->dev,
-					"Free alloced coherent region[%d]=0x%p, tgid: %d, reg_nr: %u",
-						r_index, reg , kctx->tgid, kctx->coherent_region_nr);
-					kctx->coherenct_regions[r_index] = NULL;
-					break;
-				}
-			}
-			mutex_unlock(&kctx->coherenct_region_lock);
-		}
 #endif
 
 		mutex_lock(&kctx->jit_evict_lock);
@@ -2320,9 +2302,6 @@ KBASE_EXPORT_TEST_API(kbase_sync_now);
 int kbase_mem_free_region(struct kbase_context *kctx, struct kbase_va_region *reg)
 {
 	int err;
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
-		int r_index;
-#endif
 
 	KBASE_DEBUG_ASSERT(kctx != NULL);
 	KBASE_DEBUG_ASSERT(reg != NULL);

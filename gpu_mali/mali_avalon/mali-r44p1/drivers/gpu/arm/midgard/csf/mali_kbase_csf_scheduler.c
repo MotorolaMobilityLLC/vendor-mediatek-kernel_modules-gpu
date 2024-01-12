@@ -4035,14 +4035,6 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 	struct kbase_protected_suspend_buffer *sbuf = &input_grp->protected_suspend_buf;
 	unsigned long flags;
 	bool protm_in_use;
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
-		int r_index, ret, i;
-		struct kbase_context *kctx;
-		struct kbase_va_region *reg;
-		dma_addr_t sync_dma_addr;
-		struct page *sync_page;
-		phys_addr_t sync_pa;
-#endif
 
 	lockdep_assert_held(&scheduler->lock);
 
@@ -4102,40 +4094,6 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 				 * architecture team. See the comment in
 				 * GPUCORE-21394.
 				 */
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
-				if (kbdev->system_coherency != COHERENCY_NONE) {
-					spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
-					mutex_lock(&kbdev->kctx_list_lock);
-					// loop for each kctx
-					list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
-						dev_vdbg(kbdev->dev, "kctx %p, pid %d,tid %d, coherent_regioon_nr: %u\n",
-							kctx, kctx->pid, kctx->tgid, kctx->coherent_region_nr);
-						if (kctx->pid == input_grp->kctx->pid) {
-							mutex_lock(&kctx->coherenct_region_lock);
-							// for each region in the kctx
-							for (r_index = 0; r_index < kctx->coherent_region_nr; r_index++) {
-								if (kctx->coherenct_regions[r_index] != NULL &&
-									(kctx->coherenct_regions[r_index])->cpu_alloc != NULL) {
-									reg = kctx->coherenct_regions[r_index];
-									//flush region page by page
-									for (i = 0 ; i < reg->gpu_alloc->nents; i++)
-									{
-										sync_pa = as_phys_addr_t(reg->gpu_alloc->pages[i]);
-										sync_page = pfn_to_page(PFN_DOWN(sync_pa));
-										sync_dma_addr = kbase_dma_addr(sync_page);
-										dma_sync_single_for_device(kbdev->dev,
-											sync_dma_addr, PAGE_SIZE, DMA_BIDIRECTIONAL);
-									}
-								}
-							}
-						mutex_unlock(&kctx->coherenct_region_lock);
-						dev_vdbg(kbdev->dev, "Flushed kctx pid: %d, tgid: %d\n", kctx->pid, kctx->tgid);
-						}
-					}
-					mutex_unlock(&kbdev->kctx_list_lock);
-					spin_lock_irqsave(&scheduler->interrupt_lock, flags);
-				}
-#endif
 				/* Switch to protected mode */
 				scheduler->active_protm_grp = input_grp;
 				KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_PROTM_ENTER, input_grp,

@@ -235,14 +235,10 @@ static int kernel_map_user_io_pages(struct kbase_context *kctx,
 	/* The pages are mapped to Userspace also, so use the same mapping
 	 * attributes as used inside the CPU page fault handler.
 	 */
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
-			cpu_map_prot = pgprot_writecombine(PAGE_KERNEL);
-#else
-			if (kctx->kbdev->system_coherency == COHERENCY_NONE)
-				cpu_map_prot = pgprot_writecombine(PAGE_KERNEL);
-			else
-				cpu_map_prot = PAGE_KERNEL;
-#endif
+	if (kctx->kbdev->system_coherency == COHERENCY_NONE)
+		cpu_map_prot = pgprot_writecombine(PAGE_KERNEL);
+	else
+		cpu_map_prot = PAGE_KERNEL;
 
 
 	for (i = 0; i < ARRAY_SIZE(page_list); i++)
