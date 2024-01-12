@@ -36,7 +36,7 @@
 #include <linux/ktime.h>
 #include <soc/mediatek/emi.h>
 #define RANK_BOUNDARY (0x1c0000000)
-#define PREFILL_TARGET (SZ_256M >> PAGE_SHIFT)
+#define PREFILL_TARGET (0x0)
 #define REFILL_TARGET (SZ_64M >> PAGE_SHIFT)
 #define HALF_REFILL_TARGET (REFILL_TARGET >> 1)
 #endif /* CONFIG_MALI_MTK_MGMM */
@@ -325,12 +325,38 @@ static int refill_set(void *data, u64 val)
 	return 0;
 }
 
+static int sel_count_get(void *data, u64 *val)
+{
+	struct mgm_groups *mgm_data;
+
+	mgm_data = (struct mgm_groups *)data;
+	*val = mgm_data->count;
+
+	return 0;
+}
+
+static int sel_get(void *data, u64 *val)
+{
+	struct mgm_groups *mgm_data;
+
+	mgm_data = (struct mgm_groups *)data;
+	*val = 0x0;
+	if (!mgm_data->bRank0[0])
+		*val = 0x1;
+	if (!mgm_data->bRank0[1])
+		*val |= 0x10;
+
+	return 0;
+}
+
 DEFINE_DEBUGFS_ATTRIBUTE(fops_rank_mode, rank_mode_get, rank_mode_set, "%llu\n");
 DEFINE_DEBUGFS_ATTRIBUTE(fops_rank0, rank0_get, rank0_set, "%llu\n");
 DEFINE_DEBUGFS_ATTRIBUTE(fops_rank1, rank1_get, rank1_set, "%llu\n");
 DEFINE_DEBUGFS_ATTRIBUTE(fops_LPrank0, lp_rank0_get, lp_rank0_set, "%llu\n");
 DEFINE_DEBUGFS_ATTRIBUTE(fops_LPrank1, lp_rank1_get, lp_rank1_set, "%llu\n");
 DEFINE_DEBUGFS_ATTRIBUTE(fops_refill, refill_get, refill_set, "%llu\n");
+DEFINE_DEBUGFS_ATTRIBUTE(fops_sel_count, sel_count_get, NULL, "%#2llx\n");
+DEFINE_DEBUGFS_ATTRIBUTE(fops_sel, sel_get, NULL, "%llx\n");
 #endif /* CONFIG_MALI_MTK_MGMM */
 DEFINE_DEBUGFS_ATTRIBUTE(fops_mgm_size, mgm_size_get, NULL, "%llu\n");
 DEFINE_DEBUGFS_ATTRIBUTE(fops_mgm_lp_size, mgm_lp_size_get, NULL, "%llu\n");
@@ -456,6 +482,20 @@ static int mgm_initialize_debugfs(struct mgm_groups *mgm_data)
 			&fops_refill);
 	if (IS_ERR_OR_NULL(e)) {
 		dev_vdbg(mgm_data->dev, "fail to create refill_target\n");
+		goto remove_debugfs;
+	}
+
+	e = debugfs_create_file("sel_count", 0444, mgm_data->mgm_debugfs_root, mgm_data,
+			&fops_sel_count);
+	if (IS_ERR_OR_NULL(e)) {
+		dev_vdbg(mgm_data->dev, "fail to create sel_count\n");
+		goto remove_debugfs;
+	}
+
+	e = debugfs_create_file("sel", 0444, mgm_data->mgm_debugfs_root, mgm_data,
+			&fops_sel);
+	if (IS_ERR_OR_NULL(e)) {
+		dev_vdbg(mgm_data->dev, "fail to create sel\n");
 		goto remove_debugfs;
 	}
 #endif /* CONFIG_MALI_MTK_MGMM */
@@ -713,10 +753,16 @@ void mtk_mgm_pool_trim(struct mgm_groups *data, int order, int rank, size_t nr_p
 
 static unsigned long mtk_mgm_pool_reclaim_count_objects_local(size_t nr_rank, size_t target)
 {
-	if (nr_rank > target)
-		return ((nr_rank - target) >> 1);
-	else
-		return nr_rank >> 3;
+	unsigned long ret;
+	if (nr_rank > target) {
+		ret = ((nr_rank - target) >> 1);
+	} else
+		ret = nr_rank >> 3;
+
+	if (ret >= (SZ_64M >> PAGE_SHIFT))
+		 ret = (SZ_64M >> PAGE_SHIFT);
+	 
+	 return ret;
 }
 
 static unsigned long mtk_mgm_pool_reclaim_count_objects(struct shrinker *s,
@@ -918,12 +964,14 @@ static struct page *example_mgm_alloc_page(
 						*pbRank0 = !(*pbRank0);
 						dev_dbg(data->dev, "Select rank0->1 (%d)\n", count);
 						count = 0;
+						data->count++;
 					}
 				} else {
 					if (data->nr_rank[o][1] < (data->szRefillTarget >> (order + 1)) ) {
 						*pbRank0 = !(*pbRank0);
 						dev_dbg(data->dev, "Select rank1->0 (%d)\n", count);
 						count = 0;
+						data->count++;
 					}
 				}
 				spin_unlock(&data->MGMFree_lst_lk);
