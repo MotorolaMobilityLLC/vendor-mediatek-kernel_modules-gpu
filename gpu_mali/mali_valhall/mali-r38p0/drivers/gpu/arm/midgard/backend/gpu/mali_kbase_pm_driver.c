@@ -32,6 +32,7 @@
 #include <mali_kbase_smc.h>
 
 #if MALI_USE_CSF
+#include <linux/delay.h>
 #include <csf/ipa_control/mali_kbase_csf_ipa_control.h>
 #else
 #include <mali_kbase_hwaccess_jm.h>
@@ -3210,3 +3211,118 @@ void kbase_pm_release_gpu_cycle_counter(struct kbase_device *kbdev)
 }
 
 KBASE_EXPORT_TEST_API(kbase_pm_release_gpu_cycle_counter);
+
+#if MALI_USE_CSF
+static int power_up_required_cores(struct kbase_device *kbdev)
+{
+	struct kbase_pm_backend_data *backend = &kbdev->pm.backend;
+	u64 shaders_ready =
+		kbase_pm_get_ready_cores(kbdev, KBASE_PM_CORE_SHADER);
+	u64 cores_required = backend->shaders_avail & ~shaders_ready;
+	int err = 0;
+
+	if (cores_required) {
+		const unsigned int max_iterations = 100;
+		unsigned int i;
+
+		/* Wait for ~1 ms for the cores transition to complete */
+		for (i = 0; i < max_iterations; i++) {
+			if (!kbase_pm_get_trans_cores(kbdev, KBASE_PM_CORE_SHADER))
+				break;
+			udelay(10);
+		}
+
+		if (i == max_iterations) {
+			dev_err(kbdev->dev, "Wait for power transition of %llx cores failed",
+				cores_required);
+			err = -ETIMEDOUT;
+		}
+
+		kbase_pm_invoke(kbdev, KBASE_PM_CORE_SHADER, cores_required,
+				ACTION_PWRON);
+
+		/* Wait for ~1 ms for the cores to get powered up */
+		for (i = 0; i < max_iterations; i++) {
+			shaders_ready =
+				kbase_pm_get_ready_cores(kbdev, KBASE_PM_CORE_SHADER);
+			if (shaders_ready == backend->shaders_avail)
+				break;
+			udelay(10);
+		}
+
+		if (i == max_iterations) {
+			dev_err(kbdev->dev, "Wait for power up of %llx cores failed",
+				cores_required);
+			err = -ETIMEDOUT;
+		}
+	}
+
+	return err;
+}
+
+int kbase_pm_apply_pmode_entry_wa(struct kbase_device *kbdev)
+{
+	unsigned long flags;
+	int err = 0;
+
+	kbase_pm_lock(kbdev);
+
+	/* Call to update the core_mask can be added here */
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+
+	WARN_ON(!kbdev->pm.backend.gpu_powered);
+
+	if (!kbase_pm_no_mcu_core_pwroff(kbdev)) {
+		/* Disable the SC power control on FW side */
+		kbdev->csf.mcu_core_pwroff_dur_count =
+			GLB_PWROFF_TIMER_TIMER_SOURCE_SET(DISABLE_GLB_PWROFF_TIMER,
+				GLB_PWROFF_TIMER_TIMER_SOURCE_SYSTEM_TIMESTAMP);
+		kbase_pm_update_state(kbdev);
+	}
+
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+	err = kbase_pm_wait_for_desired_state(kbdev);
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	if (!err) {
+		WARN_ON(kbdev->pm.backend.mcu_state != KBASE_MCU_ON);
+		/* Power up the cores that FW may have disabled due to inactivity */
+		if (!kbase_pm_no_mcu_core_pwroff(kbdev))
+			err = power_up_required_cores(kbdev);
+	} else {
+		dev_err(kbdev->dev, "Wait for desired pm state failed when applying pmode WA");
+	}
+
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	/* Can switch to ARM backup PDCA here */
+
+	kbase_pm_unlock(kbdev);
+
+	return err;
+}
+
+void kbase_pm_apply_pmode_exit_wa(struct kbase_device *kbdev)
+{
+	unsigned long flags;
+
+	kbase_pm_lock(kbdev);
+
+	WARN_ON(!kbdev->pm.backend.gpu_powered);
+
+	/* Can switch back to MTK PDCA here */
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	if (!kbase_pm_no_mcu_core_pwroff(kbdev)) {
+		kbase_csf_firmware_set_mcu_core_pwroff_time(kbdev,
+			kbdev->csf.mcu_core_pwroff_dur_us);
+		/* Invoke the state machine to send the request to FW for
+		 * taking over power control of SC.
+		 */
+		kbase_pm_update_state(kbdev);
+	}
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	kbase_pm_unlock(kbdev);
+}
+#endif

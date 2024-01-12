@@ -962,6 +962,30 @@ static inline void kbase_pm_disable_db_mirror_interrupt(struct kbase_device *kbd
 		kbdev->pm.backend.db_mirror_interrupt_enabled = false;
 	}
 }
+
+/**
+ * kbase_pm_apply_pmode_entry_wa - Apply the WA, before protected mode entry, to
+ *                                 disable the power control of SC on FW side
+ *                                 and if needed power up all the required cores
+ *                                 and finally perform the PDCA switching.
+ *
+ * @kbdev: Device pointer
+ *
+ * This function must be called with Scheduler lock held.
+ *
+ * Return: 0 if the WA was applied successfully, otherwise an error code.
+ */
+int kbase_pm_apply_pmode_entry_wa(struct kbase_device *kbdev);
+/**
+ * kbase_pm_apply_pmode_exit_wa - Apply the WA, after protected mode exit, to
+ *                                perform the PDCA switching and then re-enable
+ *                                the power control of SC on FW side.
+ *
+ * @kbdev: Device pointer
+ *
+ * This function must be called with Scheduler lock held.
+ */
+void kbase_pm_apply_pmode_exit_wa(struct kbase_device *kbdev);
 #endif
 
 #endif /* _KBASE_BACKEND_PM_INTERNAL_H_ */
