@@ -2330,24 +2330,24 @@ handle_fault_event(struct kbase_queue *const queue,
 
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_print(&kbdev->logbuf_exception,
-		"[%llxt] Ctx %d_%d Group %d CSG %d CSI: %d\n"
-		"CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
-		"CS_FAULT.EXCEPTION_DATA: 0x%x\n"
-		"CS_FAULT_INFO.EXCEPTION_DATA: 0x%llx\n",
-		mtk_logbuffer_get_timestamp(kbdev),
-		queue->kctx->tgid, queue->kctx->id, queue->group->handle,
-		queue->group->csg_nr, queue->csi_index,
-		cs_fault_exception_type,
-		kbase_gpu_exception_name(cs_fault_exception_type),
-		cs_fault_exception_data, cs_fault_info_exception_data);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	if (cs_fault_exception_type != CS_FAULT_EXCEPTION_TYPE_CS_INHERIT_FAULT)
 	{
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_exception,
+			"[%llxt] Ctx %d_%d Group %d CSG %d CSI: %d\n"
+			"CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
+			"CS_FAULT.EXCEPTION_DATA: 0x%x\n"
+			"CS_FAULT_INFO.EXCEPTION_DATA: 0x%llx\n",
+			mtk_logbuffer_get_timestamp(kbdev),
+			queue->kctx->tgid, queue->kctx->id, queue->group->handle,
+			queue->group->csg_nr, queue->csi_index,
+			cs_fault_exception_type,
+			kbase_gpu_exception_name(cs_fault_exception_type),
+			cs_fault_exception_data, cs_fault_info_exception_data);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #endif /* CONFIG_MALI_MTK_DEBUG */
+
 	dev_warn(kbdev->dev,
 		 "Ctx %d_%d Group %d CSG %d CSI: %d\n"
 		 "CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
