@@ -47,6 +47,23 @@ void mtk_common_ged_dvfs_commit(unsigned long ui32NewFreqID,
 		}
 	}
 }
+
+void mtk_common_ged_dvfs_dual_commit(unsigned long gpuNewFreqID,
+                                unsigned long stackNewFreqID,
+                                int *pbCommited)
+{
+	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+	int ret;
+
+	if (!IS_ERR_OR_NULL(kbdev)) {
+		if (kbdev->pm.backend.gpu_ready) {
+			ret = mtk_common_gpufreq_dual_commit(gpuNewFreqID, stackNewFreqID);
+			if (pbCommited) {
+				*pbCommited = (ret == 0) ? true : false;
+			}
+		}
+	}
+}
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
@@ -315,6 +332,7 @@ int mtk_dvfs_init(struct kbase_device *kbdev)
 	ged_dvfs_cal_gpu_utilization_fp = mtk_common_cal_gpu_utilization;
 #endif /* CONFIG_MALI_MTK_DVFS_LOADING_MODE */
 	ged_dvfs_gpu_freq_commit_fp = mtk_common_ged_dvfs_commit;
+	ged_dvfs_gpu_freq_dual_commit_fp = mtk_common_ged_dvfs_dual_commit;
 	ged_dvfs_set_gpu_core_mask_fp = mtk_set_core_mask;
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
@@ -333,6 +351,7 @@ int mtk_dvfs_term(struct kbase_device *kbdev)
 	ged_dvfs_cal_gpu_utilization_fp = NULL;
 #endif /* CONFIG_MALI_MTK_DVFS_LOADING_MODE */
 	ged_dvfs_gpu_freq_commit_fp = NULL;
+	ged_dvfs_gpu_freq_dual_commit_fp = NULL;
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 	return 0;
