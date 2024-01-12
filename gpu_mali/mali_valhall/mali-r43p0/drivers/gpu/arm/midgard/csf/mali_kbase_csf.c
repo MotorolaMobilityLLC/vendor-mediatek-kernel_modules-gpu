@@ -37,6 +37,10 @@
 #include <tl/mali_kbase_tracepoints.h>
 #include "mali_kbase_csf_mcu_shared_reg.h"
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
+#include <platform/mtk_platform_common/mtk_platform_pending_submission.h>
+#endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
+
 #define CS_REQ_EXCEPTION_MASK (CS_REQ_FAULT_MASK | CS_REQ_FATAL_MASK)
 #define CS_ACK_EXCEPTION_MASK (CS_ACK_FAULT_MASK | CS_ACK_FATAL_MASK)
 
@@ -751,10 +755,65 @@ static struct kbase_queue_group *get_bound_queue_group(
 	return group;
 }
 
-static void enqueue_gpu_submission_work(struct kbase_context *const kctx)
+#if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
+static int check_trigger_submission(struct kbase_context *kctx)
 {
-	queue_work(system_highpri_wq, &kctx->csf.pending_submission_work);
+	int trigger_submission;
+
+	trigger_submission = atomic_read(&kctx->csf.trigger_submission);
+
+	if (trigger_submission > 0) {
+		atomic_dec(&kctx->csf.trigger_submission);
+	} else if (trigger_submission < 0) {
+		dev_vdbg(kctx->kbdev->dev, "Invalid trigger_submission: %d\n", trigger_submission);
+	}
+
+	return trigger_submission;
 }
+
+static int pending_submission_worker_kthread(void* data)
+{
+	struct kbase_context *kctx = (struct kbase_context *)data;
+	struct kbase_device *kbdev = kctx->kbdev;
+	struct kbase_queue *queue;
+	int err;
+
+	while (!kthread_should_stop()) {
+		wait_event_freezable_timeout(kctx->csf.pending_wait_queue,
+			((check_trigger_submission(kctx) > 0) || kthread_should_stop()), MAX_SCHEDULE_TIMEOUT);
+
+		if (kthread_should_stop())
+			return 0;
+
+		err = kbase_reset_gpu_prevent_and_wait(kbdev);
+
+		if (err) {
+			dev_err(kbdev->dev, "Unsuccessful GPU reset detected when kicking queue ");
+			continue;
+		}
+
+		mutex_lock(&kctx->csf.lock);
+
+		/* Iterate through the queue list and schedule the pending ones for submission. */
+		list_for_each_entry(queue, &kctx->csf.queue_list, link) {
+			if (atomic_cmpxchg(&queue->pending, 1, 0) == 1) {
+				struct kbase_queue_group *group = get_bound_queue_group(queue);
+
+				if (!group || queue->bind_state != KBASE_CSF_QUEUE_BOUND)
+					dev_vdbg(kbdev->dev, "queue is not bound to a group");
+				else if (kbase_csf_scheduler_queue_start(queue))
+					dev_vdbg(kbdev->dev, "Failed to start queue");
+			}
+		}
+
+		mutex_unlock(&kctx->csf.lock);
+
+		kbase_reset_gpu_allow(kbdev);
+	}
+
+	return 0;
+}
+#endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
 
 /**
  * pending_submission_worker() - Work item to process pending kicked GPU command queues.
@@ -894,6 +953,19 @@ void kbase_csf_ring_cs_kernel_doorbell(struct kbase_device *kbdev,
 
 	if (likely(ring_csg_doorbell))
 		kbase_csf_ring_csg_doorbell(kbdev, csg_nr);
+}
+
+static void enqueue_gpu_submission_work(struct kbase_context *const kctx)
+{
+#if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
+	if (kctx->csf.pending_submission_mode == GPU_PENDING_SUBMISSION_KTHREAD) {
+		atomic_inc(&kctx->csf.trigger_submission);
+		wake_up(&kctx->csf.pending_wait_queue);
+	} else
+		queue_work(system_highpri_wq, &kctx->csf.pending_submission_work);
+#else
+		queue_work(system_highpri_wq, &kctx->csf.pending_submission_work);
+#endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
 }
 
 int kbase_csf_queue_kick(struct kbase_context *kctx,

@@ -10,6 +10,8 @@
 #include <platform/mtk_platform_common.h>
 #include <mtk_gpufreq.h>
 #include <ged_dvfs.h>
+#include <ged_base.h>
+#include <ged_type.h>
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 #include <platform/mtk_platform_common/mtk_platform_dvfs.h>
@@ -18,6 +20,14 @@
 #if IS_ENABLED(CONFIG_PROC_FS)
 #include <linux/proc_fs.h>
 #endif /* CONFIG_PROC_FS */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE)
+#include <platform/mtk_platform_common/mtk_platform_pending_submission.h>
+#endif /* CONFIG_MALI_MTK_PENDING_SUBMISSION_MODE */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+#include <platform/mtk_platform_common/mtk_platform_adaptive_power_policy.h>
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 
 #if IS_ENABLED(CONFIG_PROC_FS)
 /* name of the proc root dir */
