@@ -2245,6 +2245,7 @@ static void mtk_debug_dump_for_external_fence(int fd, int pid, int type, int tim
 				mtk_logbuffer_print(&kbdev->logbuf_exception,
 								     "external fence timeouts(%d ms)! reset gpu\n", timeouts);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+				kbdev->reset_force_evict_group_work = true;
 				kbase_reset_gpu(kbdev);
 			}
 #endif /* CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET */
