@@ -3157,10 +3157,14 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 	/* Wait for the RESET_COMPLETED interrupt to be raised */
 	kbase_pm_wait_for_reset(kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+	if (!kbdev->reset_force_hard_reset) {
+#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
 	if (!rtdata.timed_out) {
 		/* GPU has been reset */
 		hrtimer_cancel(&rtdata.timer);
 		destroy_hrtimer_on_stack(&rtdata.timer);
+		dev_info(kbdev->dev, "GPU soft reset completed");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_print(&kbdev->logbuf_exception,
 			"[%llxt] GPU soft reset completed\n",
@@ -3168,6 +3172,16 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return 0;
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+	} else {
+		dev_info(kbdev->dev, "No need to check if GPU soft reset was timed-out");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_exception,
+			"[%llxt] No need to check if GPU soft reset was timed-out\n",
+			mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception));
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	}
+#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
 
 	/* No interrupt has been received - check if the RAWSTAT register says
 	 * the reset has completed
@@ -3239,10 +3253,17 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		/* Wait for the RESET_COMPLETED interrupt to be raised */
 		kbase_pm_wait_for_reset(kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
+		spin_lock(&kbdev->reset_force_change);
+		kbdev->reset_force_hard_reset = false;
+		spin_unlock(&kbdev->reset_force_change);
+#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
+
 		if (!rtdata.timed_out) {
 			/* GPU has been reset */
 			hrtimer_cancel(&rtdata.timer);
 			destroy_hrtimer_on_stack(&rtdata.timer);
+			dev_info(kbdev->dev, "GPU hard reset completed");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 			mtk_logbuffer_print(&kbdev->logbuf_exception,
 				"[%llxt] GPU hard reset completed\n",

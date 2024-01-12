@@ -282,14 +282,18 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 		"exception type 0x%X: %s\n"
 		"access type 0x%X: %s\n"
 		"source id 0x%X\n"
-		"pid: %d\n",
+		"pid: %d\n"
+		"Ctx %d_%d\n",
 		as_no, fault->addr,
 		reason_str,
 		status,
 		exception_type, kbase_gpu_exception_name(exception_type),
 		access_type, kbase_gpu_access_type_name(status),
 		source_id,
-		kctx->pid);
+		kctx->pid,
+		kctx->tgid, kctx->id);
+
+	kctx->has_page_faults = true;
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_exception,
@@ -299,7 +303,8 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 		"exception type 0x%X: %s\n"
 		"access type 0x%X: %s\n"
 		"source id 0x%X\n"
-		"pid: %d\n",
+		"pid: %d\n"
+		"Ctx %d_%d\n",
 		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_exception),
 		as_no, fault->addr,
 		reason_str,
@@ -307,7 +312,8 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx,
 		exception_type, kbase_gpu_exception_name(exception_type),
 		access_type, kbase_gpu_access_type_name(status),
 		source_id,
-		kctx->pid);
+		kctx->pid,
+		kctx->tgid, kctx->id);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)

@@ -969,6 +969,8 @@ struct kbase_process {
  * @pcm_dev:                The priority control manager device.
  * @oom_notifier_block:     notifier_block containing kernel-registered out-of-
  *                          memory handler.
+ * @mmu_as_inactive_wait_time_ms: Maximum waiting time in ms for the completion of
+ *                          a MMU operation
  */
 struct kbase_device {
 	u32 hw_quirks_sc;
@@ -1240,14 +1242,24 @@ struct kbase_device {
 
 	struct notifier_block oom_notifier_block;
 
+	u64 mmu_as_inactive_wait_time_ms;
+
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+	struct job_status_qos job_status_addr;
+	struct v1_data* v1;
+#endif /* CONFIG_MALI_MTK_GPU_BM_JM */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	struct mtk_logbuffer_info logbuf_regular;
 	struct mtk_logbuffer_info logbuf_exception;
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET)
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
 	bool reset_force_evict_group_work;
-#endif /* CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET */
+	bool reset_force_hard_reset;
+	bool reset_force_mmu_not_ready;
+	spinlock_t reset_force_change;
+#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
 };
 
 /**
@@ -1905,6 +1917,7 @@ struct kbase_context {
 	struct kbase_va_region *coherenct_regions[MAX_COHERENT_REGION];
 	unsigned int coherent_region_nr;
 #endif
+	bool has_page_faults;
 };
 
 #ifdef CONFIG_MALI_CINSTR_GWT
@@ -2007,5 +2020,6 @@ static inline u64 kbase_get_lock_region_min_size_log2(struct kbase_gpu_props con
 #define KBASE_AS_INACTIVE_MAX_LOOPS     100000000
 /* Maximum number of loops polling the GPU PRFCNT_ACTIVE bit before we assume the GPU has hung */
 #define KBASE_PRFCNT_ACTIVE_MAX_LOOPS   100000000
-
+/* Maximum waiting time in ms for the completion of a MMU operation */
+#define KBASE_MMU_AS_INACTIVE_WAIT_TIME_MS    500
 #endif /* _KBASE_DEFS_H_ */

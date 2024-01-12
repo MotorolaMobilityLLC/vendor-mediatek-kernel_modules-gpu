@@ -1745,6 +1745,10 @@ static int delete_queue(struct kbase_context *kctx, u32 id)
 
 	mutex_lock(&kctx->csf.kcpu_queues.lock);
 
+	if (kctx->has_page_faults) {
+		dev_err(kctx->kbdev->dev, "CET: delete_queue");
+	}
+
 	if ((id < KBASEP_MAX_KCPU_QUEUES) && kctx->csf.kcpu_queues.array[id]) {
 		struct kbase_kcpu_command_queue *queue =
 					kctx->csf.kcpu_queues.array[id];
@@ -1762,6 +1766,11 @@ static int delete_queue(struct kbase_context *kctx, u32 id)
 		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 
 		mutex_lock(&queue->lock);
+
+		if (kctx->has_page_faults) {
+			dev_err(kctx->kbdev->dev, "CET: delete_queue kcpu_queue %p Context %d_%d group %d",
+					queue, kctx->tgid, kctx->id, queue->id);
+		}
 
 		/* Drain the remaining work for this queue first and go past
 		 * all the waits.
@@ -1798,7 +1807,7 @@ static int delete_queue(struct kbase_context *kctx, u32 id)
 
 		kfree(queue);
 	} else {
-		dev_vdbg(kctx->kbdev->dev,
+		dev_err(kctx->kbdev->dev,
 			"Attempt to delete a non-existent KCPU queue");
 		mutex_unlock(&kctx->csf.kcpu_queues.lock);
 		err = -EINVAL;
@@ -1871,6 +1880,7 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 	for (i = 0; i != queue->num_pending_cmds; ++i) {
 		struct kbase_kcpu_command *cmd =
 			&queue->commands[(u8)(queue->start_offset + i)];
+		u8 idx = queue->start_offset + i;
 		int status;
 
 		switch (cmd->type) {
@@ -1884,6 +1894,12 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 			status = 0;
 #if IS_ENABLED(CONFIG_SYNC_FILE)
 			if (drain_queue) {
+				if (queue->kctx->has_page_faults) {
+					struct kbase_sync_fence_info info;
+					kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
+					dev_err(kbdev->dev, "%d_%d kcpuid(%d) idx  %7d fence wait %p\n",
+						queue->kctx->tgid, queue->kctx->id, queue->id, idx, info.fence);
+				}
 				kbase_kcpu_fence_wait_cancel(queue,
 					&cmd->info.fence);
 			} else {
@@ -1914,6 +1930,13 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 
 			status = 0;
 
+			if (drain_queue && queue->kctx->has_page_faults) {
+				struct kbase_sync_fence_info info;
+				kbase_sync_fence_info_get(cmd->info.fence.fence, &info);
+				dev_err(kbdev->dev, "%d_%d kcpuid(%d) idx  %7d fence wait %p\n",
+					queue->kctx->tgid, queue->kctx->id, queue->id, idx, info.fence);
+			}
+
 #if IS_ENABLED(CONFIG_SYNC_FILE)
 			status = kbase_kcpu_fence_signal_process(
 				queue, &cmd->info.fence);
@@ -1938,6 +1961,15 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 			if (!status && !drain_queue) {
 				process_next = false;
 			} else {
+
+				if (drain_queue && queue->kctx->has_page_faults) {
+					unsigned int j;
+					struct kbase_kcpu_command_cqs_wait_info *waits = &cmd->info.cqs_wait;
+					for (j = 0; j < waits->nr_objs; j++) {
+						dev_err(kbdev->dev, "%d_%d kcpuid(%d) idx  %7d CQS wait %p\n",
+							queue->kctx->tgid, queue->kctx->id, queue->id, idx, (void *)(waits->objs[j].addr));
+					}
+				}
 				/* Either all CQS objects were signaled or
 				 * there was an error or the queue itself is
 				 * being deleted.
@@ -1945,10 +1977,19 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 				 * TBD: handle the error
 				 */
 				cleanup_cqs_wait(queue,	&cmd->info.cqs_wait);
+
 			}
 
 			break;
 		case BASE_KCPU_COMMAND_TYPE_CQS_SET:
+			if (drain_queue && queue->kctx->has_page_faults) {
+				unsigned int j;
+				struct kbase_kcpu_command_cqs_set_info *sets = &cmd->info.cqs_set;
+				for (j = 0; j < sets->nr_objs; j++) {
+					dev_err(kbdev->dev, "%d_%d kcpuid(%d) idx  %7d CQS Set %p\n",
+						queue->kctx->tgid, queue->kctx->id,queue->id, idx, (void *)(sets->objs[j].addr));
+				}
+			}
 			kbase_kcpu_cqs_set_process(kbdev, queue,
 				&cmd->info.cqs_set);
 
@@ -2582,6 +2623,11 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx,
 	queue->id = idx;
 
 	newq->id = idx;
+
+	if (kctx->has_page_faults) {
+		dev_err(kctx->kbdev->dev, "CET: create kcpu_queue %p Context %d_%d group %d",
+                        	queue, kctx->tgid, kctx->id, queue->id);
+	}
 
 	/* Fire the tracepoint with the mutex held to enforce correct ordering
 	 * with the summary stream.
