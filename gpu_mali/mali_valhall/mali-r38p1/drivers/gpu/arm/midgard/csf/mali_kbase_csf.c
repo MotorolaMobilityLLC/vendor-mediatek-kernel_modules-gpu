@@ -3228,9 +3228,11 @@ static inline void process_protm_exit(struct kbase_device *kbdev, u32 glb_ack)
 
 		KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_PROTM_EXIT,
 					 scheduler->active_protm_grp, 0u);
+#if IS_ENABLED(CONFIG_MALI_MTK_PDCA_SVP_WA)
 		scheduler->apply_pmode_exit_wa = true;
 		queue_work(system_highpri_wq,
 				&scheduler->pmode_exit_wa_work);
+#endif /* IS_ENABLED(CONFIG_MALI_MTK_PDCA_SVP_WA) */
 		scheduler->active_protm_grp = NULL;
 
 		//+JT - set flag to notify scheduler to restore its original pirority.
