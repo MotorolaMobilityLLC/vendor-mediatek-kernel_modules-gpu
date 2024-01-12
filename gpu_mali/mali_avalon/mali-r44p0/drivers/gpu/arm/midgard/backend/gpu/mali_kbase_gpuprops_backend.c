@@ -85,8 +85,8 @@ int kbase_backend_gpuprops_get(struct kbase_device *kbdev,
 				GPU_CONTROL_REG(SHADER_PRESENT_HI));
 
 #if IS_ENABLED(CONFIG_MALI_MTK_NO_THERMAL)
-	/* mt6989 fpga: T0C0 */
-	registers.shader_present_lo &= 0x1;
+	/* mt6989 bringup: T0C0 | T0C1 | T1C0 | T1C1 */
+	registers.shader_present_lo &= 0x33;
 	registers.shader_present_hi &= 0x0;
 #endif
 
@@ -137,8 +137,8 @@ int kbase_backend_gpuprops_get_curr_config(struct kbase_device *kbdev,
 					GPU_CONTROL_REG(SHADER_PRESENT_HI));
 
 #if IS_ENABLED(CONFIG_MALI_MTK_NO_THERMAL)
-	/* mt6989 fpga: T0C0 */
-	curr_config_regdump->shader_present_lo &= 0x1;
+	/* mt6989 bringup: T0C0 | T0C1 | T1C0 | T1C1 */
+	curr_config_regdump->shader_present_lo &= 0x33;
 	curr_config_regdump->shader_present_hi &= 0x0;
 #endif
 
