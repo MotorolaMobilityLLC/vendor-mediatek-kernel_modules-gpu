@@ -3525,8 +3525,6 @@ void kbase_pm_apply_pmode_exit_wa(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
 	/* 1. enable pdcv2 */
 	gpufreq_pdca_config(1);
-	/* 2. enable dcs */
-	dcs_enable(1);
 #endif /* CONFIG_MALI_MTK_PROTECTED_PATCH */
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
@@ -3539,6 +3537,11 @@ void kbase_pm_apply_pmode_exit_wa(struct kbase_device *kbdev)
 		kbase_pm_update_state(kbdev);
 	}
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
+	/* 2. enable dcs */
+	dcs_enable(1);
+#endif /* CONFIG_MALI_MTK_PROTECTED_PATCH */
 
 	kbase_pm_unlock(kbdev);
 }
