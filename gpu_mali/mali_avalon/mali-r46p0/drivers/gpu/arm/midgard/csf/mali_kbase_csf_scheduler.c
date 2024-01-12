@@ -253,16 +253,16 @@ static bool gpu_metrics_read_event(struct kbase_device *kbdev, struct kbase_cont
 		if (WARN_ON_ONCE(slot >= kbdev->csf.global_iface.group_num)) {
 			dev_err(kbdev->dev, "invalid CSG slot (%u)", slot);
 #if IS_ENABLED(CONFIG_MALI_MTK_CSG_ERROR_HANDLING)
-			dev_err(kbdev->dev, "TB invalid CSG slot(%u) (%u)", slot, kbdev->csf.scheduler.state);
+			dev_err(kbdev->dev, "TB invalid CSG slot(%u) (%u) (%lu)", slot, kbdev->csf.scheduler.state, GPU_METRICS_EVENT_SIZE);
 			dev_err(kbdev->dev, "Dump gpu event (%p, 0x%x, 0x%x, 0x%x)",
 				data_cpu_va, extract_offset, insert_offset, buffer_size);
 			for( i = 0; i < 10; i++){
 				if(data_cpu_va[i] > 0) dev_err(kbdev->dev, "TB(0x%x) (0x%x)", data_cpu_va[i], i);
 			}
-			for( i = extract_offset / 4; i < 10 && i < buffer_size / sizeof(u32); i++){
+			for( i = extract_offset/4; (i < extract_offset/4 + 10) && (i < buffer_size/4); i++){
 				if(data_cpu_va[i] > 0) dev_err(kbdev->dev, "TB(0x%x) (0x%x)", data_cpu_va[i], i);
 			}
-			for( i = insert_offset / 4; i < 10 && (i < buffer_size / sizeof(u32)); i++){
+			for( i = buffer_size/4; (i < buffer_size/4 + 10) && (i < buffer_size/4); i++){
 				if(data_cpu_va[i] > 0) dev_err(kbdev->dev, "TB(0x%x) (0x%x)", data_cpu_va[i], i);
 			}
 			WARN_ON(1);
