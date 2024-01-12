@@ -29,5 +29,11 @@ mali_mgm_$(MTK_PLATFORM_VERSION)_r44-y := memory_group_manager.o
 ccflags-y += -DCONFIG_MTK_MODIFY
 ifeq ($(MTK_PLATFORM_VERSION),mt6985)
 ccflags-y += -DCONFIG_MALI_MTK_MGMM
+	CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE := y
 endif
+endif
+
+ifeq ($(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE), y)
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/dma-buf/heaps -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/slbc
+ccflags-y += -DCONFIG_MALI_MTK_SLC_ALL_CACHE_MODE
 endif

@@ -1608,7 +1608,10 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx,
 	bool shared_zone = false;
 	bool need_sync = false;
 	int group_id;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+	int gid=0;
+	struct slbc_gid_data slbc_data={0,0,0,0,0,0,0,0,0};
+#endif
 	/* 64-bit address range is the max */
 	if (*va_pages > (U64_MAX / PAGE_SIZE))
 		return NULL;
@@ -1616,7 +1619,9 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx,
 	dma_buf = dma_buf_get(fd);
 	if (IS_ERR_OR_NULL(dma_buf))
 		return NULL;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+	gid=dma_buf_get_gid(dma_buf);
+#endif
 	dma_attachment = dma_buf_attach(dma_buf, kctx->kbdev->dev);
 	if (IS_ERR_OR_NULL(dma_attachment)) {
 		dma_buf_put(dma_buf);
@@ -1677,6 +1682,16 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx,
 	}
 
 	group_id = get_umm_memory_group_id(kctx, dma_buf);
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+	if(gid == GPU_ONLY_GID){
+		slbc_gid_request(ID_GPU,&gid,&slbc_data);
+		slbc_validate(ID_GPU,gid);
+	}
+	else if(gid == GPU_TO_OVL_GID){
+		slbc_gid_request(ID_GPU_W,&gid,&slbc_data);
+		slbc_validate(ID_GPU_W,gid);
+	}
+#endif
 
 	reg->gpu_alloc = kbase_alloc_create(kctx, *va_pages,
 			KBASE_MEM_TYPE_IMPORTED_UMM, group_id);

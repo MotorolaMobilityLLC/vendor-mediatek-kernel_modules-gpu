@@ -56,6 +56,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_GLB_PWROFF_TIMEOUT:= y
         CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING := y
         CONFIG_MALI_MTK_MGMM := y
+        CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE := y
     endif ## mt6985 ##
 endif
 
@@ -196,6 +197,9 @@ ccflags-y += \
     -I$(KO_CODE_PATH)/platform/$(MALI_PLATFORM_DIR) \
     -I$(KO_CODE_PATH)/../../../base \
     -I$(KO_CODE_PATH)/../../../../include
+ifeq ($(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE), y)
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/slbc
+endif
 
 subdir-ccflags-y += $(ccflags-y)
 
