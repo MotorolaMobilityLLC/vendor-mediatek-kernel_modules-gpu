@@ -225,6 +225,23 @@ void MTKGPUFreq_change_notify(u32 clk_idx, u32 gpufreq)
 #endif
 #endif
 
+/* only work if CSF exit */
+void mtk_set_gpu_idle_time(unsigned int val){
+#if MALI_USE_CSF && IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_TEST)
+		struct kbase_device *kbdev;
+
+		kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+		if (IS_ERR_OR_NULL(kbdev)) {
+			return;
+		}
+
+		kbase_csf_firmware_set_gpu_idle_hysteresis_time(kbdev, val);
+#else
+		return;
+#endif
+
+}
+
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 int mtk_set_core_mask(u64 core_mask)
 {
@@ -317,7 +334,7 @@ int mtk_dvfs_init(struct kbase_device *kbdev)
 	ged_dvfs_gpu_freq_commit_fp = mtk_common_ged_dvfs_commit;
 	ged_dvfs_set_gpu_core_mask_fp = mtk_set_core_mask;
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
-
+	mtk_set_gpu_idle_fp = mtk_set_gpu_idle_time;
 	return 0;
 }
 
@@ -333,8 +350,9 @@ int mtk_dvfs_term(struct kbase_device *kbdev)
 	ged_dvfs_cal_gpu_utilization_fp = NULL;
 #endif /* CONFIG_MALI_MTK_DVFS_LOADING_MODE */
 	ged_dvfs_gpu_freq_commit_fp = NULL;
+	ged_dvfs_set_gpu_core_mask_fp = NULL;
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
-
+	mtk_set_gpu_idle_fp = NULL;
 	return 0;
 }
 

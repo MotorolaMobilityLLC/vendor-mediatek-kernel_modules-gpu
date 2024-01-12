@@ -65,6 +65,12 @@ static struct proc_dir_entry *proc_root;
 #include <platform/mtk_platform_common/mtk_platform_devfreq_governor.h>
 #endif /* CONFIG_MALI_MTK_DEVFREQ_GOVERNOR */
 
+#if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+#include <platform/mtk_mfg_counter.h>
+#include <mtk_ltr_pmu.h>
+#include <mtk_gpu_power_model_sspm_ipi.h>
+#endif /* CONFIG_MTK_GPU_SWPM_SUPPORT */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
 #include <platform/mtk_platform_common/mtk_platform_irq_trace.h>
 #endif /* CONFIG_MALI_MTK_IRQ_TRACE */
@@ -445,6 +451,12 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	mtk_dvfs_init(kbdev);
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
+#if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+	mtk_mfg_counter_init();
+	MTK_GPU_Power_model_init();
+	MTK_LTR_gpu_pmu_init();
+#endif
+
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
 	mtk_debug_irq_trace_init(kbdev);
 #endif /* CONFIG_MALI_MTK_IRQ_TRACE */
@@ -478,6 +490,12 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	mtk_dvfs_term(kbdev);
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
+
+#if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+	mtk_mfg_counter_destroy();
+	MTK_GPU_Power_model_destroy();
+	MTK_LTR_gpu_pmu_destroy();
+#endif
 
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_TRACE)
 	mtk_debug_irq_trace_term(kbdev);
