@@ -1343,8 +1343,10 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 							ACTION_PWRON);
 				} else {
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
-					ged_get_active_time();
-					ged_check_power_duration();
+					if (kbdev->csf.scheduler.apo_support) {
+						ged_get_active_time();
+						ged_check_power_duration();
+					}
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 					kbase_pm_invoke(kbdev, KBASE_PM_CORE_L2, l2_present,
 							ACTION_PWRON);
@@ -1558,7 +1560,8 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 					 * tiler.
 					 */
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
-					ged_get_idle_time();
+					if (kbdev->csf.scheduler.apo_support)
+						ged_get_idle_time();
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 					kbase_pm_invoke(kbdev, KBASE_PM_CORE_L2,
 							l2_present,
