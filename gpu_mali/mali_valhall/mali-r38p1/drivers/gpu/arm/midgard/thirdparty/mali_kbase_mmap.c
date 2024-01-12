@@ -10,6 +10,7 @@
  */
 
 #include "linux/mman.h"
+#include <linux/version.h>
 #include <mali_kbase.h>
 
 /* mali_kbase_mmap.c
@@ -129,6 +130,33 @@ static bool align_and_check(unsigned long *gap_end, unsigned long gap_start,
  *         -ENOMEM if search is unsuccessful
  */
 
+#if KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE
+static unsigned long kbase_unmapped_area_topdown(struct vm_unmapped_area_info
+		*info, bool is_shader_code, bool is_same_4gb_page)
+{
+	unsigned long length, gap, gap_end;
+	MA_STATE(mas, &current->mm->mm_mt, 0, 0);
+
+	/* Adjust search length to account for worst case alignment overhead */
+	length = info->length + info->align_mask;
+	if (length < info->length)
+		return -ENOMEM;
+
+	if (mas_empty_area_rev(&mas, info->low_limit, info->high_limit - 1,
+				length))
+		return -ENOMEM;
+
+	gap = mas.last + 1 - info->length;
+	gap -= (gap - info->align_offset) & info->align_mask;
+	gap_end = gap + info->length;
+
+	if (align_and_check(&gap_end, gap, info,
+				is_shader_code, is_same_4gb_page))
+		return gap;
+
+	return -ENOMEM;
+}
+#else
 static unsigned long kbase_unmapped_area_topdown(struct vm_unmapped_area_info
 		*info, bool is_shader_code, bool is_same_4gb_page)
 {
@@ -228,6 +256,7 @@ check_current:
 
 	return -ENOMEM;
 }
+#endif
 
 
 /* This function is based on Linux kernel's arch_get_unmapped_area, but
