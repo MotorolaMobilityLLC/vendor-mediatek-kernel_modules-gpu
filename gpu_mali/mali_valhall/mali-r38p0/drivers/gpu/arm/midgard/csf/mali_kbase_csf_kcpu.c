@@ -33,6 +33,10 @@
 static DEFINE_SPINLOCK(kbase_csf_fence_lock);
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include "platform/mtk_platform_common.h"
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 #ifdef CONFIG_MALI_FENCE_DEBUG
 #define FENCE_WAIT_TIMEOUT_MS 3000
 #endif
@@ -41,6 +45,9 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *kcpu_queue,
 			       bool drain_queue);
 
 static void kcpu_queue_process_worker(struct work_struct *data);
+#ifdef CONFIG_MALI_FENCE_DEBUG
+static void kcpu_queue_timeout_worker(struct work_struct *data);
+#endif
 
 static int kbase_kcpu_map_import_prepare(
 		struct kbase_kcpu_command_queue *kcpu_queue,
@@ -1311,6 +1318,7 @@ static void fence_timeout_callback(struct timer_list *timer)
 		dev_warn(kctx->kbdev->dev,
 			 "ctx:%d_%d kcpu queue:%u still waiting for fence[%pK] context#seqno:%s",
 			 kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name);
+		queue_work(kcpu_queue->timeout_wq, &kcpu_queue->timeout_work);
 	} else {
 		dev_warn(kctx->kbdev->dev, "fence has got error");
 		dev_warn(kctx->kbdev->dev,
@@ -1550,6 +1558,29 @@ file_create_fail:
 }
 #endif /* CONFIG_SYNC_FILE */
 
+#ifdef CONFIG_MALI_FENCE_DEBUG
+static void kcpu_queue_timeout_worker(struct work_struct *data)
+{
+	struct kbase_kcpu_command_queue *kcpu_queue = container_of(data,
+				struct kbase_kcpu_command_queue, timeout_work);
+	struct kbase_context *const kctx = kcpu_queue->kctx;
+
+	dev_info(kctx->kbdev->dev,
+	         "@%s: mali fence timeouts(%d ms)! kcpu_queue=%u pid=%d",
+	         __func__,
+	         FENCE_WAIT_TIMEOUT_MS,
+	         kcpu_queue->id,
+	         kctx->tgid);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, kctx->tgid);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, kctx->tgid);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, kctx->tgid);
+//	mtk_common_debug(MTK_COMMON_DBG_TRIGGER_KERNEL_EXCEPTION, kctx->tgid);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+}
+#endif
+
 static void kcpu_queue_process_worker(struct work_struct *data)
 {
 	struct kbase_kcpu_command_queue *queue = container_of(data,
@@ -1604,6 +1635,11 @@ static int delete_queue(struct kbase_context *kctx, u32 id)
 
 		cancel_work_sync(&queue->work);
 		destroy_workqueue(queue->wq);
+
+#ifdef CONFIG_MALI_FENCE_DEBUG
+		cancel_work_sync(&queue->timeout_work);
+		destroy_workqueue(queue->timeout_wq);
+#endif
 
 		mutex_destroy(&queue->lock);
 
@@ -2316,6 +2352,16 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx,
 		goto out;
 	}
 
+#ifdef CONFIG_MALI_FENCE_DEBUG
+	queue->timeout_wq = alloc_workqueue("mali_kbase_csf_kcpu_timeout_wq_%i", WQ_UNBOUND | WQ_HIGHPRI, 0, idx);
+	if (queue->wq == NULL) {
+		kfree(queue);
+		ret = -ENOMEM;
+
+		goto out;
+	}
+#endif
+
 	bitmap_set(kctx->csf.kcpu_queues.in_use, idx, 1);
 	kctx->csf.kcpu_queues.array[idx] = queue;
 	mutex_init(&queue->lock);
@@ -2332,6 +2378,9 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx,
 	INIT_LIST_HEAD(&queue->jit_blocked);
 	queue->has_error = false;
 	INIT_WORK(&queue->work, kcpu_queue_process_worker);
+#ifdef CONFIG_MALI_FENCE_DEBUG
+	INIT_WORK(&queue->timeout_work, kcpu_queue_timeout_worker);
+#endif
 	queue->id = idx;
 
 	newq->id = idx;

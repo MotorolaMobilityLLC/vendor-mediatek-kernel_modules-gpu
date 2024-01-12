@@ -31,12 +31,17 @@
 #include "mtk_platform_debug.h"
 #endif /* CONFIG_MALI_MTK_DEBUG*/
 
+#if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
+#include <mt-plat/aee.h>
+#endif
+
 #if IS_ENABLED(CONFIG_MALI_MTK_MEM_TRACK)
 extern unsigned int (*mtk_get_gpu_memory_usage_fp)(void);
 #endif /* CONFIG_MALI_MTK_MEM_TRACK */
 
 static bool mfg_powered;
 static DEFINE_MUTEX(mfg_pm_lock);
+static DEFINE_MUTEX(mtk_debug_lock);
 static struct kbase_device *mali_kbdev;
 #if IS_ENABLED(CONFIG_PROC_FS)
 static struct proc_dir_entry *mtk_mali_root;
@@ -66,10 +71,59 @@ void mtk_common_pm_mfg_idle(void)
 	mutex_unlock(&mfg_pm_lock);
 }
 
-void mtk_common_debug_dump(void)
+void mtk_common_debug(enum mtk_common_debug_types type, int pid)
 {
+	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return;
+
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-	mtk_common_debug_dump_status();
+	lockdep_off();
+
+	mutex_lock(&mtk_debug_lock);
+
+	switch (type) {
+	case MTK_COMMON_DBG_DUMP_INFRA_STATUS:
+		if (!mtk_common_gpufreq_bringup() && kbdev->pm.backend.gpu_powered) {
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+			gpufreq_dump_infra_status();
+#else
+			mt_gpufreq_dump_infra_status();
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+		}
+		break;
+	case MTK_COMMON_DBG_DUMP_PM_STATUS:
+		mtk_common_debug_dump_pm_status(kbdev);
+		break;
+#if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
+	case MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES:
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+		mtk_debug_csf_dump_groups_and_queues(kbdev, pid);
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+		break;
+#endif /* CONFIG_MALI_CSF_SUPPORT */
+	case MTK_COMMON_DBG_TRIGGER_KERNEL_EXCEPTION:
+#if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
+		aee_kernel_exception("GPU", "pid:%d", pid);
+#endif
+		break;
+	case MTK_COMMON_DBG_TRIGGER_WARN_ON:
+		WARN_ON(1);
+		break;
+	case MTK_COMMON_DBG_TRIGGER_BUG_ON:
+		BUG_ON(1);
+		break;
+	default:
+		dev_info(kbdev->dev, "@%s: unsupported type (%d)", __func__, type);
+		break;
+	}
+
+	mutex_unlock(&mtk_debug_lock);
+
+	lockdep_on();
+#else
+	return;
 #endif /* CONFIG_MALI_MTK_DEBUG */
 }
 
@@ -278,6 +332,10 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_MEM_TRACK)
 	mtk_get_gpu_memory_usage_fp = NULL;
 #endif /* CONFIG_MALI_MTK_MEM_TRACK */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	mtk_gpu_fence_debug_dump_fp = NULL;
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ)
 	mtk_common_devfreq_term();

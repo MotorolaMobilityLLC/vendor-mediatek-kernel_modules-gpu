@@ -201,15 +201,13 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 						js_devdata->scheduling_period_ns
 								/ 1000000u;
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-					if (!mtk_common_gpufreq_bringup()) {
-						mtk_common_debug_dump();
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1);
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1);
 #if defined(CONFIG_MTK_GPUFREQ_V2)
-						gpufreq_dump_infra_status();
+					if (!mtk_common_gpufreq_bringup()) {
 						gpufreq_hardstop_dump_slog();
-#else
-						mt_gpufreq_dump_infra_status();
-#endif /* CONFIG_MTK_GPUFREQ_V2 */
 					}
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
 #endif /* CONFIG_MALI_MTK_DEBUG */
 					dev_warn(kbdev->dev, "JS: Job Hard-Stopped (took more than %lu ticks at %lu ms/tick)",
 							(unsigned long)ticks,
@@ -263,15 +261,13 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 						js_devdata->scheduling_period_ns
 								/ 1000000u;
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-					if (!mtk_common_gpufreq_bringup()) {
-						mtk_common_debug_dump();
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1);
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1);
 #if defined(CONFIG_MTK_GPUFREQ_V2)
-						gpufreq_dump_infra_status();
+					if (!mtk_common_gpufreq_bringup()) {
 						gpufreq_hardstop_dump_slog();
-#else
-						mt_gpufreq_dump_infra_status();
-#endif /* CONFIG_MTK_GPUFREQ_V2 */
 					}
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
 #endif /* CONFIG_MALI_MTK_DEBUG */
 					dev_warn(kbdev->dev, "JS: Job Hard-Stopped (took more than %lu ticks at %lu ms/tick)",
 							(unsigned long)ticks,

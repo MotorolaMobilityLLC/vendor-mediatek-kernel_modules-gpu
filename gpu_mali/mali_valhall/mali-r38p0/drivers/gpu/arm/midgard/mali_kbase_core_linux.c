@@ -1718,6 +1718,29 @@ static int kbasep_ioctl_set_limited_core_count(struct kbase_context *kctx,
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
+			struct kbase_ioctl_internal_fence_wait *fence_wait)
+{
+	dev_info(kctx->kbdev->dev, "@%s: fence wait timeouts(%llu ms)! flags=0x%x pid=%u",
+	         __func__,
+	         fence_wait->time_in_microseconds,
+	         fence_wait->flags,
+	         fence_wait->pid);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	if (fence_wait->flags & BASE_INTERNAL_FENCE_WAIT_DUMP_FLAG) {
+		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, (int)fence_wait->pid);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, (int)fence_wait->pid);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, (int)fence_wait->pid);
+//		mtk_common_debug(MTK_COMMON_DBG_TRIGGER_KERNEL_EXCEPTION, (int)fence_wait->pid);
+	}
+#endif
+
+	return 0;
+}
+#endif
+
 static long kbase_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	struct kbase_file *const kfile = filp->private_data;
@@ -2111,6 +2134,14 @@ static long kbase_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				kbasep_ioctl_set_limited_core_count,
 				struct kbase_ioctl_set_limited_core_count,
 				kctx);
+		break;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	case KBASE_IOCTL_INTERNAL_FENCE_WAIT :
+		KBASE_HANDLE_IOCTL_IN(KBASE_IOCTL_INTERNAL_FENCE_WAIT ,
+				kbasep_ioctl_internal_fence_wait,
+				struct kbase_ioctl_internal_fence_wait,
+				kctx);
+#endif
 		break;
 	}
 

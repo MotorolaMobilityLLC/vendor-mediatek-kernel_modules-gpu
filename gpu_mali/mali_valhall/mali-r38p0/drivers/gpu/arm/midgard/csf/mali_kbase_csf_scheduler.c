@@ -33,7 +33,6 @@
 #include <mali_kbase_hwaccess_time.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-#include <mtk_gpufreq.h>
 #include "platform/mtk_platform_common.h"
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
@@ -3237,10 +3236,8 @@ static void program_suspending_csg_slots(struct kbase_device *kbdev)
 					kbdev->csf.fw_timeout_ms);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-				if (!mtk_common_gpufreq_bringup()) {
-					gpufreq_dump_infra_status();
-					mtk_common_debug_dump();
-				}
+				mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1);
+				mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1);
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
 				/* The group has failed suspension, stop
@@ -4673,10 +4670,8 @@ static void schedule_actions(struct kbase_device *kbdev, bool is_tick)
 			"Wait for MCU power on failed on scheduling tick/tock");
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 		ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME, "Wait for MCU power on failed");
-		if (!mtk_common_gpufreq_bringup()) {
-			gpufreq_dump_infra_status();
-			mtk_common_debug_dump();
-		}
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1);
 #endif /* CONFIG_MALI_MTK_DEBUG */
 		return;
 	}

@@ -32,7 +32,6 @@
 #include <linux/string.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-#include <mtk_gpufreq.h>
 #include "platform/mtk_platform_common.h"
 #endif /* CONFIG_MALI_MTK_DEBUG */
 
@@ -415,10 +414,8 @@ static enum kbasep_soft_reset_status kbase_csf_reset_gpu_once(struct kbase_devic
 
 	if (WARN_ON(err)) {
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		if (!mtk_common_gpufreq_bringup()) {
-			gpufreq_dump_infra_status();
-			mtk_common_debug_dump();
-		}
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1);
 #endif /* CONFIG_MALI_MTK_DEBUG */
 		return SOFT_RESET_FAILED;
 	}
@@ -444,10 +441,8 @@ static enum kbasep_soft_reset_status kbase_csf_reset_gpu_once(struct kbase_devic
 		else if (!kbase_pm_mcu_is_in_desired_state(kbdev))
 			ret = MCU_REINIT_FAILED;
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
-		if (!mtk_common_gpufreq_bringup()) {
-			gpufreq_dump_infra_status();
-			mtk_common_debug_dump();
-		}
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1);
 #endif /* CONFIG_MALI_MTK_DEBUG */
 	}
 

@@ -8,13 +8,22 @@
 
 #include <linux/platform_device.h>
 
+enum mtk_common_debug_types {
+	MTK_COMMON_DBG_DUMP_PM_STATUS,
+	MTK_COMMON_DBG_DUMP_INFRA_STATUS,
+	MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES,
+	MTK_COMMON_DBG_TRIGGER_KERNEL_EXCEPTION,
+	MTK_COMMON_DBG_TRIGGER_WARN_ON,
+	MTK_COMMON_DBG_TRIGGER_BUG_ON,
+};
+
 struct kbase_device *mtk_common_get_kbdev(void);
 
 bool mtk_common_pm_is_mfg_active(void);
 void mtk_common_pm_mfg_active(void);
 void mtk_common_pm_mfg_idle(void);
 
-void mtk_common_debug_dump(void);
+void mtk_common_debug(enum mtk_common_debug_types type, int pid);
 
 int mtk_common_gpufreq_bringup(void);
 int mtk_common_gpufreq_commit(int opp_idx);
