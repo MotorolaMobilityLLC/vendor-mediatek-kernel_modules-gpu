@@ -320,11 +320,20 @@ void mtk_common_sysfs_term(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS)
 static int mtk_debug_sleep_mode(struct seq_file *file, void *data)
 {
-#if IS_ENABLED(CONFIG_MALI_SLEEP_MODE)
-	seq_printf(file, "Sleep mode: Enabled\n");
-#else /* CONFIG_MALI_SLEEP_MODE */
-	seq_printf(file, "Sleep mode: Disabled\n");
-#endif /* CONFIG_MALI_SLEEP_MODE */
+	struct kbase_device *kbdev = file->private;
+	struct device_node *np;
+	u32 sleep_mode_enable = 0;
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return -1;
+
+	np = kbdev->dev->of_node;
+
+	if (!of_property_read_u32(np, "sleep-mode-enable", &sleep_mode_enable))
+		seq_printf(file, "Sleep mode: %s\n", (sleep_mode_enable) ? "enabled": "disabled");
+	else
+		seq_printf(file, "Sleep mode: No dts property setting, default disabled\n");
+
 	return 0;
 }
 
