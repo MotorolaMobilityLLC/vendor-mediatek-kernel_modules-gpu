@@ -1053,19 +1053,37 @@ static void *mtk_debug_cs_queue_dump_record_map_cpu_addr(struct kbase_context *k
 	pgprot_t prot = PAGE_KERNEL;
 
 	reg = kbase_region_tracker_find_region_enclosing_address(kctx, gpu_addr);
-	if (reg == NULL || reg->gpu_alloc == NULL)
+	if (reg == NULL || reg->gpu_alloc == NULL) {
 		/* Empty region - ignore */
+		if (mtk_debug_cs_dump_mode)
+			dev_info(kctx->kbdev->dev, "%016llx: empty region", gpu_addr);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kctx->kbdev->logbuf_regular, "%016llx: empty region\n", gpu_addr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return NULL;
+	}
 
-	if (reg->flags & KBASE_REG_PROTECTED)
+	if (reg->flags & KBASE_REG_PROTECTED) {
 		/* CPU access to protected memory is forbidden - so
 		 * skip this GPU virtual region.
 		 */
+		if (mtk_debug_cs_dump_mode)
+			dev_info(kctx->kbdev->dev, "%016llx: protected memory", gpu_addr);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kctx->kbdev->logbuf_regular, "%016llx: protected memory\n", gpu_addr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return NULL;
+	}
 
 	offset = pfn - reg->start_pfn;
-	if (offset >= reg->gpu_alloc->nents)
+	if (offset >= reg->gpu_alloc->nents) {
+		if (mtk_debug_cs_dump_mode)
+			dev_info(kctx->kbdev->dev, "%016llx: pfn out of range", gpu_addr);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kctx->kbdev->logbuf_regular, "%016llx: pfn out of range\n", gpu_addr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return NULL;
+	}
 
 	if (!(reg->flags & KBASE_REG_CPU_CACHED))
 		prot = pgprot_writecombine(prot);
@@ -1076,20 +1094,20 @@ static void *mtk_debug_cs_queue_dump_record_map_cpu_addr(struct kbase_context *k
 	return cpu_addr;
 }
 
-static void *mtk_debug_cs_queue_dump_record_map(struct kbase_context *kctx, u64 gpu_addr, int *new_map)
+static struct mtk_debug_cs_queue_dump_record_gpu_addr *mtk_debug_cs_queue_dump_record_map(
+	struct kbase_context *kctx, u64 gpu_addr)
 {
 	struct mtk_debug_cs_queue_dump_record_kctx *kctx_node;
 	struct mtk_debug_cs_queue_dump_record_gpu_addr *gpu_addr_node;
 	void *cpu_addr;
 
-	*new_map = 0;
 	/* find kctx in list */
 	list_for_each_entry(kctx_node, &cs_queue_dump_record.record_list, list_node) {
 		if (kctx_node->kctx == kctx) {
 			/* kctx found, find gpu_addr in list */
 			list_for_each_entry(gpu_addr_node, &kctx_node->record_list, list_node) {
 				if (gpu_addr_node->gpu_addr == gpu_addr)
-					return gpu_addr_node->cpu_addr;
+					return gpu_addr_node;
 			}
 
 			cpu_addr = mtk_debug_cs_queue_dump_record_map_cpu_addr(kctx, gpu_addr);
@@ -1099,21 +1117,40 @@ static void *mtk_debug_cs_queue_dump_record_map(struct kbase_context *kctx, u64 
 			gpu_addr_node = mtk_debug_cs_gpu_addr_node_allocate();
 			if (!gpu_addr_node) {
 				vunmap(cpu_addr);
+				if (mtk_debug_cs_dump_mode)
+					dev_info(kctx->kbdev->dev,
+						"%016llx: MAX_CS_DUMP_NUM_GPU_PAGES(%d) too small",
+						gpu_addr, MAX_CS_DUMP_NUM_GPU_PAGES);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+				mtk_logbuffer_print(&kctx->kbdev->logbuf_regular,
+					"%016llx: MAX_CS_DUMP_NUM_GPU_PAGES(%d) too small\n",
+					gpu_addr, MAX_CS_DUMP_NUM_GPU_PAGES);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 				return NULL;
 			}
 			gpu_addr_node->gpu_addr = gpu_addr;
 			gpu_addr_node->cpu_addr = cpu_addr;
+			memset(gpu_addr_node->bitmap, 0, sizeof(gpu_addr_node->bitmap));
 			list_add_tail(&gpu_addr_node->list_node, &kctx_node->record_list);
-			*new_map = 1;
 
-			return cpu_addr;
+			return gpu_addr_node;
 		}
 	}
 
 	/* can not find kctx, add new kctx_node and gpu_addr_node */
 	kctx_node = mtk_debug_cs_kctx_node_allocate();
-	if (!kctx_node)
+	if (!kctx_node) {
+		if (mtk_debug_cs_dump_mode)
+			dev_info(kctx->kbdev->dev,
+				"%016llx: MAX_CS_DUMP_NUM_KCTX(%d) too small",
+				gpu_addr, MAX_CS_DUMP_NUM_KCTX);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kctx->kbdev->logbuf_regular,
+			"%016llx: MAX_CS_DUMP_NUM_KCTX(%d) too small\n",
+			gpu_addr, MAX_CS_DUMP_NUM_KCTX);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return NULL;
+	}
 	INIT_LIST_HEAD(&kctx_node->record_list);
 	kctx_node->kctx = kctx;
 	kbase_gpu_vm_lock(kctx_node->kctx);
@@ -1125,68 +1162,92 @@ static void *mtk_debug_cs_queue_dump_record_map(struct kbase_context *kctx, u64 
 	gpu_addr_node = mtk_debug_cs_gpu_addr_node_allocate();
 	if (!gpu_addr_node) {
 		vunmap(cpu_addr);
+		if (mtk_debug_cs_dump_mode)
+			dev_info(kctx->kbdev->dev,
+				"%016llx: MAX_CS_DUMP_NUM_GPU_PAGES(%d) too small",
+				gpu_addr, MAX_CS_DUMP_NUM_GPU_PAGES);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kctx->kbdev->logbuf_regular,
+			"%016llx: MAX_CS_DUMP_NUM_GPU_PAGES(%d) too small\n",
+			gpu_addr, MAX_CS_DUMP_NUM_GPU_PAGES);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return NULL;
 	}
 	gpu_addr_node->gpu_addr = gpu_addr;
 	gpu_addr_node->cpu_addr = cpu_addr;
+	memset(gpu_addr_node->bitmap, 0, sizeof(gpu_addr_node->bitmap));
 	list_add_tail(&gpu_addr_node->list_node, &kctx_node->record_list);
-	*new_map = 1;
 
-	return cpu_addr;
+	return gpu_addr_node;
 }
 
 static void *mtk_debug_cs_queue_mem_map_and_dump_once(struct kbase_device *kbdev,
 				struct mtk_debug_cs_queue_mem_data *queue_mem,
-				u64 gpu_addr)
+				u64 gpu_addr, u64 offset, u64 size)
 {
 	struct device *dev = kbdev->dev;
-	void *cpu_addr;
-	int new_map;
+	struct mtk_debug_cs_queue_dump_record_gpu_addr *gpu_addr_node;
+	int bitmap_idx, bitmap_chk;
+	u64 *ptr;
+	unsigned int row_width, num_cols;
+	u64 row;
+	const u64 end = offset + size;
+	const int rows_per_map = sizeof(gpu_addr_node->bitmap[0]) * BITS_PER_BYTE;
+	unsigned int i, col;
 
-	cpu_addr = mtk_debug_cs_queue_dump_record_map(queue_mem->kctx, gpu_addr, &new_map);
+	gpu_addr_node = mtk_debug_cs_queue_dump_record_map(queue_mem->kctx, gpu_addr);
+	if (!gpu_addr_node)
+		return NULL;
 
-	if (new_map) {
-		unsigned int i, j;
-		u64 *ptr = (typeof(ptr))cpu_addr;
-		const unsigned int col_width = sizeof(*ptr);
-		const unsigned int row_width = (col_width == sizeof(u64)) ? 32 : 16;
-		const unsigned int num_cols = row_width / col_width;
+	row_width = 64;		/* cache line size as dump unit */
+	num_cols = row_width / sizeof(*ptr);
 
-		for (i = 0; i < PAGE_SIZE; i += row_width) {
-			/* skip the line that all the values in it are zero */
-			for (j = 0; j < num_cols; j++)
-				if (ptr[j])
+	row = offset / row_width;
+	ptr = ((typeof(ptr))gpu_addr_node->cpu_addr) + (row * num_cols);
+	bitmap_idx = row / rows_per_map;
+	bitmap_chk = 1 << (row % rows_per_map);
+	offset = row * row_width;
+	for (; offset < end; offset += row_width, ptr += num_cols) {
+		/* bitmap check */
+		if (gpu_addr_node->bitmap[bitmap_idx] & bitmap_chk) {
+			if (bitmap_chk == 1 << (rows_per_map - 1)) {
+				bitmap_idx += 1;
+				bitmap_chk = 1;
+			} else
+				bitmap_chk <<= 1;
+			continue;
+		} else {
+			gpu_addr_node->bitmap[bitmap_idx] |= bitmap_chk;
+			if (bitmap_chk == 1 << (rows_per_map - 1)) {
+				bitmap_idx += 1;
+				bitmap_chk = 1;
+			} else
+				bitmap_chk <<= 1;
+		}
+
+		/* The dump unit is cache line size (64bytes) but the actual */
+		/* printed size is 32 bytes per line, so we need dump twice. */
+		/* skip the line that all the values in it are zero */
+		for (col = 0; col < num_cols; col += 4) {
+			for (i = col; i < col + 4; i++)
+				if (ptr[i])
 					break;
-			if (j == num_cols) {
-				ptr += num_cols;
+			if (i == col + 4)
 				continue;
-			}
-			if (col_width == sizeof(u64)) {
-				if (mtk_debug_cs_dump_mode)
-					dev_info(dev, "%016llx: %016llx %016llx %016llx %016llx",
-						gpu_addr + i, ptr[0], ptr[1], ptr[2], ptr[3]);
+			if (mtk_debug_cs_dump_mode)
+				dev_info(dev, "%016llx: %016llx %016llx %016llx %016llx",
+					gpu_addr + offset + col * sizeof(*ptr),
+					ptr[col + 0], ptr[col + 1], ptr[col + 2], ptr[col + 3]);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-				mtk_logbuffer_print(&kbdev->logbuf_regular,
-					"%016llx: %016llx %016llx %016llx %016llx\n",
-					gpu_addr + i, ptr[0], ptr[1], ptr[2], ptr[3]);
+			mtk_logbuffer_print(&kbdev->logbuf_regular,
+				"%016llx: %016llx %016llx %016llx %016llx\n",
+				gpu_addr + offset + col * sizeof(*ptr),
+				ptr[col + 0], ptr[col + 1], ptr[col + 2], ptr[col + 3]);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-			} else {
-				if (mtk_debug_cs_dump_mode)
-					dev_info(dev, "%016llx: %08x %08x %08x %08x",
-						gpu_addr + i, (unsigned int)ptr[0], (unsigned int)ptr[1],
-						(unsigned int)ptr[2], (unsigned int)ptr[3]);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-				mtk_logbuffer_print(&kbdev->logbuf_regular,
-					"%016llx: %08x %08x %08x %08x\n",
-					gpu_addr + i, (unsigned int)ptr[0], (unsigned int)ptr[1],
-					(unsigned int)ptr[2], (unsigned int)ptr[3]);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-			}
-			ptr += num_cols;
 		}
 	}
 
-	return cpu_addr;
+	return gpu_addr_node->cpu_addr;
 }
 
 static void mtk_debug_cs_mem_dump(struct kbase_device *kbdev,
@@ -1206,33 +1267,41 @@ static void mtk_debug_cs_decode_inst(struct kbase_device *kbdev,
 	for (; (u64)inst < end; inst++) {
 		switch (inst->inst.opcode) {
 		case 0b00000001:			/* MOVE */
-			reg = (int)(inst->move.dest >> 1);
-			if (reg >= (MTK_DEBUG_CSF_REG_NUM / 2))
+			reg = (int)inst->move.dest;
+			if (reg >= MTK_DEBUG_CSF_REG_NUM || reg & 0x1)
 				break;
-			rf->reg64[reg] = inst->move.imm;
+			rf->reg64[reg >> 1] = inst->move.imm;
 			break;
 		case 0b00000010:			/* MOVE32 */
-			reg = (int)(inst->move.dest);
+			reg = (int)inst->move.dest;
 			if (reg >= MTK_DEBUG_CSF_REG_NUM)
 				break;
 			rf->reg32[reg] = inst->move32.imm;
 			break;
 		case 0b00100000:			/* CALL */
-			reg = (int)(inst->call.src1);
+			reg = (int)inst->call.src0;
+			if (reg >= MTK_DEBUG_CSF_REG_NUM || reg & 0x1)
+				break;
+			buffer = rf->reg64[reg >> 1];
+			if (!buffer || buffer & 0x07)
+				break;
+			reg = (int)inst->call.src1;
 			if (reg >= MTK_DEBUG_CSF_REG_NUM)
 				break;
 			size = rf->reg32[reg];
 			if (!size)
 				break;
 			/* limit the maximum dump size */
-			if (size > 4 * PAGE_SIZE)
-				size = 4 * PAGE_SIZE;
-			reg = (int)(inst->call.src0 >> 1);
-			if (reg >= (MTK_DEBUG_CSF_REG_NUM / 2))
-				break;
-			buffer = rf->reg64[reg];
-			if (!buffer || buffer & 0x07)
-				break;
+			if (size > 16 * PAGE_SIZE) {
+				if (mtk_debug_cs_dump_mode)
+					dev_info(kbdev->dev,
+						"%016llx: size of linear buffer > 16 pages", buffer);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+				mtk_logbuffer_print(&kbdev->logbuf_regular,
+					"%016llx: size of linear buffer > 16 pages\n", buffer);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+				size = 16 * PAGE_SIZE;
+			}
 			mtk_debug_cs_mem_dump(kbdev, queue_mem, rf,
 				depth + 1, buffer, buffer + size);
 			break;
@@ -1270,7 +1339,12 @@ static void mtk_debug_cs_mem_dump(struct kbase_device *kbdev,
 	while (size) {
 		if (chunk_size > size)
 			chunk_size = size;
-		cpu_addr = (u64)mtk_debug_cs_queue_mem_map_and_dump_once(kbdev, queue_mem, page_addr);
+		if (depth)	/* linear buffer */
+			cpu_addr = (u64)mtk_debug_cs_queue_mem_map_and_dump_once(kbdev, queue_mem,
+				page_addr, offset, chunk_size);
+		else		/* adjust page_addr for ringbuffer */
+			cpu_addr = (u64)mtk_debug_cs_queue_mem_map_and_dump_once(kbdev, queue_mem,
+				(queue_mem->base_addr + (page_addr % queue_mem->size)), offset, chunk_size);
 		if (cpu_addr)
 			mtk_debug_cs_decode_inst(kbdev, queue_mem, rf, depth,
 				cpu_addr + offset, cpu_addr + offset + chunk_size);
@@ -1281,13 +1355,63 @@ static void mtk_debug_cs_mem_dump(struct kbase_device *kbdev,
 	}
 }
 
-static void mtk_debug_cs_queue_data_dump(struct kbase_device *kbdev,
-				struct mtk_debug_cs_queue_data *cs_queue_data)
+static void mtk_debug_cs_queue_dump(struct kbase_device *kbdev, struct mtk_debug_cs_queue_mem_data *queue_mem)
+{
+	struct device *dev = kbdev->dev;
+	union mtk_debug_csf_register_file rf;
+	u64 addr_start;
+
+	if (queue_mem->group_type == 0) {
+		if (mtk_debug_cs_dump_mode)
+			dev_info(dev, "[active_groups_mem] Ctx: %d_%d, GroupID: %d, Bind Idx: %d",
+				queue_mem->kctx->tgid, queue_mem->kctx->id,
+				queue_mem->handle, queue_mem->csi_index);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_regular,
+			"[active_groups_mem] Ctx: %d_%d, GroupID: %d, Bind Idx: %d\n",
+			queue_mem->kctx->tgid, queue_mem->kctx->id,
+			queue_mem->handle, queue_mem->csi_index);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	} else {
+		if (mtk_debug_cs_dump_mode)
+			dev_info(dev, "[groups_mem] Ctx: %d_%d, GroupID: %d, Bind Idx: %d",
+				queue_mem->kctx->tgid, queue_mem->kctx->id,
+				queue_mem->handle, queue_mem->csi_index);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_print(&kbdev->logbuf_regular,
+			"[groups_mem] Ctx: %d_%d, GroupID: %d, Bind Idx: %d\n",
+			queue_mem->kctx->tgid, queue_mem->kctx->id,
+			queue_mem->handle, queue_mem->csi_index);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	}
+
+	/* adjust cs_extract/cs_insert */
+	if (queue_mem->cs_extract >= (queue_mem->size * 2)) {
+		/* keep one extra virtual queue_mem->size for dump extra cache lines */
+		u64 diff = ((queue_mem->cs_extract / queue_mem->size) - 1) * queue_mem->size;
+
+		queue_mem->cs_extract -= diff;
+		queue_mem->cs_insert -= diff;
+	}
+	/* check cs_extract/cs_insert */
+	if (queue_mem->cs_extract > queue_mem->cs_insert ||
+		(queue_mem->cs_insert - queue_mem->cs_extract) > queue_mem->size ||
+		queue_mem->base_addr & ~PAGE_MASK)
+		return;
+	/* dump four extra cache lines before cs_extract */
+	if ((queue_mem->cs_extract / 64) > 4)
+		addr_start = (queue_mem->cs_extract & ~(64 - 1)) - (4 * 64);
+	else
+		addr_start = 0;
+
+	memset(&rf, 0, sizeof(rf));
+	mtk_debug_cs_mem_dump(kbdev, queue_mem, &rf, 0, addr_start, queue_mem->cs_insert);
+}
+
+static void mtk_debug_cs_queue_data_dump(struct kbase_device *kbdev, struct mtk_debug_cs_queue_data *cs_queue_data)
 {
 	struct device *dev = kbdev->dev;
 	struct mtk_debug_cs_queue_mem_data *queue_mem;
-	u64 addr_start, addr_end;
-	union mtk_debug_csf_register_file rf;
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	dev_info(dev, "[cs_mem_dump] start: %d", mtk_debug_cs_dump_count);
@@ -1299,54 +1423,7 @@ static void mtk_debug_cs_queue_data_dump(struct kbase_device *kbdev,
 	while (!list_empty(&cs_queue_data->queue_list)) {
 		queue_mem = list_first_entry(&cs_queue_data->queue_list,
 				struct mtk_debug_cs_queue_mem_data, node);
-		if (queue_mem->group_type == 0) {
-			if (mtk_debug_cs_dump_mode)
-				dev_info(dev, "[active_groups_mem] Ctx: %d_%d, GroupID: %d, Bind Idx: %d",
-					queue_mem->kctx->tgid, queue_mem->kctx->id,
-					queue_mem->handle, queue_mem->csi_index);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_print(&kbdev->logbuf_regular,
-				"[active_groups_mem] Ctx: %d_%d, GroupID: %d, Bind Idx: %d\n",
-				queue_mem->kctx->tgid, queue_mem->kctx->id,
-				queue_mem->handle, queue_mem->csi_index);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-		} else {
-			if (mtk_debug_cs_dump_mode)
-				dev_info(dev, "[groups_mem] Ctx: %d_%d, GroupID: %d, Bind Idx: %d",
-					queue_mem->kctx->tgid, queue_mem->kctx->id,
-					queue_mem->handle, queue_mem->csi_index);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_print(&kbdev->logbuf_regular,
-				"[groups_mem] Ctx: %d_%d, GroupID: %d, Bind Idx: %d\n",
-				queue_mem->kctx->tgid, queue_mem->kctx->id,
-				queue_mem->handle, queue_mem->csi_index);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-		}
-		memset(&rf, 0, sizeof(rf));
-
-		if (queue_mem->cs_insert >= queue_mem->cs_extract) {
-			/* dump from start of cs_extract page head to cs_insert-8 */
-			addr_start = (queue_mem->base_addr + queue_mem->cs_extract) & PAGE_MASK;
-			addr_end = queue_mem->base_addr + queue_mem->cs_insert;
-			mtk_debug_cs_mem_dump(kbdev, queue_mem, &rf, 0, addr_start, addr_end);
-		} else {
-			/* two stage dumps */
-			/* 1. If cs_extract and cs_insert are in the same page then
-			 *    dump from cs_insert to end of buffer, or dump from start
-			 *    of cs_extract page head to end of buffer.
-			 */
-			if ((queue_mem->cs_extract & PAGE_MASK) == (queue_mem->cs_insert & PAGE_MASK))
-				addr_start = queue_mem->base_addr + queue_mem->cs_insert;
-			else
-				addr_start = (queue_mem->base_addr + queue_mem->cs_extract) & PAGE_MASK;
-			addr_end = queue_mem->base_addr + queue_mem->size;
-			mtk_debug_cs_mem_dump(kbdev, queue_mem, &rf, 0, addr_start, addr_end);
-			/* 2. dump from start of buffer to cs_insert-8 */
-			addr_start = queue_mem->base_addr;
-			addr_end = queue_mem->base_addr + queue_mem->cs_insert;
-			mtk_debug_cs_mem_dump(kbdev, queue_mem, &rf, 0, addr_start, addr_end);
-		}
-
+		mtk_debug_cs_queue_dump(kbdev, queue_mem);
 		list_del(&queue_mem->node);
 	}
 	mtk_debug_cs_queue_dump_record_flush();
@@ -1547,8 +1624,8 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 			queue_mem->csi_index = queue->csi_index;
 			queue_mem->base_addr = queue->base_addr;
 			queue_mem->size = queue->size;
-			queue_mem->cs_insert = cs_insert % queue->size;
-			queue_mem->cs_extract = cs_extract % queue->size;
+			queue_mem->cs_insert = cs_insert;
+			queue_mem->cs_extract = cs_extract;
 			list_add_tail(&queue_mem->node, &cs_queue_data->queue_list);
 		}
 	}
@@ -2480,6 +2557,8 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 					kbase_csf_scheduler_unlock(kbdev);
 					mutex_unlock(&kctx->csf.lock);
 					mutex_unlock(&kbdev->kctx_list_lock);
+					if (dump_queue_data)
+						mtk_debug_cs_queue_free_memory();
 					return;
 				}
 
@@ -2511,6 +2590,8 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 						kctx->tgid, kctx->id);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 					mutex_unlock(&kbdev->kctx_list_lock);
+					if (dump_queue_data)
+						mtk_debug_cs_queue_free_memory();
 					return;
 				}
 
