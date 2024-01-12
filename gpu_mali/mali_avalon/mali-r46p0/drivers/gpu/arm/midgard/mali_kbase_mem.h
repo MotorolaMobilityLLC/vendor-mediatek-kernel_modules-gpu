@@ -49,7 +49,7 @@
 static inline void kbase_process_page_usage_inc(struct kbase_context *kctx, int pages);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
-#define MTK_EMI_DRAM_OFFSET 0x40000000
+#define MTK_EMI_DRAM_OFFSET (ARCH_PFN_OFFSET << PAGE_SHIFT)
 
 /* struct alloc_pages_ctx - context for tracking
  *                          page allocation state.

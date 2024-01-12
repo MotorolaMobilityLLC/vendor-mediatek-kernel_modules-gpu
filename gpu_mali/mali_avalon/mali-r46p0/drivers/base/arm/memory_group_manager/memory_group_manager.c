@@ -35,7 +35,7 @@
 #include <linux/shrinker.h>
 #include <linux/ktime.h>
 #include <soc/mediatek/emi.h>
-#define MTK_EMI_DRAM_OFFSET 0x40000000
+#define MTK_EMI_DRAM_OFFSET (ARCH_PFN_OFFSET << PAGE_SHIFT)
 #define PREFILL_TARGET (0)
 #define RANK_POOL_LIMIT (SZ_256M >> PAGE_SHIFT)
 #define X_GUARD (SZ_16M >> PAGE_SHIFT)
@@ -1243,7 +1243,8 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
 	si_meminfo(&info);
-	dev_info(&pdev->dev,"Total kmem: %zu (pages) [%d] %llx \n", info.totalram,  mtk_emicen_get_rk_cnt(), mtk_emicen_get_rk_size(0));
+	dev_info(&pdev->dev, "Total kmem: %zu (pages) [%d] 0x%llx, offset: 0x%lx\n",
+		info.totalram, mtk_emicen_get_rk_cnt(), mtk_emicen_get_rk_size(0), MTK_EMI_DRAM_OFFSET);
 	spin_lock_init(&mgm_data->MGMFree_lst_lk);
 	spin_lock_init(&mgm_data->free_4K_lst_lk);
 	mgm_data->free_4K_lst.next = mgm_data->free_4K_lst.prev = &mgm_data->free_4K_lst;
