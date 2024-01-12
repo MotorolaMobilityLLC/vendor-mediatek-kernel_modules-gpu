@@ -3195,11 +3195,27 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx,
 	idx = find_first_zero_bit(kctx->csf.kcpu_queues.in_use,
 			KBASEP_MAX_KCPU_QUEUES);
 	if (idx >= (int)KBASEP_MAX_KCPU_QUEUES) {
+#if IS_ENABLED(CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG)
+		dev_warn(kctx->kbdev->dev, "%s: Cannot create KCPU queue idx : %d exceed limit %d",
+			__func__, idx, (int)KBASEP_MAX_KCPU_QUEUES);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"%s: Cannot create KCPU queue idx : %d exceed limit %d\n",
+			__func__, idx, (int)KBASEP_MAX_KCPU_QUEUES);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif
 		ret = -ENOMEM;
 		goto out;
 	}
 
 	if (WARN_ON(kctx->csf.kcpu_queues.array[idx])) {
+#if IS_ENABLED(CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG)
+		dev_warn(kctx->kbdev->dev, "%s: KCPU queue idx %d is not free", __func__, idx);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"%s: KCPU queue idx %d is not free\n", __func__, idx);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif
 		ret = -EINVAL;
 		goto out;
 	}
@@ -3207,12 +3223,28 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx,
 	queue = kzalloc(sizeof(*queue), GFP_KERNEL);
 
 	if (!queue) {
+#if IS_ENABLED(CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG)
+		dev_warn(kctx->kbdev->dev, "%s: Allocate kcpu queue (size=%zu) failed.",
+			__func__, sizeof(*queue));
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"%s: Allocate kcpu queue (size=%zu) failed.",
+			__func__, sizeof(*queue));
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif
 		ret = -ENOMEM;
 		goto out;
 	}
 
 	queue->wq = alloc_workqueue("mali_kbase_csf_kcpu_wq_%i", WQ_UNBOUND | WQ_HIGHPRI, 0, idx);
 	if (queue->wq == NULL) {
+#if IS_ENABLED(CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG)
+		dev_warn(kctx->kbdev->dev, "%s: Fail to allocate workqueue", __func__);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"%s: Fail to allocate workqueue", __func__);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif
 		kfree(queue);
 		ret = -ENOMEM;
 
@@ -3232,6 +3264,13 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx,
 
 	metadata = kzalloc(sizeof(*metadata), GFP_KERNEL);
 	if (!metadata) {
+#if IS_ENABLED(CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG)
+		dev_warn(kctx->kbdev->dev, "%s: Allocate metadata (size=%zu) failed", __func__, sizeof(*metadata));
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"%s: Allocate metadata (size=%zu) failed", __func__, sizeof(*metadata));
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif
 		destroy_workqueue(queue->wq);
 		kfree(queue);
 		ret = -ENOMEM;
@@ -3243,6 +3282,16 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx,
 	n = snprintf(metadata->timeline_name, MAX_TIMELINE_NAME, "%d-%d_%d-%lld-kcpu",
 		     kctx->kbdev->id, kctx->tgid, kctx->id, queue->fence_context);
 	if (WARN_ON(n >= MAX_TIMELINE_NAME)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG)
+		dev_warn(kctx->kbdev->dev, "%s: Invalid timeline name length : %d exceed limit %d",
+			__func__, n, MAX_TIMELINE_NAME);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"%s: Invalid timeline name length : %d exceed limit %d",
+			__func__, n, MAX_TIMELINE_NAME);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif
+		dev_err(kctx->kbdev->dev, "%s: ivalid name", __func__);
 		destroy_workqueue(queue->wq);
 		kfree(queue);
 		kfree(metadata);
@@ -3284,6 +3333,13 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx,
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 	queue->cmds_timeout_wq = alloc_workqueue("mali_kbase_csf_kcpu_cmds_timeout_wq_%i", WQ_UNBOUND | WQ_HIGHPRI, 0, idx);
 	if (queue->cmds_timeout_wq == NULL) {
+#if IS_ENABLED(CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG)
+		dev_warn(kctx->kbdev->dev, "%s: Fail to allocate workqueue for cmds timeout", __func__);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"%s: Fail to allocate workqueue for cmds timeout", __func__);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif
 		kfree(queue);
 		ret = -ENOMEM;
 
