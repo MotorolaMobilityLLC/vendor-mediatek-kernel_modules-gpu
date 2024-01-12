@@ -33,10 +33,10 @@ mt6985_outs = [
 ]
 
 mt6989_outs = [
-    "mt6989/mali_avalon/mali-r44p1/drivers/base/arm/memory_group_manager/mali_mgm_mt6989_r44.ko",
-    "mt6989/mali_avalon/mali-r44p1/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6989_r44.ko",
-    "mt6989/mali_avalon/mali-r44p1/drivers/base/arm/dma_buf_test_exporter/mali_dmabuf_test_mt6989_r44.ko",
-    "mt6989/mali_avalon/mali-r44p1/drivers/gpu/arm/midgard/mali_kbase_mt6989_r44.ko",
+    "mt6989/mali_avalon/mali-r47p0/drivers/base/arm/memory_group_manager/mali_mgm_mt6989_r47.ko",
+    "mt6989/mali_avalon/mali-r47p0/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6989_r47.ko",
+    "mt6989/mali_avalon/mali-r47p0/drivers/base/arm/dma_buf_test_exporter/mali_dmabuf_test_mt6989_r47.ko",
+    "mt6989/mali_avalon/mali-r47p0/drivers/gpu/arm/midgard/mali_kbase_mt6989_r47.ko",
 ]
 
 mt6768_outs = [
