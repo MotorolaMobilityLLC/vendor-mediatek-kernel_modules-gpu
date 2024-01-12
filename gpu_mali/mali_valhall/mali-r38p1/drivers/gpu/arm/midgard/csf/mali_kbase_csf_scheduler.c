@@ -916,10 +916,6 @@ static void scheduler_wakeup(struct kbase_device *kbdev, bool kick)
 
 		dev_vdbg(kbdev->dev,
 			"Re-activating the Scheduler out of sleep");
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_print(&kbdev->logbuf_regular,
-			"Re-activating the Scheduler out of sleep\n");
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 		ret = scheduler_pm_active_after_sleep(kbdev, flags);
 		/* hwaccess_lock is released in the previous function call. */
@@ -5619,7 +5615,7 @@ static int wait_csg_slots_suspend(struct kbase_device *kbdev,
 
 	remaining = kbase_csf_timeout_in_jiffies(timeout_ms * 9 / 10);
 #endif /* CONFIG_MALI_MTK_CSG_DOORBELL_RECOVERY */
-	
+
 	while (!bitmap_empty(slot_mask_local, MAX_SUPPORTED_CSGS)
 		&& remaining) {
 		DECLARE_BITMAP(changed, MAX_SUPPORTED_CSGS);
