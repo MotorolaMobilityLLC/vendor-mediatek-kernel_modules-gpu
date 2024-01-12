@@ -136,6 +136,12 @@
 #include <ged_gpu_bm.h>
 #endif /* CONFIG_MALI_MTK_GPU_BM_CSF */
 
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY) && \
+	IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+#include "platform/mtk_platform_common/mtk_platform_dvfs_hint_26m_perf_cnting_ex.h"
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
+
 #define KERNEL_SIDE_DDK_VERSION_STRING "K:" MALI_RELEASE_NAME "(GPL)"
 
 /**
@@ -2658,6 +2664,80 @@ static const struct file_operations kbase_fops = {
 	.check_flags = kbase_check_flags,
 	.get_unmapped_area = kbase_get_unmapped_area,
 };
+
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY) && \
+	IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+static ssize_t dvfs_hint_26m_perf_cnting_show(struct device *dev, struct device_attribute *attr, char *const buf)
+{
+	struct kbase_device *kbdev;
+	ssize_t ret = 0;
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	if (dvfs_hint_26m_perf_cnting_enable)
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "dvfs_hint_26m_perf_cnting is enabled\n");
+	else
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "dvfs_hint_26m_perf_cnting is disabled\n");
+
+	return ret;
+}
+static ssize_t dvfs_hint_26m_perf_cnting_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct kbase_device *kbdev;
+	int ret;
+	int dvfs_hint_26m_perf_cnting;
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	ret = kstrtoint(buf, 0, &dvfs_hint_26m_perf_cnting);
+
+	dvfs_hint_26m_perf_cnting_enable = dvfs_hint_26m_perf_cnting;
+
+	return count;
+}
+static DEVICE_ATTR_RW(dvfs_hint_26m_perf_cnting);
+
+static ssize_t ipa_enable_show(struct device *dev, struct device_attribute *attr, char *const buf)
+{
+	struct kbase_device *kbdev;
+	ssize_t ret = 0;
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	if (Enable_IPA)
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "ipa is enabled\n");
+	else
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "ipa is disabled\n");
+
+	return ret;
+}
+static ssize_t ipa_enable_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct kbase_device *kbdev;
+	int ret;
+	int ipa_enable;
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	ret = kstrtoint(buf, 0, &ipa_enable);
+
+	Enable_IPA = ipa_enable;
+
+	return count;
+}
+static DEVICE_ATTR_RW(ipa_enable);
+
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY && CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING*/
+
 
 /**
  * power_policy_show - Show callback for the power_policy sysfs file.
@@ -6094,6 +6174,13 @@ static struct attribute *kbase_attrs[] = {
 	&dev_attr_mem_pool_max_size.attr,
 	&dev_attr_lp_mem_pool_size.attr,
 	&dev_attr_lp_mem_pool_max_size.attr,
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY) && \
+	IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+	&dev_attr_dvfs_hint_26m_perf_cnting.attr,
+	&dev_attr_ipa_enable.attr,
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY && CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING*/
+
 #if !MALI_USE_CSF
 	&dev_attr_js_ctx_scheduling_mode.attr,
 #endif /* !MALI_USE_CSF */

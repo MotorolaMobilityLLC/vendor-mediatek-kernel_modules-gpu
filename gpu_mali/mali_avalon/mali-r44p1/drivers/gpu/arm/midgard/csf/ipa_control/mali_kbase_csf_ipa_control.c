@@ -28,6 +28,10 @@
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 #include "mali_kbase_csf_ipa_control_ex.h"
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+#include "platform/mtk_platform_common/mtk_platform_dvfs_hint_26m_perf_cnting.h"
+#include "platform/mtk_platform_common/mtk_platform_dvfs_hint_26m_perf_cnting_ex.h"
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING */
 #endif
 
 /*
@@ -990,6 +994,13 @@ void kbase_ipa_control_handle_gpu_power_on(struct kbase_device *kbdev)
 
 	/* GPU should have become ready for use when this function gets called */
 	WARN_ON(!kbdev->pm.backend.gpu_ready);
+
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY) && \
+	IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+	mtk_dvfs_hint_26m_setting();
+	gpu_power_status = true;
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY && CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING*/
 
 	/* Interrupts are already disabled and interrupt state is also saved */
 	spin_lock(&ipa_ctrl->lock);
