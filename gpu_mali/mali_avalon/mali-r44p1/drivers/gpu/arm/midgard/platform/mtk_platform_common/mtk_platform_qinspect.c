@@ -617,20 +617,26 @@ static struct mtk_qinspect_gpuq_it *mtk_qinspect_gpuq_internal_search(struct kba
 static struct mtk_qinspect_fence_wait_on *mtk_qinspect_query_internal_fence_signal_search_kcpuq(
 	struct kbase_kcpu_command_queue *queue, struct mtk_qinspect_fence_wait_it *wait_it)
 {
+#if IS_ENABLED(CONFIG_SYNC_FILE)
 	int i;
 
 	qinspect_dbg(wait_it->kctx->kbdev,
 		"[qinspect] search fence_signal cmd at kcpu_queue_%u",
 		queue->id);
+
 	for (i = 0; i < queue->num_pending_cmds; i++) {
 		struct kbase_kcpu_command *cmd;
-		u8 cmd_idx = queue->start_offset + i;
+		u8 cmd_idx = (u8)(queue->start_offset + i);
 
-		if (cmd_idx >= KBASEP_KCPU_QUEUE_SIZE)
-			break;
+		/* The offset to the first command that is being processed or yet to
+		 * be processed is of u8 type, so the number of commands inside the
+		 * queue cannot be more than 256. The current implementation expects
+		 * exactly 256, any other size will require the addition of wrapping
+		 * logic.
+		 */
+		BUILD_BUG_ON(KBASEP_KCPU_QUEUE_SIZE != 256);
+
 		cmd = &queue->commands[cmd_idx];
-
-#if IS_ENABLED(CONFIG_SYNC_FILE)
 		if (cmd->type == BASE_KCPU_COMMAND_TYPE_FENCE_SIGNAL) {
 			unsigned int nr;
 			struct kbase_kcpu_command_fence_info *fence = &cmd->info.fence;
@@ -645,10 +651,9 @@ static struct mtk_qinspect_fence_wait_on *mtk_qinspect_query_internal_fence_sign
 				wait_it->wait_on.fence = fence;
 				return &wait_it->wait_on;
 			}
-			break;
 		}
-#endif
 	}
+#endif
 
 	return NULL;
 }
@@ -666,6 +671,7 @@ static struct mtk_qinspect_cqs_wait_on *mtk_qinspect_query_internal_cqs_set_sear
 	qinspect_dbg(wait_it->kctx->kbdev,
 		"[qinspect] search cqs_set cmd at cpu_queue_%llx",
 		queue_buf->queue.queue);
+
 	if (!queue->num_cmds)
 		return NULL;
 
@@ -709,14 +715,20 @@ static struct mtk_qinspect_cqs_wait_on *mtk_qinspect_query_internal_cqs_set_sear
 	qinspect_dbg(wait_it->kctx->kbdev,
 		"[qinspect] search cqs_set cmd at kcpu_queue_%u",
 		queue->id);
+
 	for (i = 0; i < queue->num_pending_cmds; i++) {
 		struct kbase_kcpu_command *cmd;
-		u8 cmd_idx = queue->start_offset + i;
+		u8 cmd_idx = (u8)(queue->start_offset + i);
 
-		if (cmd_idx >= KBASEP_KCPU_QUEUE_SIZE)
-			break;
+		/* The offset to the first command that is being processed or yet to
+		 * be processed is of u8 type, so the number of commands inside the
+		 * queue cannot be more than 256. The current implementation expects
+		 * exactly 256, any other size will require the addition of wrapping
+		 * logic.
+		 */
+		BUILD_BUG_ON(KBASEP_KCPU_QUEUE_SIZE != 256);
+
 		cmd = &queue->commands[cmd_idx];
-
 		switch (cmd->type) {
 		case BASE_KCPU_COMMAND_TYPE_CQS_SET:
 		{
@@ -818,7 +830,6 @@ struct mtk_qinspect_cpu_command *mtk_qinspect_query_cpuq_internal_top_wait_cmd(
 	union mtk_qinspect_cpu_command_buf *queue_buf, int *completed)
 {
 	struct mtk_qinspect_cpu_command_queue *queue = &(queue_buf->queue);
-	union mtk_qinspect_cpu_command_buf *command_next;
 	struct mtk_qinspect_cpu_command *command;
 	struct mtk_qinspect_cpu_object *object;
 	int cmd_idx;
@@ -826,16 +837,8 @@ struct mtk_qinspect_cpu_command *mtk_qinspect_query_cpuq_internal_top_wait_cmd(
 
 	*completed = (int)queue->completed;
 
-	if (!queue->num_cmds)
-		return NULL;
-
-	command_next = queue_buf + 1;
-	for (cmd_idx = 0; cmd_idx < queue->num_cmds; cmd_idx++) {
-		command = &(command_next->command);
-		command_next += 1 + command->num_objs;	/* command + objects */
-
-		if (!command->num_objs)
-			continue;
+	if (queue->num_cmds) {
+		command = &(queue_buf[1].command);
 
 		switch (command->work_type) {
 		case MTK_BASE_CPU_QUEUE_WORK_WAIT:
@@ -879,25 +882,29 @@ struct kbase_kcpu_command *mtk_qinspect_query_kcpuq_internal_top_wait_cmd(struct
 	int *blocked)
 {
 	struct kbase_kcpu_command *cmd;
-	u8 cmd_idx;
 	int i;
 
 	*blocked = queue->command_started ? 1 : 0;
 
 	if (queue->num_pending_cmds) {
-		cmd_idx = queue->start_offset;
-		if (cmd_idx < KBASEP_KCPU_QUEUE_SIZE) {
-			cmd = &queue->commands[cmd_idx];
-			switch (cmd->type) {
+		/* The offset to the first command that is being processed or yet to
+		 * be processed is of u8 type, so the number of commands inside the
+		 * queue cannot be more than 256. The current implementation expects
+		 * exactly 256, any other size will require the addition of wrapping
+		 * logic.
+		 */
+		BUILD_BUG_ON(KBASEP_KCPU_QUEUE_SIZE != 256);
+
+		cmd = &queue->commands[queue->start_offset];
+		switch (cmd->type) {
 #if IS_ENABLED(CONFIG_SYNC_FILE)
-			case BASE_KCPU_COMMAND_TYPE_FENCE_WAIT:
+		case BASE_KCPU_COMMAND_TYPE_FENCE_WAIT:
 #endif
-			case BASE_KCPU_COMMAND_TYPE_CQS_WAIT:
-			case BASE_KCPU_COMMAND_TYPE_CQS_WAIT_OPERATION:
-				return cmd;
-			default:
-				break;
-			}
+		case BASE_KCPU_COMMAND_TYPE_CQS_WAIT:
+		case BASE_KCPU_COMMAND_TYPE_CQS_WAIT_OPERATION:
+			return cmd;
+		default:
+			break;
 		}
 	}
 
