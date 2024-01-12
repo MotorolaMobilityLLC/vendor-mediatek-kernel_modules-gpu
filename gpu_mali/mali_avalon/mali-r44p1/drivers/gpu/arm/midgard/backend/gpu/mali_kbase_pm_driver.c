@@ -3187,9 +3187,13 @@ static int kbase_pm_hw_issues_detect(struct kbase_device *kbdev)
 	kbdev->hw_quirks_tiler = 0;
 	kbdev->hw_quirks_mmu = 0;
 
-	if (!of_property_read_u32(np, "quirks_gpu", &kbdev->hw_quirks_gpu)) {
-		dev_info(kbdev->dev,
-			 "Found quirks_gpu = [0x%x] in Devicetree\n",
+	/* Read the "-" versions of the properties and fall back to
+	 * the "_" versions if these are not found
+	 */
+
+	if (!of_property_read_u32(np, "quirks-gpu", &kbdev->hw_quirks_gpu) ||
+	    !of_property_read_u32(np, "quirks_gpu", &kbdev->hw_quirks_gpu)) {
+		dev_info(kbdev->dev, "Found quirks_gpu = [0x%x] in Devicetree\n",
 			 kbdev->hw_quirks_gpu);
 	} else {
 		error = kbase_set_gpu_quirks(kbdev, prod_id);
@@ -3197,33 +3201,30 @@ static int kbase_pm_hw_issues_detect(struct kbase_device *kbdev)
 			return error;
 	}
 
-	if (!of_property_read_u32(np, "quirks_sc",
-				&kbdev->hw_quirks_sc)) {
-		dev_info(kbdev->dev,
-			"Found quirks_sc = [0x%x] in Devicetree\n",
-			kbdev->hw_quirks_sc);
+	if (!of_property_read_u32(np, "quirks-sc", &kbdev->hw_quirks_sc) ||
+	    !of_property_read_u32(np, "quirks_sc", &kbdev->hw_quirks_sc)) {
+		dev_info(kbdev->dev, "Found quirks_sc = [0x%x] in Devicetree\n",
+			 kbdev->hw_quirks_sc);
 	} else {
 		error = kbase_set_sc_quirks(kbdev, prod_id);
 		if (error)
 			return error;
 	}
 
-	if (!of_property_read_u32(np, "quirks_tiler",
-				&kbdev->hw_quirks_tiler)) {
-		dev_info(kbdev->dev,
-			"Found quirks_tiler = [0x%x] in Devicetree\n",
-			kbdev->hw_quirks_tiler);
+	if (!of_property_read_u32(np, "quirks-tiler", &kbdev->hw_quirks_tiler) ||
+	    !of_property_read_u32(np, "quirks_tiler", &kbdev->hw_quirks_tiler)) {
+		dev_info(kbdev->dev, "Found quirks_tiler = [0x%x] in Devicetree\n",
+			 kbdev->hw_quirks_tiler);
 	} else {
 		error = kbase_set_tiler_quirks(kbdev);
 		if (error)
 			return error;
 	}
 
-	if (!of_property_read_u32(np, "quirks_mmu",
-				&kbdev->hw_quirks_mmu)) {
-		dev_info(kbdev->dev,
-			"Found quirks_mmu = [0x%x] in Devicetree\n",
-			kbdev->hw_quirks_mmu);
+	if (!of_property_read_u32(np, "quirks-mmu", &kbdev->hw_quirks_mmu) ||
+	    !of_property_read_u32(np, "quirks_mmu", &kbdev->hw_quirks_mmu)) {
+		dev_info(kbdev->dev, "Found quirks_mmu = [0x%x] in Devicetree\n",
+			 kbdev->hw_quirks_mmu);
 	} else {
 		error = kbase_set_mmu_quirks(kbdev);
 	}

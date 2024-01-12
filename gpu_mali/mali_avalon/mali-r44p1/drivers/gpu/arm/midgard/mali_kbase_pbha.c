@@ -220,8 +220,12 @@ static int kbase_pbha_read_int_id_override_property(struct kbase_device *kbdev,
 	int sz, i;
 	bool valid = true;
 
-	sz = of_property_count_elems_of_size(pbha_node, "int_id_override", sizeof(u32));
+	sz = of_property_count_elems_of_size(pbha_node, "int-id-override", sizeof(u32));
 
+	if (sz == -EINVAL) {
+		/* There is no int-id-override field. Fallback to int_id_override instead */
+		sz = of_property_count_elems_of_size(pbha_node, "int_id_override", sizeof(u32));
+	}
 	if (sz == -EINVAL) {
 		/* There is no int_id_override field. This is valid - but there's nothing further
 		 * to do here.
@@ -232,11 +236,12 @@ static int kbase_pbha_read_int_id_override_property(struct kbase_device *kbdev,
 		dev_err(kbdev->dev, "Bad DTB format: pbha.int_id_override\n");
 		return -EINVAL;
 	}
-	if (of_property_read_u32_array(pbha_node, "int_id_override", dtb_data,
-				       sz) != 0) {
-		dev_err(kbdev->dev,
-			"Failed to read DTB pbha.int_id_override\n");
-		return -EINVAL;
+	if (of_property_read_u32_array(pbha_node, "int-id-override", dtb_data, sz) != 0) {
+		/* There may be no int-id-override field. Fallback to int_id_override instead */
+		if (of_property_read_u32_array(pbha_node, "int_id_override", dtb_data, sz) != 0) {
+			dev_err(kbdev->dev, "Failed to read DTB pbha.int_id_override\n");
+			return -EINVAL;
+		}
 	}
 
 	for (i = 0; valid && i < sz; i = i + DTB_SET_SIZE) {
@@ -269,7 +274,11 @@ static int kbase_pbha_read_propagate_bits_property(struct kbase_device *kbdev,
 	if (!kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_PBHA_HWU))
 		return 0;
 
-	err = of_property_read_u32(pbha_node, "propagate_bits", &bits);
+	err = of_property_read_u32(pbha_node, "propagate-bits", &bits);
+
+	if (err == -EINVAL) {
+		err = of_property_read_u32(pbha_node, "propagate_bits", &bits);
+	}
 
 	if (err < 0) {
 		if (err != -EINVAL) {

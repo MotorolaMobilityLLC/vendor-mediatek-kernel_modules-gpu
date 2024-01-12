@@ -58,8 +58,10 @@ get_clk_rate_trace_callbacks(__maybe_unused struct kbase_device *kbdev)
 	if (WARN_ON(!kbdev) || WARN_ON(!kbdev->dev))
 		return callbacks;
 
-	arbiter_if_node =
-		of_get_property(kbdev->dev->of_node, "arbiter_if", NULL);
+	arbiter_if_node = of_get_property(kbdev->dev->of_node, "arbiter-if", NULL);
+	if (!arbiter_if_node)
+		arbiter_if_node = of_get_property(kbdev->dev->of_node, "arbiter_if", NULL);
+
 	/* Arbitration enabled, override the callback pointer.*/
 	if (arbiter_if_node)
 		callbacks = &arb_clk_rate_trace_ops;

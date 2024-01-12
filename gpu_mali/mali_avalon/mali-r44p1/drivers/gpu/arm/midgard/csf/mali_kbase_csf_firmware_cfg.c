@@ -380,8 +380,14 @@ int kbase_csf_firmware_cfg_fw_wa_init(struct kbase_device *kbdev)
 	int entry_count;
 	size_t entry_bytes;
 
-	/* "quirks_ext" property is optional and may have no value. */
-	entry_count = of_property_count_u32_elems(kbdev->dev->of_node, "quirks_ext");
+	/* "quirks-ext" property is optional and may have no value.
+	 * Also try fallback "quirks_ext" property if it doesn't exist.
+	 */
+	entry_count = of_property_count_u32_elems(kbdev->dev->of_node, "quirks-ext");
+
+	if (entry_count == -EINVAL)
+		entry_count = of_property_count_u32_elems(kbdev->dev->of_node, "quirks_ext");
+
 	if (entry_count == -EINVAL || entry_count == -ENODATA)
 		return 0;
 
@@ -390,8 +396,13 @@ int kbase_csf_firmware_cfg_fw_wa_init(struct kbase_device *kbdev)
 	if (!kbdev->csf.quirks_ext)
 		return -ENOMEM;
 
-	ret = of_property_read_u32_array(kbdev->dev->of_node, "quirks_ext", kbdev->csf.quirks_ext,
+	ret = of_property_read_u32_array(kbdev->dev->of_node, "quirks-ext", kbdev->csf.quirks_ext,
 					 entry_count);
+
+	if (ret == -EINVAL)
+		ret = of_property_read_u32_array(kbdev->dev->of_node, "quirks_ext",
+						 kbdev->csf.quirks_ext, entry_count);
+
 	if (ret == -EINVAL || ret == -ENODATA) {
 		/* This is unexpected since the property is already accessed for counting the number
 		 * of its elements.

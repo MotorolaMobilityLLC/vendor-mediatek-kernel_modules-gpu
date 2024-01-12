@@ -149,8 +149,14 @@ int kbase_csf_timeout_init(struct kbase_device *const kbdev)
 	int err;
 
 #if IS_ENABLED(CONFIG_OF)
-	err = of_property_read_u64(kbdev->dev->of_node,
-		"progress_timeout", &timeout);
+	/* Read "progress-timeout" property and fallback to "progress_timeout"
+	 * if not found.
+	 */
+	err = of_property_read_u64(kbdev->dev->of_node, "progress-timeout", &timeout);
+
+	if (err == -EINVAL)
+		err = of_property_read_u64(kbdev->dev->of_node, "progress_timeout", &timeout);
+
 	if (!err)
 		dev_info(kbdev->dev, "Found progress_timeout = %llu in Devicetree\n",
 			timeout);

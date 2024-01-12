@@ -54,7 +54,9 @@ void kbase_pm_policy_init(struct kbase_device *kbdev)
 	unsigned long flags;
 	int i;
 
-	if (of_property_read_string(np, "power_policy", &power_policy_name) == 0) {
+	/* Read "power-policy" property and fallback to "power_policy" if not found */
+	if ((of_property_read_string(np, "power-policy", &power_policy_name) == 0) ||
+	    (of_property_read_string(np, "power_policy", &power_policy_name) == 0)) {
 		for (i = 0; i < ARRAY_SIZE(all_policy_list); i++)
 			if (sysfs_streq(all_policy_list[i]->name, power_policy_name)) {
 				default_policy = all_policy_list[i];

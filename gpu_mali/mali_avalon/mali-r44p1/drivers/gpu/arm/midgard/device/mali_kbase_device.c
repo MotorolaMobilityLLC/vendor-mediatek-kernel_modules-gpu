@@ -228,11 +228,14 @@ int kbase_device_misc_init(struct kbase_device * const kbdev)
 	kbdev->cci_snoop_enabled = false;
 	np = kbdev->dev->of_node;
 	if (np != NULL) {
-		if (of_property_read_u32(np, "snoop_enable_smc",
-					&kbdev->snoop_enable_smc))
+		/* Read "-" versions of the properties and fallback to "_"
+		 * if these are not found
+		 */
+		if (of_property_read_u32(np, "snoop-enable-smc", &kbdev->snoop_enable_smc) &&
+		    of_property_read_u32(np, "snoop_enable_smc", &kbdev->snoop_enable_smc))
 			kbdev->snoop_enable_smc = 0;
-		if (of_property_read_u32(np, "snoop_disable_smc",
-					&kbdev->snoop_disable_smc))
+		if (of_property_read_u32(np, "snoop-disable-smc", &kbdev->snoop_disable_smc) &&
+		    of_property_read_u32(np, "snoop_disable_smc", &kbdev->snoop_disable_smc))
 			kbdev->snoop_disable_smc = 0;
 		/* Either both or none of the calls should be provided. */
 		if (!((kbdev->snoop_disable_smc == 0

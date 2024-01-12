@@ -2315,18 +2315,24 @@ u32 kbase_csf_firmware_reset_mcu_core_pwroff_time(struct kbase_device *kbdev)
 static int kbase_device_csf_iterator_trace_init(struct kbase_device *kbdev)
 {
 	/* Enable the iterator trace port if supported by the GPU.
-	 * It requires the GPU to have a nonzero "iter_trace_enable"
+	 * It requires the GPU to have a nonzero "iter-trace-enable"
 	 * property in the device tree, and the FW must advertise
 	 * this feature in GLB_FEATURES.
 	 */
 	if (kbdev->pm.backend.gpu_powered) {
-		/* check device tree for iterator trace enable property */
+		/* check device tree for iterator trace enable property
+		 * and fallback to "iter_trace_enable" if it is not found
+		 */
 		const void *iter_trace_param = of_get_property(
 					       kbdev->dev->of_node,
-					       "iter_trace_enable", NULL);
+					       "iter-trace-enable", NULL);
 
 		const struct kbase_csf_global_iface *iface =
 						&kbdev->csf.global_iface;
+
+		if (!iter_trace_param)
+			iter_trace_param =
+				of_get_property(kbdev->dev->of_node, "iter_trace_enable", NULL);
 
 		if (iter_trace_param) {
 			u32 iter_trace_value = be32_to_cpup(iter_trace_param);

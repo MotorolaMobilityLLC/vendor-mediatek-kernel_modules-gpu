@@ -4816,8 +4816,10 @@ static bool kbase_is_pm_enabled(const struct device_node *gpu_node)
 	const void *operating_point_node;
 	bool is_pm_enable = false;
 
-	power_model_node = of_get_child_by_name(gpu_node,
-		"power_model");
+	power_model_node = of_get_child_by_name(gpu_node, "power-model");
+	if (!power_model_node)
+		power_model_node = of_get_child_by_name(gpu_node, "power_model");
+
 	if (power_model_node)
 		is_pm_enable = true;
 
@@ -4838,8 +4840,9 @@ static bool kbase_is_pv_enabled(const struct device_node *gpu_node)
 {
 	const void *arbiter_if_node;
 
-	arbiter_if_node = of_get_property(gpu_node,
-		"arbiter_if", NULL);
+	arbiter_if_node = of_get_property(gpu_node, "arbiter-if", NULL);
+	if (!arbiter_if_node)
+		arbiter_if_node = of_get_property(gpu_node, "arbiter_if", NULL);
 
 	return arbiter_if_node ? true : false;
 }
