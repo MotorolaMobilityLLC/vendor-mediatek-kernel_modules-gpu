@@ -259,8 +259,15 @@ kbase_devfreq_status(struct device *dev, struct devfreq_dev_status *stat)
 
 	kbase_pm_get_dvfs_metrics(kbdev, &kbdev->last_devfreq_metrics, &diff);
 
+#if MALI_USE_CSF && \
+	IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	stat->busy_time = diff.time_busy[0];
+	stat->total_time = diff.time_busy[0] + diff.time_idle[0];
+#else
 	stat->busy_time = diff.time_busy;
 	stat->total_time = diff.time_busy + diff.time_idle;
+#endif /* MALI_USE_CSF && CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 	stat->current_frequency = kbdev->current_nominal_freq;
 	stat->private_data = NULL;
 
