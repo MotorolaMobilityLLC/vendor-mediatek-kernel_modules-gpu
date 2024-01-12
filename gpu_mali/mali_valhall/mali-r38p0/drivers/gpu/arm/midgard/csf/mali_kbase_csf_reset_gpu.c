@@ -31,6 +31,11 @@
 #include <mali_kbase_reset_gpu.h>
 #include <linux/string.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <mtk_gpufreq.h>
+#include "platform/mtk_platform_common.h"
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
 enum kbasep_soft_reset_status {
 	RESET_SUCCESS = 0,
 	SOFT_RESET_FAILED,
@@ -408,8 +413,15 @@ static enum kbasep_soft_reset_status kbase_csf_reset_gpu_once(struct kbase_devic
 
 	mutex_unlock(&kbdev->pm.lock);
 
-	if (WARN_ON(err))
+	if (WARN_ON(err)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		if (!mtk_common_gpufreq_bringup()) {
+			gpufreq_dump_infra_status();
+			mtk_common_debug_dump();
+		}
+#endif /* CONFIG_MALI_MTK_DEBUG */
 		return SOFT_RESET_FAILED;
+	}
 
 	mutex_lock(&kbdev->mmu_hw_mutex);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
@@ -431,6 +443,12 @@ static enum kbasep_soft_reset_status kbase_csf_reset_gpu_once(struct kbase_devic
 			ret = L2_ON_FAILED;
 		else if (!kbase_pm_mcu_is_in_desired_state(kbdev))
 			ret = MCU_REINIT_FAILED;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		if (!mtk_common_gpufreq_bringup()) {
+			gpufreq_dump_infra_status();
+			mtk_common_debug_dump();
+		}
+#endif /* CONFIG_MALI_MTK_DEBUG */
 	}
 
 	return ret;
@@ -491,8 +509,13 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 	kbase_hwcnt_context_enable(kbdev->hwcnt_gpu_ctx);
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
-	if (!silent)
+	if (!silent) {
 		dev_err(kbdev->dev, "Reset complete");
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME, "Reset complete");
+#endif /* CONFIG_MALI_MTK_DEBUG */
+	}
+
 	return 0;
 err:
 

@@ -648,12 +648,18 @@ void kbase_csf_queue_terminate(struct kbase_context *kctx,
 	bool reset_prevented = false;
 
 	err = kbase_reset_gpu_prevent_and_wait(kbdev);
-	if (err)
+	if (err) {
 		dev_warn(
 			kbdev->dev,
 			"Unsuccessful GPU reset detected when terminating queue (buffer_addr=0x%.16llx), attempting to terminate regardless",
 			term->buffer_gpu_addr);
-	else
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		ged_log_buf_print2(
+			kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
+			"Unsuccessful GPU reset detected when terminating queue (buffer_addr=0x%.16llx), attempting to terminate regardless",
+			term->buffer_gpu_addr);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+	} else
 		reset_prevented = true;
 
 	mutex_lock(&kctx->csf.lock);
@@ -1596,12 +1602,18 @@ void kbase_csf_queue_group_terminate(struct kbase_context *kctx,
 	struct kbase_device *const kbdev = kctx->kbdev;
 
 	err = kbase_reset_gpu_prevent_and_wait(kbdev);
-	if (err)
+	if (err) {
 		dev_warn(
 			kbdev->dev,
 			"Unsuccessful GPU reset detected when terminating group %d, attempting to terminate regardless",
 			group_handle);
-	else
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		 ged_log_buf_print2(
+			kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
+			"Unsuccessful GPU reset detected when terminating group %d, attempting to terminate regardless",
+			group_handle);
+#endif /* CONFIG_MALI_MTK_DEBUG */
+	} else
 		reset_prevented = true;
 
 	mutex_lock(&kctx->csf.lock);
@@ -2277,6 +2289,18 @@ handle_fault_event(struct kbase_queue *const queue,
 
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
+		 "Ctx %d_%d Group %d CSG %d CSI: %d\n"
+		 "CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
+		 "CS_FAULT.EXCEPTION_DATA: 0x%x\n"
+		 "CS_FAULT_INFO.EXCEPTION_DATA: 0x%llx\n",
+		 queue->kctx->tgid, queue->kctx->id, queue->group->handle,
+		 queue->group->csg_nr, queue->csi_index,
+		 cs_fault_exception_type,
+		 kbase_gpu_exception_name(cs_fault_exception_type),
+		 cs_fault_exception_data, cs_fault_info_exception_data);
+#endif /* CONFIG_MALI_MTK_DEBUG */
 	dev_warn(kbdev->dev,
 		 "Ctx %d_%d Group %d CSG %d CSI: %d\n"
 		 "CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
@@ -2336,11 +2360,15 @@ static void fatal_event_worker(struct work_struct *const data)
 	bool reset_prevented = false;
 	int err = kbase_reset_gpu_prevent_and_wait(kbdev);
 
-	if (err)
+	if (err) {
 		dev_warn(
 			kbdev->dev,
 			"Unsuccessful GPU reset detected when terminating group to handle fatal event, attempting to terminate regardless");
-	else
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
+			"Unsuccessful GPU reset detected when terminating group to handle fatal event, attempting to terminate regardless");
+#endif
+	} else
 		reset_prevented = true;
 
 	mutex_lock(&kctx->csf.lock);
@@ -2348,6 +2376,10 @@ static void fatal_event_worker(struct work_struct *const data)
 	group = get_bound_queue_group(queue);
 	if (!group) {
 		dev_warn(kbdev->dev, "queue not bound when handling fatal event");
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
+			"queue not bound when handling fatal event");
+#endif
 		goto unlock;
 	}
 
@@ -2403,6 +2435,19 @@ handle_fatal_event(struct kbase_queue *const queue,
 		 cs_fatal_exception_type,
 		 kbase_gpu_exception_name(cs_fatal_exception_type),
 		 cs_fatal_exception_data, cs_fatal_info_exception_data);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	ged_log_buf_print2(kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
+		 "Ctx %d_%d Group %d CSG %d CSI: %d\n"
+		 "CS_FATAL.EXCEPTION_TYPE: 0x%x (%s)\n"
+		 "CS_FATAL.EXCEPTION_DATA: 0x%x\n"
+		 "CS_FATAL_INFO.EXCEPTION_DATA: 0x%llx\n",
+		 queue->kctx->tgid, queue->kctx->id, queue->group->handle,
+		 queue->group->csg_nr, queue->csi_index,
+		 cs_fatal_exception_type,
+		 kbase_gpu_exception_name(cs_fatal_exception_type),
+		 cs_fatal_exception_data, cs_fatal_info_exception_data);
+#endif
 
 	if (cs_fatal_exception_type ==
 			CS_FATAL_EXCEPTION_TYPE_FIRMWARE_INTERNAL_ERROR) {
@@ -2606,6 +2651,12 @@ static void process_csg_interrupts(struct kbase_device *const kbdev,
 	ack = kbase_csf_firmware_csg_output(ginfo, CSG_ACK);
 	irqreq = kbase_csf_firmware_csg_output(ginfo, CSG_IRQ_REQ);
 	irqack = kbase_csf_firmware_csg_input_read(ginfo, CSG_IRQ_ACK);
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
+	kbdev->csf.csg_req[csg_nr] = req;
+	kbdev->csf.csg_ack[csg_nr] = ack;
+	kbdev->csf.csg_irqreq[csg_nr] = irqreq;
+	kbdev->csf.csg_irqack[csg_nr] = irqack;
+#endif /* CONFIG_MALI_MTK_IRQ_DEBUG */
 
 	/* There may not be any pending CSG/CS interrupts to process */
 	if ((req == ack) && (irqreq == irqack))
@@ -2868,12 +2919,34 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 {
 	unsigned long flags;
 	u32 csg_interrupts = val & ~JOB_IRQ_GLOBAL_IF;
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
+	ktime_t spin_start;
+
+	kbdev->csf.csg_interrupts = csg_interrupts;
+	kbdev->csf.csf_interrupt_start_tm = ktime_get();
+#endif /* CONFIG_MALI_MTK_IRQ_DEBUG */
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
 	KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT, NULL, val);
 	kbase_reg_write(kbdev, JOB_CONTROL_REG(JOB_IRQ_CLEAR), val);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
+	if (csg_interrupts != 0) {
+		spin_start = ktime_get();
+		kbase_csf_scheduler_spin_lock(kbdev, &flags);
+		kbdev->csf.spin_delta_us_1 = ktime_to_us(ktime_sub(ktime_get(), spin_start));
+		while (csg_interrupts != 0) {
+			int const csg_nr = ffs(csg_interrupts) - 1;
+
+			kbdev->csf.csg_start_tm[csg_nr] = ktime_get();
+			process_csg_interrupts(kbdev, csg_nr);
+			kbdev->csf.csg_end_tm[csg_nr] = ktime_get();
+			csg_interrupts &= ~(1 << csg_nr);
+		}
+		kbase_csf_scheduler_spin_unlock(kbdev, flags);
+	}
+#else
 	if (csg_interrupts != 0) {
 		kbase_csf_scheduler_spin_lock(kbdev, &flags);
 		while (csg_interrupts != 0) {
@@ -2884,6 +2957,11 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 		}
 		kbase_csf_scheduler_spin_unlock(kbdev, flags);
 	}
+#endif /* CONFIG_MALI_MTK_IRQ_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
+	kbdev->csf.glb_start_tm = ktime_get();
+#endif
 
 	if (val & JOB_IRQ_GLOBAL_IF) {
 		const struct kbase_csf_global_iface *const global_iface =
@@ -2896,11 +2974,22 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 		else if (global_iface->output) {
 			u32 glb_req, glb_ack;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
+			spin_start = ktime_get();
 			kbase_csf_scheduler_spin_lock(kbdev, &flags);
+			kbdev->csf.spin_delta_us_2 = ktime_to_us(ktime_sub(ktime_get(), spin_start));
+#else
+			kbase_csf_scheduler_spin_lock(kbdev, &flags);
+#endif /* CONFIG_MALI_MTK_IRQ_DEBUG */
+
 			glb_req = kbase_csf_firmware_global_input_read(
 					global_iface, GLB_REQ);
 			glb_ack = kbase_csf_firmware_global_output(
 					global_iface, GLB_ACK);
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
+			kbdev->csf.glb_req = glb_req;
+			kbdev->csf.glb_ack = glb_ack;
+#endif
 			KBASE_KTRACE_ADD(kbdev, GLB_REQ_ACQ, NULL, glb_req ^ glb_ack);
 
 			check_protm_enter_req_complete(kbdev, glb_req, glb_ack);
@@ -2928,9 +3017,16 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 			kbase_pm_update_state(kbdev);
 		}
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
+	kbdev->csf.glb_end_tm = ktime_get();
+#endif
 
 	wake_up_all(&kbdev->csf.event_wait);
 	KBASE_KTRACE_ADD(kbdev, CSF_INTERRUPT_END, NULL, val);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
+	kbdev->csf.csf_interrupt_end_tm = ktime_get();
+#endif
 }
 
 void kbase_csf_doorbell_mapping_term(struct kbase_device *kbdev)
