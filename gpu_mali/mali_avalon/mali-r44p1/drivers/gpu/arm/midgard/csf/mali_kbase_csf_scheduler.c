@@ -356,8 +356,8 @@ static enum hrtimer_restart apo_idle_timer_callback(struct hrtimer *timer)
 	struct kbase_device *kbdev =
 		container_of(timer, struct kbase_device, csf.scheduler.apo_idle_timer);
 
-	ged_gpu_adaptive_power_reset();
-	ged_gpu_predict_adaptive_power_reset();
+	ged_gpu_apo_reset();
+	ged_gpu_predict_apo_reset();
 
 	enqueue_gpu_idle_work(&kbdev->csf.scheduler);
 
@@ -560,16 +560,15 @@ void kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev)
 			 */
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 			/* Bypass enqueue */
-			if (kbdev->csf.scheduler.apo_support && ged_gpu_adaptive_power_notify()) {
+			if (kbdev->csf.scheduler.apo_support && ged_gpu_apo_notify()) {
 				kbase_pm_enable_db_mirror_interrupt(kbdev);
-				if (!ged_gpu_predict_adaptive_power_notify()) {
+				if (!ged_gpu_predict_apo_notify()) {
 					kbase_pm_disable_db_mirror_interrupt(kbdev);
 					enqueue_gpu_idle_work(scheduler);
 				} else {
 					if (!hrtimer_active(&scheduler->apo_idle_timer)) {
-						kbase_pm_disable_db_mirror_interrupt(kbdev);
 						expiry_time = HR_TIMER_DELAY_NSEC(
-							ged_get_power_duration_ns() + 1000000);
+							ged_get_apo_wakeup_us() * 1000);
 						hrtimer_start(&scheduler->apo_idle_timer,
 							expiry_time,
 							HRTIMER_MODE_REL);
@@ -6749,7 +6748,7 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 	hrtimer_init(&scheduler->tick_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	scheduler->tick_timer.function = tick_timer_callback;
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
-	scheduler->apo_support = ged_gpu_adaptive_power_support();
+	scheduler->apo_support = ged_gpu_apo_support();
 	hrtimer_init(&scheduler->apo_idle_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	scheduler->apo_idle_timer.function = apo_idle_timer_callback;
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
