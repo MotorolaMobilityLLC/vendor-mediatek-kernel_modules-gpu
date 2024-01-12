@@ -218,7 +218,11 @@ enum {
  *
  * Based on 10s timeout at 100MHz, scaled from a 50MHz GPU system.
  */
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+#define KCPU_FENCE_SIGNAL_TIMEOUT_CYCLES (300000000ull)
+#else
 #define KCPU_FENCE_SIGNAL_TIMEOUT_CYCLES (1000000000ull)
+#endif
 
 #else /* MALI_USE_CSF */
 
