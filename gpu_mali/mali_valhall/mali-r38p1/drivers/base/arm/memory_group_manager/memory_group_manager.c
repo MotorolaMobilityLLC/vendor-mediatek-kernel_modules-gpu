@@ -66,7 +66,11 @@ static inline vm_fault_t vmf_insert_pfn_prot(struct vm_area_struct *vma,
  * debugfs. Display is organized per group with small and large sized pages.
  */
 struct mgm_group {
+#if IS_ENABLED(CONFIG_MTK_MODIFY)
 	atomic_t size;
+#else
+	size_t size;
+#endif
 	size_t lp_size;
 	size_t insert_pfn;
 	size_t update_gpu_pte;
@@ -100,7 +104,11 @@ static int mgm_size_get(void *data, u64 *val)
 {
 	struct mgm_group *group = data;
 
+#if IS_ENABLED(CONFIG_MTK_MODIFY)
 	*val = atomic_read(&group->size);
+#else
+	*val = group->size;
+#endif
 
 	return 0;
 }
@@ -262,6 +270,7 @@ static void update_size(struct memory_group_manager_device *mgm_dev, int
 	struct mgm_groups *data = mgm_dev->data;
 
 	switch (order) {
+#if IS_ENABLED(CONFIG_MTK_MODIFY)
 	case ORDER_SMALL_PAGE:
 		if (alloc)
 			atomic_inc(&data->groups[group_id].size);
@@ -270,6 +279,16 @@ static void update_size(struct memory_group_manager_device *mgm_dev, int
 			atomic_dec(&data->groups[group_id].size);
 		}
 	break;
+#else
+	case ORDER_SMALL_PAGE:
+		if (alloc)
+			data->groups[group_id].size++;
+		else {
+			WARN_ON(data->groups[group_id].size == 0);
+			data->groups[group_id].size--;
+		}
+	break;
+#endif
 
 	case ORDER_LARGE_PAGE:
 		if (alloc)
@@ -437,7 +456,11 @@ static int mgm_initialize_data(struct mgm_groups *mgm_data)
 	int i;
 
 	for (i = 0; i < MEMORY_GROUP_MANAGER_NR_GROUPS; i++) {
+#if IS_ENABLED(CONFIG_MTK_MODIFY)
 		atomic_set(&mgm_data->groups[i].size,0);
+#else
+		mgm_data->groups[i].size = 0;
+#endif
 		mgm_data->groups[i].lp_size = 0;
 		mgm_data->groups[i].insert_pfn = 0;
 		mgm_data->groups[i].update_gpu_pte = 0;
@@ -451,10 +474,17 @@ static void mgm_term_data(struct mgm_groups *data)
 	int i;
 
 	for (i = 0; i < MEMORY_GROUP_MANAGER_NR_GROUPS; i++) {
+#if IS_ENABLED(CONFIG_MTK_MODIFY)
 		if (atomic_read(&data->groups[i].size) != 0)
 			dev_warn(data->dev,
 				"%zu 0-order pages in group(%d) leaked\n",
 				atomic_read(&data->groups[i].size), i);
+#else
+		if (data->groups[i].size != 0)
+			dev_warn(data->dev,
+				"%zu 0-order pages in group(%d) leaked\n",
+				data->groups[i].size, i);
+#endif
 		if (data->groups[i].lp_size != 0)
 			dev_warn(data->dev,
 				"%zu 9 order pages in group(%d) leaked\n",
