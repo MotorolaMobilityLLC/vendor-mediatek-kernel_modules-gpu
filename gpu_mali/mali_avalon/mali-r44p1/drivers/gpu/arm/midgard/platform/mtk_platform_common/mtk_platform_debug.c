@@ -2330,14 +2330,16 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 	} while (0);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG)
-	if ( active_group_dump_ret == ISSUE_BLOCKED_IN_RESOURCE) {
+	if (active_group_dump_ret == ISSUE_BLOCKED_IN_RESOURCE) {
 		mtk_log_critical_exception(kbdev, true,
 		"Debug dump for resource");
 
 		dump_hwif_registers(kbdev);
 		dump_iterator_registers(kbdev);
 
-		kbase_csf_firmware_ping_wait(kbdev, 10);  //ping FW
+		if (kbase_csf_firmware_ping_wait(kbdev, 10))
+			mtk_log_critical_exception(kbdev, true,
+			"Ping FW error");
 	}
 #endif /* CONFIG_MALI_MTK_BLOCKED_RESOURCE_DEBUG */
 
