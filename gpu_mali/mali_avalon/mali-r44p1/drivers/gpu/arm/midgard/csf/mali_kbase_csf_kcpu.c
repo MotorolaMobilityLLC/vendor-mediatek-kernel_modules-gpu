@@ -2354,9 +2354,7 @@ static void kcpu_queue_timeout_worker(struct work_struct *data)
 		container_of(data, struct kbase_kcpu_command_queue, timeout_work);
 
 	kcpu_queue_dump(queue);
-#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_RESET)
 	kcpu_queue_force_fence_signal(queue);
-#endif /* CONFIG_MALI_MTK_TIMEOUT_RESET */
 }
 
 static void kcpu_queue_process_worker(struct work_struct *data)
