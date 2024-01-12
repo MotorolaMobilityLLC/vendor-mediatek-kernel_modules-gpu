@@ -31,6 +31,11 @@
 #include <uapi/gpu/arm/midgard/csf/mali_gpu_csf_registers.h>
 #include <uapi/gpu/arm/midgard/mali_base_kernel.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+#include <mtk_gpufreq.h>
+#include "platform/mtk_platform_common.h"
+#endif
+
 /* Value to indicate that a queue group is not groups_to_schedule list */
 #define KBASEP_GROUP_PREPARED_SEQ_NUM_INVALID (U32_MAX)
 
@@ -3791,6 +3796,16 @@ static void schedule_actions(struct kbase_device *kbdev)
 	ret = kbase_pm_wait_for_desired_state(kbdev);
 	if (ret) {
 		dev_err(kbdev->dev, "Wait for MCU power on failed");
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		if (!mtk_common_gpufreq_bringup()) {
+			mtk_common_debug_dump();
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+			gpufreq_dump_infra_status();
+#else
+			mt_gpufreq_dump_infra_status();
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+		}
+#endif
 		return;
 	}
 
