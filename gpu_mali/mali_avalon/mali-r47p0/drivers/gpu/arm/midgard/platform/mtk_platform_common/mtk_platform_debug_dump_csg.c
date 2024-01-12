@@ -74,6 +74,7 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
         }
 
         mutex_unlock(&kbdev->kctx_list_lock);
+        mutex_lock(&kctx->csf.lock);
         kbase_csf_scheduler_lock(kbdev);
         kbase_csf_csg_update_status(kbdev);
 
@@ -110,10 +111,10 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
         if (!mtk_debug_trylock(&kbdev->kctx_list_lock)) {
             mtk_log_critical_exception(kbdev, true, "%s lock kctx_list_lock failed!", __func__);
             mutex_unlock(&kbdev->csf.scheduler.lock);
+            mutex_unlock(&kctx->csf.lock);
             break;
         }
 
-        mutex_lock(&kctx->csf.lock);
         /* REFERENCE FROM kbasep_csf_csg_dump_print() in in midgard/scf/mali_kbase_csf_csg.c*/
         list_for_each_entry(kctx_dump, &kbdev->kctx_list, kctx_list_link) {
             u32 gr;
@@ -150,9 +151,9 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
             if (kctx_dump != kctx)
                 mutex_unlock(&kctx_dump->csf.lock);
         }
-        mutex_unlock(&kctx->csf.lock);
         mutex_unlock(&kbdev->kctx_list_lock);
         kbase_csf_scheduler_unlock(kbdev);
+        mutex_unlock(&kctx->csf.lock);
 
         /* dump kcpu queues */
         mtk_debug_csf_dump_kcpu_queues(kbdev, kctx);

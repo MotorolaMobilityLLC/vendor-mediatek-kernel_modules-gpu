@@ -502,11 +502,9 @@ static void mtk_qinspect_query_top_wait(enum mtk_qinspect_queue_type queue_type,
 static void mtk_qinspect_acquire_lock(struct kbase_context *kctx) {
 	mutex_lock(&kctx->csf.kcpu_queues.lock);
 	mutex_lock(&kctx->csf.lock);
-	kbase_csf_scheduler_lock(kctx->kbdev);
 }
 
 static void mtk_qinspect_release_lock(struct kbase_context *kctx) {
-	kbase_csf_scheduler_unlock(kctx->kbdev);
 	mutex_unlock(&kctx->csf.lock);
 	mutex_unlock(&kctx->csf.kcpu_queues.lock);
 }
@@ -543,6 +541,7 @@ void mtk_qinspect_recovery(struct kbase_context *kctx, enum mtk_qinspect_queue_t
 	}
 
 	mtk_qinspect_log("update groups status");
+	kbase_csf_scheduler_lock(kctx->kbdev);
 	kbase_csf_csg_update_status(kctx->kbdev);
 
 	/* find root locker algo start */
@@ -586,6 +585,7 @@ void mtk_qinspect_recovery(struct kbase_context *kctx, enum mtk_qinspect_queue_t
 	kbase_reset_gpu_allow(kctx->kbdev);
 
 	mtk_qinspect_log("release lock");
+	kbase_csf_scheduler_unlock(kctx->kbdev);
 	mtk_qinspect_release_lock(kctx);
 
 	mtk_qinspect_log("recovery complete");
