@@ -59,6 +59,9 @@ int mtk_common_gpufreq_bringup(void);
 int mtk_common_gpufreq_commit(int opp_idx);
 int mtk_common_ged_dvfs_get_last_commit_idx(void);
 
+unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_idx(void);
+unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_idx_test(int commit_idx);
+
 int mtk_common_device_init(struct kbase_device *kbdev);
 void mtk_common_device_term(struct kbase_device *kbdev);
 
