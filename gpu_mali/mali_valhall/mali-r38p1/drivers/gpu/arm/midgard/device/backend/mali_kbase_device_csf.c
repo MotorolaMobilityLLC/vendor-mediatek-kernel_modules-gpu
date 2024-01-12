@@ -52,7 +52,7 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
 #define FWLOG_CONTENT_LEN 64
 extern u8 *g_fw_dump_dest;
-static char fw_content[FWLOG_CONTENT_LEN] = "======CSF fwlog is empy!======";
+char fw_content[FWLOG_CONTENT_LEN] = "======CSF fwlog is empy!======";
 #endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -541,7 +541,7 @@ int kbase_device_firmware_init_once(struct kbase_device *kbdev)
 	ts_nsec = local_clock();
 	rem_nsec = do_div(ts_nsec, 1000000000);
 	snprintf(fw_content, FWLOG_CONTENT_LEN,
-		"[%5lu.%06lu][%llxt]======CSF fwlog is empy!======\n",
+		"[%5lu.%06lu][%llxt]====fwlog End Of File====\n",
 		(unsigned long)ts_nsec,
 		rem_nsec / 1000,
 		mtk_logbuffer_get_timestamp(kbdev, &kbdev->logbuf_regular));
