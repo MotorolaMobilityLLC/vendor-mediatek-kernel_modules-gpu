@@ -40,13 +40,14 @@ void MTKGPUPower_model_suspend(void);
 void MTKGPUPower_model_resume(void);
 int MTKGPUPower_model_init(void);
 void MTKGPUPower_model_destroy(void);
+bool MTKGPUAdaptive_power_notify(void);
 
 void MTKGPUPower_model_sspm_enable(void);
 extern void (*mtk_ltr_gpu_pmu_start_fp)(unsigned int interval_ns);
 extern void (*mtk_ltr_gpu_pmu_stop_fp)(void);
 extern void (*mtk_swpm_gpu_pm_start_fp)(void);
 extern void (*mtk_set_gpu_idle_fp)(unsigned int val);
-
+extern bool (*mtk_adaptive_power_notify_fp)(void);
 
 
 
