@@ -282,8 +282,9 @@ void mtk_debug_dump_pm_status(struct kbase_device *kbdev)
 #define MAX_CS_DUMP_NUM_CSG		(MAX_CS_DUMP_NUM_KCTX * 2)
 #define MAX_CS_DUMP_NUM_CSI_PER_CSG	5
 #define MAX_CS_DUMP_QUEUE_MEM		(MAX_CS_DUMP_NUM_CSG * MAX_CS_DUMP_NUM_CSI_PER_CSG)
-#define MAX_CS_DUMP_NUM_GPU_PAGES	512
+#define MAX_CS_DUMP_NUM_GPU_PAGES	256
 #define MAX_CS_DUMP_COUNT_PER_CSI	128
+#define MAX_CSI_DUMP_CACHE_LINES	512
 
 static struct mtk_debug_cs_queue_mem_data *cs_dump_queue_mem;
 static int cs_dump_queue_mem_ptr;
@@ -379,6 +380,7 @@ static void mtk_debug_cs_queue_free_memory(void)
 static int mtk_debug_cs_dump_mode;
 static int mtk_debug_cs_dump_count;
 static struct mtk_debug_cs_queue_dump_record cs_queue_dump_record;
+static unsigned int mtk_debug_csi_dump_cache_line_count;
 
 static void mtk_debug_cs_queue_dump_record_init(void)
 {
@@ -561,6 +563,14 @@ static void *mtk_debug_cs_queue_mem_map_and_dump_once(struct kbase_device *kbdev
 				bitmap_chk <<= 1;
 			continue;
 		} else {
+			if (mtk_debug_csi_dump_cache_line_count >= MAX_CSI_DUMP_CACHE_LINES) {
+				mtk_log_regular(kbdev, mtk_debug_cs_dump_mode,
+						"%016llx: MAX_CSI_DUMP_CACHE_LINES(%d) too small",
+						gpu_addr, MAX_CSI_DUMP_CACHE_LINES);
+				return NULL;
+			}
+			mtk_debug_csi_dump_cache_line_count++;
+
 			gpu_addr_node->bitmap[bitmap_idx] |= bitmap_chk;
 			if (bitmap_chk == 1 << (rows_per_map - 1)) {
 				bitmap_idx += 1;
@@ -837,6 +847,7 @@ static void mtk_debug_cs_queue_dump(struct kbase_device *kbdev, struct mtk_debug
 		addr_start = 0;
 
 	mtk_debug_cs_mem_dump_countdown = MAX_CS_DUMP_COUNT_PER_CSI;
+	mtk_debug_csi_dump_cache_line_count = 0;
 	memset(&rf, 0, sizeof(rf));
 	if (addr_start < queue_mem->cs_extract) {
 		rc = mtk_debug_cs_mem_dump(kbdev, queue_mem, &rf,
@@ -951,14 +962,14 @@ static bool sb_source_supported(u32 glb_version)
 	return supported;
 }
 
+#define WAITING "Waiting"
+#define NOT_WAITING "Not waiting"
+
 static void mtk_debug_csf_scheduler_dump_active_queue_cs_status_wait(
 	struct kbase_device *kbdev, pid_t tgid, u32 id,
 	u32 glb_version, u32 wait_status, u32 wait_sync_value, u64 wait_sync_live_value,
 	u64 wait_sync_pointer, u32 sb_status, u32 blocked_reason)
 {
-#define WAITING "Waiting"
-#define NOT_WAITING "Not waiting"
-
 	mtk_log_critical_exception(kbdev, true,
 		"[%d_%d] SB_MASK: %d, PROGRESS_WAIT: %s, PROTM_PEND: %s",
 		tgid, id,
@@ -983,6 +994,52 @@ static void mtk_debug_csf_scheduler_dump_active_queue_cs_status_wait(
 		wait_sync_value,
 		wait_sync_live_value,
 		CS_STATUS_SCOREBOARDS_NONZERO_GET(sb_status));
+	mtk_log_critical_exception(kbdev, true,
+		"[%d_%d] BLOCKED_REASON: %s",
+		tgid, id,
+		blocked_reason_to_string(CS_STATUS_BLOCKED_REASON_REASON_GET(blocked_reason)));
+
+	// BLOCKED_REASON:
+	//     - WAIT: Blocked on scoreboards in some way.
+	//     - RESOURCE: Blocked on waiting for resource allocation. e.g., compute, tiler, and fragment resources.
+	//     - SYNC_WAIT: Blocked on a SYNC_WAIT{32|64} instruction.
+}
+
+static void mtk_debug_csf_scheduler_dump_queue_cs_status_wait(
+	struct kbase_device *kbdev, pid_t tgid, u32 id,
+	u32 glb_version, u32 wait_status, u32 wait_sync_value, u64 wait_sync_live_value,
+	u64 wait_sync_pointer, u32 sb_status, u32 blocked_reason)
+{
+	if (CS_STATUS_WAIT_SB_MASK_GET(wait_status) ||
+	    CS_STATUS_WAIT_PROGRESS_WAIT_GET(wait_status) ||
+	    CS_STATUS_WAIT_PROTM_PEND_GET(wait_status)) {
+		mtk_log_critical_exception(kbdev, true,
+			"[%d_%d] SB_MASK: %d, PROGRESS_WAIT: %s, PROTM_PEND: %s",
+			tgid, id,
+			CS_STATUS_WAIT_SB_MASK_GET(wait_status),
+			CS_STATUS_WAIT_PROGRESS_WAIT_GET(wait_status) ? WAITING : NOT_WAITING,
+			CS_STATUS_WAIT_PROTM_PEND_GET(wait_status) ? WAITING : NOT_WAITING);
+		if (sb_source_supported(glb_version)) {
+			mtk_log_critical_exception(kbdev, true,
+				"[%d_%d] SB_SOURCE: %d",
+				tgid, id,
+				CS_STATUS_WAIT_SB_SOURCE_GET(wait_status));
+		}
+	}
+	if (CS_STATUS_WAIT_SYNC_WAIT_GET(wait_status)) {
+		mtk_log_critical_exception(kbdev, true,
+			"[%d_%d] SYNC_WAIT: %s, WAIT_CONDITION: %s, SYNC_POINTER: 0x%llx",
+			tgid, id,
+			CS_STATUS_WAIT_SYNC_WAIT_GET(wait_status) ? WAITING : NOT_WAITING,
+			CS_STATUS_WAIT_SYNC_WAIT_CONDITION_GET(wait_status) ? "greater than" : "less or equal",
+			wait_sync_pointer);
+		mtk_log_critical_exception(kbdev, true,
+			"[%d_%d] SYNC_VALUE: %d, SYNC_LIVE_VALUE: 0x%016llx, SB_STATUS: %u",
+			tgid, id,
+			wait_sync_value,
+			wait_sync_live_value,
+			CS_STATUS_SCOREBOARDS_NONZERO_GET(sb_status));
+	}
 	mtk_log_critical_exception(kbdev, true,
 		"[%d_%d] BLOCKED_REASON: %s",
 		tgid, id,
@@ -1040,7 +1097,8 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 	addr32 = (u32 *)(queue->user_io_addr + PAGE_SIZE / sizeof(*addr));
 	cs_active = addr32[CS_ACTIVE / sizeof(*addr32)];
 
-	if (cs_queue_data) {
+	/* record queue dump info, skip off slot CS when cs_extract != cs_insert */
+	if (cs_queue_data && (cs_queue_data->group_type == 0 || cs_extract != cs_insert)) {
 		struct mtk_debug_cs_queue_mem_data *queue_mem = mtk_debug_cs_queue_mem_allocate();
 
 		if (queue_mem && queue->size) {
@@ -1122,22 +1180,24 @@ static void mtk_debug_csf_scheduler_dump_active_queue(pid_t tgid, u32 id,
 			"[%d_%d] SAVED_CMD_PTR: 0x%llx",
 			tgid, id,
 			queue->saved_cmd_ptr);
-		if (CS_STATUS_WAIT_SYNC_WAIT_GET(queue->status_wait)) {
+
+		if (queue->status_wait) {
 			wait_status = queue->status_wait;
 			wait_sync_value = queue->sync_value;
 			wait_sync_pointer = queue->sync_ptr;
 			sb_status = queue->sb_status;
 			blocked_reason = queue->blocked_reason;
-
-			evt = (u64 *)kbase_phy_alloc_mapping_get(queue->kctx, wait_sync_pointer, &mapping);
-			if (evt) {
-				wait_sync_live_value = evt[0];
-				kbase_phy_alloc_mapping_put(queue->kctx, mapping);
-			} else {
+			if (CS_STATUS_WAIT_SYNC_WAIT_GET(wait_status)) {
+				evt = (u64 *)kbase_phy_alloc_mapping_get(queue->kctx, wait_sync_pointer, &mapping);
+				if (evt) {
+					wait_sync_live_value = evt[0];
+					kbase_phy_alloc_mapping_put(queue->kctx, mapping);
+				} else
+					wait_sync_live_value = U64_MAX;
+			} else
 				wait_sync_live_value = U64_MAX;
-			}
 
-			mtk_debug_csf_scheduler_dump_active_queue_cs_status_wait(
+			mtk_debug_csf_scheduler_dump_queue_cs_status_wait(
 				queue->kctx->kbdev, tgid, id,
 				glb_version, wait_status, wait_sync_value,
 				wait_sync_live_value, wait_sync_pointer,
@@ -1789,7 +1849,7 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 		INIT_LIST_HEAD(&cs_queue_data.queue_list);
 
 	do {
-		struct kbase_context *kctx;
+		struct kbase_context *kctx, *kctx_dump;
 		int found;
 		int ret;
 
@@ -1815,7 +1875,8 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 		ret = mtk_debug_trylock(&kctx->csf.lock);
 		mutex_unlock(&kbdev->kctx_list_lock);
 		if (!ret) {
-			mtk_log_critical_exception(kbdev, true, "[%d_%d] lock csf.lock failed!", kctx->tgid, kctx->id);
+			mtk_log_critical_exception(kbdev, true,
+				"[%d_%d] %s lock csf.lock failed!", kctx->tgid, kctx->id, __func__);
 			break;
 		}
 
@@ -1857,13 +1918,22 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 
 		/* dump groups */
 		/* previous locks: kctx->csf.lock, csf.scheduler.lock */
-		{
+		list_for_each_entry(kctx_dump, &kbdev->kctx_list, kctx_list_link) {
 			u32 gr;
 
-			for (gr = 0; gr < MAX_QUEUE_GROUP_NUM; gr++) {
-				struct kbase_queue_group *const group = kctx->csf.queue_groups[gr];
+			if (kctx_dump != kctx) {
+				if (!mtk_debug_trylock(&kctx_dump->csf.lock)) {
+					mtk_log_critical_exception(kbdev, true,
+						"[%d_%d] %s lock csf.lock failed, skip group dump!",
+						kctx_dump->tgid, kctx_dump->id, __func__);
+					continue;
+				}
+			}
 
-				if (!group)
+			for (gr = 0; gr < MAX_QUEUE_GROUP_NUM; gr++) {
+				struct kbase_queue_group *const group = kctx_dump->csf.queue_groups[gr];
+
+				if (!group || kbase_csf_scheduler_group_get_slot(group) >= 0)
 					continue;
 
 				mtk_log_critical_exception(kbdev, true,
@@ -1878,6 +1948,9 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 				} else
 					mtk_debug_csf_scheduler_dump_active_group(group, NULL);
 			}
+
+			if (kctx_dump != kctx)
+				mutex_unlock(&kctx_dump->csf.lock);
 		}
 
 		/* unlock csf.scheduler.lock */

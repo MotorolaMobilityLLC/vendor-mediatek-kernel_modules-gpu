@@ -918,6 +918,10 @@ struct mtk_qinspect_gpu_command *mtk_qinspect_query_gpuq_internal_top_wait_cmd(s
 	union mtk_qinspect_csf_instruction inst;
 
 	if (queue->group->csg_nr < 0) {
+		/* save_slot_cs() will indicate wait status in queue->status_wait, check it first. */
+		if (!queue->status_wait)
+			return NULL;
+
 		*blocked_reason = queue->blocked_reason;
 		switch (*blocked_reason) {
 		case CS_STATUS_BLOCKED_REASON_REASON_SYNC_WAIT:
@@ -962,7 +966,7 @@ struct mtk_qinspect_gpu_command *mtk_qinspect_query_gpuq_internal_top_wait_cmd(s
 			gpu_cmd->gpu_sync_info.cqs_addr |= ((u64)kbase_csf_firmware_cs_output(stream,
 								CS_STATUS_WAIT_SYNC_POINTER_HI)) << 32;
 			gpu_cmd->gpu_sync_info.cond = CS_STATUS_WAIT_SYNC_WAIT_CONDITION_GET(status_wait);
-			gpu_cmd->gpu_sync_info.size = CS_STATUS_WAIT_SYNC_WAIT_SIZE_GET(queue->status_wait);
+			gpu_cmd->gpu_sync_info.size = CS_STATUS_WAIT_SYNC_WAIT_SIZE_GET(status_wait);
 			gpu_cmd->type = GPU_COMMAND_TYPE_SYNC_WAIT;
 			break;
 		case CS_STATUS_BLOCKED_REASON_REASON_WAIT:
