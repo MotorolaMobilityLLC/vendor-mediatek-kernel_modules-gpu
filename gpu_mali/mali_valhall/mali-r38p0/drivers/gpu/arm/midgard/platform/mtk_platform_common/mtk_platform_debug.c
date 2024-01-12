@@ -1373,7 +1373,7 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
 							break;
 						}
 						cmd = &queue->commands[cmd_idx];
-						if (cmd->type < 0 || cmd->type >= BASE_KCPU_COMMAND_TYPE_COUNT) {
+						if (cmd->type >= BASE_KCPU_COMMAND_TYPE_COUNT) {
 							dev_info(kbdev->dev,
 							         "[%d_%d] Queue Idx(err-mode), CMD Idx, Wait Type, Additional info",
 							         kctx->tgid,
