@@ -595,6 +595,13 @@ PVRSRV_ERROR RGXGrowFreeList(RGX_FREELIST *psFreeList,
 		size_t uiNumBytes;
 		PVRSRV_ERROR res;
 		IMG_HANDLE hMapHandle;
+		IMG_DEVMEM_SIZE_T uiPMRSize;
+
+		PMR_LogicalSize(psFreeList->psFreeListPMR, &uiPMRSize);
+
+		/* Check for overflow. Validate size and offset. */
+		PVR_GOTO_IF_INVALID_PARAM(psFreeList->uiFreeListPMROffset + ui32MapSize > psFreeList->uiFreeListPMROffset, eError, ErrorPopulateFreelist);
+		PVR_GOTO_IF_INVALID_PARAM(psFreeList->uiFreeListPMROffset + ui32MapSize <= uiPMRSize, eError, ErrorPopulateFreelist);
 
 		/* Map both the FL and the shadow FL */
 		res = PMRAcquireKernelMappingData(psFreeList->psFreeListPMR, psFreeList->uiFreeListPMROffset, ui32MapSize,
@@ -1926,10 +1933,17 @@ PVRSRV_ERROR RGXCreateFreeList(CONNECTION_DATA      *psConnection,
 	/* Initialise host data structures */
 	psFreeList->psDevInfo = psDevInfo;
 	psFreeList->psConnection = psConnection;
+
 	psFreeList->psFreeListPMR = psFreeListPMR;
+	/* Ref the PMR to prevent resource beeing destroyed before use */
+	PMRRefPMR(psFreeList->psFreeListPMR);
 	psFreeList->uiFreeListPMROffset = uiFreeListPMROffset;
+
 	psFreeList->psFreeListStatePMR = psFreeListStatePMR;
+	/* Ref the PMR to prevent resource beeing destroyed before use */
+	PMRRefPMR(psFreeList->psFreeListStatePMR);
 	psFreeList->uiFreeListStatePMROffset = uiFreeListStatePMROffset;
+
 	psFreeList->psFWFreelistMemDesc = psFWFreelistMemDesc;
 	eError = RGXSetFirmwareAddress(&psFreeList->sFreeListFWDevVAddr, psFWFreelistMemDesc, 0, RFW_FWADDR_FLAG_NONE);
 	PVR_LOG_GOTO_IF_ERROR(eError, "RGXSetFirmwareAddress", ErrorSetFwAddr);
@@ -2085,6 +2099,8 @@ FWFreeListCpuMap:
 
 ErrorSetFwAddr:
 	DevmemFwUnmapAndFree(psDevInfo, psFWFreelistMemDesc);
+	PMRUnrefPMR(psFreeList->psFreeListPMR);
+	PMRUnrefPMR(psFreeList->psFreeListStatePMR);
 
 FWFreeListAlloc:
 	OSFreeMem(psFreeList);
@@ -2177,6 +2193,10 @@ PVRSRV_ERROR RGXDestroyFreeList(RGX_FREELIST *psFreeList)
 	/* consistency checks */
 	PVR_ASSERT(dllist_is_empty(&psFreeList->sMemoryBlockInitHead));
 	PVR_ASSERT(psFreeList->ui32CurrentFLPages == 0);
+
+	/* Remove references from the PMR resources */
+	PMRUnrefPMR(psFreeList->psFreeListPMR);
+	PMRUnrefPMR(psFreeList->psFreeListStatePMR);
 
 	/* free Freelist */
 	OSFreeMem(psFreeList);
