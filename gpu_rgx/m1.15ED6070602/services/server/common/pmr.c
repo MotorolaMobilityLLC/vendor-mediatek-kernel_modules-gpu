@@ -1467,6 +1467,12 @@ PMR_ReadBytes(PMR *psPMR,
 	IMG_DEVMEM_OFFSET_T uiPhysicalOffset;
 	size_t uiBytesCopied = 0;
 
+	/* Check for integer overflow as uiLogicalOffset might come from the client */
+	if (uiLogicalOffset + uiBufSz < uiLogicalOffset)
+	{
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+
 	if (uiLogicalOffset + uiBufSz > psPMR->uiLogicalSize)
 	{
 		uiBufSz = TRUNCATE_64BITS_TO_32BITS(psPMR->uiLogicalSize - uiLogicalOffset);
@@ -1619,6 +1625,12 @@ PMR_WriteBytes(PMR *psPMR,
 	PVRSRV_ERROR eError = PVRSRV_OK;
 	IMG_DEVMEM_OFFSET_T uiPhysicalOffset;
 	size_t uiBytesCopied = 0;
+
+	/* Check for integer overflow as uiLogicalOffset might come from the client */
+	if (uiLogicalOffset + uiBufSz < uiLogicalOffset)
+	{
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
 
 	if (uiLogicalOffset + uiBufSz > psPMR->uiLogicalSize)
 	{
@@ -3232,6 +3244,8 @@ PMRWritePMPageList(/* Target PMR, offset, and length */
 		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_PMR_NOT_PAGE_MULTIPLE, return_error);
 	}
 
+	/* Check for integer overflow */
+	PVR_GOTO_IF_INVALID_PARAM(uiTableOffset + uiTableLength > uiTableOffset, eError, return_error);
 	/* Check we're not being asked to write off the end of the PMR */
 	PVR_GOTO_IF_INVALID_PARAM(uiTableOffset + uiTableLength <= psPageListPMR->uiLogicalSize, eError, return_error);
 
