@@ -1557,7 +1557,7 @@ int kbase_gpu_mmap(struct kbase_context *kctx, struct kbase_va_region *reg, u64 
 						kctx->as_nr,
 						group_id);
 				if (err)
-					goto bad_insert;
+					goto bad_aliased_insert;
 
 				/* Note: mapping count is tracked at alias
 				 * creation time
@@ -1571,7 +1571,7 @@ int kbase_gpu_mmap(struct kbase_context *kctx, struct kbase_va_region *reg, u64 
 					group_id);
 
 				if (err)
-					goto bad_insert;
+					goto bad_aliased_insert;
 			}
 		}
 	} else {
@@ -1615,11 +1615,14 @@ int kbase_gpu_mmap(struct kbase_context *kctx, struct kbase_va_region *reg, u64 
 
 	return err;
 
-bad_insert:
-	kbase_mmu_teardown_pages(kctx->kbdev, &kctx->mmu,
-				 reg->start_pfn, reg->nr_pages,
+bad_aliased_insert:
+	while (i-- > 0) {
+		u64 const stride = alloc->imported.alias.stride;
+		kbase_mmu_teardown_pages(kctx->kbdev, &kctx->mmu, reg->start_pfn + (i * stride),
+				 alloc->imported.alias.aliased[i].length,
 				 kctx->as_nr);
-
+	}
+bad_insert:
 	kbase_remove_va_region(kctx->kbdev, reg);
 
 	return err;
