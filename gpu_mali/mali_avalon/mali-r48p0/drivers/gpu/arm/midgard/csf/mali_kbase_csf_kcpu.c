@@ -1723,8 +1723,12 @@ static void kcpu_force_signal_fence(struct kbase_kcpu_command_queue *kcpu_queue)
 				 "kbase KCPU[%pK] cmd%d fence[%pK] force signaled\n", kcpu_queue,
 				 i + 1, fence);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+			dev_info(kctx->kbdev->dev, "MTK bypass set error to dma fence\n");
+#else /* CONFIG_MALI_MTK_FENCE_DEBUG */
 			/* set ETIMEDOUT error flag before signal the fence*/
 			dma_fence_set_error_helper(fence, -ETIMEDOUT);
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 			/* force signal fence */
 			status =
