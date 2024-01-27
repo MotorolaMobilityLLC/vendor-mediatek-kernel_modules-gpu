@@ -78,6 +78,7 @@ enum {
 	KBASE_3BIT_AID_4 = 0x7
 };
 
+#if MALI_USE_CSF
 /*
  * Default value for the TIMER register of the IPA Control interface,
  * expressed in milliseconds.
@@ -92,6 +93,7 @@ enum {
 #else
 #define IPA_CONTROL_TIMER_DEFAULT_VALUE_MS ((u32)10) /* 10 milliseconds */
 #endif
+#endif /* MALI_USE_CSF */
 
 /* Default period for DVFS sampling (can be overridden by platform header) */
 #ifndef DEFAULT_PM_DVFS_PERIOD
@@ -170,6 +172,7 @@ enum {
  */
 #define DEFAULT_REF_TIMEOUT_FREQ_KHZ (100000)
 
+#if MALI_USE_CSF
 /* Waiting timeout for status change acknowledgment, in clock cycles.
  *
  * This is also the default timeout to be used when an invalid timeout
@@ -208,6 +211,16 @@ enum {
 
 /* Waiting timeout in clock cycles for GPU reset to complete. */
 #define CSF_GPU_RESET_TIMEOUT_CYCLES (CSF_CSG_SUSPEND_TIMEOUT_CYCLES * 2)
+
+/* Waiting timeout in clock cycles for a CSG to be terminated.
+ *
+ * Based on 0.6s timeout at 100MHZ, scaled from 0.1s at 600Mhz GPU frequency
+ * which is the timeout defined in FW to wait for iterator to complete the
+ * transitioning to DISABLED state.
+ * More cycles (0.4s @ 100Mhz = 40000000) are added up to ensure that
+ * host timeout is always bigger than FW timeout.
+ */
+#define CSF_CSG_TERM_TIMEOUT_CYCLES (100000000)
 
 /* Waiting timeout in clock cycles for GPU firmware to boot.
  *
@@ -255,6 +268,29 @@ enum {
  */
 #define DEFAULT_PROGRESS_TIMEOUT_CYCLES (2500000000ull)
 
+#else /* MALI_USE_CSF */
+
+/* A default timeout in clock cycles to be used when an invalid timeout
+ * selector is used to retrieve the timeout, on JM GPUs.
+ */
+#define JM_DEFAULT_TIMEOUT_CYCLES (150000000)
+
+/* Default number of milliseconds given for other jobs on the GPU to be
+ * soft-stopped when the GPU needs to be reset.
+ */
+#define JM_DEFAULT_RESET_TIMEOUT_MS (3000) /* 3s */
+
+/* Default timeout in clock cycles to be used when checking if JS_COMMAND_NEXT
+ * is updated on HW side so a Job Slot is considered free.
+ * This timeout will only take effect on GPUs with low value for the minimum
+ * GPU clock frequency (<= 100MHz).
+ *
+ * Based on 1ms timeout at 100MHz. Will default to 0ms on GPUs with higher
+ * value for minimum GPU clock frequency.
+ */
+#define JM_DEFAULT_JS_FREE_TIMEOUT_CYCLES (100000)
+
+#endif /* !MALI_USE_CSF */
 
 /* Timeout for polling the GPU PRFCNT_ACTIVE bit in clock cycles.
  *

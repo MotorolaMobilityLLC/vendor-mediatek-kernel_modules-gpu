@@ -228,6 +228,7 @@ bool kbase_ctx_sched_inc_refcount(struct kbase_context *kctx);
  */
 void kbase_ctx_sched_release_ctx_lock(struct kbase_context *kctx);
 
+#if MALI_USE_CSF
 /**
  * kbase_ctx_sched_inc_refcount_if_as_valid - Refcount the context if it has GPU
  *                                            address space slot assigned to it.
@@ -243,5 +244,6 @@ void kbase_ctx_sched_release_ctx_lock(struct kbase_context *kctx);
  * was not assigned).
  */
 bool kbase_ctx_sched_inc_refcount_if_as_valid(struct kbase_context *kctx);
+#endif
 
 #endif /* _KBASE_CTX_SCHED_H_ */

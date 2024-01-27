@@ -90,9 +90,8 @@ typedef __u32 base_mem_alloc_flags;
  * interface.
  */
 #define BASE_MEM_FLAGS_QUERYABLE                                                           \
-	(BASE_MEM_FLAGS_INPUT_MASK &                                                       \
-	 ~(BASE_MEM_SAME_VA | BASE_MEM_COHERENT_SYSTEM_REQUIRED | BASE_MEM_IMPORT_SHARED | \
-	   BASE_MEM_FLAGS_RESERVED | BASEP_MEM_FLAGS_KERNEL_ONLY))
+	(BASE_MEM_FLAGS_INPUT_MASK & ~(BASE_MEM_DONT_QUERY | BASE_MEM_FLAGS_RESERVED | \
+				       BASE_MEM_FLAGS_UNUSED | BASEP_MEM_FLAGS_KERNEL_ONLY))
 
 /**
  * enum base_mem_import_type - Memory types supported by @a base_mem_import
@@ -489,7 +488,11 @@ struct mali_base_gpu_coherent_group_info {
 	struct mali_base_gpu_coherent_group group[BASE_MAX_COHERENT_GROUPS];
 };
 
+#if MALI_USE_CSF
 #include "csf/mali_base_csf_kernel.h"
+#else
+#include "jm/mali_base_jm_kernel.h"
+#endif
 
 /**
  * struct gpu_raw_gpu_props - A complete description of the GPU's Hardware

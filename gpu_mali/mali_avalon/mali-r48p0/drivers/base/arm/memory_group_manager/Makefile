@@ -24,8 +24,8 @@ ccflags-y = -I$(KO_CODE_PATH)/../../../gpu/arm/midgard/include -I$(DEVICE_MODULE
 subdir-ccflags-y += $(ccflags-y)
 
 ifeq ($(CONFIG_MALI_MEMORY_GROUP_MANAGER), y)
-obj-m += mali_mgm_$(MTK_PLATFORM_VERSION)_r47.o
-mali_mgm_$(MTK_PLATFORM_VERSION)_r47-y := memory_group_manager.o
+obj-m += mali_mgm_$(MTK_PLATFORM_VERSION)_r48.o
+mali_mgm_$(MTK_PLATFORM_VERSION)_r48-y := memory_group_manager.o
 
 ccflags-y += -DCONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH
 

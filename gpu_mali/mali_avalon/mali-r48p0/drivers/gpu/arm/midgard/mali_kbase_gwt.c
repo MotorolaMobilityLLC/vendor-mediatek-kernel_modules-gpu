@@ -63,15 +63,25 @@ static void kbase_gpu_gwt_setup_pages(struct kbase_context *kctx, unsigned long 
 
 int kbase_gpu_gwt_start(struct kbase_context *kctx)
 {
-	kbase_gpu_vm_lock(kctx);
+	kbase_gpu_vm_lock_with_pmode_sync(kctx);
 	if (kctx->gwt_enabled) {
-		kbase_gpu_vm_unlock(kctx);
+		kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 		return -EBUSY;
 	}
 
 	INIT_LIST_HEAD(&kctx->gwt_current_list);
 	INIT_LIST_HEAD(&kctx->gwt_snapshot_list);
 
+#if !MALI_USE_CSF
+	/* If GWT is enabled using new vector dumping format
+	 * from user space, back up status of the job serialization flag and
+	 * use full serialisation of jobs for dumping.
+	 * Status will be restored on end of dumping in gwt_stop.
+	 */
+	kctx->kbdev->backup_serialize_jobs = kctx->kbdev->serialize_jobs;
+	kctx->kbdev->serialize_jobs = KBASE_SERIALIZE_INTRA_SLOT | KBASE_SERIALIZE_INTER_SLOT;
+
+#endif
 	/* Mark gwt enabled before making pages read only in case a
 	 * write page fault is triggered while we're still in this loop.
 	 * (kbase_gpu_vm_lock() doesn't prevent this!)
@@ -81,7 +91,7 @@ int kbase_gpu_gwt_start(struct kbase_context *kctx)
 
 	kbase_gpu_gwt_setup_pages(kctx, ~KBASE_REG_GPU_WR);
 
-	kbase_gpu_vm_unlock(kctx);
+	kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 	return 0;
 }
 
@@ -105,6 +115,9 @@ int kbase_gpu_gwt_stop(struct kbase_context *kctx)
 		kfree(pos);
 	}
 
+#if !MALI_USE_CSF
+	kctx->kbdev->serialize_jobs = kctx->kbdev->backup_serialize_jobs;
+#endif
 
 	kbase_gpu_gwt_setup_pages(kctx, ~0UL);
 

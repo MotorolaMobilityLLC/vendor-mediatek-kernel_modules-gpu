@@ -219,6 +219,7 @@ void mtk_alloc_req_stats(struct tagged_addr *pages,
 /* Normal memory, inner non-cacheable, outer non-cacheable (ARMv8 mode only) */
 #define KBASE_MEMATTR_INDEX_NON_CACHEABLE 5
 
+#if MALI_USE_CSF
 /* Set to shared memory, that is inner cacheable on ACE and inner or outer
  * shared, otherwise inner non-cacheable.
  * Outer cacheable if inner or outer shared, otherwise outer non-cacheable.
@@ -231,6 +232,7 @@ void mtk_alloc_req_stats(struct tagged_addr *pages,
 
 /* Normal memory, shared between MCU and Host */
 #define KBASE_MEMATTR_INDEX_SHARED 6
+#endif
 
 #define KBASE_REG_PROTECTED (1ul << 19)
 
@@ -246,6 +248,7 @@ void mtk_alloc_req_stats(struct tagged_addr *pages,
 /* Imported buffer is padded? */
 #define KBASE_REG_IMPORT_PAD (1ul << 21)
 
+#if MALI_USE_CSF
 /* CSF event memory */
 #define KBASE_REG_CSF_EVENT (1ul << 22)
 /* Bit 23 is reserved.
@@ -253,6 +256,17 @@ void mtk_alloc_req_stats(struct tagged_addr *pages,
  * Do not remove, use the next unreserved bit for new flags
  */
 #define KBASE_REG_RESERVED_BIT_23 (1ul << 23)
+#else
+/* Bit 22 is reserved.
+ *
+ * Do not remove, use the next unreserved bit for new flags
+ */
+#define KBASE_REG_RESERVED_BIT_22 (1ul << 22)
+/* The top of the initial commit is aligned to extension pages.
+ * Extent must be a power of 2
+ */
+#define KBASE_REG_TILER_ALIGN_TOP (1ul << 23)
+#endif /* MALI_USE_CSF */
 
 /* Bit 24 is currently unused and is available for use for a new flag */
 
@@ -284,11 +298,15 @@ void mtk_alloc_req_stats(struct tagged_addr *pages,
 /* Allocation is actively used for JIT memory */
 #define KBASE_REG_ACTIVE_JIT_ALLOC (1ul << 28)
 
+#if MALI_USE_CSF
 /* This flag only applies to allocations in the EXEC_FIXED_VA and FIXED_VA
  * memory zones, and it determines whether they were created with a fixed
  * GPU VA address requested by the user.
  */
 #define KBASE_REG_FIXED_ADDRESS (1ul << 29)
+#else
+#define KBASE_REG_RESERVED_BIT_29 (1ul << 29)
+#endif
 /*
  * A CPU mapping
  */
@@ -1466,10 +1484,28 @@ int kbase_update_region_flags(struct kbase_context *kctx, struct kbase_va_region
 void kbase_gpu_vm_lock(struct kbase_context *kctx);
 
 /**
+ * kbase_gpu_vm_lock_with_pmode_sync() - Wrapper of kbase_gpu_vm_lock.
+ * @kctx:  KBase context
+ *
+ * Same as kbase_gpu_vm_lock for JM GPU.
+ * Additionally acquire P.mode read-write semaphore for CSF GPU.
+ */
+void kbase_gpu_vm_lock_with_pmode_sync(struct kbase_context *kctx);
+
+/**
  * kbase_gpu_vm_unlock() - Release the per-context region list lock
  * @kctx:  KBase context
  */
 void kbase_gpu_vm_unlock(struct kbase_context *kctx);
+
+/**
+ * kbase_gpu_vm_unlock_with_pmode_sync() - Wrapper of kbase_gpu_vm_unlock.
+ * @kctx:  KBase context
+ *
+ * Same as kbase_gpu_vm_unlock for JM GPU.
+ * Additionally release P.mode read-write semaphore for CSF GPU.
+ */
+void kbase_gpu_vm_unlock_with_pmode_sync(struct kbase_context *kctx);
 
 int kbase_alloc_phy_pages(struct kbase_va_region *reg, size_t vsize, size_t size);
 
@@ -2030,6 +2066,9 @@ void kbase_jit_trim_necessary_pages(struct kbase_context *kctx, size_t needed_pa
 static inline void kbase_jit_request_phys_increase_locked(struct kbase_context *kctx,
 							  size_t needed_pages)
 {
+#if !MALI_USE_CSF
+	lockdep_assert_held(&kctx->jctx.lock);
+#endif /* !MALI_USE_CSF */
 	lockdep_assert_held(&kctx->reg_lock);
 	lockdep_assert_held(&kctx->jit_evict_lock);
 
@@ -2065,6 +2104,9 @@ static inline void kbase_jit_request_phys_increase_locked(struct kbase_context *
  */
 static inline void kbase_jit_request_phys_increase(struct kbase_context *kctx, size_t needed_pages)
 {
+#if !MALI_USE_CSF
+	lockdep_assert_held(&kctx->jctx.lock);
+#endif /* !MALI_USE_CSF */
 	lockdep_assert_held(&kctx->reg_lock);
 
 	mutex_lock(&kctx->jit_evict_lock);
@@ -2454,6 +2496,7 @@ static inline void kbase_mem_pool_unlock(struct kbase_mem_pool *pool)
  */
 void kbase_mem_evictable_mark_reclaim(struct kbase_mem_phy_alloc *alloc);
 
+#if MALI_USE_CSF
 /**
  * kbase_link_event_mem_page - Add the new event memory region to the per
  *                             context list of event pages.
@@ -2509,6 +2552,7 @@ int kbase_mcu_shared_interface_region_tracker_init(struct kbase_device *kbdev);
  * @kbdev: Pointer to the kbase device
  */
 void kbase_mcu_shared_interface_region_tracker_term(struct kbase_device *kbdev);
+#endif
 
 /**
  * kbase_mem_umm_map - Map dma-buf

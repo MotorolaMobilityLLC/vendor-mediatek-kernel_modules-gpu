@@ -29,7 +29,11 @@ extern "C" {
 #include <asm-generic/ioctl.h>
 #include <linux/types.h>
 
+#if MALI_USE_CSF
 #include "csf/mali_kbase_csf_ioctl.h"
+#else
+#include "jm/mali_kbase_jm_ioctl.h"
+#endif /* MALI_USE_CSF */
 
 #define KBASE_IOCTL_TYPE 0x80
 

@@ -98,6 +98,12 @@ struct slot_rb {
  * The hwaccess_lock (a spinlock) must be held when accessing this structure
  */
 struct kbase_backend_data {
+#if !MALI_USE_CSF
+	struct slot_rb slot_rb[BASE_JM_MAX_NR_SLOTS];
+	struct hrtimer scheduling_timer;
+
+	bool timer_running;
+#endif
 	bool suspend_timer;
 
 	atomic_t reset_gpu;

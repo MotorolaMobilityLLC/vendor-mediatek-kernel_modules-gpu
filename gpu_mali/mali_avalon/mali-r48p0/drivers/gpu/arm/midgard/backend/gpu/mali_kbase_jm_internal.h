@@ -68,6 +68,24 @@ static inline char *kbasep_make_job_slot_string(unsigned int js, char *js_string
  */
 int kbase_job_hw_submit(struct kbase_device *kbdev, struct kbase_jd_atom *katom, unsigned int js);
 
+#if !MALI_USE_CSF
+/**
+ * kbasep_job_slot_soft_or_hard_stop_do_action() - Perform a soft or hard stop
+ *						   on the specified atom
+ * @kbdev:		Device pointer
+ * @js:			Job slot to stop on
+ * @action:		The action to perform, either JS_COMMAND_HARD_STOP or
+ *			JS_COMMAND_SOFT_STOP
+ * @core_reqs:		Core requirements of atom to stop
+ * @target_katom:	Atom to stop
+ *
+ * The following locking conditions are made on the caller:
+ * - it must hold the hwaccess_lock
+ */
+void kbasep_job_slot_soft_or_hard_stop_do_action(struct kbase_device *kbdev, unsigned int js,
+						 u32 action, base_jd_core_req core_reqs,
+						 struct kbase_jd_atom *target_katom);
+#endif /* !MALI_USE_CSF */
 
 /**
  * kbase_backend_soft_hard_stop_slot() - Soft or hard stop jobs on a given job

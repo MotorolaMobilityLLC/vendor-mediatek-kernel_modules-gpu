@@ -39,7 +39,12 @@
 #include <mali_kbase_gpuprops_types.h>
 #include <hwcnt/mali_kbase_hwcnt_watchdog_if.h>
 
+#if MALI_USE_CSF
 #include <hwcnt/backend/mali_kbase_hwcnt_backend_csf.h>
+#else
+#include <hwcnt/backend/mali_kbase_hwcnt_backend_jm.h>
+#include <hwcnt/backend/mali_kbase_hwcnt_backend_jm_watchdog.h>
+#endif
 
 #include "debug/mali_kbase_debug_ktrace_defs.h"
 
@@ -130,6 +135,7 @@
  */
 #define KBASE_HWCNT_GPU_VIRTUALIZER_DUMP_THRESHOLD_NS (200 * NSEC_PER_USEC)
 
+#if MALI_USE_CSF
 /* The buffer count of CSF hwcnt backend ring buffer, which is used when CSF
  * hwcnt backend allocate the ring buffer to communicate with CSF firmware for
  * HWC dump samples.
@@ -137,6 +143,7 @@
  * CSF hwcnt backend creation will be failed.
  */
 #define KBASE_HWCNT_BACKEND_CSF_RING_BUFFER_COUNT (128)
+#endif
 
 /* Maximum number of clock/regulator pairs that may be referenced by
  * the device node.
@@ -173,16 +180,11 @@ struct kbase_gpu_metrics {
  *
  * @link:                    Links the object in kbase_device::gpu_metrics::active_list
  *                           or kbase_device::gpu_metrics::inactive_list.
- * @first_active_start_time: Records the time at which the application first became
+ * @active_start_time:       Records the time at which the application first became
  *                           active in the current work period.
- * @last_active_start_time:  Records the time at which the application last became
- *                           active in the current work period.
- * @last_active_end_time:    Records the time at which the application last became
- *                           inactive in the current work period.
- * @total_active:            Tracks the time for which application has been active
- *                           in the current work period.
- * @prev_wp_active_end_time: Records the time at which the application last became
- *                           inactive in the previous work period.
+ * @active_end_time:         Records the time at which the application last became
+ *                           inactive in the current work period, or the time of the end of
+ *                           previous work period if the application remained active.
  * @aid:                     Unique identifier for an application.
  * @kctx_count:              Counter to keep a track of the number of Kbase contexts
  *                           created for an application. There may be multiple Kbase
@@ -190,19 +192,14 @@ struct kbase_gpu_metrics {
  *                           metrics context.
  * @active_cnt:              Counter that is updated every time the GPU activity starts
  *                           and ends in the current work period for an application.
- * @flags:                   Flags to track the state of GPU metrics context.
  */
 struct kbase_gpu_metrics_ctx {
 	struct list_head link;
-	u64 first_active_start_time;
-	u64 last_active_start_time;
-	u64 last_active_end_time;
-	u64 total_active;
-	u64 prev_wp_active_end_time;
+	u64 active_start_time;
+	u64 active_end_time;
 	unsigned int aid;
 	unsigned int kctx_count;
 	u8 active_cnt;
-	u8 flags;
 };
 #endif
 
@@ -353,7 +350,11 @@ struct kbase_mmu_table {
 	} scratch_mem;
 };
 
+#if MALI_USE_CSF
 #include "csf/mali_kbase_csf_defs.h"
+#else
+#include "jm/mali_kbase_jm_defs.h"
+#endif
 
 #include "mali_kbase_hwaccess_time.h"
 
@@ -481,14 +482,22 @@ struct kbase_pm_device_data {
 	int active_count;
 	bool suspending;
 	bool resuming;
+#if MALI_USE_CSF
 	bool runtime_active;
+#endif
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 	atomic_t gpu_lost;
 #endif /* CONFIG_MALI_ARBITER_SUPPORT */
 	wait_queue_head_t zero_active_count_wait;
 	wait_queue_head_t resume_wait;
 
+#if MALI_USE_CSF
 	u64 debug_core_mask;
+#else
+	/* One mask per job slot. */
+	u64 debug_core_mask[BASE_JM_MAX_NR_SLOTS];
+	u64 debug_core_mask_all;
+#endif /* MALI_USE_CSF */
 
 	int (*callback_power_runtime_init)(struct kbase_device *kbdev);
 	void (*callback_power_runtime_term)(struct kbase_device *kbdev);
@@ -538,7 +547,7 @@ struct kbase_mem_pool {
 	u8 group_id;
 	spinlock_t pool_lock;
 	struct list_head page_list;
-	struct shrinker reclaim;
+	DEFINE_KBASE_SHRINKER reclaim;
 	atomic_t isolation_in_progress_cnt;
 
 	struct kbase_mem_pool *next_pool;
@@ -1206,7 +1215,21 @@ struct kbase_device {
 	 */
 	u8 pbha_propagate_bits;
 
+#if MALI_USE_CSF
 	struct kbase_hwcnt_backend_csf_if hwcnt_backend_csf_if_fw;
+#else
+	struct kbase_hwcnt {
+		spinlock_t lock;
+
+		struct kbase_context *kctx;
+		u64 addr;
+		u64 addr_bytes;
+
+		struct kbase_instr_backend backend;
+	} hwcnt;
+
+	struct kbase_hwcnt_backend_interface hwcnt_gpu_jm_backend;
+#endif
 
 	struct kbase_hwcnt_backend_interface hwcnt_gpu_iface;
 	struct kbase_hwcnt_watchdog_interface hwcnt_watchdog_timer;
@@ -1274,6 +1297,9 @@ struct kbase_device {
 #endif /* CONFIG_MALI_DEVFREQ */
 	unsigned long previous_frequency;
 
+#if !MALI_USE_CSF
+	atomic_t job_fault_debug;
+#endif /* !MALI_USE_CSF */
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	struct dentry *mali_debugfs_directory;
@@ -1284,6 +1310,13 @@ struct kbase_device {
 	u64 debugfs_as_read_bitmap;
 #endif /* CONFIG_MALI_DEBUG */
 
+#if !MALI_USE_CSF
+	wait_queue_head_t job_fault_wq;
+	wait_queue_head_t job_fault_resume_wq;
+	struct workqueue_struct *job_fault_resume_workq;
+	struct list_head job_fault_event_list;
+	spinlock_t job_fault_event_lock;
+#endif /* !MALI_USE_CSF */
 
 #if !MALI_CUSTOMER_RELEASE
 	struct {
@@ -1351,9 +1384,23 @@ struct kbase_device {
 #if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
 	struct mutex ghpm_lock;
 #endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
-
+#if MALI_USE_CSF
 	/* CSF object for the GPU device. */
 	struct kbase_csf_device csf;
+#else
+	struct kbasep_js_device_data js_data;
+
+	/* See KBASE_JS_*_PRIORITY_MODE for details. */
+	u32 js_ctx_scheduling_mode;
+
+	/* See KBASE_SERIALIZE_* for details */
+	u8 serialize_jobs;
+
+#ifdef CONFIG_MALI_CINSTR_GWT
+	u8 backup_serialize_jobs;
+#endif /* CONFIG_MALI_CINSTR_GWT */
+
+#endif /* MALI_USE_CSF */
 
 	struct rb_root process_root;
 	struct rb_root dma_buf_root;
@@ -1404,7 +1451,9 @@ struct kbase_device {
 	 */
 	struct kbase_gpu_metrics gpu_metrics;
 #endif
+#if MALI_USE_CSF
 	atomic_t fence_signal_timeout_enabled;
+#endif
 
 	struct notifier_block pcm_prioritized_process_nb;
 
@@ -1998,6 +2047,9 @@ struct kbase_context {
 	struct list_head event_list;
 	struct list_head event_coalesce_list;
 	struct mutex event_mutex;
+#if !MALI_USE_CSF
+	atomic_t event_closed;
+#endif
 	struct workqueue_struct *event_workq;
 	atomic_t event_count;
 	int event_coalesce_count;
@@ -2010,11 +2062,29 @@ struct kbase_context {
 	struct list_head mem_partials;
 
 	struct mutex reg_lock;
+#if MALI_USE_CSF
 	atomic64_t num_fixable_allocs;
 	atomic64_t num_fixed_allocs;
+#endif
 	struct kbase_reg_zone reg_zone[CONTEXT_ZONE_MAX];
 
+#if MALI_USE_CSF
 	struct kbase_csf_context csf;
+#else
+	struct kbase_jd_context jctx;
+	struct jsctx_queue jsctx_queue[KBASE_JS_ATOM_SCHED_PRIO_COUNT][BASE_JM_MAX_NR_SLOTS];
+	struct kbase_jsctx_slot_tracking slot_tracking[BASE_JM_MAX_NR_SLOTS];
+	atomic_t atoms_pulled_all_slots;
+
+	struct list_head completed_jobs;
+	atomic_t work_count;
+	struct timer_list soft_job_timeout;
+
+	int priority;
+	s16 atoms_count[KBASE_JS_ATOM_SCHED_PRIO_COUNT];
+	u32 slots_pullable;
+	u32 age_count;
+#endif /* MALI_USE_CSF */
 
 	DECLARE_BITMAP(cookies, BITS_PER_LONG);
 	struct kbase_va_region *pending_regions[BITS_PER_LONG];
@@ -2033,7 +2103,8 @@ struct kbase_context {
 
 	struct kbase_mem_pool_group mem_pools;
 
-	struct shrinker reclaim;
+	DEFINE_KBASE_SHRINKER reclaim;
+
 	struct list_head evict_list;
 	atomic_t evict_nents;
 
@@ -2046,9 +2117,11 @@ struct kbase_context {
 
 	struct mm_struct *process_mm;
 	u64 gpu_va_end;
+#if MALI_USE_CSF
 	u32 running_total_tiler_heap_nr_chunks;
 	u64 running_total_tiler_heap_memory;
 	u64 peak_total_tiler_heap_memory;
+#endif
 	bool jit_va;
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
@@ -2096,10 +2169,16 @@ struct kbase_context {
 
 	base_context_create_flags create_flags;
 
+#if !MALI_USE_CSF
+	struct kbase_kinstr_jm *kinstr_jm;
+#endif
 	struct list_head tl_kctx_list_node;
 
 	u64 limited_core_mask;
 
+#if !MALI_USE_CSF
+	void *platform_data;
+#endif
 
 	struct task_struct *task;
 

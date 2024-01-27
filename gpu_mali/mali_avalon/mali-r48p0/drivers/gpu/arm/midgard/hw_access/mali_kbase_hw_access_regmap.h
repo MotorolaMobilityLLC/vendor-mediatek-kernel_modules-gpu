@@ -22,8 +22,13 @@
 #ifndef _MALI_KBASE_HW_ACCESS_REGMAP_H_
 #define _MALI_KBASE_HW_ACCESS_REGMAP_H_
 
+#if MALI_USE_CSF
 #include "regmap/mali_kbase_regmap_csf_enums.h"
 #include "regmap/mali_kbase_regmap_csf_macros.h"
+#else
+#include "regmap/mali_kbase_regmap_jm_enums.h"
+#include "regmap/mali_kbase_regmap_jm_macros.h"
+#endif
 
 /* GPU_U definition */
 #ifdef __ASSEMBLER__
@@ -302,6 +307,16 @@
 /* TILER_CONFIG register */
 #define TC_CLOCK_GATE_OVERRIDE (1ul << 0)
 /* End TILER_CONFIG register */
+
+/* L2_FEATURES register */
+#define L2_FEATURES_CACHE_SIZE_SHIFT GPU_U(16)
+#define L2_FEATURES_CACHE_SIZE_MASK (GPU_U(0xFF) << L2_FEATURES_CACHE_SIZE_SHIFT)
+#define L2_FEATURES_CACHE_SIZE_GET(reg_val) \
+	(((reg_val)&L2_FEATURES_CACHE_SIZE_MASK) >> L2_FEATURES_CACHE_SIZE_SHIFT)
+#define L2_FEATURES_CACHE_SIZE_SET(reg_val, value)     \
+	(~(~(reg_val) | L2_FEATURES_CACHE_SIZE_MASK) | \
+	 (((value) << L2_FEATURES_CACHE_SIZE_SHIFT) & L2_FEATURES_CACHE_SIZE_MASK))
+/* End L2_FEATURES register */
 
 /* L2_CONFIG register */
 #define L2_CONFIG_SIZE_SHIFT 16

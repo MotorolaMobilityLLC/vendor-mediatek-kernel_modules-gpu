@@ -102,7 +102,11 @@ DEFINE_MALI_ADD_EVENT(ARB_VM_STATE);
 DEFINE_MALI_ADD_EVENT(ARB_VM_EVT);
 
 #endif
+#if MALI_USE_CSF
 #include "backend/mali_kbase_debug_linux_ktrace_csf.h"
+#else
+#include "backend/mali_kbase_debug_linux_ktrace_jm.h"
+#endif
 
 #undef DEFINE_MALI_ADD_EVENT
 

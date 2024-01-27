@@ -91,7 +91,11 @@ union kbase_ktrace_backend;
 
 #endif /* KBASE_KTRACE_TARGET_RBUF */
 
+#if MALI_USE_CSF
 #include "debug/backend/mali_kbase_debug_ktrace_defs_csf.h"
+#else
+#include "debug/backend/mali_kbase_debug_ktrace_defs_jm.h"
+#endif
 
 #if KBASE_KTRACE_TARGET_RBUF
 /* Indicates if the trace message has backend related info.

@@ -219,7 +219,7 @@ ccflags-y += -I$(KO_CODE_PATH)/include
 subdir-ccflags-y += -I$(KO_CODE_PATH)/include
 
 # Driver version string which is returned to userspace via an ioctl
-MALI_RELEASE_NAME ?= '"r47p0-01eac0"'
+MALI_RELEASE_NAME ?= '"r48p0-00dev1"'
 # Set up defaults if not defined by build system
 ifeq ($(CONFIG_MALI_DEBUG), y)
     MALI_UNIT_TEST = 1
@@ -311,8 +311,8 @@ ifneq ($(UNQUOTE_CONFIG_MTK_GPU_VERSION),)
     obj-$(CONFIG_MALI_MIDGARD) += mali_kbase.o
 else ifneq ($(wildcard $(KO_CODE_PATH)/platform/$(MTK_PLATFORM)),)
     # LD2.0
-    obj-$(CONFIG_MALI_MIDGARD) += mali_kbase_$(MTK_PLATFORM)_r47.o
-    mali_kbase_$(MTK_PLATFORM)_r47-y += $(mali_kbase-y) $(mali_kbase-m)
+    obj-$(CONFIG_MALI_MIDGARD) += mali_kbase_$(MTK_PLATFORM)_r48.o
+    mali_kbase_$(MTK_PLATFORM)_r48-y += $(mali_kbase-y) $(mali_kbase-m)
 endif
 
 obj-$(CONFIG_MALI_ARBITRATION) += arbitration/

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2021-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -19,15 +19,20 @@
  *
  */
 
-#ifndef _KUTF_KERNEL_DEFECT_TEST_H_
-#define _KUTF_KERNEL_DEFECT_TEST_H_
+#ifndef _MALI_HW_ACCESS_H_
+#define _MALI_HW_ACCESS_H_
 
-#define KERNEL_DEFECT_TEST_APP_NAME "kernel_defect_test"
-#define KERNEL_DEFECT_TEST_SUITE_NAME "mali_kernel_defect"
-#define KERNEL_DEFECT_GPUCORE_27226 "GPUCORE-27226"
-#define KERNEL_DEFECT_GPUCORE_35490 "GPUCORE-35490"
-#define KERNEL_DEFECT_GPUCORE_37201 "GPUCORE-37201"
-#define KERNEL_DEFECT_GPUCORE_37465 "GPUCORE-37465"
-#define KERNEL_DEFECT_GPUCORE_39614 "GPUCORE-39614"
+#include <asm/arch_timer.h>
+#include <linux/io.h>
 
-#endif /* _KUTF_KERNEL_DEFECT_TEST_H_ */
+
+#define mali_readl(addr) readl(addr)
+#define mali_readq(addr) readq(addr)
+#define mali_writel(val, addr) writel(val, addr)
+#define mali_writeq(val, addr) writeq(val, addr)
+#define mali_ioremap(addr, size) ioremap(addr, size)
+#define mali_iounmap(addr) iounmap(addr)
+#define mali_arch_timer_get_cntfrq() arch_timer_get_cntfrq()
+
+
+#endif /* _MALI_HW_ACCESS_H_ */

@@ -67,7 +67,9 @@ const struct kbase_pm_policy kbase_pm_always_on_policy_ops = {
 	always_on_get_core_active, /* get_core_active */
 	NULL, /* handle_event */
 	KBASE_PM_POLICY_ID_ALWAYS_ON, /* id */
+#if MALI_USE_CSF
 	ALWAYS_ON_PM_SCHED_FLAGS, /* pm_sched_flags */
+#endif
 };
 
 KBASE_EXPORT_TEST_API(kbase_pm_always_on_policy_ops);

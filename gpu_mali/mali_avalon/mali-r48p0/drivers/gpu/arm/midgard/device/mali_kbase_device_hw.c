@@ -138,6 +138,7 @@ static int busy_wait_cache_operation(struct kbase_device *kbdev, u32 irq_bit)
 	return 0;
 }
 
+#if MALI_USE_CSF
 
 int kbase_gpu_cache_flush_pa_range_and_busy_wait(struct kbase_device *kbdev, phys_addr_t phys,
 						 size_t nr_bytes, u32 flush_op)
@@ -163,6 +164,7 @@ int kbase_gpu_cache_flush_pa_range_and_busy_wait(struct kbase_device *kbdev, phy
 
 	return ret;
 }
+#endif /* MALI_USE_CSF */
 
 int kbase_gpu_cache_flush_and_busy_wait(struct kbase_device *kbdev, u32 flush_op)
 {

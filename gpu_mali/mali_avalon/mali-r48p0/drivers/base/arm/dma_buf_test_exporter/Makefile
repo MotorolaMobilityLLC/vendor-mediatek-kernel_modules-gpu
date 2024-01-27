@@ -26,6 +26,6 @@ ccflags-y = -I$(KO_CODE_PATH)/../../../gpu/arm/midgard/include \
 subdir-ccflags-y += $(ccflags-y)
 
 ifeq ($(CONFIG_DMA_SHARED_BUFFER_TEST_EXPORTER), y)
-obj-m += mali_dmabuf_test_$(MTK_PLATFORM_VERSION)_r47.o
-mali_dmabuf_test_$(MTK_PLATFORM_VERSION)_r47-y := dma-buf-test-exporter.o
+obj-m += mali_dmabuf_test_$(MTK_PLATFORM_VERSION)_r48.o
+mali_dmabuf_test_$(MTK_PLATFORM_VERSION)_r48-y := dma-buf-test-exporter.o
 endif

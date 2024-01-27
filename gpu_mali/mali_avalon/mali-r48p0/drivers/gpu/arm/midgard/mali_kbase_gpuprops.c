@@ -290,7 +290,11 @@ static int kbase_gpuprops_get_props(struct kbase_device *kbdev)
 	else
 		gpu_props->max_threads = regdump->thread_max_threads;
 
+#if MALI_USE_CSF
 	gpu_props->impl_tech = KBASE_UBFX32(regdump->thread_features, 22U, 2);
+#else /* MALI_USE_CSF */
+	gpu_props->impl_tech = KBASE_UBFX32(regdump->thread_features, 30U, 2);
+#endif /* MALI_USE_CSF */
 
 	/* Features */
 	kbase_gpuprops_parse_gpu_features(&gpu_props->gpu_features, regdump->gpu_features);
@@ -407,6 +411,7 @@ enum l2_config_override_result {
 /**
  * kbase_read_l2_config_from_dt - Read L2 configuration
  * @kbdev: The kbase device for which to get the L2 configuration.
+ * @regdump: Pointer to struct kbase_gpuprops_regdump structure.
  *
  * Check for L2 configuration overrides in module parameters and device tree.
  * Override values in module parameters take priority over override values in
@@ -416,9 +421,16 @@ enum l2_config_override_result {
  *         overridden, L2_CONFIG_OVERRIDE_NONE if no overrides are provided.
  *         L2_CONFIG_OVERRIDE_FAIL otherwise.
  */
-static enum l2_config_override_result kbase_read_l2_config_from_dt(struct kbase_device *const kbdev)
+static enum l2_config_override_result
+kbase_read_l2_config_from_dt(struct kbase_device *const kbdev,
+			     struct kbasep_gpuprops_regdump *regdump)
 {
 	struct device_node *np = kbdev->dev->of_node;
+	/*
+	 * CACHE_SIZE bit fields in L2_FEATURES register, default value after the reset/powerup
+	 * holds the maximum size of the cache that can be programmed in L2_CONFIG register.
+	 */
+	const u8 l2_size_max = L2_FEATURES_CACHE_SIZE_GET(regdump->l2_features);
 
 	if (!np)
 		return L2_CONFIG_OVERRIDE_NONE;
@@ -428,8 +440,12 @@ static enum l2_config_override_result kbase_read_l2_config_from_dt(struct kbase_
 	else if (of_property_read_u8(np, "l2-size", &kbdev->l2_size_override))
 		kbdev->l2_size_override = 0;
 
-	if (kbdev->l2_size_override != 0 && kbdev->l2_size_override < OVERRIDE_L2_SIZE_MIN_LOG2)
+	if (kbdev->l2_size_override != 0 && (kbdev->l2_size_override < OVERRIDE_L2_SIZE_MIN_LOG2 ||
+					     kbdev->l2_size_override > l2_size_max)) {
+		dev_err(kbdev->dev, "Invalid Cache Size in %s",
+			override_l2_size ? "Module parameters" : "Device tree node");
 		return L2_CONFIG_OVERRIDE_FAIL;
+	}
 
 	/* Check overriding value is supported, if not will result in
 	 * undefined behavior.
@@ -479,7 +495,7 @@ int kbase_gpuprops_update_l2_features(struct kbase_device *kbdev)
 		struct kbasep_gpuprops_regdump *regdump = &PRIV_DATA_REGDUMP(kbdev);
 
 		/* Check for L2 cache size & hash overrides */
-		switch (kbase_read_l2_config_from_dt(kbdev)) {
+		switch (kbase_read_l2_config_from_dt(kbdev, regdump)) {
 		case L2_CONFIG_OVERRIDE_FAIL:
 			err = -EIO;
 			goto exit;
@@ -696,6 +712,9 @@ static void kbase_populate_user_data(struct kbase_device *kbdev, struct gpu_prop
 	 * GPUs like tTIx have additional fields like LSC_SIZE that are
 	 * otherwise reserved/RAZ on older GPUs.
 	 */
+#if !MALI_USE_CSF
+	data->core_props.num_exec_engines = KBASE_UBFX64(regdump->core_features, 0, 4);
+#endif
 
 	data->l2_props.log2_cache_size = KBASE_UBFX64(regdump->l2_features, 16U, 8);
 	data->coherency_info.coherency = regdump->mem_features;
@@ -718,9 +737,15 @@ static void kbase_populate_user_data(struct kbase_device *kbdev, struct gpu_prop
 	else
 		data->thread_props.tls_alloc = regdump->thread_tls_alloc;
 
+#if MALI_USE_CSF
 	data->thread_props.max_registers = KBASE_UBFX32(regdump->thread_features, 0U, 22);
 	data->thread_props.max_task_queue = KBASE_UBFX32(regdump->thread_features, 24U, 8);
 	data->thread_props.max_thread_group_split = 0;
+#else
+	data->thread_props.max_registers = KBASE_UBFX32(regdump->thread_features, 0U, 16);
+	data->thread_props.max_task_queue = KBASE_UBFX32(regdump->thread_features, 16U, 8);
+	data->thread_props.max_thread_group_split = KBASE_UBFX32(regdump->thread_features, 24U, 6);
+#endif
 
 	if (data->thread_props.max_registers == 0) {
 		data->thread_props.max_registers = THREAD_MR_DEFAULT;

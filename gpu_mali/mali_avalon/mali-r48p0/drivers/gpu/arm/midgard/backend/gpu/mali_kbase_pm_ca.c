@@ -53,10 +53,13 @@ void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
 {
 	struct kbase_pm_backend_data *pm_backend = &kbdev->pm.backend;
 	unsigned long flags;
+#if MALI_USE_CSF
 	u64 old_core_mask = 0;
+#endif
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
+#if MALI_USE_CSF
 	if (!(core_mask & kbdev->pm.debug_core_mask)) {
 		dev_err(kbdev->dev,
 			"OPP core mask 0x%llX does not intersect with debug mask 0x%llX\n",
@@ -65,11 +68,26 @@ void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
 	}
 
 	old_core_mask = pm_backend->ca_cores_enabled;
+#else
+	if (!(core_mask & kbdev->pm.debug_core_mask_all)) {
+		dev_err(kbdev->dev,
+			"OPP core mask 0x%llX does not intersect with debug mask 0x%llX\n",
+			core_mask, kbdev->pm.debug_core_mask_all);
+		goto unlock;
+	}
+
+	if (kbase_dummy_job_wa_enabled(kbdev)) {
+		dev_err_once(kbdev->dev,
+			     "Dynamic core scaling not supported as dummy job WA is enabled");
+		goto unlock;
+	}
+#endif /* MALI_USE_CSF */
 	pm_backend->ca_cores_enabled = core_mask;
 
 	kbase_pm_update_state(kbdev);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
+#if MALI_USE_CSF
 	/* Check if old_core_mask contained the undesired cores and wait
 	 * for those cores to get powered down
 	 */
@@ -80,6 +98,7 @@ void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
 				 old_core_mask, core_mask);
 		}
 	}
+#endif
 
 	dev_dbg(kbdev->dev, "Devfreq policy : new core mask=%llX\n", pm_backend->ca_cores_enabled);
 
@@ -92,7 +111,11 @@ KBASE_EXPORT_TEST_API(kbase_devfreq_set_core_mask);
 
 u64 kbase_pm_ca_get_debug_core_mask(struct kbase_device *kbdev)
 {
+#if MALI_USE_CSF
 	return kbdev->pm.debug_core_mask;
+#else
+	return kbdev->pm.debug_core_mask_all;
+#endif
 }
 KBASE_EXPORT_TEST_API(kbase_pm_ca_get_debug_core_mask);
 
@@ -124,7 +147,9 @@ u64 kbase_pm_ca_get_instr_core_mask(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_NO_MALI)
 	return (((1ull) << KBASE_DUMMY_MODEL_MAX_SHADER_CORES) - 1);
-#else
+#elif MALI_USE_CSF
 	return kbase_pm_get_ready_cores(kbdev, KBASE_PM_CORE_SHADER);
+#else
+	return kbdev->pm.backend.pm_shaders_core_mask;
 #endif
 }

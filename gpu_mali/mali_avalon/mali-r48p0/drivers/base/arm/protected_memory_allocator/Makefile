@@ -51,6 +51,6 @@ ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/trusted_mem/public \
 endif
 
 ccflags-y += -DCONFIG_MALI_MTK_GPU_PROTECTED_MEMORY_SUPPORT
-obj-m += mali_prot_alloc_$(MTK_PLATFORM_VERSION)_r47.o
-mali_prot_alloc_$(MTK_PLATFORM_VERSION)_r47-y := protected_memory_allocator.o
+obj-m += mali_prot_alloc_$(MTK_PLATFORM_VERSION)_r48.o
+mali_prot_alloc_$(MTK_PLATFORM_VERSION)_r48-y := protected_memory_allocator.o
 endif

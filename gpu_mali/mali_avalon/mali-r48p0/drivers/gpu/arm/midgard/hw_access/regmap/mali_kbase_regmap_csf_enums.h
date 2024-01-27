@@ -27,6 +27,9 @@
 #ifndef _MALI_KBASE_REGMAP_CSF_ENUMS_H_
 #define _MALI_KBASE_REGMAP_CSF_ENUMS_H_
 
+#if !MALI_USE_CSF
+#error "Cannot be compiled with JM"
+#endif
 
 enum kbase_regmap_enum_v10_8 {
 	GPU_CONTROL__GPU_ID = 0, /* (RO) 32-bit 0x0 */

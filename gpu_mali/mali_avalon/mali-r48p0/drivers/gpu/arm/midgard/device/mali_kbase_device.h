@@ -58,6 +58,9 @@ void kbase_increment_device_id(void);
  * When a device file is opened for the first time,
  * load firmware and initialize hardware counter components.
  *
+ * It is safe for this function to be called multiple times without ill
+ * effects. Only the first call would be effective.
+ *
  * Return: 0 on success. An error code on failure.
  */
 int kbase_device_firmware_init_once(struct kbase_device *kbdev);
@@ -113,8 +116,10 @@ bool kbase_is_gpu_removed(struct kbase_device *kbdev);
  *
  * Return: 0 if successful or a negative error code on failure.
  */
+#if MALI_USE_CSF
 int kbase_gpu_cache_flush_pa_range_and_busy_wait(struct kbase_device *kbdev, phys_addr_t phys,
 						 size_t nr_bytes, u32 flush_op);
+#endif /* MALI_USE_CSF */
 
 /**
  * kbase_gpu_cache_flush_and_busy_wait - Start a cache flush and busy wait

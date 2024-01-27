@@ -60,8 +60,12 @@ static irqreturn_t kbase_job_irq_handler(int irq, void *data)
 
 	dev_dbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
 
+#if MALI_USE_CSF
 	/* call the csf interrupt handler */
 	kbase_csf_interrupt(kbdev, val);
+#else
+	kbase_job_done(kbdev, val);
+#endif
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 

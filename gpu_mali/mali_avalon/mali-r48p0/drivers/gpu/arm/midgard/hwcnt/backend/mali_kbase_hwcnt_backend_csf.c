@@ -424,7 +424,7 @@ static void kbasep_hwcnt_backend_csf_init_layout(
 	WARN_ON(!prfcnt_info);
 	WARN_ON(!phys_layout);
 
-	shader_core_cnt = (size_t)fls64(prfcnt_info->core_mask);
+	shader_core_cnt = (size_t)fls64(prfcnt_info->sc_core_mask);
 	values_per_block = prfcnt_info->prfcnt_block_size / KBASE_HWCNT_VALUE_HW_BYTES;
 	fw_block_cnt = div_u64(prfcnt_info->prfcnt_fw_size, prfcnt_info->prfcnt_block_size);
 	hw_block_cnt = div_u64(prfcnt_info->prfcnt_hw_size, prfcnt_info->prfcnt_block_size);
@@ -445,7 +445,7 @@ static void kbasep_hwcnt_backend_csf_init_layout(
 		.fw_block_cnt = fw_block_cnt,
 		.hw_block_cnt = hw_block_cnt,
 		.block_cnt = fw_block_cnt + hw_block_cnt,
-		.shader_avail_mask = prfcnt_info->core_mask,
+		.shader_avail_mask = prfcnt_info->sc_core_mask,
 		.headers_per_block = KBASE_HWCNT_V5_HEADERS_PER_BLOCK,
 		.values_per_block = values_per_block,
 		.counters_per_block = values_per_block - KBASE_HWCNT_V5_HEADERS_PER_BLOCK,
@@ -2098,7 +2098,7 @@ int kbase_hwcnt_backend_csf_metadata_init(struct kbase_hwcnt_backend_interface *
 	gpu_info.has_fw_counters = csf_info->prfcnt_info.prfcnt_fw_size > 0;
 	gpu_info.l2_count = csf_info->prfcnt_info.l2_count;
 	gpu_info.csg_cnt = csf_info->prfcnt_info.csg_count;
-	gpu_info.core_mask = csf_info->prfcnt_info.core_mask;
+	gpu_info.sc_core_mask = csf_info->prfcnt_info.sc_core_mask;
 	gpu_info.clk_cnt = csf_info->prfcnt_info.clk_cnt;
 	gpu_info.prfcnt_values_per_block =
 		csf_info->prfcnt_info.prfcnt_block_size / KBASE_HWCNT_VALUE_HW_BYTES;

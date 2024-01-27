@@ -169,7 +169,7 @@ static int kbasep_hwcnt_backend_gpu_metadata_create(const struct kbase_hwcnt_gpu
 	/* Calculate number of block instances that aren't cores */
 	non_core_block_count = 2 + gpu_info->l2_count;
 	/* Calculate number of block instances that are shader cores */
-	sc_block_count = (size_t)fls64(gpu_info->core_mask);
+	sc_block_count = (size_t)fls64(gpu_info->sc_core_mask);
 	/* Determine the total number of cores */
 	core_block_count = sc_block_count;
 
@@ -277,7 +277,7 @@ static int kbasep_hwcnt_backend_gpu_metadata_create(const struct kbase_hwcnt_gpu
 	kbase_hwcnt_set_avail_mask(&desc.avail_mask, 0, 0);
 	kbase_hwcnt_set_avail_mask_bits(&desc.avail_mask, 0, non_core_block_count, U64_MAX);
 	kbase_hwcnt_set_avail_mask_bits(&desc.avail_mask, non_core_block_count, sc_block_count,
-					gpu_info->core_mask);
+					gpu_info->sc_core_mask);
 
 
 	return kbase_hwcnt_metadata_create(&desc, metadata);
@@ -294,7 +294,7 @@ static size_t kbasep_hwcnt_backend_jm_dump_bytes(const struct kbase_hwcnt_gpu_in
 {
 	WARN_ON(!gpu_info);
 
-	return (2 + gpu_info->l2_count + (size_t)fls64(gpu_info->core_mask)) *
+	return (2 + gpu_info->l2_count + (size_t)fls64(gpu_info->sc_core_mask)) *
 	       gpu_info->prfcnt_values_per_block * KBASE_HWCNT_VALUE_HW_BYTES;
 }
 

@@ -40,7 +40,11 @@
 #include "mali_linux_trace.h"
 #endif
 
+#if MALI_USE_CSF
 #include "debug/backend/mali_kbase_debug_ktrace_csf.h"
+#else
+#include "debug/backend/mali_kbase_debug_ktrace_jm.h"
+#endif
 
 /**
  * kbase_ktrace_init - initialize kbase ktrace.

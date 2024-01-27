@@ -225,6 +225,8 @@ static const enum base_hw_issue *kbase_hw_get_issues_for_new_id(struct kbase_dev
 
 		{ GPU_ID_PRODUCT_TVAX,
 		  { { GPU_ID_VERSION_MAKE(0, 0, 0), base_hw_issues_tVAx_r0p0 },
+		    { GPU_ID_VERSION_MAKE(0, 0, 5), base_hw_issues_tVAx_r0p0 },
+		    { GPU_ID_VERSION_MAKE(0, 1, 0), base_hw_issues_tVAx_r0p1 },
 		    { U32_MAX, NULL } } },
 
 		{ GPU_ID_PRODUCT_TTUX,
