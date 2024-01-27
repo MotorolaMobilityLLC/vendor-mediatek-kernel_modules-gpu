@@ -1,6 +1,7 @@
 export MTK_PLATFORM_VERSION := mt6991
 
-obj-m += mali_avalon/mali-r46p0/drivers/gpu/arm/midgard/
-obj-m += mali_avalon/mali-r46p0/drivers/base/arm/memory_group_manager/
-obj-m += mali_avalon/mali-r46p0/drivers/base/arm/protected_memory_allocator/
-obj-m += mali_avalon/mali-r46p0/drivers/base/arm/dma_buf_test_exporter/
+obj-m += mali_avalon/mali-r48p0/drivers/gpu/arm/midgard/
+obj-m += mali_avalon/mali-r48p0/drivers/base/arm/memory_group_manager/
+obj-m += mali_avalon/mali-r48p0/drivers/base/arm/protected_memory_allocator/
+obj-m += mali_avalon/mali-r48p0/drivers/base/arm/dma_buf_test_exporter/
+
