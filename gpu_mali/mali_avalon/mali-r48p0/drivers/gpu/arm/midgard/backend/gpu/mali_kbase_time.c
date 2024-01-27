@@ -186,6 +186,17 @@ void kbase_device_set_timeout(struct kbase_device *kbdev, enum kbase_timeout_sel
 	u64 timeout;
 	u64 freq_khz = kbase_device_get_scaling_frequency(kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	// For fence debug, we want to use a fixed frequency of 100MHZ to trigger 1s dump worker
+	// For CSG suspend timeout, we keep the original MP setting to avoid
+	// timeout issue on some hevay scenario
+	// For CSF GPU Reset timeout, it is related to CSG suspend timeout, so we keep the original MP setting
+	if (selector == CSF_CSG_SUSPEND_TIMEOUT || selector == KCPU_FENCE_SIGNAL_TIMEOUT ||
+		selector == CSF_GPU_RESET_TIMEOUT) {
+		freq_khz = 100000; // 100MHZ
+	}
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+
 	if (unlikely(selector >= KBASE_TIMEOUT_SELECTOR_COUNT)) {
 		selector = KBASE_DEFAULT_TIMEOUT;
 		dev_warn(kbdev->dev,
