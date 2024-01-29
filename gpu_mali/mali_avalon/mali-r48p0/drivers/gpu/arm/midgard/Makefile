@@ -54,6 +54,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MIDGARD_DVFS := y
         CONFIG_MALI_DEVFREQ := y
         CONFIG_MALI_FENCE_DEBUG := y
+        CONFIG_LARGE_PAGE_SUPPORT := y
 
         # *** MTK CONFIG ***
         CONFIG_MALI_MTK_LOG_BUFFER := y
@@ -118,6 +119,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MIDGARD_DVFS := y
         CONFIG_MALI_DEVFREQ := y
         CONFIG_MALI_FENCE_DEBUG := y
+        CONFIG_LARGE_PAGE_SUPPORT := n
 
         # *** MTK CONFIG ***
         CONFIG_MALI_MTK_BRINGUP := y

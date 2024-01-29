@@ -156,7 +156,7 @@ noinline void mtk_alloc_req_stats(struct tagged_addr *pages,
 enum kbase_large_page_state { LARGE_PAGE_AUTO, LARGE_PAGE_ON, LARGE_PAGE_OFF, LARGE_PAGE_MAX };
 
 static enum kbase_large_page_state large_page_conf =
-	IS_ENABLED(CONFIG_LARGE_PAGE_SUPPORT) ? LARGE_PAGE_AUTO : LARGE_PAGE_OFF;
+	IS_ENABLED(CONFIG_LARGE_PAGE_SUPPORT) ? LARGE_PAGE_ON : LARGE_PAGE_OFF;
 
 static int set_large_page_conf(const char *val, const struct kernel_param *kp)
 {
