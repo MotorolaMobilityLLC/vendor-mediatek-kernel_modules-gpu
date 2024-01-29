@@ -776,6 +776,7 @@ struct kbase_mmu_debug_info {
 enum exception_type {
 	EXCEPTION_BIT_STUCK = 0,
 	EXCEPTION_PM_TIMED_OUT = 1,
+	EXCEPTION_RESET_FAILED = 2,
 };
 #endif /* CONFIG_MALI_MTK_TRIGGER_KE */
 

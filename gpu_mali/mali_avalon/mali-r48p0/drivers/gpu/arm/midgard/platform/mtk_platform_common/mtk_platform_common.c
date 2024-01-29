@@ -609,7 +609,7 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)
-	kbdev->exception_mask = 0;
+	kbdev->exception_mask = (1u << EXCEPTION_RESET_FAILED);
 	if (!of_property_read_u32(kbdev->dev->of_node, "exception-mask", &kbdev->exception_mask))
 		dev_info(kbdev->dev, "@%s: exception_mask=0x%x",
 				__func__, kbdev->exception_mask);
