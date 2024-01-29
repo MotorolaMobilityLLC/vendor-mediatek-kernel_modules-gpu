@@ -128,7 +128,7 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
                 }
             }
             for (gr = 0; gr < MAX_QUEUE_GROUP_NUM; gr++) {
-                struct kbase_queue_group *const group = kctx->csf.queue_groups[gr];
+                struct kbase_queue_group *const group = kctx_dump->csf.queue_groups[gr];
 
                 if (!group || kbase_csf_scheduler_group_get_slot(group) >= 0) {
                     continue;
