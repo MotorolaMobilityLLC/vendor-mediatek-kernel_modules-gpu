@@ -3889,10 +3889,17 @@ int kbase_pm_init_hw(struct kbase_device *kbdev, unsigned int flags)
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, irq_flags);
 
 	/* Soft reset the GPU */
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	if (!kbdev->reset_required_after_power_on) {
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 	if (!(flags & PM_NO_RESET))
 #endif /* CONFIG_MALI_ARBITER_SUPPORT */
 		err = kbdev->protected_ops->protected_mode_disable(kbdev->protected_dev);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	}
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, irq_flags);
 #if MALI_USE_CSF
