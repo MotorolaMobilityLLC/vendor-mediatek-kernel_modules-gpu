@@ -3231,10 +3231,16 @@ void kbase_pm_clock_on(struct kbase_device *kbdev, bool is_resume)
 
 
 	if (reset_required) {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		kbdev->reset_required_after_power_on = true;
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		/* GPU state was lost, reset GPU to ensure it is in a
 		 * consistent state
 		 */
 		kbase_pm_init_hw(kbdev, PM_ENABLE_IRQS);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		kbdev->reset_required_after_power_on = false;
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 	}
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 	else {
@@ -3723,11 +3729,13 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		hrtimer_cancel(&rtdata.timer);
 		destroy_hrtimer_on_stack(&rtdata.timer);
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-		dev_info(kbdev->dev, "GPU soft reset completed");
+		if (!kbdev->reset_required_after_power_on) {
+			dev_info(kbdev->dev, "GPU soft reset completed");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL,
-			"GPU soft reset completed\n");
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL,
+				"GPU soft reset completed\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		}
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		return 0;
 	}
