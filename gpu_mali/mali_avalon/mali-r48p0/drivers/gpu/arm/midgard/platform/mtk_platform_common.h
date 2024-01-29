@@ -102,4 +102,8 @@ void mtk_platform_cpu_cache_request(struct kbase_device *kbdev, int request);
 bool mtk_common_whitebox_force_hard_reset_enable(void);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE)
+int mtk_common_whitebox_sync_update_test_mode(void);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
+
 #endif /* __MTK_PLATFORM_COMMON_H__ */
