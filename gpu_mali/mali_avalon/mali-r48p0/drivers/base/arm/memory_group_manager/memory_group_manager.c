@@ -652,9 +652,12 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 	spin_unlock(&data->free_SP_lst_lk);
 
 	/* Try to alloc big page start from 10 */
-	if (data->rank_mode == RELAX_MODE)
+	if (data->rank_mode == RELAX_MODE) {
 		horder_gfp_mask = ((gfp_mask & ~__GFP_RECLAIM) | __GFP_NORETRY | __GFP_NOWARN);
-	else
+		/* If kbase really issues to allocate with huge page order */
+		if (order == LP_ORDER)
+			gfp_mask = horder_gfp_mask;
+	} else
 		horder_gfp_mask = ((gfp_mask & ~__GFP_DIRECT_RECLAIM) | __GFP_NOWARN);
 
 	while (order_scan_walk > order) {
