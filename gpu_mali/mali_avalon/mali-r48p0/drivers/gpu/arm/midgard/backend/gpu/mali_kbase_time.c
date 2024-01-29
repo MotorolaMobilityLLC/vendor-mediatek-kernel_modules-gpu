@@ -193,9 +193,17 @@ void kbase_device_set_timeout(struct kbase_device *kbdev, enum kbase_timeout_sel
 	// For CSF GPU Reset timeout, it is related to CSG suspend timeout, so we keep the original MP setting
 	if (selector == CSF_CSG_SUSPEND_TIMEOUT || selector == KCPU_FENCE_SIGNAL_TIMEOUT ||
 		selector == CSF_GPU_RESET_TIMEOUT) {
-		freq_khz = 100000; // 100MHZ
+		freq_khz = DEFAULT_REF_TIMEOUT_FREQ_KHZ;
 	}
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
+	// for mtk timeout reduce, we want to use a fixed suspend time under reset flow to
+	// make sure the timeout is align to the previous MP setting.
+	if (selector == CSF_CSG_SUSPEND_TIMEOUT_AFTER_ABNORMAL_TIMEOUT) {
+		freq_khz = DEFAULT_REF_TIMEOUT_FREQ_KHZ;
+	}
+#endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
 
 	if (unlikely(selector >= KBASE_TIMEOUT_SELECTOR_COUNT)) {
 		selector = KBASE_DEFAULT_TIMEOUT;
