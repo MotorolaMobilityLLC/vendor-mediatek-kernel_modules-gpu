@@ -356,11 +356,12 @@ static int sel_get(void *data, u64 *val)
 static int max_pool_mb_set(void *data, u64 val)
 {
 	struct mgm_groups *mgm_data;
+	unsigned long long mb_order = __builtin_ffs(SZ_1M / PAGE_SIZE) - 1;
 
 	mgm_data = (struct mgm_groups *)data;
 
-	mgm_data->max_pool[0] = (val & 0xffffffff) << 8;
-	mgm_data->max_pool[1] = ((val >> 32) << 8);
+	mgm_data->max_pool[0] = (val & 0xffffffff) << mb_order;
+	mgm_data->max_pool[1] = ((val >> 32) << mb_order);
 
 	return 0;
 }
@@ -368,9 +369,10 @@ static int max_pool_mb_set(void *data, u64 val)
 static int max_pool_mb_get(void *data, u64 *val)
 {
 	struct mgm_groups *mgm_data;
+	unsigned long long mb_order = __builtin_ffs(SZ_1M / PAGE_SIZE) - 1;
 
 	mgm_data = (struct mgm_groups *)data;
-	*val = (mgm_data->max_pool[1] >> 8) << 32 | (mgm_data->max_pool[0] >> 8);
+	*val = (mgm_data->max_pool[1] >> mb_order) << 32 | (mgm_data->max_pool[0] >> mb_order);
 
 	return 0;
 }
