@@ -1473,6 +1473,7 @@ struct kbase_device {
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	struct workqueue_struct *mtk_enop_metadata_dump_workq;
 	struct work_struct mtk_enop_metadata_dump_work;
+	bool reset_required_after_power_on;
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
