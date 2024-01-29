@@ -44,11 +44,12 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
 #include <linux/sched.h>
 #include <uapi/linux/sched/types.h>
+#endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 #include <ged_dvfs.h>
+#include <ged_notify_sw_vsync.h>
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
-
-#endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
@@ -5272,6 +5273,11 @@ static void gpu_idle_worker(struct kbase_device *kbdev)
 		kbase_reset_gpu_allow(kbdev);
 		goto exit;
 	}
+#endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+	if (ged_gpu_apo_support() == APO_2_0_NORMAL_SUPPORT)
+		kbdev->dev->power.autosuspend_delay = (int)ged_get_apo_autosuspend_delay_ms();
 #endif
 
 	scheduler_is_idle_suspendable = scheduler_idle_suspendable(kbdev);

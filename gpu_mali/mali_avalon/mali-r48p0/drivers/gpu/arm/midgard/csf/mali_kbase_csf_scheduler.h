@@ -550,7 +550,7 @@ static inline void kbase_csf_scheduler_invoke_tick(struct kbase_device *kbdev)
 	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
 
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
-	if (scheduler->apo_support) {
+	if (ged_gpu_apo_support()) {
 		hrtimer_cancel(&scheduler->apo_idle_timer);
 
 		ged_get_predict_active_time();

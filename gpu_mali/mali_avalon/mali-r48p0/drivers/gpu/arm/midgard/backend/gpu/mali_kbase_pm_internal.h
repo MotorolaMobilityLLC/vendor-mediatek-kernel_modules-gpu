@@ -31,6 +31,10 @@
 #include "backend/gpu/mali_kbase_pm_ca.h"
 #include "mali_kbase_pm_policy.h"
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+#include <ged_dvfs.h>
+static bool shall_scheduler_sleep = true;
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 /**
  * kbase_pm_dev_idle - The GPU is idle.
  *
@@ -963,6 +967,13 @@ static inline bool kbase_pm_gpu_sleep_allowed(struct kbase_device *kbdev)
 	 * A high positive value of autosuspend_delay can be used to keep the
 	 * GPU in sleep state for a long time.
 	 */
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+	if (ged_get_autosuspend_stress()) {
+		shall_scheduler_sleep = !shall_scheduler_sleep;
+		return shall_scheduler_sleep && kbdev->pm.backend.gpu_sleep_supported;
+	}
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
+
 	if (unlikely(!kbdev->dev->power.autosuspend_delay ||
 		     (kbdev->dev->power.autosuspend_delay < 0)))
 		return false;

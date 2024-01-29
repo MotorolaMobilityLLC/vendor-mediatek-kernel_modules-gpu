@@ -1531,7 +1531,7 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 								tiler_present, ACTION_PWRON);
 				} else {
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
-					if (kbdev->csf.scheduler.apo_support)
+					if (ged_gpu_apo_support())
 						ged_get_active_time();
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)
@@ -1732,7 +1732,7 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 						/* Powering off the L2 will also power off the tiler. */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
-					if (kbdev->csf.scheduler.apo_support)
+					if (ged_gpu_apo_support())
 						ged_get_idle_time();
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 #if IS_ENABLED(CONFIG_MTK_GPUFREQ_V2) && IS_ENABLED(CONFIG_MALI_MTK_MFG2_BACKDOOR)
