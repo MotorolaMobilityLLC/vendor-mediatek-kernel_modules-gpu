@@ -63,6 +63,11 @@
 #include <mt-plat/aee.h>
 #endif /* CONFIG_MTK_AEE_FEATURE && CONFIG_MALI_MTK_CSG_ERROR_HANDLING */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE)
+#include <platform/mtk_platform_common/mtk_platform_whitebox_sync_update.h>
+#endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
+
+
 /* Value to indicate that a queue group is not groups_to_schedule list */
 #define KBASEP_GROUP_PREPARED_SEQ_NUM_INVALID (U32_MAX)
 
@@ -5250,6 +5255,10 @@ static void gpu_idle_worker(struct kbase_device *kbdev)
 	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
 	bool scheduler_is_idle_suspendable = false;
 	bool all_groups_suspended = false;
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE)
+	int i;
+#endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
+
 
 	WARN_ON_ONCE(atomic_read(&scheduler->pending_gpu_idle_work) == 0);
 
@@ -5286,8 +5295,21 @@ static void gpu_idle_worker(struct kbase_device *kbdev)
 				 kbase_csf_ktrace_gpu_cycle_cnt(kbdev));
 #ifdef KBASE_PM_RUNTIME
 		if (kbase_pm_gpu_sleep_allowed(kbdev) &&
-		    kbase_csf_scheduler_get_nr_active_csgs(kbdev))
+		    kbase_csf_scheduler_get_nr_active_csgs(kbdev)) {
 			scheduler_sleep_on_idle(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE)
+			if (mtk_common_whitebox_sync_update_test_mode() ==
+				SYNC_UPDATE_TEST_MODE_SYNC_UPDATE_AFTER_GPU_IDLE) {
+				// for loop to find valid kctx
+				for (i = 0 ; i < BASE_MAX_NR_AS; ++i) {
+					if (kbdev->as_to_kctx[i]) {
+						kbase_csf_scheduler_enqueue_sync_update_work(kbdev->as_to_kctx[i]);
+						break;
+					}
+				}
+			}
+#endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
+		}
 		else
 #endif
 			all_groups_suspended = scheduler_suspend_on_idle(kbdev);
@@ -6721,6 +6743,10 @@ static void check_sync_update_in_sleep_mode(struct kbase_device *kbdev)
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 	u32 const num_groups = kbdev->csf.global_iface.group_num;
 	u32 csg_nr;
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE)
+	unsigned long flags;
+	bool is_mcu_need_sleep;
+#endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
 
 	lockdep_assert_held(&scheduler->lock);
 
@@ -6729,6 +6755,20 @@ static void check_sync_update_in_sleep_mode(struct kbase_device *kbdev)
 	 * queue stuck on SYNC_WAIT has been unblocked.
 	 */
 	wait_for_mcu_sleep_before_sync_update_check(kbdev);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE)
+	if (mtk_common_whitebox_sync_update_test_mode() > SYNC_UPDATE_TEST_MODE_NONE) {
+		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+		is_mcu_need_sleep = !kbdev->pm.backend.exit_gpu_sleep_mode &&
+			!kbdev->csf.scheduler.pm_active_count;
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+		if (kbdev->pm.backend.mcu_state != KBASE_MCU_IN_SLEEP) {
+			if (is_mcu_need_sleep) {
+				dev_err(kbdev->dev, "FW is not ready during sync update! (%d)", kbdev->pm.backend.mcu_state);
+			}
+		}
+	}
+#endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
 
 	for (csg_nr = 0; csg_nr < num_groups; csg_nr++) {
 		struct kbase_queue_group *const group =
