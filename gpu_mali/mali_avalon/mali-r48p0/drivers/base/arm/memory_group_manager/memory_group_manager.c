@@ -623,7 +623,7 @@ struct page* mtk_fetch_page(struct mgm_groups *data, int order, int i32Rank)
 static struct page *__MTKAllocPage(struct mgm_groups *data,
 									gfp_t gfp_mask, unsigned int order)
 {
-	static size_t nr_SPfree_lst = 0;
+	static size_t nr_free_SP_lst = 0;
 	static unsigned int try_order = 10;
 	unsigned int order_scan_walk;
 	unsigned int count;
@@ -631,18 +631,26 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 	struct page* p = NULL;
 	struct page* pp = NULL;
 
-	/*As now we only support pre-alloc for order 0 */
-	if (order!=0)
+	if (data->rank_mode == RELAX_MODE)
+		horder_gfp_mask = ((gfp_mask & ~__GFP_RECLAIM) | __GFP_NORETRY | __GFP_NOWARN);
+	else
+		horder_gfp_mask = ((gfp_mask & ~__GFP_DIRECT_RECLAIM) | __GFP_NOWARN);
+	/* If kbase really issues to allocate with huge page order */
+	if (order == LP_ORDER)
+		gfp_mask = horder_gfp_mask;
+
+	/* As now we only support pre-alloc for order SP_ORDER */
+	if (order != SP_ORDER)
 		goto FALLBACK;
 
 	/* if pre-alloc list pool got available SP page */
 	spin_lock(&data->free_SP_lst_lk);
 	order_scan_walk = try_order;
-	if (nr_SPfree_lst) {
+	if (nr_free_SP_lst) {
 		p = list_first_entry(&data->free_SP_lst, struct page, lru);
 		if (p) {
 			list_del_init(&p->lru);
-			nr_SPfree_lst--;
+			nr_free_SP_lst--;
 			spin_unlock(&data->free_SP_lst_lk);
 			return p;
 		}
@@ -651,25 +659,16 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 	}
 	spin_unlock(&data->free_SP_lst_lk);
 
-	/* Try to alloc big page start from 10 */
-	if (data->rank_mode == RELAX_MODE) {
-		horder_gfp_mask = ((gfp_mask & ~__GFP_RECLAIM) | __GFP_NORETRY | __GFP_NOWARN);
-		/* If kbase really issues to allocate with huge page order */
-		if (order == LP_ORDER)
-			gfp_mask = horder_gfp_mask;
-	} else
-		horder_gfp_mask = ((gfp_mask & ~__GFP_DIRECT_RECLAIM) | __GFP_NOWARN);
-
+	/* Try to alloc big page start from try_order */
 	while (order_scan_walk > order) {
-
 		p = alloc_pages(horder_gfp_mask, order_scan_walk);
 		if (p) {
 			/* add batch records from system to cache memory */
 			mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, (1 << order_scan_walk));
 			split_page(p, order_scan_walk);
-			count = (1 << order_scan_walk ) - 1;
+			count = (1 << order_scan_walk) - 1;
 			spin_lock(&data->free_SP_lst_lk);
-			nr_SPfree_lst += count;
+			nr_free_SP_lst += count;
 
 			pp = p + 1;
 			while (count--) {
@@ -682,14 +681,14 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 			return p;
 		}
 		order_scan_walk--;
-		dev_dbg(data->dev, "Order: empty; Try next order %u \n", order_scan_walk);
+		dev_dbg(data->dev, "Order: empty; Try next order %u\n", order_scan_walk);
 	}
 
 FALLBACK:
 	p = alloc_pages(gfp_mask, order);
 	/* This page would insert into high order rank pool */
 	if (p)
-	mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, (1 << order));
+		mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, (1 << order));
 	return p;
 }
 
@@ -786,8 +785,8 @@ static unsigned long mtk_mgm_pool_reclaim_count_objects_local(size_t nr_rank, si
 	} else
 		ret = nr_rank >> 3;
 
-	if (ret >= (SZ_64M >> PAGE_SHIFT))
-		 ret = (SZ_64M >> PAGE_SHIFT);
+	if (ret > (SZ_64M >> PAGE_SHIFT))
+		ret = (SZ_64M >> PAGE_SHIFT);
 
 	 return ret;
 }
@@ -918,9 +917,8 @@ static struct page *example_mgm_alloc_page(struct memory_group_manager_device *m
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
 	p = NULL;
-	if (order == SP_ORDER || order == LP_ORDER) { /* not support LP mode */
-
-		if (data->gfp_mask != (gfp_mask & ~(__GFP_NOWARN | __GFP_RETRY_MAYFAIL))) {
+	if (order == SP_ORDER || order == LP_ORDER) {
+		if ((data->gfp_mask ^ gfp_mask) & ~(__GFP_NOWARN | __GFP_RETRY_MAYFAIL)) {
 			dev_info(data->dev, "Change gfp_mask 0x%x -> 0x%x, drop all cached pool\n",
 				data->gfp_mask, gfp_mask);
 			mtk_mgm_pool_flush(data, LP_ORDER, 0, 0, 0);
@@ -1249,8 +1247,8 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
 	si_meminfo(&info);
-	dev_info(&pdev->dev, "Total kmem: %zu (pages) [%d] 0x%llx, offset: 0x%lx\n",
-		info.totalram, mtk_emicen_get_rk_cnt(), mtk_emicen_get_rk_size(0), MTK_EMI_DRAM_OFFSET);
+	dev_info(&pdev->dev, "Total kmem: %zu (pages) [%d] 0x%llx, offset: 0x%lx, LP_ORDER=%d SP_ORDER=%d\n",
+		info.totalram, mtk_emicen_get_rk_cnt(), mtk_emicen_get_rk_size(0), MTK_EMI_DRAM_OFFSET, LP_ORDER, SP_ORDER);
 	spin_lock_init(&mgm_data->MGMFree_lst_lk);
 	spin_lock_init(&mgm_data->free_SP_lst_lk);
 	mgm_data->free_SP_lst.next = mgm_data->free_SP_lst.prev = &mgm_data->free_SP_lst;
