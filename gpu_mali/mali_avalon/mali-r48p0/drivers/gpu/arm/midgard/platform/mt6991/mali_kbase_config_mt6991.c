@@ -22,6 +22,10 @@
 #include <platform/mtk_platform_common.h>
 #include <platform/mtk_platform_common/mtk_platform_debug.h>
 #include <ged_dvfs.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_AUTOSUSPEND_DELAY) || IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+#include <ged_kpi.h>
+#include <ged_notify_sw_vsync.h>
+#endif
 #include <mtk_gpufreq.h>
 #include <mtk_gpu_utility.h>
 #if IS_ENABLED(CONFIG_MTK_AEE_IPANIC)
@@ -45,6 +49,14 @@
 
 /* KBASE_PLATFORM_SUSPEND_DELAY, the ms for autosuspend timeout */
 #define KBASE_PLATFORM_SUSPEND_DELAY (100) /* ms */
+#if IS_ENABLED(CONFIG_MALI_MTK_AUTOSUSPEND_DELAY)
+#define KBASE_PLATFORM_MAX_SUSPEND_DELAY (25) /* ms */
+#define KBASE_PLATFORM_MIN_SUSPEND_DELAY (10) /* ms */
+#endif
+#if IS_ENABLED(CONFIG_MALI_MTK_AUTOSUSPEND_DELAY) || IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+static int gInit_autosuspend_delay_ms = KBASE_PLATFORM_SUSPEND_DELAY;
+static int gAutosuspend_delay_ms = 0;
+#endif
 
 #if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
 static int gIsDsuRequested = 0;
@@ -304,6 +316,10 @@ static void pm_callback_runtime_gpu_active(struct kbase_device *kbdev)
 {
 	unsigned long flags;
 	int error;
+#if IS_ENABLED(CONFIG_MALI_MTK_AUTOSUSPEND_DELAY)
+	int target_fps = 0;
+	int temp_autosuspend_delay_ms = 0;
+#endif
 
 	dev_dbg(kbdev->dev, "%s\n", __func__);
 
@@ -337,11 +353,37 @@ static void pm_callback_runtime_gpu_active(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	ged_dvfs_gpu_clock_switch_notify(GED_POWER_ON);
 #endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_AUTOSUSPEND_DELAY)
+if (ged_gpu_apo_support() == APO_NORMAL_SUPPORT) {
+	target_fps = ged_kpi_get_target_fps();
+
+	if (target_fps < 0 || target_fps > 120)
+		target_fps = ged_kpi_get_panel_refresh_rate();
+
+	if (target_fps > 0 && target_fps <= 120) {
+		if (target_fps >= 90)
+			temp_autosuspend_delay_ms = KBASE_PLATFORM_MAX_SUSPEND_DELAY;
+		else
+			temp_autosuspend_delay_ms = KBASE_PLATFORM_MIN_SUSPEND_DELAY;
+	} else
+		temp_autosuspend_delay_ms = gInit_autosuspend_delay_ms;
+
+	if (gAutosuspend_delay_ms != temp_autosuspend_delay_ms) {
+		ged_gpu_autosuspend_timeout_notify(temp_autosuspend_delay_ms);
+		pm_runtime_set_autosuspend_delay(kbdev->dev, temp_autosuspend_delay_ms);
+		gAutosuspend_delay_ms = temp_autosuspend_delay_ms;
+	}
+}
+#endif
 }
 
 static void pm_callback_runtime_gpu_idle(struct kbase_device *kbdev)
 {
 	unsigned long flags;
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+	int temp_autosuspend_delay_ms = 0;
+#endif
 
 	dev_dbg(kbdev->dev, "%s", __func__);
 
@@ -349,6 +391,17 @@ static void pm_callback_runtime_gpu_idle(struct kbase_device *kbdev)
 
 	mtk_common_ged_dvfs_write_sysram_last_commit_top_idx();
 	mtk_common_ged_dvfs_write_sysram_last_commit_dual();
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+if (ged_gpu_apo_support() == APO_2_0_NORMAL_SUPPORT) {
+	temp_autosuspend_delay_ms = kbdev->dev->power.autosuspend_delay;
+	if (gAutosuspend_delay_ms != temp_autosuspend_delay_ms) {
+		gAutosuspend_delay_ms = temp_autosuspend_delay_ms;
+		ged_gpu_autosuspend_timeout_notify(temp_autosuspend_delay_ms);
+		pm_runtime_set_autosuspend_delay(kbdev->dev, gAutosuspend_delay_ms);
+	}
+}
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	ged_dvfs_gpu_clock_switch_notify(GED_SLEEP);
@@ -368,11 +421,26 @@ static void pm_callback_runtime_gpu_idle(struct kbase_device *kbdev)
 
 static int kbase_device_runtime_init(struct kbase_device *kbdev)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_AUTOSUSPEND_DELAY)
+	struct device_node *np = kbdev->dev->of_node;
+#endif
 	int ret = 0;
 
 	dev_dbg(kbdev->dev, "%s\n", __func__);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_AUTOSUSPEND_DELAY)
+	if (!of_property_read_u32(np, "autosuspend-delay-ms", &gInit_autosuspend_delay_ms))
+		dev_info(kbdev->dev, "AutoSuspend Delay: %dms", gInit_autosuspend_delay_ms);
+	else {
+		dev_info(kbdev->dev, "AutoSuspend Delay: No dts property setting, default %dms",
+			gInit_autosuspend_delay_ms);
+	}
+
+	pm_runtime_set_autosuspend_delay(kbdev->dev, gInit_autosuspend_delay_ms);
+	gAutosuspend_delay_ms = gInit_autosuspend_delay_ms;
+#else
 	pm_runtime_set_autosuspend_delay(kbdev->dev, KBASE_PLATFORM_SUSPEND_DELAY);
+#endif
 
 	pm_runtime_use_autosuspend(kbdev->dev);
 
