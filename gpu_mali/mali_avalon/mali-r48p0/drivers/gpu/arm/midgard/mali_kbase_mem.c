@@ -248,6 +248,13 @@ static void kbasep_mem_page_size_init(struct kbase_device *kbdev)
 	}
 	}
 
+#if IS_ENABLED(CONFIG_LARGE_PAGE_SUPPORT)
+	if (PAGE_SIZE != SZ_4K) {
+		kbdev->pagesize_2mb = false;
+		dev_info(kbdev->dev, "PAGE_SIZE=%zu, not support large page now, force to disable\n", PAGE_SIZE);
+	}
+#endif /* CONFIG_LARGE_PAGE_SUPPORT */
+
 	/* We want the final state of the setup to be reflected in the module parameter,
 	 * so that userspace could read it to figure out the state of the configuration
 	 * if necessary.
