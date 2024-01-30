@@ -1774,7 +1774,7 @@ int kbase_gpu_mmap(struct kbase_context *kctx, struct kbase_va_region *reg,
 					reg->flags & gwt_mask, kctx->as_nr,
 					group_id, mmu_sync_info);
 				if (err)
-					goto bad_insert;
+					goto bad_aliased_insert;
 
 				/* Note: mapping count is tracked at alias
 				 * creation time
@@ -1788,7 +1788,7 @@ int kbase_gpu_mmap(struct kbase_context *kctx, struct kbase_va_region *reg,
 					group_id, mmu_sync_info);
 
 				if (err)
-					goto bad_insert;
+					goto bad_aliased_insert;
 			}
 		}
 	} else {
@@ -1829,10 +1829,19 @@ int kbase_gpu_mmap(struct kbase_context *kctx, struct kbase_va_region *reg,
 
 	return err;
 
-bad_insert:
-	kbase_mmu_teardown_pages(kctx->kbdev, &kctx->mmu, reg->start_pfn, alloc->pages,
-				 reg->nr_pages, kctx->as_nr);
+bad_aliased_insert:
+	while (i-- > 0) {
+		struct tagged_addr *phys_alloc = NULL;
+		u64 const stride = alloc->imported.alias.stride;
+		if (alloc->imported.alias.aliased[i].alloc != NULL)
+			phys_alloc = alloc->imported.alias.aliased[i].alloc->pages +
+				     alloc->imported.alias.aliased[i].offset;
 
+		kbase_mmu_teardown_pages(kctx->kbdev, &kctx->mmu, reg->start_pfn + (i * stride),
+				 phys_alloc, alloc->imported.alias.aliased[i].length,
+				 kctx->as_nr);
+	}
+bad_insert:
 	kbase_remove_va_region(kctx->kbdev, reg);
 
 	return err;
