@@ -220,42 +220,7 @@ static int write_cmd(struct kbase_device *kbdev, int as_nr, u32 cmd)
 	return status;
 }
 
-#if MALI_USE_CSF
-static int wait_l2_power_trans_complete(struct kbase_device *kbdev)
-{
-	const ktime_t wait_loop_start = ktime_get_raw();
-	const u32 pwr_trans_wait_time_ms = kbdev->mmu_as_inactive_wait_time_ms;
-	s64 diff;
-
-	lockdep_assert_held(&kbdev->hwaccess_lock);
-
-	do {
-		unsigned int i;
-
-		for (i = 0; i < 1000; i++) {
-			u32 lo =
-				kbase_reg_read(kbdev, GPU_CONTROL_REG(L2_PWRTRANS_LO));
-			u32 hi =
-				kbase_reg_read(kbdev, GPU_CONTROL_REG(L2_PWRTRANS_HI));
-
-			if (!lo && !hi)
-				return 0;
-		}
-
-		diff = ktime_to_ms(ktime_sub(ktime_get_raw(), wait_loop_start));
-	} while (diff < pwr_trans_wait_time_ms);
-
-	dev_warn(kbdev->dev, "L2_PWRTRANS HI %08x LO %08x set for too long",
-		 kbase_reg_read(kbdev, GPU_CONTROL_REG(L2_PWRTRANS_HI)),
-		 kbase_reg_read(kbdev, GPU_CONTROL_REG(L2_PWRTRANS_LO)));
-
-	if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_NONE))
-		kbase_reset_gpu_locked(kbdev);
-
-	return -ETIMEDOUT;
-}
-
-#if !IS_ENABLED(CONFIG_MALI_NO_MALI)
+#if MALI_USE_CSF && !IS_ENABLED(CONFIG_MALI_NO_MALI)
 static int wait_cores_power_trans_complete(struct kbase_device *kbdev)
 {
 #define WAIT_TIMEOUT 1000 /* 1ms timeout */
@@ -347,8 +312,7 @@ unlock:
 
 	return ret;
 }
-#endif /* !IS_ENABLED(CONFIG_MALI_NO_MALI) */
-#endif /* MALI_USE_CSF */
+#endif
 
 void kbase_mmu_hw_configure(struct kbase_device *kbdev, struct kbase_as *as)
 {
@@ -553,7 +517,6 @@ static int mmu_hw_do_flush(struct kbase_device *kbdev, struct kbase_as *as,
 	int ret;
 	u64 lock_addr = 0x0;
 	u32 mmu_cmd = AS_COMMAND_FLUSH_MEM;
-	const enum kbase_mmu_op_type flush_op = op_param->op;
 
 	if (WARN_ON(kbdev == NULL) || WARN_ON(as == NULL))
 		return -EINVAL;
@@ -561,15 +524,15 @@ static int mmu_hw_do_flush(struct kbase_device *kbdev, struct kbase_as *as,
 	/* MMU operations can be either FLUSH_PT or FLUSH_MEM, anything else at
 	 * this point would be unexpected.
 	 */
-	if (flush_op != KBASE_MMU_OP_FLUSH_PT &&
-	    flush_op != KBASE_MMU_OP_FLUSH_MEM) {
+	if (op_param->op != KBASE_MMU_OP_FLUSH_PT &&
+	    op_param->op != KBASE_MMU_OP_FLUSH_MEM) {
 		dev_err(kbdev->dev, "Unexpected flush operation received");
 		return -EINVAL;
 	}
 
 	lockdep_assert_held(&kbdev->mmu_hw_mutex);
 
-	if (flush_op== KBASE_MMU_OP_FLUSH_PT)
+	if (op_param->op == KBASE_MMU_OP_FLUSH_PT)
 		mmu_cmd = AS_COMMAND_FLUSH_PT;
 
 	/* Lock the region that needs to be updated */
@@ -596,16 +559,9 @@ static int mmu_hw_do_flush(struct kbase_device *kbdev, struct kbase_as *as,
 	/* Wait for the command to complete */
 	ret = wait_ready(kbdev, as->number);
 
-	if (likely(!ret)) {
+	if (!ret)
 		mmu_command_instr(kbdev, op_param->kctx_id, mmu_cmd, lock_addr,
 				  op_param->mmu_sync_info);
-#if MALI_USE_CSF
-		if (flush_op == KBASE_MMU_OP_FLUSH_MEM &&
-		    kbdev->pm.backend.apply_hw_issue_TITANHW_2938_wa &&
-		    kbdev->pm.backend.l2_state == KBASE_L2_PEND_OFF)
-			ret = wait_l2_power_trans_complete(kbdev);
-#endif
-	}
 
 	return ret;
 }
@@ -629,7 +585,6 @@ int kbase_mmu_hw_do_flush_on_gpu_ctrl(struct kbase_device *kbdev, struct kbase_a
 {
 	int ret, ret2;
 	u32 gpu_cmd = GPU_COMMAND_CACHE_CLN_INV_L2_LSC;
-	const enum kbase_mmu_op_type flush_op = op_param->op;
 
 	if (WARN_ON(kbdev == NULL) || WARN_ON(as == NULL))
 		return -EINVAL;
@@ -637,8 +592,8 @@ int kbase_mmu_hw_do_flush_on_gpu_ctrl(struct kbase_device *kbdev, struct kbase_a
 	/* MMU operations can be either FLUSH_PT or FLUSH_MEM, anything else at
 	 * this point would be unexpected.
 	 */
-	if (flush_op != KBASE_MMU_OP_FLUSH_PT &&
-	    flush_op != KBASE_MMU_OP_FLUSH_MEM) {
+	if (op_param->op != KBASE_MMU_OP_FLUSH_PT &&
+	    op_param->op != KBASE_MMU_OP_FLUSH_MEM) {
 		dev_err(kbdev->dev, "Unexpected flush operation received");
 		return -EINVAL;
 	}
@@ -646,7 +601,7 @@ int kbase_mmu_hw_do_flush_on_gpu_ctrl(struct kbase_device *kbdev, struct kbase_a
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 	lockdep_assert_held(&kbdev->mmu_hw_mutex);
 
-	if (flush_op == KBASE_MMU_OP_FLUSH_PT)
+	if (op_param->op == KBASE_MMU_OP_FLUSH_PT)
 		gpu_cmd = GPU_COMMAND_CACHE_CLN_INV_L2;
 
 	/* 1. Issue MMU_AS_CONTROL.COMMAND.LOCK operation. */
@@ -659,15 +614,6 @@ int kbase_mmu_hw_do_flush_on_gpu_ctrl(struct kbase_device *kbdev, struct kbase_a
 
 	/* 3. Issue MMU_AS_CONTROL.COMMAND.UNLOCK operation. */
 	ret2 = kbase_mmu_hw_do_unlock_no_addr(kbdev, as, op_param);
-
-#if MALI_USE_CSF
-	if (!ret && !ret2) {
-		if (flush_op == KBASE_MMU_OP_FLUSH_MEM &&
-		    kbdev->pm.backend.apply_hw_issue_TITANHW_2938_wa &&
-		    kbdev->pm.backend.l2_state == KBASE_L2_PEND_OFF)
-			ret = wait_l2_power_trans_complete(kbdev);
-	}
-#endif
 
 	return ret ?: ret2;
 }
