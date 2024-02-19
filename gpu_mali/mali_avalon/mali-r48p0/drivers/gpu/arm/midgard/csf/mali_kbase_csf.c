@@ -2162,6 +2162,241 @@ static void report_group_timeout_error(struct kbase_queue_group *const group)
 	kbase_event_wakeup(group->kctx);
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG)
+static bool kbase_is_register_accessible(u32 offset)
+{
+#ifdef CONFIG_MALI_DEBUG
+	if (((offset >= MCU_SUBSYSTEM_BASE) && (offset < IPA_CONTROL_BASE)) ||
+	    ((offset >= GPU_CONTROL_MCU_BASE) && (offset < USER_BASE))) {
+		WARN(1, "Invalid register offset 0x%x", offset);
+		return false;
+	}
+#endif
+
+	return true;
+}
+
+static u32 kbase_reg_read(struct kbase_device *kbdev, u32 offset)
+{
+	u32 val;
+
+	if (WARN_ON(!kbdev->pm.backend.gpu_powered))
+		return 0;
+
+	if (WARN_ON(kbdev->dev == NULL))
+		return 0;
+
+	if (!kbase_is_register_accessible(offset))
+		return 0;
+
+	val = readl(kbdev->reg + offset);
+
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+	if (unlikely(kbdev->io_history.enabled))
+		kbase_io_history_add(&kbdev->io_history, kbdev->reg + offset,
+				     val, 0);
+#endif /* CONFIG_DEBUG_FS */
+	dev_dbg(kbdev->dev, "r: reg %08x val %08x", offset, val);
+
+	return val;
+}
+
+static void print_group_queues_data(struct kbase_queue_group *const group)
+{
+	struct kbase_queue *queue;
+	struct page *page;
+	size_t size_mask;
+	const unsigned int instruction_size = sizeof(u64);
+	unsigned int i;
+	u64 insert[5], extract[5], ringbuff[5];
+	u64 *input_addr;
+	u64 *output_addr;
+	u64 cs_insert;
+	u64 cs_extract;
+	u64 start, stop;
+	u64 page_off;
+	u64 offset;
+	u64 *ringbuffer;
+	u64 *ptr;
+
+	if (!group)
+		return;
+
+	for (i = 0; i < 5; i++) {
+		queue = group->bound_queues[i];
+		if (queue && queue->user_io_addr) {
+			input_addr = (u64 *)queue->user_io_addr;
+			output_addr = (u64 *)(queue->user_io_addr + PAGE_SIZE / sizeof(u64));
+
+			insert[i] = input_addr[CS_INSERT_LO / sizeof(u64)];
+			extract[i] = output_addr[CS_EXTRACT_LO / sizeof(u64)];
+			ringbuff[i] = queue->base_addr;
+		} else {
+			insert[i] = 0;
+			extract[i] = 0;
+			ringbuff[i] = 0;
+		}
+	}
+
+	dev_warn(group->kctx->kbdev->dev,
+		"R0 %llx I0 %llx E0 %llx, R1 %llx I1 %llx E1 %llx, R2 %llx I2 %llx E2 %llx, R3 %llx I3 %llx E3 %llx, R4 %llx I4 %llx E4 %llx",
+		ringbuff[0], insert[0], extract[0],
+		ringbuff[1], insert[1], extract[1],
+		ringbuff[2], insert[2], extract[2],
+		ringbuff[3], insert[3], extract[3],
+		ringbuff[4], insert[4], extract[4]);
+
+	for (i = 0; i < 5; i++) {
+		queue = group->bound_queues[i];
+
+		if (!queue)
+			continue;
+
+		cs_insert = insert[i];
+		cs_extract = extract[i];
+
+		if (!queue->queue_reg || !queue->queue_reg->nr_pages)
+			continue;
+
+		size_mask = (queue->queue_reg->nr_pages << PAGE_SHIFT) - 1;
+
+		if (cs_insert == cs_extract)
+			continue;
+
+		cs_extract = ALIGN_DOWN(cs_extract, 8 * instruction_size);
+
+		/* Go 32 instructions back */
+		if (cs_extract > (32 * instruction_size))
+			start = cs_extract - (32 * instruction_size);
+		else
+			start = 0;
+
+		/* Print upto 64 instructions */
+		stop = start + (64 * instruction_size);
+		if (stop > cs_insert)
+			stop = cs_insert;
+
+		pr_err("\nQueue %u: Instructions from Extract offset %llx\n", i, start);
+
+		while (start != stop) {
+			page_off = (start & size_mask) >> PAGE_SHIFT;
+			offset = (start & size_mask) & ~PAGE_MASK;
+
+			if (!queue->queue_reg->gpu_alloc)
+				break;
+
+			page = as_page(queue->queue_reg->gpu_alloc->pages[page_off]);
+			ringbuffer = vmap(&page, 1, VM_MAP, pgprot_noncached(PAGE_KERNEL));
+
+			if (!ringbuffer)
+				break;
+
+			ptr = &ringbuffer[offset/8];
+
+			pr_err("%016llx %016llx %016llx %016llx %016llx %016llx %016llx %016llx\n",
+					ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7]);
+
+			vunmap(ringbuffer);
+			start += (8 * instruction_size);
+		}
+	}
+}
+
+#define CSHW_BASE 0x0030000
+#define CSHW_CSHWIF_0 0x4000 /* () CSHWIF 0 registers */
+#define CSHWIF(n) (CSHW_BASE + CSHW_CSHWIF_0 + (n)*256)
+#define CSHWIF_REG(n, r) (CSHWIF(n) + r)
+#define NR_HW_INTERFACES 4
+
+#define CSHW_IT_COMP_REG(r) (CSHW_BASE + 0x1000 + r)
+#define CSHW_IT_FRAG_REG(r) (CSHW_BASE + 0x2000 + r)
+#define CSHW_IT_TILER_REG(r)(CSHW_BASE + 0x3000 + r)
+
+static void dump_iterator_registers(struct kbase_device *kbdev)
+{
+	unsigned long flags;
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	dev_err(kbdev->dev, "dump_iterator_registers");
+	if (kbdev->pm.backend.gpu_powered) {
+		dev_err(kbdev->dev, "Compute  CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x QUEUE_COUNT %x",
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x0)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x4)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x8)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0xD0)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0xDC)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0xA4)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0xA0)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0xE0)),
+			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x20)));
+		dev_err(kbdev->dev, "Fragment CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x QUEUE_COUNT %x",
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x0)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x4)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x8)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0xD0)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0xDC)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0xA4)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0xA0)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0xE0)),
+			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x20)));
+		dev_err(kbdev->dev, "Tiler    CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x QUEUE_COUNT %x",
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0x0)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0x4)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0x8)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0xD0)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0xDC)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0xA4)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0xA0)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0xE0)),
+			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0x20)));
+		dev_err(kbdev->dev, "\n");
+	}
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+}
+
+static void dump_hwif_registers(struct kbase_device *kbdev)
+{
+	unsigned long flags;
+	unsigned int i;
+
+	dev_err(kbdev->dev, "dump_hwif_registers");
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	for (i = 0; kbdev->pm.backend.gpu_powered && (i < NR_HW_INTERFACES); i++) {
+		u64 cmd_ptr = kbase_reg_read(kbdev, CSHWIF_REG(i, 0x0)) |
+			((u64)kbase_reg_read(kbdev, CSHWIF_REG(i, 0x4)) << 32);
+		u64 cmd_ptr_end = kbase_reg_read(kbdev, CSHWIF_REG(i, 0x8)) |
+			((u64)kbase_reg_read(kbdev, CSHWIF_REG(i, 0xC)) << 32);
+		int as_nr = kbase_reg_read(kbdev, CSHWIF_REG(i, 0x34));
+
+		if (!cmd_ptr)
+			continue;
+
+		dev_err(kbdev->dev, "Register dump of CSHWIF %d", i);
+		dev_err(kbdev->dev, "CMD_PTR: %llx CMD_PTR_END: %llx STATUS: %x JASID: %x EMUL_INSTR: %llx WAIT_STATUS: %x SB_SET_SEL: %x SB_SEL: %x",
+			cmd_ptr,
+			cmd_ptr_end,
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x24)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x34)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x60)) | ((u64)kbase_reg_read(kbdev, CSHWIF_REG(i, 0x64)) << 32),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x74)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x78)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x7C)));
+		dev_err(kbdev->dev, "CMD_COUNTER: %x EVT_RAW: %x EVT_IRQ_STATUS: %x EVT_HALT_STATUS: %x FAULT_STATUS: %x FAULT_ADDR: %llx",
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x80)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x98)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0xA4)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0xAC)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0xB0)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0xB8)) | ((u64)kbase_reg_read(kbdev, CSHWIF_REG(i, 0xBC)) << 32));
+		dev_err(kbdev->dev, "ITER_COMPUTE: %x ITER_FRAGMENT: %x ITER_TILER: %x",
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x28)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x2C)),
+			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x30)));
+		dev_err(kbdev->dev, "\n");
+	}
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+}
+#endif /* CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG */
+
 /**
  * timer_event_worker() - Handle the progress timeout error for the group
  *
@@ -2176,6 +2411,9 @@ static void timer_event_worker(struct work_struct *data)
 	struct kbase_context *const kctx = group->kctx;
 	struct kbase_device *const kbdev = kctx->kbdev;
 	bool reset_prevented = false;
+#if IS_ENABLED(CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG)
+	u32 csg_nr;
+#endif /* CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG */
 	int err = kbase_reset_gpu_prevent_and_wait(kbdev);
 
 	if (err)
@@ -2195,6 +2433,24 @@ static void timer_event_worker(struct work_struct *data)
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	mutex_lock(&kctx->csf.lock);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG)
+	dump_hwif_registers(kbdev);
+	dump_iterator_registers(kbdev);
+	for (csg_nr = 0; csg_nr < kbdev->csf.global_iface.group_num; csg_nr++) {
+		struct kbase_queue_group *const group =
+			kbdev->csf.scheduler.csg_slots[csg_nr].resident_group;
+
+		if (!group)
+			continue;
+		if (group->kctx != kctx)
+			continue;
+
+		dev_err(kbdev->dev, "Dumping data of queues of group %d on slot %d in run_state %d",
+				group->handle, group->csg_nr, group->run_state);
+		print_group_queues_data(group);
+	}
+#endif /* CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG */
 
 	term_queue_group(group);
 	flush_gpu_cache_on_fatal_error(kbdev);
@@ -2838,11 +3094,20 @@ static void process_csg_interrupts(struct kbase_device *const kbdev, u32 const c
 
 		KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSG_INTERRUPT_PROGRESS_TIMER_EVENT, group,
 					 req ^ ack);
+#if IS_ENABLED(CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG)
+		dev_info(
+			kbdev->dev,
+			"[%llxt] Iterator PROGRESS_TIMER timeout notification received for group %u of ctx %d_%d on slot %d, pending_faults %d\n",
+			kbase_backend_get_timestamp(kbdev), group->handle, group->kctx->tgid,
+			group->kctx->id, csg_nr, atomic_read(&kbdev->faults_pending));
+#else
 		dev_info(
 			kbdev->dev,
 			"[%llu] Iterator PROGRESS_TIMER timeout notification received for group %u of ctx %d_%d on slot %u\n",
 			kbase_backend_get_cycle_cnt(kbdev), group->handle, group->kctx->tgid,
 			group->kctx->id, csg_nr);
+#endif /* CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"Iterator PROGRESS_TIMER timeout notification received for group %u of ctx %d_%d on slot %d\n",
