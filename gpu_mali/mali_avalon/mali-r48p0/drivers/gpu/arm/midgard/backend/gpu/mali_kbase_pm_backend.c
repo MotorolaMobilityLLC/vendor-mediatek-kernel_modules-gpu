@@ -1093,7 +1093,12 @@ static int pm_handle_mcu_sleep_on_runtime_suspend(struct kbase_device *kbdev)
 	 */
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	if (kbdev->pm.backend.gpu_sleep_mode_active && kbdev->pm.backend.exit_gpu_sleep_mode &&
-	    !atomic_read(&kbdev->csf.scheduler.pending_gpu_idle_work)) {
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
+	    !atomic_read(&kbdev->csf.scheduler.pending_gpu_idle_work)
+#else
+		!work_pending(&kbdev->csf.scheduler.gpu_idle_work)
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
+		) {
 		u32 glb_req =
 			kbase_csf_firmware_global_input_read(&kbdev->csf.global_iface, GLB_REQ);
 		u32 glb_ack = kbase_csf_firmware_global_output(&kbdev->csf.global_iface, GLB_ACK);

@@ -608,8 +608,12 @@ struct kbase_queue_group {
 	struct kbase_queue *bound_queues[MAX_SUPPORTED_STREAMS_PER_GROUP];
 
 	int doorbell_nr;
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 	struct list_head protm_event_work;
 	atomic_t pending_protm_event_work;
+#else
+	struct work_struct protm_event_work;
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 	DECLARE_BITMAP(protm_pending_bitmap, MAX_SUPPORTED_STREAMS_PER_GROUP);
 
 	struct kbase_csf_notification error_fatal;
@@ -664,7 +668,9 @@ struct kbase_csf_kcpu_queue_context {
 	DECLARE_BITMAP(in_use, KBASEP_MAX_KCPU_QUEUES);
 	atomic64_t cmd_seq_num;
 
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 	struct workqueue_struct *kcpu_wq;
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 
 	struct mutex jit_lock;
 	struct list_head jit_cmds_head;
@@ -792,7 +798,12 @@ struct kbase_csf_scheduler_context {
 	u32 num_runnable_grps;
 	struct list_head idle_wait_groups;
 	u32 num_idle_wait_grps;
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 	struct list_head sync_update_work;
+#else
+	struct workqueue_struct *sync_update_wq;
+	struct work_struct sync_update_work;
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 	u32 ngrp_to_schedule;
 	struct kbase_csf_ctx_heap_reclaim_info heap_info;
 };
@@ -913,7 +924,9 @@ struct kbase_csf_context {
 	struct kbase_csf_scheduler_context sched;
 	struct kbase_csf_cpu_queue_context cpu_queue;
 	struct kbase_csf_user_reg_context user_reg;
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 	atomic_t pending_sync_update;
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 };
 
 /**
@@ -1171,6 +1184,7 @@ struct kbase_csf_scheduler {
 	unsigned long last_schedule;
 	atomic_t timer_enabled;
 	struct hrtimer tick_timer;
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 	atomic_t pending_sync_update_works;
 	spinlock_t sync_update_work_ctxs_lock;
 	struct list_head sync_update_work_ctxs;
@@ -1180,13 +1194,19 @@ struct kbase_csf_scheduler {
 	atomic_t pending_kcpuq_works;
 	spinlock_t kcpuq_work_queues_lock;
 	struct list_head kcpuq_work_queues;
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 	unsigned int apo_support;
 	struct hrtimer apo_idle_timer;
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 	atomic_t pending_tick_work;
 	atomic_t pending_tock_work;
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 	atomic_t pending_gpu_idle_work;
+#else
+	struct workqueue_struct *idle_wq;
+	struct work_struct gpu_idle_work;
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 	struct delayed_work ping_work;
 	struct kbase_context *top_kctx;
 	struct kbase_queue_group *top_grp;

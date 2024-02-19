@@ -1150,6 +1150,9 @@ static int create_normal_suspend_buffer(struct kbase_context *const kctx,
 }
 
 static void timer_event_worker(struct work_struct *data);
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
+static void protm_event_worker(struct work_struct *data);
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 static void term_normal_suspend_buffer(struct kbase_context *const kctx,
 				       struct kbase_normal_suspend_buffer *s_buf);
 
@@ -1260,8 +1263,12 @@ static int create_queue_group(struct kbase_context *const kctx,
 			INIT_LIST_HEAD(&group->link_to_schedule);
 			INIT_LIST_HEAD(&group->error_fatal.link);
 			INIT_WORK(&group->timer_event_work, timer_event_worker);
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 			INIT_LIST_HEAD(&group->protm_event_work);
 			atomic_set(&group->pending_protm_event_work, 0);
+#else
+			INIT_WORK(&group->protm_event_work, protm_event_worker);
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 			bitmap_zero(group->protm_pending_bitmap, MAX_SUPPORTED_STREAMS_PER_GROUP);
 
 			group->run_state = KBASE_CSF_GROUP_INACTIVE;
@@ -1493,9 +1500,13 @@ static void cancel_queue_group_events(struct kbase_queue_group *group)
 {
 	cancel_work_sync(&group->timer_event_work);
 
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 	/* Drain a pending protected mode request if any */
 	kbase_csf_scheduler_wait_for_kthread_pending_work(group->kctx->kbdev,
 							  &group->pending_protm_event_work);
+#else
+	cancel_work_sync(&group->protm_event_work);
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 }
 
 static void remove_pending_group_fatal_error(struct kbase_queue_group *group)
@@ -1659,7 +1670,9 @@ int kbase_csf_ctx_init(struct kbase_context *kctx)
 
 	INIT_LIST_HEAD(&kctx->csf.queue_list);
 	INIT_LIST_HEAD(&kctx->csf.link);
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 	atomic_set(&kctx->csf.pending_sync_update, 0);
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 
 	kbase_csf_event_init(kctx);
 
@@ -3730,8 +3743,16 @@ out_release_queue:
 	atomic_dec(&queue->pending_kick);
 }
 
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 void kbase_csf_process_protm_event_request(struct kbase_queue_group *group)
+#else
+static void protm_event_worker(struct work_struct *data)
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
+	struct kbase_queue_group *const group =
+		container_of(data, struct kbase_queue_group, protm_event_work);
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 	struct kbase_protected_suspend_buffer *sbuf = &group->protected_suspend_buf;
 	int err = 0;
 

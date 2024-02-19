@@ -515,6 +515,7 @@ void kbase_csf_scheduler_enqueue_sync_update_work(struct kbase_context *kctx);
  */
 void kbase_csf_scheduler_enqueue_protm_event_work(struct kbase_queue_group *group);
 
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 /**
  * kbase_csf_scheduler_enqueue_kcpuq_work() - Wake up kbase_csf_scheduler_kthread() to process
  *                                            pending commands for a KCPU queue.
@@ -522,6 +523,7 @@ void kbase_csf_scheduler_enqueue_protm_event_work(struct kbase_queue_group *grou
  * @queue: The queue to process pending commands for
  */
 void kbase_csf_scheduler_enqueue_kcpuq_work(struct kbase_kcpu_command_queue *queue);
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 
 /**
  * kbase_csf_scheduler_wait_for_kthread_pending_work - Wait until a pending work has completed in
