@@ -52,9 +52,9 @@
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) || IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST)
 #include <ged_dvfs.h>
-#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY || CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST*/
 
 /* Value to indicate that a queue group is not groups_to_schedule list */
 #define KBASEP_GROUP_PREPARED_SEQ_NUM_INVALID (U32_MAX)
@@ -5799,6 +5799,17 @@ static bool can_skip_scheduling(struct kbase_device *kbdev)
 
 	lockdep_assert_held(&scheduler->lock);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST)
+	if (ged_gpu_power_stress_test_enable()==1){
+		unsigned long flags,flags2;
+		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+		kbase_csf_scheduler_spin_lock(kbdev,&flags2);
+		kbase_csf_scheduler_process_gpu_idle_event(kbdev);
+		kbase_csf_scheduler_spin_unlock(kbdev, flags2);
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+	}
+#endif /* CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST */
+
 	if (unlikely(!kbase_reset_gpu_is_not_pending(kbdev)))
 		return true;
 
@@ -6753,6 +6764,14 @@ static void check_sync_update_in_sleep_mode(struct kbase_device *kbdev)
 			/* SYNC_UPDATE event shall invalidate GPU idle event */
 			atomic_set(&scheduler->gpu_no_longer_idle, true);
 			scheduler_wakeup(kbdev, true);
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST)
+			if (ged_gpu_power_stress_test_enable()==2){
+				if (kbase_csf_scheduler_wait_mcu_active(kbdev)) {
+					dev_warn(kbdev->dev,
+						"[GPU_IDLE_STRESS_TEST] Wait for MCU active failed");
+				}
+			}
+#endif /* CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST */
 			return;
 		}
 	}
