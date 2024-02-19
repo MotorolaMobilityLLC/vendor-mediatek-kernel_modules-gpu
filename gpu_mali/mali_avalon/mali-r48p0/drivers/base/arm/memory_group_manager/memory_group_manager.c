@@ -1031,7 +1031,7 @@ static void example_mgm_free_page(struct memory_group_manager_device *mgm_dev,
 {
 	struct mgm_groups *const data = mgm_dev->data;
 #if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
-	int i;
+	int r, i;
 #endif /* CONFIG_MALI_MTK_MGMM */
 
 	dev_dbg(data->dev, "%s(mgm_dev=%pK, group_id=%u page=%pK order=%u\n", __func__,
@@ -1042,22 +1042,23 @@ static void example_mgm_free_page(struct memory_group_manager_device *mgm_dev,
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
 	if (data->rank_mode >= 0) {
-		i = (page_to_phys(page) < data->ui64RankBoundary) ? 0 : 1; // true: rank0, false: rank1
+		r = (page_to_phys(page) < data->ui64RankBoundary) ? 0 : 1; // true: rank0, false: rank1
 		spin_lock(&data->MGMFree_lst_lk);
 		if (order == SP_ORDER) {
-			if (data->nr_rank[0][i] < data->max_pool[0]) {
+			if (data->nr_rank[0][r] < data->max_pool[0]) {
 				clear_highpage(page);
-				list_add(&page->lru, &data->free_list_r[0][i]);
-				data->nr_rank[0][i]++;
+				list_add(&page->lru, &data->free_list_r[0][r]);
+				data->nr_rank[0][r]++;
 			} else  {
 				spin_unlock(&data->MGMFree_lst_lk);
 				goto BUD_SYS;
 			}
 		} else if (order == LP_ORDER) {
-			if (data->nr_rank[1][i] < (data->max_pool[1] >> LP_ORDER)) {
-				clear_highpage(page);
-				list_add(&page->lru, &data->free_list_r[1][i]);
-				data->nr_rank[1][i]++;
+			if (data->nr_rank[1][r] < (data->max_pool[1] >> LP_ORDER)) {
+				for (i = 0; i < (1 << LP_ORDER); i++)
+					clear_highpage(page + i);
+				list_add(&page->lru, &data->free_list_r[1][r]);
+				data->nr_rank[1][r]++;
 			} else {
 				spin_unlock(&data->MGMFree_lst_lk);
 				goto BUD_SYS;
