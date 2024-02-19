@@ -127,7 +127,7 @@ struct mgm_groups {
 	int rank_mode;
 	gfp_t gfp_mask;
 	size_t count;
-	struct shrinker reclaim;
+	DEFINE_KBASE_SHRINKER reclaim;
 	uint64_t ui64RankBoundary;
 	size_t szRefillTarget;
 	size_t szSelectTarget;
@@ -799,7 +799,15 @@ static unsigned long mtk_mgm_pool_reclaim_count_objects(struct shrinker *s,
 	struct mgm_groups *data;
 	size_t ret;
 
+#if (KERNEL_VERSION(6, 7, 0) > LINUX_VERSION_CODE)
 	data = container_of(s, struct mgm_groups, reclaim);
+#else
+	data = s->private_data;
+#endif
+	if (data == NULL) {
+		pr_err("%s:mgm_groups pointer is NULL\n", __func__);
+		return 0;
+	}
 	ret = 0;
 
 	ret += mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[0][0], data->szRefillTarget);
@@ -821,7 +829,15 @@ static unsigned long mtk_mgm_pool_reclaim_scan_objects(struct shrinker *s,
 	size_t ret = 0;
 	struct page *p;
 
+#if (KERNEL_VERSION(6, 7, 0) > LINUX_VERSION_CODE)
 	data = container_of(s, struct mgm_groups, reclaim);
+#else
+	data = s->private_data;
+#endif
+	if (data == NULL) {
+		pr_err("%s:mgm_groups pointer is NULL\n", __func__);
+		return 0;
+	}
 
 	target = mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[0][0], data->szRefillTarget);
 	for (i = 0; i < target; i++){
@@ -1269,15 +1285,19 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 	mgm_data->max_pool[0] = mgm_data->max_pool[1] = RANK_POOL_LIMIT;
 	mgm_data->count = 0;
 	mgm_data->gfp_mask = GFP_HIGHUSER | __GFP_ZERO;
-	mgm_data->reclaim.count_objects = mtk_mgm_pool_reclaim_count_objects;
-	mgm_data->reclaim.scan_objects = mtk_mgm_pool_reclaim_scan_objects;
-	mgm_data->reclaim.seeks = DEFAULT_SEEKS;
-	mgm_data->reclaim.batch = 0;
-#if (KERNEL_VERSION(6, 0, 0) > LINUX_VERSION_CODE)
-	register_shrinker(&mgm_data->reclaim);
-#else
-	register_shrinker(&mgm_data->reclaim, "mali-mGMM");
-#endif
+	{
+		struct shrinker *reclaim;
+		reclaim = KBASE_INIT_RECLAIM(mgm_data, reclaim, "mali-mGMM");
+		if (!reclaim)
+			return -ENOMEM;
+		KBASE_SET_RECLAIM(mgm_data, reclaim, reclaim);
+
+		reclaim->count_objects = mtk_mgm_pool_reclaim_count_objects;
+		reclaim->scan_objects = mtk_mgm_pool_reclaim_scan_objects;
+		reclaim->seeks = DEFAULT_SEEKS;
+		reclaim->batch = 0;
+		KBASE_REGISTER_SHRINKER(reclaim, "mali-mGMM", mgm_data);
+	}
 	mgm_data->szSelectTarget = X_GUARD;
 
 	/*
