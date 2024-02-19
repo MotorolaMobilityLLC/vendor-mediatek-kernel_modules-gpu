@@ -558,7 +558,7 @@ void mtk_platform_cpu_cache_request(struct kbase_device *kbdev, int request)
 	spin_lock_irqsave(&g_dsu_request_lock, flags);
 	if (request == REQ_DSU_POWER_ON)
 	{
-		if (gIsDsuRequested == 0 && (kbdev->gpu_props.props.raw_props.coherency_mode == COHERENCY_ACE_LITE))
+		if (gIsDsuRequested == 0 && (kbdev->gpu_props.coherency_mode == COHERENCY_ACE_LITE))
 		{
 			/* Call smc into security mode */
 			/* Check result in trusted zone */
@@ -569,14 +569,14 @@ void mtk_platform_cpu_cache_request(struct kbase_device *kbdev, int request)
 				0, 0, 0, 0, 0, &res);
 			gIsDsuRequested++;
 		}
-		else if (kbdev->gpu_props.props.raw_props.coherency_mode == COHERENCY_ACE_LITE)
+		else if (kbdev->gpu_props.coherency_mode == COHERENCY_ACE_LITE)
 		{
 			KBASE_PLATFORM_LOGE("%s Duplicated request to DSU power on\n", __func__);
 		}
 	}
 	else if (request == REQ_DSU_POWER_OFF)
 	{
-		if (gIsDsuRequested != 0 && (kbdev->gpu_props.props.raw_props.coherency_mode == COHERENCY_ACE_LITE))
+		if (gIsDsuRequested != 0 && (kbdev->gpu_props.coherency_mode == COHERENCY_ACE_LITE))
 		{
 			/* Call smc into security mode */
 			/* Check result in trusted zone */
@@ -587,7 +587,7 @@ void mtk_platform_cpu_cache_request(struct kbase_device *kbdev, int request)
 				0, 0, 0, 0, 0, &res);
 			gIsDsuRequested--;
 		}
-		else if (kbdev->gpu_props.props.raw_props.coherency_mode == COHERENCY_ACE_LITE)
+		else if (kbdev->gpu_props.coherency_mode == COHERENCY_ACE_LITE)
 		{
 			KBASE_PLATFORM_LOGE("%s Duplicated request to DSU power off\n", __func__);
 		}
