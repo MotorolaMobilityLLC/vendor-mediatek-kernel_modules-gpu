@@ -102,6 +102,8 @@ int kbasep_pm_metrics_init(struct kbase_device *kbdev)
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	struct kbase_ipa_control_perf_counter perf_counter[NUM_PERF_COUNTERS];
 	int index = 0;
+	uint32_t product_id;
+	u8 frag_idx, tiler_idx, comp_idx;
 #else
 	struct kbase_ipa_control_perf_counter perf_counter;
 
@@ -119,6 +121,7 @@ int kbasep_pm_metrics_init(struct kbase_device *kbdev)
 		kbdev->pm.backend.metrics.values.time_busy[index] = 0;
 		kbdev->pm.backend.metrics.values.time_idle[index] = 0;
 	}
+	product_id = kbdev->gpu_props.gpu_id.product_model;
 #else
 	kbdev->pm.backend.metrics.values.time_busy = 0;
 	kbdev->pm.backend.metrics.values.time_idle = 0;
@@ -127,6 +130,25 @@ int kbasep_pm_metrics_init(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+
+	switch (product_id) {
+	case GPU_ID_PRODUCT_TTIX:
+		tiler_idx = ITER_TILER_ACTIVE_IDX;
+		comp_idx = ITER_COMP_ACTIVE_IDX;
+		frag_idx = ITER_FRAG_ACTIVE_IDX;
+		break;
+	case GPU_ID_PRODUCT_TKRX:
+		tiler_idx = 64;
+		comp_idx = 32;
+		frag_idx = 48;
+		break;
+	default:
+		// Unrecognized product use TTIX setting
+		tiler_idx = ITER_TILER_ACTIVE_IDX;
+		comp_idx = ITER_COMP_ACTIVE_IDX;
+		frag_idx = ITER_FRAG_ACTIVE_IDX;
+		break;
+	}
 
 	// GPU_ACTIVE_CNT_IDX
 	perf_counter[0].scaling_factor = GPU_ACTIVE_SCALING_FACTOR;
@@ -138,19 +160,19 @@ int kbasep_pm_metrics_init(struct kbase_device *kbdev)
 	perf_counter[1].scaling_factor = GPU_ACTIVE_SCALING_FACTOR;
 	perf_counter[1].gpu_norm	   = true;
 	perf_counter[1].type		   = KBASE_IPA_CORE_TYPE_CSHW;
-	perf_counter[1].idx 		   = ITER_TILER_ACTIVE_IDX;
+	perf_counter[1].idx 		   = tiler_idx;
 
 	// ITER_COMP_ACTIVE_IDX
 	perf_counter[2].scaling_factor = GPU_ACTIVE_SCALING_FACTOR;
 	perf_counter[2].gpu_norm	   = true;
 	perf_counter[2].type		   = KBASE_IPA_CORE_TYPE_CSHW;
-	perf_counter[2].idx 		   = ITER_COMP_ACTIVE_IDX;
+	perf_counter[2].idx 		   = comp_idx;
 
 	// ITER_FRAG_ACTIVE_IDX
 	perf_counter[3].scaling_factor = GPU_ACTIVE_SCALING_FACTOR;
 	perf_counter[3].gpu_norm	   = true;
 	perf_counter[3].type		   = KBASE_IPA_CORE_TYPE_CSHW;
-	perf_counter[3].idx 		   = ITER_FRAG_ACTIVE_IDX;
+	perf_counter[3].idx 		   = frag_idx;
 
 	// ITER_ITER_ACTIVE_IDX
 	perf_counter[4].scaling_factor = GPU_ACTIVE_SCALING_FACTOR;
