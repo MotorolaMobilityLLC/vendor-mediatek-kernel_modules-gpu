@@ -21,6 +21,10 @@ ifeq ($(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY),y)
     mali_kbase-y += $(curr)/mtk_platform_adaptive_power_policy.o
 endif ## CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY ##
 
+ifeq ($(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST),y)
+    mali_kbase-y += $(curr)/mtk_platform_gpu_idle_test.o
+endif ## CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST ##
+
 ifeq ($(CONFIG_MALI_MTK_DEBUG),y)
     mali_kbase-y += $(curr)/mtk_platform_debug.o
 endif ## CONFIG_MALI_MTK_DEBUG ##

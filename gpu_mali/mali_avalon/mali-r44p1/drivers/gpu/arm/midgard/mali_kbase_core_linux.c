@@ -128,6 +128,10 @@
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST)
+#include <platform/mtk_platform_common/mtk_platform_gpu_idle_test.h>
+#endif /* CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
 #include <platform/mtk_platform_common/mtk_platform_qinspect_recovery.h>
 #endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
@@ -5587,6 +5591,10 @@ static struct dentry *init_debugfs(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_DEVFREQ_THERMAL */
 #endif /* CONFIG_DEVFREQ_THERMAL */
 #endif /* CONFIG_MALI_DEVFREQ */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST)
+	mtk_debug_gpu_idle_test_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST */
 
 #if !MALI_USE_CSF
 	dentry = debugfs_create_file("serialize_jobs", 0644,
