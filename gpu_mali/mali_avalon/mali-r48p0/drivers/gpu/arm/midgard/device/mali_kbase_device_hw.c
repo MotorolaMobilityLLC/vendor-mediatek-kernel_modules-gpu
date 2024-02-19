@@ -337,6 +337,9 @@ int kbase_gpu_wait_cache_clean_timeout(struct kbase_device *kbdev, unsigned int 
 		dev_err(kbdev->dev,
 			"Cache clean timed out. Might be caused by unstable GPU clk/pwr or faulty system");
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_BITSTUCK_FAIL);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 #if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)
 		if (kbdev->exception_mask & (1u << EXCEPTION_BIT_STUCK))
 			BUG_ON(1);

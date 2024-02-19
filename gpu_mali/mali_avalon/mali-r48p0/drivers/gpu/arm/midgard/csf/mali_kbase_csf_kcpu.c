@@ -55,7 +55,11 @@ static DEFINE_SPINLOCK(kbase_csf_fence_lock);
 #include <platform/mtk_platform_common/mtk_platform_qinspect_recovery.h>
 #endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+#define FENCE_WAIT_TIMEOUT_MS 2000
+#else /* CONFIG_MALI_MTK_FENCE_DEBUG */
 #define FENCE_WAIT_TIMEOUT_MS 3000
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 static int kbase_kcpu_map_import_prepare(struct kbase_kcpu_command_queue *kcpu_queue,
 					 struct base_kcpu_command_import_info *import_info,
