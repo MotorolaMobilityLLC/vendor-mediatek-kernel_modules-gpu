@@ -8,6 +8,11 @@ ifneq ($(wildcard $(KO_CODE_PATH)/mt6877),)
         obj-m += mt6877/
 endif
 else
+ifeq ($(CONFIG_MTK_GPU_MT6893_SUPPORT),m)
+ifneq ($(wildcard $(KO_CODE_PATH)/mt6893),)
+	obj-m += mt6893/
+endif
+else
 ifneq ($(wildcard $(KO_CODE_PATH)/mt6878),)
 	obj-m += mt6878/
 endif
@@ -26,6 +31,8 @@ endif
 
 ifneq ($(wildcard $(KO_CODE_PATH)/mt6991),)
         obj-m += mt6991/
+endif
+
 endif
 
 endif
