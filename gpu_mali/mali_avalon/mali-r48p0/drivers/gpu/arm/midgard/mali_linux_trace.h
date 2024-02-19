@@ -624,6 +624,30 @@ static inline void __kbase_systrace(const char *fmt, ...)
 #define MALI_TRACE_VALUE_TARGET(...)
 #endif /* CONFIG_MALI_MTK_KBASE_TRACE_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+#include <linux/ktime.h>
+
+TRACE_EVENT(mali_kthread_event,
+	TP_PROTO(const char *event, void *work, const char *function),
+	TP_ARGS(event, work, function),
+	TP_STRUCT__entry(
+		__string(event, event)
+		__field(void *, work)
+		__string(function, function)
+	),
+	TP_fast_assign(
+		__assign_str(event, event);
+		__entry->work = work;
+		__assign_str(function, function);
+	),
+	TP_printk("%s: work struct=%p function=%s timestamp=%llu", __get_str(event), __entry->work, __get_str(function), ktime_get_raw_ns())
+);
+
+#define mali_kthread_event(event, work, function) \
+	/* pr_err("%s: work struct=%p function=%s", event, work, function); */ \
+	trace_mali_kthread_event(event, work, function);
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+
 #include "debug/mali_kbase_debug_linux_ktrace.h"
 
 #endif /* _TRACE_MALI_H */

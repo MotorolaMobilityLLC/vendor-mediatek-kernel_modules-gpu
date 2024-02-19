@@ -25,6 +25,10 @@
 #include "mali_kbase_csf.h"
 #include "mali_kbase_csf_event.h"
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+#include "mali_linux_trace.h"
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 #include <ged_dvfs.h>
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
@@ -560,7 +564,14 @@ static inline void kbase_csf_scheduler_invoke_tick(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 	KBASE_KTRACE_ADD(kbdev, SCHEDULER_TICK_INVOKE, NULL, 0u);
 	if (atomic_cmpxchg(&scheduler->pending_tick_work, false, true) == false)
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	{
+		mali_kthread_event("queue work", scheduler, "schedule_on_tick");
 		complete(&scheduler->kthread_signal);
+	}
+#else
+		complete(&scheduler->kthread_signal);
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 }
 
 /**
@@ -580,7 +591,14 @@ static inline void kbase_csf_scheduler_invoke_tock(struct kbase_device *kbdev)
 
 	KBASE_KTRACE_ADD(kbdev, SCHEDULER_TOCK_INVOKE, NULL, 0u);
 	if (atomic_cmpxchg(&scheduler->pending_tock_work, false, true) == false)
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	{
+		mali_kthread_event("queue work", scheduler, "schedule_on_tock");
 		complete(&scheduler->kthread_signal);
+	}
+#else
+		complete(&scheduler->kthread_signal);
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 }
 
 /**

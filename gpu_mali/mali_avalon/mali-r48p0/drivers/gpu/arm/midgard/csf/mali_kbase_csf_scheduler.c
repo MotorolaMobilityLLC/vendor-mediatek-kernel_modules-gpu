@@ -869,6 +869,9 @@ static void enqueue_gpu_idle_work(struct kbase_csf_scheduler *const scheduler)
 	atomic_set(&scheduler->gpu_no_longer_idle, false);
 #if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 	atomic_inc(&scheduler->pending_gpu_idle_work);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	mali_kthread_event("queue work", scheduler, "gpu_idle_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 	complete(&scheduler->kthread_signal);
 #else
 	queue_work(scheduler->idle_wq, &scheduler->gpu_idle_work);
@@ -2567,11 +2570,17 @@ static void cancel_tick_work(struct kbase_csf_scheduler *const scheduler)
 {
 	hrtimer_cancel(&scheduler->tick_timer);
 	atomic_set(&scheduler->pending_tick_work, false);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	mali_kthread_event("cancel work", scheduler, "schedule_on_tick");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 }
 
 static void cancel_tock_work(struct kbase_csf_scheduler *const scheduler)
 {
 	atomic_set(&scheduler->pending_tock_work, false);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	mali_kthread_event("cancel work", scheduler, "schedule_on_tock");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 }
 
 static void cancel_gpu_idle_work(struct kbase_csf_scheduler *const scheduler)
@@ -2581,6 +2590,9 @@ static void cancel_gpu_idle_work(struct kbase_csf_scheduler *const scheduler)
 #else
 	cancel_work_sync(&scheduler->gpu_idle_work);
 #endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	mali_kthread_event("cancel work", scheduler, "gpu_idle_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 }
 
 static void remove_group_from_runnable(struct kbase_csf_scheduler *const scheduler,
@@ -6984,6 +6996,9 @@ void kbase_csf_scheduler_context_term(struct kbase_context *kctx)
 	/* Drain a pending SYNC_UPDATE work if any */
 	kbase_csf_scheduler_wait_for_kthread_pending_work(kctx->kbdev,
 							  &kctx->csf.pending_sync_update);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	WARN_ON(atomic_read(&kctx->csf.pending_sync_update) != 0 || !list_empty(&kctx->csf.sched.sync_update_work));
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 #else
 	cancel_work_sync(&kctx->csf.sched.sync_update_work);
 	destroy_workqueue(kctx->csf.sched.sync_update_wq);
@@ -6995,8 +7010,19 @@ void kbase_csf_scheduler_context_term(struct kbase_context *kctx)
 #endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+#define MALI_KTHREAD_WORK_START(work, function) \
+	mali_kthread_event("work start", work, function); \
+	MALI_TRACE_BEGIN(function)
+
+#define MALI_KTHREAD_WORK_END(work, function) \
+	MALI_TRACE_END() \
+	mali_kthread_event("work end", work, function);
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+
 #if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
-static void handle_pending_sync_update_works(struct kbase_csf_scheduler *scheduler)
+static void handle_pending_sync_update_works(struct
+ kbase_csf_scheduler *scheduler)
 {
 	struct kbase_context *sync_update_ctx;
 
@@ -7018,7 +7044,13 @@ static void handle_pending_sync_update_works(struct kbase_csf_scheduler *schedul
 
 		if (sync_update_ctx != NULL) {
 			WARN_ON_ONCE(atomic_read(&sync_update_ctx->csf.pending_sync_update) == 0);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+			MALI_KTHREAD_WORK_START(sync_update_ctx, "check_group_sync_update_worker");
 			check_group_sync_update_worker(sync_update_ctx);
+			MALI_KTHREAD_WORK_END(sync_update_ctx, "check_group_sync_update_worker");
+#else
+			check_group_sync_update_worker(sync_update_ctx);
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 			atomic_dec(&sync_update_ctx->csf.pending_sync_update);
 		}
 	} while (sync_update_ctx != NULL);
@@ -7045,7 +7077,13 @@ static void handle_pending_protm_requests(struct kbase_csf_scheduler *scheduler)
 
 		if (protm_grp != NULL) {
 			WARN_ON_ONCE(atomic_read(&protm_grp->pending_protm_event_work) == 0);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+			MALI_KTHREAD_WORK_START(protm_grp, "protm_event_worker");
 			kbase_csf_process_protm_event_request(protm_grp);
+			MALI_KTHREAD_WORK_END(protm_grp, "protm_event_worker");
+#else
+			kbase_csf_process_protm_event_request(protm_grp);
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 			atomic_dec(&protm_grp->pending_protm_event_work);
 		}
 	} while (protm_grp != NULL);
@@ -7073,9 +7111,17 @@ static void handle_pending_kcpuq_commands(struct kbase_csf_scheduler *scheduler)
 		if (kcpuq != NULL) {
 			WARN_ON_ONCE(atomic_read(&kcpuq->pending_kick) == 0);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+			MALI_KTHREAD_WORK_START(kcpuq, "kcpu_queue_process_worker");
 			mutex_lock(&kcpuq->lock);
 			kbase_csf_kcpu_queue_process(kcpuq, false);
 			mutex_unlock(&kcpuq->lock);
+			MALI_KTHREAD_WORK_END(kcpuq, "kcpu_queue_process_worker");
+#else
+			mutex_lock(&kcpuq->lock);
+			kbase_csf_kcpu_queue_process(kcpuq, false);
+			mutex_unlock(&kcpuq->lock);
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 
 			atomic_dec(&kcpuq->pending_kick);
 		}
@@ -7113,7 +7159,13 @@ static void handle_pending_queue_kicks(struct kbase_device *kbdev)
 				(void *)queue, queue->group_priority, prio);
 			WARN_ON_ONCE(atomic_read(&queue->pending_kick) == 0);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+			MALI_KTHREAD_WORK_START(queue, "kbase_csf_process_queue_kick");
 			kbase_csf_process_queue_kick(queue);
+			MALI_KTHREAD_WORK_END(queue, "kbase_csf_process_queue_kick");
+#else
+			kbase_csf_process_queue_kick(queue);
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 
 			/* Perform a scheduling tock for high-priority queue groups if
 			 * required.
@@ -7122,7 +7174,15 @@ static void handle_pending_queue_kicks(struct kbase_device *kbdev)
 			BUILD_BUG_ON(KBASE_QUEUE_GROUP_PRIORITY_HIGH != 1);
 			if ((prio <= KBASE_QUEUE_GROUP_PRIORITY_HIGH) &&
 			    atomic_read(&scheduler->pending_tock_work))
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+			{
+				MALI_TRACE_BEGIN("schedule_on_tock")
 				schedule_on_tock(kbdev);
+				MALI_TRACE_END()
+			}
+#else
+				schedule_on_tock(kbdev);
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 		}
 	} while (queue != NULL);
 }
@@ -7185,16 +7245,37 @@ static int kbase_csf_scheduler_kthread(void *data)
 		 * event shall override a tock event but not vice-versa.
 		 */
 		if (atomic_cmpxchg(&scheduler->pending_tick_work, true, false) == true) {
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+			cancel_tock_work(scheduler);
+			MALI_KTHREAD_WORK_START(scheduler, "schedule_on_tick");
+			schedule_on_tick(kbdev);
+			MALI_KTHREAD_WORK_END(scheduler, "schedule_on_tick");
+#else
 			atomic_set(&scheduler->pending_tock_work, false);
 			schedule_on_tick(kbdev);
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 		} else if (atomic_read(&scheduler->pending_tock_work)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+			MALI_KTHREAD_WORK_START(scheduler, "schedule_on_tock");
 			schedule_on_tock(kbdev);
+			MALI_KTHREAD_WORK_END(scheduler, "schedule_on_tock");
+#else
+			schedule_on_tock(kbdev);
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 		}
 
 #if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 		/* Drain pending GPU idle works */
 		while (atomic_read(&scheduler->pending_gpu_idle_work) > 0)
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+		{
+			MALI_KTHREAD_WORK_START(scheduler, "gpu_idle_worker");
 			gpu_idle_worker(kbdev);
+			MALI_KTHREAD_WORK_END(scheduler, "gpu_idle_worker");
+		}
+#else
+			gpu_idle_worker(kbdev);
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 #endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 
 		dev_dbg(kbdev->dev, "Waking up for event after a scheduling iteration.");
@@ -7674,6 +7755,9 @@ void kbase_csf_scheduler_enqueue_sync_update_work(struct kbase_context *kctx)
 	spin_lock_irqsave(&scheduler->sync_update_work_ctxs_lock, flags);
 	if (list_empty(&kctx->csf.sched.sync_update_work)) {
 		list_add_tail(&kctx->csf.sched.sync_update_work, &scheduler->sync_update_work_ctxs);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+		mali_kthread_event("queue work", kctx, "check_group_sync_update_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 		atomic_inc(&kctx->csf.pending_sync_update);
 		if (atomic_cmpxchg(&scheduler->pending_sync_update_works, false, true) == false)
 			complete(&scheduler->kthread_signal);
@@ -7694,6 +7778,9 @@ void kbase_csf_scheduler_enqueue_protm_event_work(struct kbase_queue_group *grou
 	spin_lock_irqsave(&scheduler->protm_event_work_grps_lock, flags);
 	if (list_empty(&group->protm_event_work)) {
 		list_add_tail(&group->protm_event_work, &scheduler->protm_event_work_grps);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+		mali_kthread_event("queue work", group, "protm_event_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 		atomic_inc(&group->pending_protm_event_work);
 		if (atomic_cmpxchg(&scheduler->pending_protm_event_works, false, true) == false)
 			complete(&scheduler->kthread_signal);
@@ -7713,6 +7800,9 @@ void kbase_csf_scheduler_enqueue_kcpuq_work(struct kbase_kcpu_command_queue *que
 	spin_lock_irqsave(&scheduler->kcpuq_work_queues_lock, flags);
 	if (list_empty(&queue->high_prio_work)) {
 		list_add_tail(&queue->high_prio_work, &scheduler->kcpuq_work_queues);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+		mali_kthread_event("queue work", queue, "kcpu_queue_process_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 		atomic_inc(&queue->pending_kick);
 		if (atomic_cmpxchg(&scheduler->pending_kcpuq_works, false, true) == false)
 			complete(&scheduler->kthread_signal);

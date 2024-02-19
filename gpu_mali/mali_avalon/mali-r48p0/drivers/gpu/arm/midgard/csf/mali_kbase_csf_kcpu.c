@@ -2308,6 +2308,9 @@ static int delete_queue(struct kbase_context *kctx, u32 id)
 		 */
 		kbase_csf_scheduler_wait_for_kthread_pending_work(kctx->kbdev,
 								  &queue->pending_kick);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+		WARN_ON(atomic_read(&queue->pending_kick) != 0 || !list_empty(&queue->high_prio_work));
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 #endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 
 		cancel_work_sync(&queue->work);

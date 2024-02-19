@@ -926,6 +926,9 @@ int kbase_csf_queue_kick(struct kbase_context *kctx, struct kbase_ioctl_cs_queue
 				/* Queue termination shall block until this
 				 * kick has been handled.
 				 */
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+				mali_kthread_event("queue work", queue, "kbase_csf_process_queue_kick");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 				atomic_inc(&queue->pending_kick);
 				list_add_tail(
 					&queue->pending_kick_link,
@@ -1504,6 +1507,9 @@ static void cancel_queue_group_events(struct kbase_queue_group *group)
 	/* Drain a pending protected mode request if any */
 	kbase_csf_scheduler_wait_for_kthread_pending_work(group->kctx->kbdev,
 							  &group->pending_protm_event_work);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	WARN_ON(atomic_read(&group->pending_protm_event_work) != 0 || !list_empty(&group->protm_event_work));
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 #else
 	cancel_work_sync(&group->protm_event_work);
 #endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
@@ -3714,6 +3720,9 @@ void kbase_csf_process_queue_kick(struct kbase_queue *queue)
 				/* A failed queue kick shall be pushed to the
 				 * back of the queue to avoid potential abuse.
 				 */
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+				mali_kthread_event("queue work", queue, "kbase_csf_process_queue_kick");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 				list_add_tail(
 					&queue->pending_kick_link,
 					&kbdev->csf.pending_gpuq_kick_queues[queue->group_priority]);
