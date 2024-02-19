@@ -47,6 +47,7 @@
 #include <linux/slab.h>
 #include <linux/file.h>
 #include <linux/sizes.h>
+#include <linux/version_compat_defs.h>
 
 
 #if defined(CONFIG_SYNC)
@@ -472,7 +473,7 @@ struct kbase_mem_pool {
 	u8                  group_id;
 	spinlock_t          pool_lock;
 	struct list_head    page_list;
-	struct shrinker     reclaim;
+	DEFINE_KBASE_SHRINKER     reclaim;
 
 	struct kbase_mem_pool *next_pool;
 
@@ -1823,7 +1824,7 @@ struct kbase_context {
 
 	struct kbase_mem_pool_group mem_pools;
 
-	struct shrinker         reclaim;
+	DEFINE_KBASE_SHRINKER         reclaim;
 	struct list_head        evict_list;
 	atomic_t evict_nents;
 

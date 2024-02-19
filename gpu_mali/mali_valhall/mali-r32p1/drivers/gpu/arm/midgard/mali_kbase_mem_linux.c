@@ -38,6 +38,7 @@
 #include <linux/shrinker.h>
 #include <linux/cache.h>
 #include <linux/memory_group_manager.h>
+#include <linux/version_compat_defs.h>
 
 #include <mali_kbase.h>
 #include <mali_kbase_mem_linux.h>
@@ -668,7 +669,7 @@ unsigned long kbase_mem_evictable_reclaim_count_objects(struct shrinker *s,
 {
 	struct kbase_context *kctx;
 
-	kctx = container_of(s, struct kbase_context, reclaim);
+	kctx = KBASE_GET_KBASE_DATA_FROM_SHRINKER(s, struct kbase_context, reclaim);
 
 	// MTK add to prevent false alarm
 	lockdep_off();
@@ -718,7 +719,7 @@ unsigned long kbase_mem_evictable_reclaim_scan_objects(struct shrinker *s,
 	struct kbase_mem_phy_alloc *tmp;
 	unsigned long freed = 0;
 
-	kctx = container_of(s, struct kbase_context, reclaim);
+	kctx = KBASE_GET_KBASE_DATA_FROM_SHRINKER(s, struct kbase_context, reclaim);
 
 	// MTK add to prevent false alarm
 	lockdep_off();
@@ -777,25 +778,27 @@ int kbase_mem_evictable_init(struct kbase_context *kctx)
 	mutex_init(&kctx->jit_evict_lock);
 
 	atomic_set(&kctx->evict_nents, 0);
-
-	kctx->reclaim.count_objects = kbase_mem_evictable_reclaim_count_objects;
-	kctx->reclaim.scan_objects = kbase_mem_evictable_reclaim_scan_objects;
-	kctx->reclaim.seeks = DEFAULT_SEEKS;
-	/* Kernel versions prior to 3.1 :
-	 * struct shrinker does not define batch
-	 */
-	kctx->reclaim.batch = 0;
-#if KERNEL_VERSION(6, 0, 0) > LINUX_VERSION_CODE
-	register_shrinker(&kctx->reclaim);
-#else
-	register_shrinker(&kctx->reclaim, "mali-mem");
-#endif
+	{
+		struct shrinker *reclaim;
+		reclaim = KBASE_INIT_RECLAIM(kctx, reclaim, "mali-mem");
+		if (!reclaim)
+			return -ENOMEM;
+		KBASE_SET_RECLAIM(kctx, reclaim, reclaim);
+		reclaim->count_objects = kbase_mem_evictable_reclaim_count_objects;
+		reclaim->scan_objects = kbase_mem_evictable_reclaim_scan_objects;
+		reclaim->seeks = DEFAULT_SEEKS;
+		/* Kernel versions prior to 3.1 :
+		 * struct shrinker does not define batch
+		 */
+		reclaim->batch = 0;
+		KBASE_REGISTER_SHRINKER(reclaim, "mali-mem", kctx);
+	}
 	return 0;
 }
 
 void kbase_mem_evictable_deinit(struct kbase_context *kctx)
 {
-	unregister_shrinker(&kctx->reclaim);
+	KBASE_UNREGISTER_SHRINKER(kctx->reclaim);
 }
 
 /**
