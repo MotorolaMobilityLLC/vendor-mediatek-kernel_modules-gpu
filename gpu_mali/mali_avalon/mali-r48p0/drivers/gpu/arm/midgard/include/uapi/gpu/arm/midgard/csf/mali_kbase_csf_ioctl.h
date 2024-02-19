@@ -106,10 +106,14 @@
  * 1.26:
  * - Made the BASE_MEM_IMPORT_SYNC_ON_MAP_UNMAP and BASE_MEM_KERNEL_SYNC memory
  *   flags queryable.
+ * 1.27:
+ * - Re-allow child process to do supported file operations (like mmap, ioctl
+ *   read, poll) on the file descriptor of mali device that was inherited
+ *   from the parent process.
  */
 
 #define BASE_UK_VERSION_MAJOR 1
-#define BASE_UK_VERSION_MINOR 26
+#define BASE_UK_VERSION_MINOR 27
 
 /**
  * struct kbase_ioctl_version_check - Check version compatibility between
