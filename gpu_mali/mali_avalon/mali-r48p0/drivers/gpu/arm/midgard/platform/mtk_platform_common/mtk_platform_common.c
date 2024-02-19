@@ -78,6 +78,10 @@ static struct proc_dir_entry *proc_root;
 #include <platform/mtk_platform_common/mtk_platform_whitebox_fault_worker.h>
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SCHEDULER)
+#include <platform/mtk_platform_common/mtk_platform_whitebox_scheduler.h>
+#endif /* CONFIG_MALI_MTK_WHITEBOX_SCHEDULER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE)
 #include <platform/mtk_platform_common/mtk_platform_whitebox_sync_update.h>
 #endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
@@ -563,6 +567,11 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER)
 	mtk_whitebox_fault_worker_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SCHEDULER)
+	mtk_whitebox_scheduler_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_SCHEDULER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE)
 	mtk_whitebox_sync_update_test_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
