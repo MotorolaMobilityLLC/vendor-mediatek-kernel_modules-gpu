@@ -26,6 +26,12 @@ mt6768_outs = [
     "mt6768/mali_valhall/mali-r32p1/drivers/base/arm/memory_group_manager/mali_mgm_mt6768.ko",
 ]
 
+mt6877_outs = [
+    "mt6877/mali_valhall/mali-r32p1/drivers/gpu/arm/midgard/mali_kbase_mt6877.ko",
+    "mt6877/mali_valhall/mali-r32p1/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6877.ko",
+    "mt6877/mali_valhall/mali-r32p1/drivers/base/arm/memory_group_manager/mali_mgm_mt6877.ko",
+]
+
 mt6991_outs = [
     "mt6991/mali_avalon/mali-r48p0/drivers/base/arm/memory_group_manager/mali_mgm_mt6991_r48.ko",
     "mt6991/mali_avalon/mali-r48p0/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6991_r48.ko",
@@ -50,5 +56,13 @@ define_mgk_ko(
     srcs = glob(["**"]),
     outs = (
     mt6768_outs if glob(["mt6768/*"]) else []
+    ),
+)
+
+define_mgk_ko(
+    name = "gpu_mt6877",
+    srcs = glob(["**"]),
+    outs = (
+    mt6877_outs if glob(["mt6877/*"]) else []
     ),
 )
