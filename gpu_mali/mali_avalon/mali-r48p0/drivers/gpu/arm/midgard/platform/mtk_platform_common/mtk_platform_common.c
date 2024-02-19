@@ -33,15 +33,15 @@
 #include "csf/mali_kbase_csf_trace_buffer.h"
 #endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
-#include <platform/mtk_platform_common/mtk_platform_memtrack.h>
-#endif /* CONFIG_MALI_MTK_MEMTRACK */
-
 #if IS_ENABLED(CONFIG_MALI_MTK_CM7_TRACE)
 #include <bus_tracer_v1.h>
 #include "mtk_platform_cm7_trace.h"
 #endif /* CONFIG_MALI_MTK_CM7_TRACE */
 #endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
+#include <platform/mtk_platform_common/mtk_platform_memtrack.h>
+#endif /* CONFIG_MALI_MTK_MEMTRACK */
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 #include <platform/mtk_platform_common/mtk_platform_dvfs.h>
