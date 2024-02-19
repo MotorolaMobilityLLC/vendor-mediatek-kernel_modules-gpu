@@ -6,10 +6,6 @@
 #ifndef __MTK_PLATFORM_DVFS_HINT_26M_PERF_CNTING_H__
 #define __MTK_PLATFORM_DVFS_HINT_26M_PERF_CNTING_H__
 
-#define DVFS_TOP_BASE		  (0x13FBB000)
-#define DVFS_SC_BASE		  (0x13E10000)
-#define TOP_BASE		      (0x13FBF000)
-#define GPUSYSRAM_BASE		  (0x117800U)
 #define MAX_26M_PRFCNT_VALUE   0xFFFFFFFF //reg 32bit
 #define DVFS_HINT_26M_FREQ 		  26//us
 
@@ -22,6 +18,7 @@ u32 dvfs_hint_sc_base_reg_read(u32 offset);
 unsigned int mtk_dvfs_hint_26m_sc_prfcnt_query(u32 reg);
 unsigned int mtk_dvfs_hint_26m_cal_prfcnt_utilization(u32 reg, bool is_gpu_powered);
 int mtk_dvfs_hint_26m_setting(void);
-int mtk_dvfs_hint_26m_init(struct kbase_device *kbdev);
+int mtk_dvfs_hint_26m_init(struct kbase_device *kbdev ,phys_addr_t top_base_addr ,phys_addr_t dvfs_top_addr);
+
 
 #endif /* __MTK_PLATFORM_DVFS_HINT_26M_PERF_CNTING_H__ */
