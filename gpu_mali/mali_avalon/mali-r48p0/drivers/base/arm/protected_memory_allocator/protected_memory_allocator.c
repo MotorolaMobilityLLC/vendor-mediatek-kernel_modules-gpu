@@ -860,6 +860,9 @@ static int mtk_protected_memory_allocator_probe(struct platform_device *pdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP_2MB)
 	struct protected_memory_allocation *pma;
 #endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP_2MB */
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IOMMU)
+	uint32_t dis_init_gpu_iommu = 0;
+#endif /* CONFIG_MALI_MTK_GPU_IOMMU */
 
 	np = pdev->dev.of_node;
 
@@ -869,9 +872,14 @@ static int mtk_protected_memory_allocator_probe(struct platform_device *pdev)
 	}
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IOMMU)
-	if(mtk_gpu_iommu_init(pdev)) {
-		dev_err(&pdev->dev, "can't init gpu iommu\n");
-		return -ENODEV;
+	of_property_read_u32(np, "disable-init-gpu-iommu", &dis_init_gpu_iommu);
+	if(dis_init_gpu_iommu == 0) {
+		if(mtk_gpu_iommu_init(pdev)) {
+			dev_err(&pdev->dev, "can't init gpu iommu\n");
+			return -ENODEV;
+		}
+	}else{
+		dev_info(&pdev->dev, "Skip init gpu iommu\n");
 	}
 #endif /* CONFIG_MALI_MTK_GPU_IOMMU */
 	of_property_read_u32(np, "gmpu-table-size", &gmpu_table_size);
