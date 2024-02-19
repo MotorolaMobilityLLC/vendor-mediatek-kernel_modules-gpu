@@ -42,6 +42,8 @@
 	IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
 #include <platform/mtk_platform_common/mtk_platform_dvfs_hint_26m_perf_cnting.h>
 #include "platform/mtk_platform_common/mtk_platform_dvfs_hint_26m_perf_cnting_ex.h"
+#define TOP_BASE		(0x48500000)
+#define DVFS_TOP_BASE		(0x48530000)
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY && CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING*/
 
 /* KBASE_PLATFORM_DEBUG_ENABLE, 1 for debug log enable, 0 for disable */
@@ -539,6 +541,9 @@ int mtk_platform_pm_init(struct kbase_device *kbdev)
 	gpu_dvfs_status_reset_footprint();
 
 	dev_info(kbdev->dev, "GPU PM Callback - Initialize Done");
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+	mtk_dvfs_hint_26m_init(kbdev,TOP_BASE,DVFS_TOP_BASE);
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING */
 
 	return 0;
 }

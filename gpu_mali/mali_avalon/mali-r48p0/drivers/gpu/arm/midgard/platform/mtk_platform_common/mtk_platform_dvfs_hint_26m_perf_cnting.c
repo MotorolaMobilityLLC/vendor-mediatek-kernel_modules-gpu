@@ -181,15 +181,13 @@ int mtk_dvfs_hint_26m_setting(void)
 	return 0;
 }
 
-int mtk_dvfs_hint_26m_init(struct kbase_device *kbdev)
+int mtk_dvfs_hint_26m_init(struct kbase_device *kbdev ,phys_addr_t top_base_addr ,phys_addr_t dvfs_top_addr)
 {
 	if (IS_ERR_OR_NULL(kbdev))
 		return -1;
 
-	io_dvfs_top_base_addr = ioremap(DVFS_TOP_BASE , 0x1000);
-	io_top_base_addr = ioremap(TOP_BASE , 0x1000);
-	io_sc_base_addr = ioremap(DVFS_SC_BASE , 0x1000);
-	io_gpu_sysram_addr = ioremap(GPUSYSRAM_BASE , 0x1000);
+	io_dvfs_top_base_addr = ioremap(dvfs_top_addr  , 0x1000);
+	io_top_base_addr = ioremap(top_base_addr  , 0x1000);
 
 	dvfs_hint_26m_perf_cnting_enable = true;
 	Enable_IPA = false;
