@@ -1481,6 +1481,9 @@ struct kbase_device {
 	u32 mmu_dbg_config_value;
 #endif /* CONFIG_MALI_MTK_TRIGGER_KE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT)
+	bool mem_whitebox_debug;
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT */
 };
 
 /**

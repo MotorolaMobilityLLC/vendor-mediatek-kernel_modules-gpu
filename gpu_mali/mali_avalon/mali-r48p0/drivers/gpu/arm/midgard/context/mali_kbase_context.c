@@ -197,6 +197,10 @@ int kbase_context_common_init(struct kbase_context *kctx)
 	snprintf(kctx->process_name, sizeof(char) * MAX_PROCESS_NAME_LEN, "~%s", (NULL == kctx->task) ? "[null task]" : kctx->task->comm);
 #endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT)
+	if (kctx->kbdev->mem_whitebox_debug == true)
+		dev_err(kctx->kbdev->dev, "[pid:%d] kbase_create_context", kctx->tgid);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT */
 	mutex_lock(&kctx->kbdev->kctx_list_lock);
 	err = kbase_insert_kctx_to_process(kctx);
 	mutex_unlock(&kctx->kbdev->kctx_list_lock);

@@ -79,6 +79,10 @@ ifeq ($(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE),y)
     mali_kbase-y += $(curr)/mtk_platform_whitebox_sync_update.o
 endif ## CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE ##
 
+ifeq ($(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT),y)
+    mali_kbase-y += $(curr)/mtk_platform_whitebox_memory_footprint.o
+endif ## CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT ##
+
 ccflags-y += -I$(srctree)/drivers/devfreq/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/perf_common/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/tinysys_scmi/
