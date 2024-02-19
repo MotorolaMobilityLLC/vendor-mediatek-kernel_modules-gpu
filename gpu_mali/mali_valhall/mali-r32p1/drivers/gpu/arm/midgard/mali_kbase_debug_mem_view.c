@@ -28,6 +28,7 @@
 
 #include <linux/list.h>
 #include <linux/file.h>
+#include <linux/version.h>
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 
@@ -204,7 +205,11 @@ static int debug_mem_open(struct inode *i, struct file *file)
 	struct debug_mem_data *mem_data;
 	int ret;
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 7, 0))
+	if (!get_file_rcu(&kctx->filp))
+#else
 	if (get_file_rcu(kctx->filp) == 0)
+#endif
 		return -ENOENT;
 
 	ret = seq_open(file, &ops);
