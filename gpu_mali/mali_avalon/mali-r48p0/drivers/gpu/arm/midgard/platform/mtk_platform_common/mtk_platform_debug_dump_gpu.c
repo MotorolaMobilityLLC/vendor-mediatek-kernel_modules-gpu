@@ -1296,7 +1296,7 @@ static void mtk_debug_csf_csg_active_dump_queue(pid_t tgid, u32 id,
                 wait_sync_live_value, wait_sync_pointer,
                 sb_status, blocked_reason, false);
         }
-        mtk_debug_csf_csg_active_dump_cs_status_cmd_ptr(tgid, id, queue, queue->saved_cmd_ptr);
+        //mtk_debug_csf_csg_active_dump_cs_status_cmd_ptr(tgid, id, queue, queue->saved_cmd_ptr);
     } else {
         struct kbase_device const *const kbdev = queue->group->kctx->kbdev;
         struct kbase_csf_cmd_stream_group_info const *const ginfo =
