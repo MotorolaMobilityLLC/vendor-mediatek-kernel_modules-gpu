@@ -150,7 +150,7 @@ static inline int gpu_metrics_ctx_init(struct kbase_context *kctx)
 	put_cred(cred);
 
 	/* Return early if this is not a Userspace created context */
-	if (unlikely(!kctx->kfile))
+	if (unlikely(!kctx->filp))
 		return 0;
 
 	/* Serialize against the other threads trying to create/destroy Kbase contexts. */
@@ -187,7 +187,7 @@ static inline int gpu_metrics_ctx_init(struct kbase_context *kctx)
 static inline void gpu_metrics_ctx_term(struct kbase_context *kctx)
 {
 	/* Return early if this is not a Userspace created context */
-	if (unlikely(!kctx->kfile))
+	if (unlikely(!kctx->filp))
 		return;
 
 	/* Serialize against the other threads trying to create/destroy Kbase contexts. */
