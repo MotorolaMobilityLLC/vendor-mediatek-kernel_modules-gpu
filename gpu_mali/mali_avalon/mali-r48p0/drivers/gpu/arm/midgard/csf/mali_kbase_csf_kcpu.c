@@ -2149,7 +2149,8 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 
 		//kbasep_print(kbpr, "-----------------------------------------------\n");
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, kctx->tgid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, kctx->tgid, MTK_DBG_HOOK_MALI_FENCE_SIGNAL_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, kctx->tgid, MTK_DBG_HOOK_MALI_FENCE_SIGNAL_TIMEOUT);
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, kctx->tgid, MTK_DBG_HOOK_MALI_FENCE_SIGNAL_TIMEOUT);
 		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, kctx->tgid, MTK_DBG_HOOK_MALI_FENCE_SIGNAL_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */

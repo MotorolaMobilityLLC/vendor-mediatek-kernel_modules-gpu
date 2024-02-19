@@ -1911,6 +1911,7 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		if (fence_wait->flags & BASE_INTERNAL_FENCE_WAIT_DUMP_FLAG) {
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, (int)fence_wait->pid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
 			mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, (int)fence_wait->pid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
 			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, (int)fence_wait->pid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
 			mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, (int)fence_wait->pid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
