@@ -24,10 +24,12 @@
 #include "backend/gpu/mali_kbase_clk_rate_trace_mgr.h"
 #include "mali_kbase_csf_ipa_control.h"
 #include <platform/mtk_platform_utils.h> /* MTK_INLINE */
+#include <mtk_gpufreq.h>
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 #include "mali_kbase_csf_ipa_control_ex.h"
+extern void MTKGPUFreq_change_notify(u32 clk_idx, u32 gpufreq);
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
 #include "platform/mtk_platform_common/mtk_platform_dvfs_hint_26m_perf_cnting.h"
 #include "platform/mtk_platform_common/mtk_platform_dvfs_hint_26m_perf_cnting_ex.h"
@@ -339,6 +341,7 @@ void kbase_ipa_control_init(struct kbase_device *kbdev)
 	struct kbase_ipa_control_listener_data *listener_data;
 	size_t i;
 	unsigned long flags;
+	unsigned int curr_top_freq = 0;
 
 	for (i = 0; i < KBASE_IPA_CORE_TYPE_NUM; i++) {
 		ipa_ctrl->blocks[i].num_available_counters = KBASE_IPA_CONTROL_NUM_BLOCK_COUNTERS;
@@ -378,6 +381,8 @@ void kbase_ipa_control_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	mtk_common_rate_change_notify_fp = kbase_ipa_control_rate_change_notify_ex;
+	curr_top_freq = gpufreq_get_cur_freq(TARGET_GPU);
+	MTKGPUFreq_change_notify(0, curr_top_freq);
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 }
