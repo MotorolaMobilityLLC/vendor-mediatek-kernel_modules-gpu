@@ -42,6 +42,10 @@
 #include <mmu/mali_kbase_mmu.h>
 #include <context/mali_kbase_context_internal.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+#include <gpu_pdma.h>
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
+
 /**
  * find_process_node - Used to traverse the process rb_tree to find if
  *                     process exists already in process rb_tree.
@@ -290,6 +294,11 @@ void kbase_context_common_term(struct kbase_context *kctx)
 		dev_warn(kctx->kbdev->dev, "%s: %d pages in use!\n", __func__, pages);
 
 	WARN_ON(atomic_read(&kctx->nonmapped_pages) != 0);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+	/* release PDMA HW Lock in case user doesn't */
+	pdma_lock_reclaim(kctx->id);
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 
 	mutex_lock(&kctx->kbdev->kctx_list_lock);
 	kbase_remove_kctx_from_process(kctx);
