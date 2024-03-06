@@ -33,6 +33,9 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IOMMU)
 #pragma message "enable CONFIG_MALI_MTK_GPU_IOMMU"
 #include <mtk_gpufreq.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
+#include <ghpm_wrapper.h>
+#endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
 #include <linux/err.h>
 #include <linux/of_address.h>
 #include <linux/of_device.h>
@@ -634,6 +637,16 @@ static int mtk_gpu_iommu_init(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 
 #if defined(CONFIG_MTK_GPUFREQ_V2)
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
+	/* On mfg0 and gpueb */
+	ret = gpueb_ctrl(GHPM_ON, MFG1_OFF, SUSPEND_POWER_ON);
+	if (ret) {
+		dev_err(dev, "gpueb on fail, return value=%d \n", ret);
+		return ret;
+	}
+#endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
+
 	/* on,off/ SWCG(BG3D)/ MTCMOS/ BUCK */
 	if (gpufreq_power_control(GPU_PWR_ON) < 0) {
 		dev_err(dev, "Power On Failed");
@@ -666,6 +679,16 @@ static int mtk_gpu_iommu_init(struct platform_device *pdev)
 		dev_err(dev, "Power Off Failed");
 		return 1;
 	}
+
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
+	/* Off mfg0 and gpueb */
+	ret = gpueb_ctrl(GHPM_OFF, MFG1_OFF, SUSPEND_POWER_OFF);
+	if (ret) {
+		dev_err(dev, "gpueb off fail, return value=%d \n", ret);
+		return ret;
+	}
+#endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
 
 	dev_info(dev, "[gpu_iommu] init done %d", ret);
@@ -860,9 +883,6 @@ static int mtk_protected_memory_allocator_probe(struct platform_device *pdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP_2MB)
 	struct protected_memory_allocation *pma;
 #endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP_2MB */
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IOMMU)
-	uint32_t dis_init_gpu_iommu = 0;
-#endif /* CONFIG_MALI_MTK_GPU_IOMMU */
 
 	np = pdev->dev.of_node;
 
@@ -872,14 +892,9 @@ static int mtk_protected_memory_allocator_probe(struct platform_device *pdev)
 	}
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IOMMU)
-	of_property_read_u32(np, "disable-init-gpu-iommu", &dis_init_gpu_iommu);
-	if(dis_init_gpu_iommu == 0) {
-		if(mtk_gpu_iommu_init(pdev)) {
-			dev_err(&pdev->dev, "can't init gpu iommu\n");
-			return -ENODEV;
-		}
-	}else{
-		dev_info(&pdev->dev, "Skip init gpu iommu\n");
+	if(mtk_gpu_iommu_init(pdev)) {
+		dev_err(&pdev->dev, "can't init gpu iommu\n");
+		return -ENODEV;
 	}
 #endif /* CONFIG_MALI_MTK_GPU_IOMMU */
 	of_property_read_u32(np, "gmpu-table-size", &gmpu_table_size);
