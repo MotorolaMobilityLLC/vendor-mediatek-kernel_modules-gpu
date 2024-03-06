@@ -34,7 +34,10 @@
 #pragma message "enable CONFIG_MALI_MTK_GPU_IOMMU"
 #include <mtk_gpufreq.h>
 #if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
+#pragma message "CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE enabled (pma)"
 #include <ghpm_wrapper.h>
+#else
+#pragma message "CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE disabled (pma)"
 #endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
 #include <linux/err.h>
 #include <linux/of_address.h>
