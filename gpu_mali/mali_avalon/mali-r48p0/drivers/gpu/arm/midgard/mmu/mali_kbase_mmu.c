@@ -782,9 +782,15 @@ static size_t estimate_pool_space_required(struct kbase_mem_pool *pool, const si
  *
  * Return: true if successful, false on failure
  */
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_ALLOC_FAIL_DEBUG)
+static bool page_fault_try_alloc(struct kbase_context *kctx, struct kbase_va_region *region,
+				 size_t new_pages, size_t *pages_to_grow, bool *grow_2mb_pool, bool mtk_go_with_2m,
+				 struct kbase_sub_alloc **prealloc_sas)
+#else /* CONFIG_MALI_MTK_PAGE_ALLOC_FAIL_DEBUG */
 static bool page_fault_try_alloc(struct kbase_context *kctx, struct kbase_va_region *region,
 				 size_t new_pages, size_t *pages_to_grow, bool *grow_2mb_pool,
 				 struct kbase_sub_alloc **prealloc_sas)
+#endif /* CONFIG_MALI_MTK_PAGE_ALLOC_FAIL_DEBUG */
 {
 	size_t total_gpu_pages_alloced = 0;
 	size_t total_cpu_pages_alloced = 0;
@@ -802,7 +808,11 @@ static bool page_fault_try_alloc(struct kbase_context *kctx, struct kbase_va_reg
 		return false;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_ALLOC_FAIL_DEBUG)
+	if (kctx->kbdev->pagesize_2mb && new_pages >= NUM_PAGES_IN_2MB_LARGE_PAGE && mtk_go_with_2m) {
+#else /* CONFIG_MALI_MTK_PAGE_ALLOC_FAIL_DEBUG */
 	if (kctx->kbdev->pagesize_2mb && new_pages >= NUM_PAGES_IN_2MB_LARGE_PAGE) {
+#endif /* CONFIG_MALI_MTK_PAGE_ALLOC_FAIL_DEBUG */
 		root_pool = &kctx->mem_pools.large[region->gpu_alloc->group_id];
 		*grow_2mb_pool = true;
 	} else {
@@ -949,6 +959,10 @@ void kbase_mmu_page_fault_worker(struct work_struct *data)
 	int err;
 	bool grown = false;
 	size_t pages_to_grow;
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_ALLOC_FAIL_DEBUG)
+	size_t pages_2mb_to_grow;
+	bool mtk_go_with_2m;
+#endif /* CONFIG_MALI_MTK_PAGE_ALLOC_FAIL_DEBUG */
 	bool grow_2mb_pool = false;
 	struct kbase_sub_alloc *prealloc_sas[2] = { NULL, NULL };
 	int i;
@@ -1123,6 +1137,10 @@ void kbase_mmu_page_fault_worker(struct work_struct *data)
 		goto fault_done;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_ALLOC_FAIL_DEBUG)
+	mtk_go_with_2m = kbdev->pagesize_2mb;
+#endif /* CONFIG_MALI_MTK_PAGE_ALLOC_FAIL_DEBUG */
+
 page_fault_retry:
 	if (kbdev->pagesize_2mb) {
 		/* Preallocate (or re-allocate) memory for the sub-allocation structs if necessary */
@@ -1279,8 +1297,13 @@ page_fault_retry:
 #endif
 
 	spin_lock(&kctx->mem_partials_lock);
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_ALLOC_FAIL_DEBUG)
+	grown = page_fault_try_alloc(kctx, region, new_pages, &pages_to_grow, &grow_2mb_pool, mtk_go_with_2m,
+				     prealloc_sas);
+#else /* CONFIG_MALI_MTK_PAGE_ALLOC_FAIL_DEBUG */
 	grown = page_fault_try_alloc(kctx, region, new_pages, &pages_to_grow, &grow_2mb_pool,
 				     prealloc_sas);
+#endif /* CONFIG_MALI_MTK_PAGE_ALLOC_FAIL_DEBUG */
 	spin_unlock(&kctx->mem_partials_lock);
 
 	if (grown) {
@@ -1418,11 +1441,27 @@ page_fault_retry:
 				struct kbase_mem_pool *const lp_mem_pool =
 					&kctx->mem_pools.large[group_id];
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_ALLOC_FAIL_DEBUG)
+				pages_2mb_to_grow =
+					(pages_to_grow + ((1u << lp_mem_pool->order) - 1u)) >>
+					lp_mem_pool->order;
+
+				ret = kbase_mem_pool_grow(lp_mem_pool, pages_2mb_to_grow, kctx->task);
+				if (ret < 0) {
+					struct kbase_mem_pool *const mem_pool =
+						&kctx->mem_pools.small[group_id];
+
+					dev_info(kbdev->dev, "No rooms for 2MB fallback 4KB");
+					ret = kbase_mem_pool_grow(mem_pool, pages_to_grow, kctx->task);
+					mtk_go_with_2m = false;
+				}
+#else /* CONFIG_MALI_MTK_PAGE_ALLOC_FAIL_DEBUG */
 				pages_to_grow =
 					(pages_to_grow + ((1u << lp_mem_pool->order) - 1u)) >>
 					lp_mem_pool->order;
 
 				ret = kbase_mem_pool_grow(lp_mem_pool, pages_to_grow, kctx->task);
+#endif /* CONFIG_MALI_MTK_PAGE_ALLOC_FAIL_DEBUG */
 			} else {
 				struct kbase_mem_pool *const mem_pool =
 					&kctx->mem_pools.small[group_id];
