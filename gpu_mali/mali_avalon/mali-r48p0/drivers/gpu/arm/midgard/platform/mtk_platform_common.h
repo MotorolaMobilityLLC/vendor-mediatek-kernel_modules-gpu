@@ -106,4 +106,8 @@ bool mtk_common_whitebox_force_hard_reset_enable(void);
 int mtk_common_whitebox_sync_update_test_mode(void);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+bool mtk_common_whitebox_missing_doorbell_enable(void);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
+
 #endif /* __MTK_PLATFORM_COMMON_H__ */

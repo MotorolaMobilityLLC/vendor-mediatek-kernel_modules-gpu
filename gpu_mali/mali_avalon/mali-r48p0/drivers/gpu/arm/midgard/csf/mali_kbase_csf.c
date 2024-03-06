@@ -39,6 +39,11 @@
 #include "mali_kbase_csf_mcu_shared_reg.h"
 #include <linux/version_compat_defs.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+#include <platform/mtk_platform_common.h>
+#include <csf/mali_kbase_csf_db_validation.h>
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
@@ -2114,6 +2119,10 @@ static void kbase_queue_oom_event(struct kbase_queue *const queue)
 	err = handle_oom_event(group, stream);
 
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	if (mtk_common_whitebox_missing_doorbell_enable())
+		kbase_csf_db_valid_push_event(DOORBELL_CSI_TILER_OOM(slot_num, csi_index));
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 	kbase_csf_firmware_cs_input_mask(stream, CS_REQ, cs_oom_ack, CS_REQ_TILER_OOM_MASK);
 	kbase_csf_ring_cs_kernel_doorbell(kbdev, csi_index, slot_num, true);
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
@@ -2677,6 +2686,10 @@ static void handle_fault_event(struct kbase_queue *const queue, const u32 cs_ack
 	}
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	if (mtk_common_whitebox_missing_doorbell_enable())
+		kbase_csf_db_valid_push_event(DOORBELL_CSI_FAULT(queue->group->csg_nr,  queue->csi_index));
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 	kbase_csf_firmware_cs_input_mask(stream, CS_REQ, cs_ack, CS_REQ_FAULT_MASK);
 	kbase_csf_ring_cs_kernel_doorbell(kbdev, queue->csi_index, queue->group->csg_nr, true);
 }
@@ -2776,6 +2789,10 @@ static void cs_error_worker(struct work_struct *const data)
 				&ginfo->streams[queue->csi_index];
 			u32 const cs_ack = kbase_csf_firmware_cs_output(stream, CS_ACK);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+			if (mtk_common_whitebox_missing_doorbell_enable())
+				kbase_csf_db_valid_push_event(DOORBELL_CSI_FAULT(slot_num, queue->csi_index));
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 			kbase_csf_firmware_cs_input_mask(stream, CS_REQ, cs_ack, CS_REQ_FAULT_MASK);
 			kbase_csf_ring_cs_kernel_doorbell(kbdev, queue->csi_index, slot_num, true);
 		}
