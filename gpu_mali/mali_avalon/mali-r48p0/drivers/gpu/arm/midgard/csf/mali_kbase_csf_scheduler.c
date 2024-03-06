@@ -67,6 +67,10 @@
 #include <platform/mtk_platform_common/mtk_platform_whitebox_sync_update.h>
 #endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+#include <ged_mali_event.h>
+#include <platform/mtk_platform_common/mtk_platform_mali_event.h>
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 
 /* Value to indicate that a queue group is not groups_to_schedule list */
 #define KBASEP_GROUP_PREPARED_SEQ_NUM_INVALID (U32_MAX)
@@ -1095,6 +1099,10 @@ static bool scheduler_protm_wait_quit(struct kbase_device *kbdev)
 		success = false;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+	ged_mali_event_update_pmode_flag_nolock(false);
+#endif /* IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT) */
+
 	KBASE_KTRACE_ADD(kbdev, SCHEDULER_PROTM_WAIT_QUIT_END, NULL,
 			 jiffies_to_msecs((unsigned long)remaining));
 
@@ -1139,8 +1147,12 @@ static void scheduler_force_protm_exit(struct kbase_device *kbdev)
 	/* The GPU could be stuck in Protected mode. To prevent a hang,
 	 * a GPU reset is performed.
 	 */
-	if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
+	if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+		ged_mali_event_update_gpu_reset_nolock(GPU_RESET_PMODE_EXIT_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 		kbase_reset_gpu(kbdev);
+	}
 }
 
 /**
@@ -1548,8 +1560,12 @@ static int halt_stream_sync(struct kbase_queue *queue)
 				fw_timeout_ms,
 				csi_index, group->handle, group->csg_nr);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-			if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
+			if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+				ged_mali_event_update_gpu_reset_nolock(GPU_RESET_QUEUE_START_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 				kbase_reset_gpu(kbdev);
+			}
 
 
 			return -ETIMEDOUT;
@@ -1589,8 +1605,12 @@ static int halt_stream_sync(struct kbase_queue *queue)
 		/* TODO GPUCORE-25328: The CSG can't be terminated, the GPU
 		 * will be reset as a work-around.
 		 */
-		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
+		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+			ged_mali_event_update_gpu_reset_nolock(GPU_RESET_QUEUE_STOP_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 			kbase_reset_gpu(kbdev);
+		}
 
 	}
 	return (remaining) ? 0 : -ETIMEDOUT;
@@ -2629,8 +2649,12 @@ static void remove_group_from_runnable(struct kbase_csf_scheduler *const schedul
 		/* Initiate a GPU reset, in case it wasn't initiated yet,
 		 * in order to rectify the anomaly.
 		 */
-		if (kbase_prepare_to_reset_gpu(kctx->kbdev, RESET_FLAGS_NONE))
+		if (kbase_prepare_to_reset_gpu(kctx->kbdev, RESET_FLAGS_NONE)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+			ged_mali_event_update_gpu_reset_nolock(GPU_RESET_MISS_PMODE_EXIT_IRQ);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 			kbase_reset_gpu(kctx->kbdev);
+		}
 
 		KBASE_KTRACE_ADD_CSF_GRP(kctx->kbdev, SCHEDULER_PROTM_EXIT,
 					 scheduler->active_protm_grp, 0u);
@@ -3352,8 +3376,12 @@ static int term_group_sync(struct kbase_queue_group *group)
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, group->kctx->tgid, MTK_DBG_HOOK_GSG_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
-		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
+		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+			ged_mali_event_update_gpu_reset_nolock(GPU_RESET_TERM_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 			kbase_reset_gpu(kbdev);
+		}
 
 
 		err = -ETIMEDOUT;
@@ -3911,6 +3939,10 @@ static void program_suspending_csg_slots(struct kbase_device *kbdev)
 					error_type = DF_PING_REQUEST_TIMEOUT;
 				schedule_actions_trigger_df(kbdev, group->kctx, error_type);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+				ged_mali_event_update_device_lost_nolock(DEVICE_LOST_PROGRAM_SUSPEND_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+
 				kbase_csf_add_group_fatal_error(group, &err_payload);
 				kbase_event_wakeup(group->kctx);
 
@@ -3949,8 +3981,12 @@ static void program_suspending_csg_slots(struct kbase_device *kbdev)
 			}
 		}
 	} else {
-		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
+		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+			ged_mali_event_update_gpu_reset_nolock(GPU_RESET_SUSPEND_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 			kbase_reset_gpu(kbdev);
+		}
 	}
 }
 
@@ -4037,8 +4073,12 @@ static void wait_csg_slots_start(struct kbase_device *kbdev)
 			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_GSG_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
-			if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
+			if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+				ged_mali_event_update_gpu_reset_nolock(GPU_RESET_CSG_START_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 				kbase_reset_gpu(kbdev);
+			}
 			break;
 		}
 	}
@@ -4188,8 +4228,12 @@ static void wait_csg_slots_finish_prio_update(struct kbase_device *kbdev)
 		schedule_actions_trigger_df(kbdev, group->kctx, error_type);
 
 		/* Timeout could indicate firmware is unresponsive so trigger a GPU reset. */
-		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
+		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+			ged_mali_event_update_gpu_reset_nolock(GPU_RESET_EP_CFG_UPDATE_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 			kbase_reset_gpu(kbdev);
+		}
 	}
 }
 
@@ -4475,6 +4519,10 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 					schedule_actions_trigger_df(
 						kbdev, input_grp->kctx,
 						DF_PROTECTED_MODE_ENTRY_FAILURE);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+				ged_mali_event_update_pmode_flag_nolock(true);
+#endif /* IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT) */
 
 				scheduler->protm_enter_time = ktime_get_raw();
 
@@ -5100,8 +5148,12 @@ static int suspend_active_groups_on_powerdown(struct kbase_device *kbdev, bool s
 			error_type = DF_PING_REQUEST_TIMEOUT;
 		schedule_actions_trigger_df(kbdev, group->kctx, error_type);
 
-		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
+		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+			ged_mali_event_update_gpu_reset_nolock(GPU_RESET_SUSPEND_POW_DOWN_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 			kbase_reset_gpu(kbdev);
+		}
 
 		return -1;
 	}
@@ -6322,8 +6374,12 @@ static void firmware_aliveness_monitor(struct work_struct *work)
 		/* It is acceptable to enqueue a reset whilst we've prevented
 		 * them, it will happen after we've allowed them again
 		 */
-		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
+		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+			ged_mali_event_update_gpu_reset_nolock(GPU_RESET_FW_PING_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 			kbase_reset_gpu(kbdev);
+		}
 	} else if (kbase_csf_scheduler_get_nr_active_csgs(kbdev) == 1) {
 		queue_delayed_work(
 			system_long_wq, &kbdev->csf.scheduler.ping_work,

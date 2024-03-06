@@ -26,6 +26,11 @@
 #include "mali_kbase_csf_mcu_shared_reg.h"
 #include <mali_kbase_mem_migrate.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+#include <ged_mali_event.h>
+#include <platform/mtk_platform_common/mtk_platform_mali_event.h>
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+
 /* Scaling factor in pre-allocating shared regions for suspend bufs and userios */
 #define MCU_SHARED_REGS_PREALLOCATE_SCALE (8)
 
@@ -150,6 +155,9 @@ static bool notify_group_csg_reg_map_error(struct kbase_queue_group *group)
 
 		dev_err(kbdev->dev, "Fatal: group_%d_%d_%d exceeded shared region map retry limit",
 			group->kctx->tgid, group->kctx->id, group->handle);
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+		ged_mali_event_update_device_lost_nolock(DEVICE_LOST_CSG_REG_MAP_ERROR);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 		kbase_csf_add_group_fatal_error(group, &err_payload);
 		kbase_event_wakeup(group->kctx);
 	}
