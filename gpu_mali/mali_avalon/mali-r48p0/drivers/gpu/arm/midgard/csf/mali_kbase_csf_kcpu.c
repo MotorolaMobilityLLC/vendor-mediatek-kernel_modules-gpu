@@ -55,6 +55,11 @@ static DEFINE_SPINLOCK(kbase_csf_fence_lock);
 #include <platform/mtk_platform_common/mtk_platform_qinspect_recovery.h>
 #endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+#include <ged_mali_event.h>
+#include <platform/mtk_platform_common/mtk_platform_mali_event.h>
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 #define FENCE_WAIT_TIMEOUT_MS 2000
 #else /* CONFIG_MALI_MTK_FENCE_DEBUG */
@@ -1734,6 +1739,9 @@ static void kcpu_force_signal_fence(struct kbase_kcpu_command_queue *kcpu_queue)
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 			dev_info(kctx->kbdev->dev, "MTK bypass set error to dma fence\n");
 #else /* CONFIG_MALI_MTK_FENCE_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+			ged_mali_event_update_device_lost_nolock(DEVICE_LOST_FORCE_FENCE_SIGNAL);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 			/* set ETIMEDOUT error flag before signal the fence*/
 			dma_fence_set_error_helper(fence, -ETIMEDOUT);
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
@@ -2123,6 +2131,13 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 	fence_signal_command_timeout_ms =
 		fence_signal_command_timeout_counter * kbase_get_timeout_ms(kctx->kbdev, KCPU_FENCE_SIGNAL_TIMEOUT);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+	if ((fence_signal_command_timeout_counter == 2) || (fence_signal_command_timeout_counter == 3) ||
+		(fence_signal_command_timeout_counter == 4) || (fence_signal_command_timeout_counter == 5)) {
+		ged_mali_event_notify_fence_timeout_event(kctx->tgid, FENCE_TYPE_KCPU_QUEUE, fence_signal_command_timeout_counter);
+	}
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+
 	/* 3. Have the log and dump when timeout 2s, 3s and every 5Ns */
 	if ((fence_signal_command_timeout_counter == 2) || (fence_signal_command_timeout_counter == 3)
 		|| ((fence_signal_command_timeout_counter % 5) == 0)) {
@@ -2177,6 +2192,9 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 					"KCPU queue command timeouts(%d ms)! Trigger GPU reset\n",
 					fence_signal_command_timeout_ms);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+				ged_mali_event_update_gpu_reset_nolock(GPU_RESET_KCPU_FENCE_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 				kbase_reset_gpu(kctx->kbdev);
 			} else {
 				dev_info(kctx->kbdev->dev, "KCPU queue command timeouts(%d ms)! Other threads are already resetting the GPU",

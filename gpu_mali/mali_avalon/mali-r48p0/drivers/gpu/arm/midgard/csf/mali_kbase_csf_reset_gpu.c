@@ -39,6 +39,11 @@
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+#include <ged_mali_event.h>
+#include <platform/mtk_platform_common/mtk_platform_mali_event.h>
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+
 enum kbasep_soft_reset_status {
 	RESET_SUCCESS = 0,
 	SOFT_RESET_FAILED,
@@ -494,6 +499,9 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 	if (!silent) {
 		dev_err(kbdev->dev, "Reset complete");
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+		ged_mali_event_notify_gpu_reset_done();
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"Reset complete\n");
@@ -750,8 +758,12 @@ static irqreturn_t kbase_gpueb_irq_handler(int irq, void *data) {
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 
-	if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
+	if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+		ged_mali_event_update_gpu_reset_nolock(GPU_RESET_GPUEB_IRQ_NOTIFY);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 		kbase_reset_gpu(kbdev);
+	}
 	else
 		dev_err(kbdev->dev, "kbase_gpueb_irq_handler: GPU is already under reset");
 

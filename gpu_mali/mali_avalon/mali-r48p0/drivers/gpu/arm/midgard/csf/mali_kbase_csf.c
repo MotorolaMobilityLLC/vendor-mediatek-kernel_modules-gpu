@@ -51,6 +51,11 @@
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+#include <ged_mali_event.h>
+#include <platform/mtk_platform_common/mtk_platform_mali_event.h>
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+
 #define CS_REQ_EXCEPTION_MASK (CS_REQ_FAULT_MASK | CS_REQ_FATAL_MASK)
 #define CS_ACK_EXCEPTION_MASK (CS_ACK_FAULT_MASK | CS_ACK_FATAL_MASK)
 
@@ -1799,6 +1804,9 @@ void kbase_csf_ctx_handle_fault(struct kbase_context *kctx, struct kbase_fault *
 			/* This would effectively be a NOP if the fatal error was already added to
 			 * the error_list by kbase_csf_ctx_report_page_fault_for_active_groups().
 			 */
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+			ged_mali_event_update_device_lost_nolock(DEVICE_LOST_CSF_CTX_HANDLE_FAULT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 			kbase_csf_add_group_fatal_error(group, &err_payload);
 			reported = true;
 		}
@@ -2007,6 +2015,9 @@ static void report_tiler_oom_error(struct kbase_queue_group *group)
 							  BASE_GPU_QUEUE_GROUP_ERROR_TILER_HEAP_OOM,
 					  } } } };
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+	ged_mali_event_update_device_lost_nolock(DEVICE_LOST_TILER_OOM);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 	kbase_csf_event_add_error(group->kctx, &group->error_fatal, &error);
 	kbase_event_wakeup(group->kctx);
 }
@@ -2176,7 +2187,9 @@ static void report_group_timeout_error(struct kbase_queue_group *const group)
 	dev_warn(group->kctx->kbdev->dev,
 		 "Notify the event notification thread, forward progress timeout (%llu cycles)\n",
 		 kbase_csf_timeout_get(group->kctx->kbdev));
-
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+	ged_mali_event_update_device_lost_nolock(DEVICE_LOST_GPU_QUEUE_GROUP_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 	kbase_csf_event_add_error(group->kctx, &group->error_fatal, &error);
 	kbase_event_wakeup(group->kctx);
 }
@@ -2625,6 +2638,10 @@ static void handle_fault_event(struct kbase_queue *const queue, const u32 cs_ack
 				kbase_gpu_exception_name(cs_fault_exception_type), cs_fault_exception_data,
 				cs_fault_info_exception_data);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+			ged_mali_event_update_cs_error_nolock(queue->kctx->tgid, queue->group->handle, queue->group->csg_nr,
+				queue->csi_index, cs_fault_exception_type, cs_fault_exception_data, cs_fault_info_exception_data);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 		}
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_CSFAULT);
@@ -2683,6 +2700,10 @@ static void report_queue_fatal_error(struct kbase_queue *const queue, u32 cs_fat
 
 	if (WARN_ON_ONCE(!group))
 		return;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+	ged_mali_event_update_device_lost_nolock(DEVICE_LOST_QUEUE_FATAL_ERROR);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 
 	error.payload.csg_error.handle = group->handle;
 	error.payload.csg_error.error.payload.fatal_queue.csi_index = (__u8)queue->csi_index;
@@ -2859,8 +2880,12 @@ static void handle_fatal_event(struct kbase_queue *const queue,
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		if (cs_fatal_exception_type == CS_FATAL_EXCEPTION_TYPE_CS_UNRECOVERABLE) {
 			queue->group->cs_unrecoverable = true;
-			if (kbase_prepare_to_reset_gpu(queue->kctx->kbdev, RESET_FLAGS_NONE))
+			if (kbase_prepare_to_reset_gpu(queue->kctx->kbdev, RESET_FLAGS_NONE)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+				ged_mali_event_update_gpu_reset_nolock(GPU_RESET_CS_FATAL_UNRECOVERABLE);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 				kbase_reset_gpu(queue->kctx->kbdev);
+			}
 		}
 		queue->cs_error = cs_fatal;
 		queue->cs_error_info = cs_fatal_info;
@@ -3304,6 +3329,10 @@ static inline void process_protm_exit(struct kbase_device *kbdev, u32 glb_ack)
 		kbase_ipa_control_protm_exited(kbdev);
 		kbase_hwcnt_backend_csf_protm_exited(&kbdev->hwcnt_gpu_iface);
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+	ged_mali_event_update_pmode_flag_nolock(false);
+#endif /* IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT) */
 
 #if IS_ENABLED(CONFIG_MALI_CORESIGHT)
 	kbase_debug_coresight_csf_enable_pmode_exit(kbdev);

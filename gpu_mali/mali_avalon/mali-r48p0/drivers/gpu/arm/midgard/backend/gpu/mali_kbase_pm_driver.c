@@ -83,6 +83,11 @@
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+#include <ged_mali_event.h>
+#include <platform/mtk_platform_common/mtk_platform_mali_event.h>
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+
 #ifdef CONFIG_MALI_CORESTACK
 bool corestack_driver_control = true;
 #else
@@ -805,8 +810,12 @@ static void wait_mcu_as_inactive(struct kbase_device *kbdev)
 
 	dev_err(kbdev->dev, "AS_ACTIVE_INT bit stuck for AS %d used by MCU FW", MCU_AS_NR);
 
-	if (kbase_prepare_to_reset_gpu(kbdev, 0))
+	if (kbase_prepare_to_reset_gpu(kbdev, 0)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+		ged_mali_event_update_gpu_reset_nolock(GPU_RESET_AS_ACTIVE_BIT_STUCK);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 		kbase_reset_gpu(kbdev);
+	}
 }
 #endif
 
@@ -2906,8 +2915,12 @@ static void kbase_pm_timed_out(struct kbase_device *kbdev, const char *timeout_m
 #endif /* CONFIG_MALI_MTK_TRIGGER_KE */
 
 	dev_err(kbdev->dev, "Sending reset to GPU - all running jobs will be lost\n");
-	if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
+	if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+		ged_mali_event_update_gpu_reset_nolock(GPU_RESET_PM_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 		kbase_reset_gpu(kbdev);
+	}
 }
 
 int kbase_pm_wait_for_l2_powered(struct kbase_device *kbdev)

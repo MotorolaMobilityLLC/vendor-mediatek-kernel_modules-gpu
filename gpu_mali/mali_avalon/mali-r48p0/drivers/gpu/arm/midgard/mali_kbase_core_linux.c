@@ -156,6 +156,11 @@
 #include <platform/mtk_platform_common/mtk_platform_qinspect_recovery.h>
 #endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+#include <ged_mali_event.h>
+#include <platform/mtk_platform_common/mtk_platform_mali_event.h>
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+
 #define KERNEL_SIDE_DDK_VERSION_STRING "K:" MALI_RELEASE_NAME "(GPL)"
 
 /**
@@ -1759,6 +1764,12 @@ static int kbasep_ioctl_set_limited_core_count(
 static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 			struct kbase_ioctl_internal_fence_wait *fence_wait)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+	if (fence_wait->time_in_microseconds == 2000 || fence_wait->time_in_microseconds == 3000 ||
+		fence_wait->time_in_microseconds == 4000 || fence_wait->time_in_microseconds == 5000) {
+		ged_mali_event_notify_fence_timeout_event(kctx->tgid, FENCE_TYPE_INTERNAL, fence_wait->time_in_microseconds/1000);
+	}
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 	if (fence_wait->time_in_microseconds == 2000 || fence_wait->time_in_microseconds == 3000) {
 		dev_info(kctx->kbdev->dev, "Internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u queue=%llx",
 	         fence_wait->time_in_microseconds,
@@ -1792,6 +1803,9 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 					"Internal fence timeouts(%llu ms)! Trigger GPU reset\n",
 					fence_wait->time_in_microseconds);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+			ged_mali_event_update_gpu_reset_nolock(GPU_RESET_INTERNAL_FENCE_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 			kbase_reset_gpu(kctx->kbdev);
 		} else {
 			dev_info(kctx->kbdev->dev, "Internal fence timeouts(%llu ms)! Other threads are already resetting the GPU",
