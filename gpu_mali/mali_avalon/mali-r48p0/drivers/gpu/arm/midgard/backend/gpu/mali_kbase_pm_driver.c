@@ -58,7 +58,8 @@
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
 #include <gpueb_debug.h>
-#include <ghpm.h>
+#include <ghpm_wrapper.h>
+#include <ged_notify_sw_vsync.h>
 #endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
 
 #if MALI_USE_CSF
@@ -2890,7 +2891,7 @@ static void kbase_pm_timed_out(struct kbase_device *kbdev, const char *timeout_m
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_PM_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 #if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
-	dump_ghpm_kbase_info();
+	dump_pm_callback_kbase_info();
 	gpueb_dump_status(NULL, NULL, 0);
 	dump_ghpm_info();
 #endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */

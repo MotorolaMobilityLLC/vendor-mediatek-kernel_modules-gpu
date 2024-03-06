@@ -34,7 +34,8 @@
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
 #include <gpueb_debug.h>
-#include <ghpm.h>
+#include <ghpm_wrapper.h>
+#include <ged_notify_sw_vsync.h>
 #endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
@@ -220,38 +221,43 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 	/* Stage-1 Vcore-off-allow, ghpm on
 	 * Kbase prevent repeat trigger ghpm on
 	 */
-	ret = check_ghpm_state(GHPM_POWER_ON);
+	ret = check_pm_callback_state(GED_POWER_ON);
 	if (!ret) {
 		ret = ghpm_ctrl(GHPM_ON, 0);
 		if (ret) {
-			dev_dbg(kbdev->dev,"%s,ghpm power on fail,returned %d\n", __func__, ret);
-			dump_ghpm_kbase_info();
+			pr_info("%s,ghpm power on fail,returned %d\n", __func__, ret);
+			dump_pm_callback_kbase_info();
 			dump_ghpm_info();
 			mutex_unlock(&kbdev->ghpm_lock);
 			return ret;
-		} else
-			dev_dbg(kbdev->dev,"%s,ghpm power on success returned %d\n", __func__, ret);
+		} else {
+			pr_debug("%s,ghpm power on success returned %d\n", __func__, ret);
+			/* wait gpueb resume */
+			ret = wait_gpueb(SUSPEND_POWER_ON);
+			if (ret) {
+				pr_info("%s,gpueb resume fail,returned %d\n", __func__, ret);
+				gpueb_dump_status(NULL, NULL, 0);
+				mutex_unlock(&kbdev->ghpm_lock);
+				return ret;
+			} else
+				pr_debug("%s,gpueb resume success,returned %d\n", __func__, ret);
+
+			mutex_lock(&g_mfg_lock);
+			ret = pm_callback_power_on_nolock(kbdev);
+			mtk_notify_gpu_power_change(1);
+			mutex_unlock(&g_mfg_lock);
+		}
+	} else {
+		/* Repat power on detected */
+		dump_pm_callback_kbase_info();
+		pr_info("%s, previously already powered-on, returned %d\n", __func__, ret);
 	}
-
-	/* wait gpueb resume */
-	ret = wait_gpueb(SUSPEND_POWER_ON, GPUEB_WAIT_TIMEOUT);
-	if (ret) {
-		dev_dbg(kbdev->dev,"%s,gpueb resume fail,returned %d\n", __func__, ret);
-		gpueb_dump_status(NULL, NULL, 0);
-		mutex_unlock(&kbdev->ghpm_lock);
-		return ret;
-	} else
-		dev_dbg(kbdev->dev,"%s,gpueb resume success,returned %d\n", __func__, ret);
-
-#endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
-
+	mutex_unlock(&kbdev->ghpm_lock);
+#else
 	mutex_lock(&g_mfg_lock);
 	ret = pm_callback_power_on_nolock(kbdev);
 	mtk_notify_gpu_power_change(1);
 	mutex_unlock(&g_mfg_lock);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
-	mutex_unlock(&kbdev->ghpm_lock);
 #endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
 
 	return ret;
@@ -279,37 +285,44 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
 	mutex_lock(&kbdev->ghpm_lock);
-#endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
+	ret = check_pm_callback_state(GED_POWER_OFF);
+	if (!ret) {
+		/* Power down the GPU immediately */
+		mutex_lock(&g_mfg_lock);
+		mtk_notify_gpu_power_change(0);
+		pm_callback_power_off_nolock(kbdev);
+		mutex_unlock(&g_mfg_lock);
+		/* Stage-1 Vcore-off-allow, ghpm off
+	 	* Kbase prevent repeat trigger ghpm off
+	 	*/
+		ret = ghpm_ctrl(GHPM_OFF, 0);
+		if (ret) {
+			pr_info("%s,ghpm power off fail,returned %d\n", __func__, ret);
+			dump_pm_callback_kbase_info();
+			dump_ghpm_info();
+		} else {
+			pr_debug("%s,ghpm power off success returned %d\n", __func__, ret);
 
+			/* wait gpueb suspend */
+			ret = wait_gpueb(SUSPEND_POWER_OFF);
+			if (ret) {
+				pr_info("%s,gpueb suspend fail,returned %d\n", __func__, ret);
+				gpueb_dump_status(NULL, NULL, 0);
+			} else
+				pr_debug("%s,gpueb suspend success,returned %d\n", __func__, ret);
+		}
+	} else {
+		/* Repat power off detected */
+		dump_pm_callback_kbase_info();
+		pr_info("%s, previously already powered-off, returned %d\n", __func__, ret);
+	}
+	mutex_unlock(&kbdev->ghpm_lock);
+#else
 	/* Power down the GPU immediately */
 	mutex_lock(&g_mfg_lock);
 	mtk_notify_gpu_power_change(0);
 	pm_callback_power_off_nolock(kbdev);
 	mutex_unlock(&g_mfg_lock);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
-	/* Stage-1 Vcore-off-allow, ghpm off
-	 * Kbase prevent repeat trigger ghpm off
-	 */
-	ret = check_ghpm_state(GHPM_POWER_OFF);
-	if (!ret) {
-		ret = ghpm_ctrl(GHPM_OFF, 0);
-		if (ret) {
-			dev_dbg(kbdev->dev,"%s,ghpm power off fail,returned %d\n", __func__, ret);
-			dump_ghpm_kbase_info();
-			dump_ghpm_info();
-		}
-	}
-
-	/* wait gpueb suspend */
-	ret = wait_gpueb(SUSPEND_POWER_OFF, GPUEB_WAIT_TIMEOUT);
-	if (ret) {
-		dev_dbg(kbdev->dev,"%s,gpueb suspend fail,returned %d\n", __func__, ret);
-		gpueb_dump_status(NULL, NULL, 0);
-	} else
-		dev_dbg(kbdev->dev,"%s,gpueb suspend success,returned %d\n", __func__, ret);
-
-	mutex_unlock(&kbdev->ghpm_lock);
 #endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
 
 }
