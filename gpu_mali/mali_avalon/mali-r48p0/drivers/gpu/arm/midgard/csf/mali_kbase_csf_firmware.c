@@ -40,6 +40,10 @@
 #include "backend/gpu/mali_kbase_clk_rate_trace_mgr.h"
 #include <csf/ipa_control/mali_kbase_csf_ipa_control.h>
 #include <csf/mali_kbase_csf_registers.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+#include <platform/mtk_platform_common.h>
+#include "mali_kbase_csf_db_validation.h"
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 #include <linux/list.h>
 #include <linux/slab.h>
 #include <linux/firmware.h>
@@ -1683,6 +1687,10 @@ static void set_global_request(const struct kbase_csf_global_iface *const global
 static void enable_endpoints_global(const struct kbase_csf_global_iface *const global_iface,
 				    u64 const shader_core_mask)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	if (mtk_common_whitebox_missing_doorbell_enable())
+		kbase_csf_db_valid_push_event(DOORBELL_GLB_CFG_ALLOC_EN);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 	kbase_csf_firmware_global_input(global_iface, GLB_ALLOC_EN_LO, shader_core_mask & U32_MAX);
 	kbase_csf_firmware_global_input(global_iface, GLB_ALLOC_EN_HI, shader_core_mask >> 32);
 
@@ -1700,6 +1708,10 @@ static void set_shader_poweroff_timer(struct kbase_device *const kbdev,
 	else
 		pwroff_reg = kbdev->csf.mcu_core_pwroff_dur_count;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	if (mtk_common_whitebox_missing_doorbell_enable())
+		kbase_csf_db_valid_push_event(DOORBELL_GLB_CFG_PWROFF_TIMER);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 	kbase_csf_firmware_global_input(global_iface, GLB_PWROFF_TIMER, pwroff_reg);
 
 	kbase_csf_firmware_global_input_mask(global_iface, GLB_PWROFF_TIMER_CONFIG,
@@ -1717,6 +1729,10 @@ static void set_shader_poweroff_timer(struct kbase_device *const kbdev,
 static void set_timeout_global(const struct kbase_csf_global_iface *const global_iface,
 			       u64 const timeout)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	if (mtk_common_whitebox_missing_doorbell_enable())
+		kbase_csf_db_valid_push_event(DOORBELL_GLB_CFG_PROGRESS_TIMER);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 	kbase_csf_firmware_global_input(global_iface, GLB_PROGRESS_TIMER,
 					timeout / GLB_PROGRESS_TIMER_TIMEOUT_SCALE);
 
@@ -1726,9 +1742,21 @@ static void set_timeout_global(const struct kbase_csf_global_iface *const global
 static void enable_gpu_idle_timer(struct kbase_device *const kbdev)
 {
 	struct kbase_csf_global_iface *global_iface = &kbdev->csf.global_iface;
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	u32 glb_req;
 
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
+	if (mtk_common_whitebox_missing_doorbell_enable())
+	{
+		glb_req = kbase_csf_firmware_global_input_read(global_iface, GLB_REQ);
 
+		if ((glb_req & GLB_REQ_IDLE_ENABLE_MASK) == 0) {
+			kbase_csf_db_valid_push_event(DOORBELL_GLB_IDLE_ENABLE);
+		}
+	}
+#else
+	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 	kbase_csf_firmware_global_input(global_iface, GLB_IDLE_TIMER,
 					kbdev->csf.gpu_idle_dur_count);
 
@@ -1777,7 +1805,11 @@ static void request_fw_core_dump(const struct kbase_csf_global_iface *const glob
 	uint32_t run_mode = GLB_DEBUG_REQ_RUN_MODE_SET(0, GLB_DEBUG_RUN_MODE_TYPE_CORE_DUMP);
 
 	set_global_debug_request(global_iface, GLB_DEBUG_REQ_DEBUG_RUN_MASK | run_mode);
-
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	if (mtk_common_whitebox_missing_doorbell_enable())
+		kbase_csf_db_valid_push_event(DOORBELL_GLB_DEBUG_CSF_REQ);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
+	
 	set_global_request(global_iface, GLB_REQ_DEBUG_CSF_REQ_MASK);
 }
 
@@ -2310,11 +2342,22 @@ static int kbase_device_csf_iterator_trace_init(struct kbase_device *kbdev)
 		bool dev_support_iter_trace = iface->features &
 					      GLB_FEATURES_ITER_TRACE_SUPPORTED_MASK;
 
+// #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+// 		/* hardcode for doorbell test without updating DTS */
+// 		const u32 iter_trace_value = 1;
+// 		iter_trace_param = &iter_trace_value;
+// #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
+
 		dev_dbg(kbdev->dev, "Device supporting iterator trace: %s\n",
 			dev_support_iter_trace ? "true" : "false");
 		if (dev_support_iter_trace && kbase_csf_get_iterator_trace_enable(kbdev)) {
 			long ack_timeout = kbase_csf_timeout_in_jiffies(
 				kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT));
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+			if (mtk_common_whitebox_missing_doorbell_enable())
+				kbase_csf_db_valid_push_event(DOORBELL_GLB_ITER_TRACE_ENABLE);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
 			/* write enable request to global input */
 			kbase_csf_firmware_global_input_mask(iface, GLB_REQ,
@@ -2335,6 +2378,13 @@ static int kbase_device_csf_iterator_trace_init(struct kbase_device *kbdev)
 	}
 	return 0;
 }
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+int kbase_device_csf_iterator_trace_test(struct kbase_device *kbdev)
+{
+	return kbase_device_csf_iterator_trace_init(kbdev);
+}
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
 int kbase_csf_firmware_early_init(struct kbase_device *kbdev)
 {
@@ -2619,6 +2669,9 @@ int kbase_csf_firmware_load_init(struct kbase_device *kbdev)
 	ret = kbase_csf_setup_dummy_user_reg_page(kbdev);
 	if (ret != 0)
 		goto err_out;
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	kbase_csf_db_valid_reset(kbdev);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
 	ret = kbase_csf_timeout_init(kbdev);
 	if (ret != 0)
@@ -2897,8 +2950,21 @@ void kbase_csf_firmware_enable_gpu_idle_timer(struct kbase_device *kbdev)
 void kbase_csf_firmware_disable_gpu_idle_timer(struct kbase_device *kbdev)
 {
 	struct kbase_csf_global_iface *global_iface = &kbdev->csf.global_iface;
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	u32 glb_req;
 
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
+	if (mtk_common_whitebox_missing_doorbell_enable())
+	{
+		glb_req = kbase_csf_firmware_global_input_read(global_iface, GLB_REQ);
+
+		if ((glb_req & GLB_REQ_IDLE_DISABLE_MASK) != 0) {
+			kbase_csf_db_valid_push_event(DOORBELL_GLB_IDLE_ENABLE);
+		}
+	}
+#else
+	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
 	kbase_csf_firmware_global_input_mask(global_iface, GLB_REQ, GLB_REQ_REQ_IDLE_DISABLE,
 					     GLB_REQ_IDLE_DISABLE_MASK);
@@ -2913,6 +2979,10 @@ void kbase_csf_firmware_ping(struct kbase_device *const kbdev)
 	unsigned long flags;
 
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	if (mtk_common_whitebox_missing_doorbell_enable())
+		kbase_csf_db_valid_push_event(DOORBELL_GLB_PING);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 	set_global_request(global_iface, GLB_REQ_PING_MASK);
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
@@ -2954,6 +3024,10 @@ void kbase_csf_enter_protected_mode(struct kbase_device *kbdev)
 	KBASE_TLSTREAM_AUX_PROTECTED_ENTER_START(kbdev, kbdev);
 
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	if (mtk_common_whitebox_missing_doorbell_enable())
+		kbase_csf_db_valid_push_event(DOORBELL_GLB_PROTM_ENTER);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 	set_global_request(global_iface, GLB_REQ_PROTM_ENTER_MASK);
 	dev_dbg(kbdev->dev, "Sending request to enter protected mode");
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
@@ -3022,6 +3096,10 @@ void kbase_csf_firmware_trigger_mcu_halt(struct kbase_device *kbdev)
 	 * halt request to firmware.
 	 */
 	WARN_ON(kbase_csf_scheduler_get_nr_active_csgs_locked(kbdev));
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	if (mtk_common_whitebox_missing_doorbell_enable())
+		kbase_csf_db_valid_push_event(DOORBELL_GLB_HALT);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 		set_global_request(global_iface, GLB_REQ_HALT_MASK);
 	dev_dbg(kbdev->dev, "Sending request to HALT MCU");
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
@@ -3048,6 +3126,10 @@ void kbase_csf_firmware_trigger_mcu_sleep(struct kbase_device *kbdev)
 	KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_SLEEP(kbdev, kbase_backend_get_cycle_cnt(kbdev));
 
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	if (mtk_common_whitebox_missing_doorbell_enable())
+		kbase_csf_db_valid_push_event(DOORBELL_GLB_SLEEP);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 		set_global_request(global_iface, GLB_REQ_SLEEP_MASK);
 	dev_dbg(kbdev->dev, "Sending sleep request to MCU");
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
@@ -3097,6 +3179,10 @@ int kbase_csf_trigger_firmware_config_update(struct kbase_device *kbdev)
 	mutex_lock(&kbdev->csf.reg_lock);
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	if (mtk_common_whitebox_missing_doorbell_enable())
+		kbase_csf_db_valid_push_event(DOORBELL_GLB_FIRMWARE_CONFIG_UPDATE);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 	set_global_request(global_iface, GLB_REQ_FIRMWARE_CONFIG_UPDATE_MASK);
 	dev_dbg(kbdev->dev, "Sending request for FIRMWARE_CONFIG_UPDATE");
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
