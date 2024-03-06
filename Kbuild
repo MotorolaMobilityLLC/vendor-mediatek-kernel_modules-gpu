@@ -1,5 +1,5 @@
 KO_CODE_PATH := $(if $(filter /%,$(src)),,$(srctree)/)$(src)
-ifeq ($(CONFIG_MTK_GPU_MT6768_SUPPORT),m)
+ifneq (,$(filter $(CONFIG_MTK_GPU_MT6768_SUPPORT),y m))
 ifneq ($(wildcard $(KO_CODE_PATH)/mt6768),)
         obj-m += mt6768/
 endif
