@@ -3959,6 +3959,9 @@ int kbase_pm_init_hw(struct kbase_device *kbdev, unsigned int flags)
 	}
 #endif
 	kbdev->protected_mode = false;
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+	ged_dvfs_write_sysram_protm_exit();
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING */
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, irq_flags);
 
 	if (err)

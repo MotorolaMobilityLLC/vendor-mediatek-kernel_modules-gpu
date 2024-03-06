@@ -1007,6 +1007,9 @@ void kbase_pm_handle_gpu_lost(struct kbase_device *kbdev)
 		/* Update kbase status */
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 		kbdev->protected_mode = false;
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+		ged_dvfs_write_sysram_protm_exit();
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING */
 		kbase_pm_update_state(kbdev);
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 #else
@@ -1019,6 +1022,9 @@ void kbase_pm_handle_gpu_lost(struct kbase_device *kbdev)
 		/* Clear all jobs running on the GPU */
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 		kbdev->protected_mode = false;
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+		ged_dvfs_write_sysram_protm_exit();
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING */
 		kbase_backend_reset(kbdev, &end_timestamp);
 		kbase_pm_metrics_update(kbdev, NULL);
 		kbase_pm_update_state(kbdev);
