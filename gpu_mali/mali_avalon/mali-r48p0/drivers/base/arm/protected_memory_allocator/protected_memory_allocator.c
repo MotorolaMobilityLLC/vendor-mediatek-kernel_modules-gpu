@@ -223,6 +223,11 @@ static struct protected_memory_allocation *simple_pma_alloc_dma_page(
 		return NULL;
 	}
 
+	if (order > 0) {
+		dev_err(epma_dev->dev, "pma:base=%llx, order=%u\n",
+			(unsigned long long) pma->pa, order);
+	}
+
 	return pma;
 }
 
