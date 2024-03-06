@@ -1009,10 +1009,9 @@ static struct page *example_mgm_alloc_page(struct memory_group_manager_device *m
 				rank = (*pbRank0) ? 0 : 1;
 				p = mtk_fetch_page(data, order, rank);
 			}
-		}
-	}
-
-	if (!p)
+		} else
+			p = alloc_pages(gfp_mask, order);
+	} else
 		p = alloc_pages(gfp_mask, order);
 #else /* CONFIG_MALI_MTK_MGMM */
 	p = alloc_pages(gfp_mask, order);
@@ -1023,7 +1022,14 @@ static struct page *example_mgm_alloc_page(struct memory_group_manager_device *m
 	} else {
 		struct mgm_groups *data = mgm_dev->data;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
+		if (order)
+			dev_info(data->dev, "Return no order %u, let kbase fallback\n", order);
+		else
+			dev_err(data->dev, "alloc_pages (%u) failed\n", order);
+#else /* CONFIG_MALI_MTK_MGMM */
 		dev_err(data->dev, "alloc_pages failed\n");
+#endif /* CONFIG_MALI_MTK_MGMM */
 	}
 
 	return p;
