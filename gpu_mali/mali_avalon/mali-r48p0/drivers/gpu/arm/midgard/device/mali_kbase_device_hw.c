@@ -346,6 +346,10 @@ int kbase_gpu_wait_cache_clean_timeout(struct kbase_device *kbdev, unsigned int 
 	if (!remaining) {
 		dev_err(kbdev->dev,
 			"Cache clean timed out. Might be caused by unstable GPU clk/pwr or faulty system");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Cache clean timed out. Might be caused by unstable GPU clk/pwr or faulty system\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_BITSTUCK_FAIL);

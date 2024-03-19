@@ -284,6 +284,10 @@ static void wait_for_firmware_boot(struct kbase_device *kbdev)
 
 	if (!remaining) {
 		dev_err(kbdev->dev, "Timed out waiting for fw boot completion");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Timed out waiting for fw boot completion\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_FWBOOT_TIMEOUT);
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_FWBOOT_TIMEOUT);
