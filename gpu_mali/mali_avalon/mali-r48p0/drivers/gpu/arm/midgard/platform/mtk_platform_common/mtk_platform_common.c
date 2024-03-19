@@ -58,6 +58,8 @@
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+#include <platform/mtk_mfg_counter.h>
+#include <mtk_ltr_pmu.h>
 #include <mtk_gpu_power_model_sspm_ipi.h>
 #endif /* CONFIG_MTK_GPU_SWPM_SUPPORT */
 
@@ -680,7 +682,9 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+	mtk_mfg_counter_init();
 	MTK_GPU_Power_model_init();
+	MTK_LTR_gpu_pmu_init();
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
@@ -743,7 +747,9 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+	mtk_mfg_counter_destroy();
 	MTK_GPU_Power_model_destroy();
+	MTK_LTR_gpu_pmu_destroy();
 #endif
 
 
