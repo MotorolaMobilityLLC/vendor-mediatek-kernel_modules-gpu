@@ -454,7 +454,11 @@ struct kbase_queue {
 	u64 extract_ofs;
 	u64 saved_cmd_ptr;
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-	struct work_struct mtk_enop_metadata_dump_work;
+	bool mtk_cs_error_is_fatal;
+	u32 mtk_cs_error_exception_type;
+	u32 mtk_cs_error_exception_data;
+	u64 mtk_cs_error_info_exception_data;
+	struct work_struct mtk_cs_error_dump_work;
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 };
 
