@@ -180,6 +180,7 @@ int kbase_context_common_init(struct kbase_context *kctx)
 		kctx->process_mm = current->mm;
 	}
 
+	atomic_set(&kctx->prioritized, 1);
 	mutex_init(&kctx->reg_lock);
 
 	spin_lock_init(&kctx->mem_partials_lock);
