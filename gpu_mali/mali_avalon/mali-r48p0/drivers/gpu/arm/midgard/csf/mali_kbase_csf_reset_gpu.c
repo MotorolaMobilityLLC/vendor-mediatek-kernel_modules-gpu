@@ -404,8 +404,8 @@ static enum kbasep_soft_reset_status kbase_csf_reset_gpu_once(struct kbase_devic
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"kbase_pm_init_hw failed err=%d\n", err);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_RESET_FAIL);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_RESET_FAIL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_RESET_FAIL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_RESET_FAIL);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		return SOFT_RESET_FAILED;
 	}
@@ -439,8 +439,8 @@ static enum kbasep_soft_reset_status kbase_csf_reset_gpu_once(struct kbase_devic
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"kbase_pm_wait_for_desired_state failed err=%d\n", err);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_FWRELOAD_FAIL);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_FWRELOAD_FAIL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_FWRELOAD_FAIL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_FWRELOAD_FAIL);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 	}
 
@@ -453,7 +453,7 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 	enum kbasep_soft_reset_status ret;
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_RESET);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_RESET);
 #endif /* CONFIG_MALI_MTK_DEBUG */
 	WARN_ON(kbdev->irq_reset_flush);
 	/* The reset must now be happening otherwise other threads will not

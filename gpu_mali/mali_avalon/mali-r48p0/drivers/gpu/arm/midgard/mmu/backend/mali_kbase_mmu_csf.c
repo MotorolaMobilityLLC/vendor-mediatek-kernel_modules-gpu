@@ -134,7 +134,7 @@ void kbase_mmu_report_mcu_as_fault_and_reset(struct kbase_device *kbdev, struct 
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_MMU_UNEXPECTEDPAGEFAULT);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_MMU_UNEXPECTEDPAGEFAULT);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	kbase_debug_csf_fault_notify(kbdev, NULL, DF_GPU_PAGE_FAULT);
@@ -197,7 +197,7 @@ void kbase_gpu_report_bus_fault_and_kill(struct kbase_context *kctx, struct kbas
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, kctx->pid, MTK_DBG_HOOK_MMU_BUSFAULT);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, kctx, MTK_DBG_HOOK_MMU_BUSFAULT);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	/* AS transaction begin */
@@ -709,10 +709,10 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx, struct kbase_as
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 	}
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
-	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
-	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, kctx->pid, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
-	mtk_common_debug(MTK_COMMON_DBG_DUMP_ENOP_METADATA, -1, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, kctx, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_ENOP_METADATA, NULL, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	/* AS transaction begin */

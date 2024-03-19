@@ -57,7 +57,7 @@ bool mtk_common_pm_is_mfg_active(void);
 void mtk_common_pm_mfg_active(void);
 void mtk_common_pm_mfg_idle(void);
 
-void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point);
+void mtk_common_debug(enum mtk_common_debug_types type, struct kbase_context *kctx, u64 hook_point);
 int mtk_common_gpufreq_bringup(void);
 int mtk_common_gpufreq_commit(int opp_idx);
 int mtk_common_gpufreq_dual_commit(int gpu_oppidx, int stack_oppidx);
