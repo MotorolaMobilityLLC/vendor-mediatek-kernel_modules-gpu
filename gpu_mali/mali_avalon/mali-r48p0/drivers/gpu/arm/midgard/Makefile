@@ -65,13 +65,14 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT :=y
         CONFIG_MALI_MTK_DIAGNOSIS_MODE := y
         CONFIG_MALI_MTK_KE_DUMP_FWLOG := y
-        CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL := y
         CONFIG_MALI_MTK_PROTECTED_PATCH := n
         CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH := y
         CONFIG_MALI_MTK_MFG2_BACKDOOR := y
         CONFIG_MALI_MTK_DEVFREQ_GOVERNOR := y
         CONFIG_MALI_MTK_DEVFREQ_THERMAL := y
         CONFIG_MALI_MTK_GPU_BM_2 := y
+        CONFIG_MALI_PMU_LP4 := y
+        CONFIG_MALI_PMU_CPB128 := y
         CONFIG_MALI_MTK_FENCE_DEBUG := y
         CONFIG_MALI_MTK_TIMEOUT_REDUCE := y
         CONFIG_MALI_MTK_GPUEB_IRQ := y
@@ -138,7 +139,6 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_LOG_BUFFER := y
         CONFIG_MALI_MTK_DIAGNOSIS_MODE := y
         CONFIG_MALI_MTK_KE_DUMP_FWLOG := y
-        CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL := y
         CONFIG_MALI_MTK_SYSFS := y
         CONFIG_MALI_MTK_PROC_FS := y
         CONFIG_MALI_MTK_DEBUG_FS := y
@@ -150,6 +150,8 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_DEVFREQ_GOVERNOR := y
         CONFIG_MALI_MTK_DEVFREQ_THERMAL := y
         CONFIG_MALI_MTK_GPU_BM_2 := y
+        CONFIG_MALI_PMU_LP4 := n
+        CONFIG_MALI_PMU_CPB128 := y
         CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG := y
         CONFIG_MALI_MTK_MGMM := y
         CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING := y
@@ -379,6 +381,7 @@ mali_kbase-y += \
     mali_kbase_hw.o \
     mali_kbase_debug.o \
     mali_kbase_gpu_memory_debugfs.o \
+    mali_kbase_gator_api.o \
     mali_kbase_mem_linux.o \
     mali_kbase_core_linux.o \
     mali_kbase_mem_profile_debugfs.o \

@@ -58,6 +58,8 @@
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+#include <platform/mtk_mfg_counter.h>
+#include <mtk_ltr_pmu.h>
 #include <mtk_gpu_power_model_sspm_ipi.h>
 #endif /* CONFIG_MTK_GPU_SWPM_SUPPORT */
 
@@ -94,10 +96,6 @@ static struct proc_dir_entry *proc_root;
 #include <ged_mali_event.h>
 #include <platform/mtk_platform_common/mtk_platform_mali_event.h>
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
-
-#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
-#include <platform/mtk_platform_common/mtk_platform_whitebox_missing_doorbell.h>
-#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
 static bool mfg_powered;
 static DEFINE_MUTEX(mfg_pm_lock);
@@ -142,13 +140,6 @@ int mtk_common_whitebox_sync_update_test_mode(void)
 	return mtk_whitebox_sync_update_test_mode();
 }
 #endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
-
-#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
-bool mtk_common_whitebox_missing_doorbell_enable(void)
-{
-	return mtk_whitebox_missing_doorbell_enable();
-}
-#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
 #if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
@@ -596,10 +587,6 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev)
 	mtk_whitebox_sync_update_test_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
-	mtk_whitebox_missing_doorbell_debugfs_init(kbdev);
-#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
-
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT)
 	mtk_whitebox_memory_footprint_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT */
@@ -674,7 +661,9 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+	mtk_mfg_counter_init();
 	MTK_GPU_Power_model_init();
+	MTK_LTR_gpu_pmu_init();
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
@@ -692,10 +681,6 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT)
 	kbdev->mem_whitebox_debug = false;
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT */
-
-#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
-	mtk_whitebox_missing_doorbell_init();
-#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
 	return 0;
 }
@@ -737,7 +722,9 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+	mtk_mfg_counter_destroy();
 	MTK_GPU_Power_model_destroy();
+	MTK_LTR_gpu_pmu_destroy();
 #endif
 
 
