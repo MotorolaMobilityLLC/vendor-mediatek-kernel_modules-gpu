@@ -34,7 +34,6 @@ void mtk_debug_csf_dump_cpu_queues(struct kbase_device *kbdev, struct kbase_cont
         return;
     }
     do {
-        unsigned long timeout;
         atomic_set(&kctx->csf.cpu_queue.dump_req_status, BASE_CSF_CPU_QUEUE_DUMP_ISSUED);
         init_completion(&kctx->csf.cpu_queue.dump_cmp);
         kbase_event_wakeup(kctx);
@@ -60,7 +59,6 @@ void mtk_debug_csf_dump_cpu_queues(struct kbase_device *kbdev, struct kbase_cont
 #endif /* CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT*/
                 break;
         }
-        timeout = wait_for_completion_timeout(&kctx->csf.cpu_queue.dump_cmp, msecs_to_jiffies(3000));
 
         mutex_lock(&kctx->csf.lock);
 #if IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
@@ -87,8 +85,8 @@ void mtk_debug_csf_dump_cpu_queues(struct kbase_device *kbdev, struct kbase_cont
             kctx->csf.cpu_queue.buffer_size = 0;
         } else {
             mtk_log_critical_exception(kbdev, true,
-                    "[%d_%d] Dump error! (timeout = %lu)",
-                    kctx->tgid, kctx->id, timeout);
+                    "[%d_%d] Dump error! (time out)",
+                    kctx->tgid, kctx->id);
         }
     } while (false);
     atomic_set(&kctx->csf.cpu_queue.dump_req_status, BASE_CSF_CPU_QUEUE_DUMP_COMPLETE);
