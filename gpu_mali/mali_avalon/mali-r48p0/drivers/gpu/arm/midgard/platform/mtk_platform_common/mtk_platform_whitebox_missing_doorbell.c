@@ -56,12 +56,10 @@ static ssize_t mtk_whitebox_missing_doorbell_enable_write(struct file *file, con
 	if (ret)
 		return ret;
 
-	if (temp == 1)
-	{
-		missing_doorbell_enable = 1;		
+	if (temp == 1) {
+		missing_doorbell_enable = 1;
 	}
-	else
-	{
+	else {
 		missing_doorbell_enable = 0;
 	}
 

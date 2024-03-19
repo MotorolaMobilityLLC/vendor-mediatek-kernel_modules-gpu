@@ -41,59 +41,59 @@ struct kbasep_csf_db_valid_test_debugfs_entry {
 
 static inline bool check_if_global_ack_done(struct kbase_device *kbdev, u32 req_mask)
 {
-    struct kbase_csf_global_iface *global_iface = &kbdev->csf.global_iface;
-    bool complete = false;
-    unsigned long flags;
+	struct kbase_csf_global_iface *global_iface = &kbdev->csf.global_iface;
+	bool complete = false;
+	unsigned long flags;
 
-    kbase_csf_scheduler_spin_lock(kbdev, &flags);
+	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 
-    if ((kbase_csf_firmware_global_output(global_iface, GLB_ACK) & req_mask) ==
-        (kbase_csf_firmware_global_input_read(global_iface, GLB_REQ) & req_mask))
-        complete = true;
+	if ((kbase_csf_firmware_global_output(global_iface, GLB_ACK) & req_mask) ==
+		(kbase_csf_firmware_global_input_read(global_iface, GLB_REQ) & req_mask))
+		complete = true;
 
-    kbase_csf_scheduler_spin_unlock(kbdev, flags);
+	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 
-    return complete;
+	return complete;
 }
 
 static bool waiting_for_global_ack(struct kbase_device *kbdev, u32 req_mask)
 {
 	const unsigned int fw_timeout_ms = kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT);
-    long wt = kbase_csf_timeout_in_jiffies(fw_timeout_ms);
-    long remaining;
+	long wt = kbase_csf_timeout_in_jiffies(fw_timeout_ms);
+	long remaining;
 
-    remaining = wait_event_timeout(kbdev->csf.event_wait,
-            check_if_global_ack_done(kbdev, req_mask), wt);
+	remaining = wait_event_timeout(kbdev->csf.event_wait,
+			check_if_global_ack_done(kbdev, req_mask), wt);
 
-    return remaining > 0;
+	return remaining > 0;
 }
 
 static inline bool check_if_cs_ack_done(struct kbase_device *kbdev, struct kbase_csf_cmd_stream_info const *const stream, u32 req_mask)
 {
-    bool complete = false;
-    unsigned long flags;
+	bool complete = false;
+	unsigned long flags;
 
-    kbase_csf_scheduler_spin_lock(kbdev, &flags);
+	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 
-    if ((kbase_csf_firmware_cs_output(stream, CS_ACK) & req_mask) ==
-        (kbase_csf_firmware_cs_input_read(stream, CS_REQ) & req_mask))
-        complete = true;
+	if ((kbase_csf_firmware_cs_output(stream, CS_ACK) & req_mask) ==
+		(kbase_csf_firmware_cs_input_read(stream, CS_REQ) & req_mask))
+		complete = true;
 
-    kbase_csf_scheduler_spin_unlock(kbdev, flags);
+	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 
-    return complete;
+	return complete;
 }
 
 static bool waiting_for_cs_ack(struct kbase_device *kbdev, struct kbase_csf_cmd_stream_info const *const stream, u32 req_mask)
 {
 	const unsigned int fw_timeout_ms = kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT);
-    long wt = kbase_csf_timeout_in_jiffies(fw_timeout_ms);
-    long remaining;
+	long wt = kbase_csf_timeout_in_jiffies(fw_timeout_ms);
+	long remaining;
 
-    remaining = wait_event_timeout(kbdev->csf.event_wait,
-            check_if_cs_ack_done(kbdev, stream, req_mask), wt);
+	remaining = wait_event_timeout(kbdev->csf.event_wait,
+			check_if_cs_ack_done(kbdev, stream, req_mask), wt);
 
-    return remaining > 0;
+	return remaining > 0;
 }
 
 
@@ -108,7 +108,7 @@ static bool kbasep_csf_db_valid_test_glb_prfcnt_enable(struct kbase_device *kbde
 			void *cpu_dump_base;
 			kbdev->hwcnt_backend_csf_if_fw.ring_buf_alloc(kbdev->hwcnt_backend_csf_if_fw.ctx, 32, &cpu_dump_base, &ring_buf);
 		}
-		
+
 		kbdev->hwcnt_backend_csf_if_fw.dump_enable(kbdev->hwcnt_backend_csf_if_fw.ctx, ring_buf, &enable);
 
 		if (!waiting_for_global_ack(kbdev, GLB_REQ_PRFCNT_ENABLE_MASK)) {
@@ -145,27 +145,27 @@ static bool kbasep_csf_db_valid_test_glb_prfcnt_sample(struct kbase_device *kbde
 static bool kbasep_csf_db_valid_test_glb_counter_enable(struct kbase_device *kbdev)
 {
 	u32 glb_req;
-    unsigned long flags;
-    struct kbase_csf_global_iface *global_iface;
+	unsigned long flags;
+	struct kbase_csf_global_iface *global_iface;
 
 	global_iface = &kbdev->csf.global_iface;
 
-    kbase_csf_scheduler_spin_lock(kbdev, &flags);
+	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 
 	kbase_csf_db_valid_push_event(DOORBELL_GLB_COUNTER_ENABLE);
 	glb_req = kbase_csf_firmware_global_input_read(global_iface, GLB_REQ);
 	glb_req ^= GLB_REQ_COUNTER_ENABLE_MASK;
 	kbase_csf_firmware_global_input_mask(global_iface, GLB_REQ, glb_req,
-					     GLB_REQ_COUNTER_ENABLE_MASK);
+						 GLB_REQ_COUNTER_ENABLE_MASK);
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
 
-    kbase_csf_scheduler_spin_unlock(kbdev, flags);
+	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 
 	if (!waiting_for_global_ack(kbdev, GLB_REQ_COUNTER_ENABLE_MASK)) {
 		return false;
 	}
 
-    return true;
+	return true;
 }
 
 
@@ -259,10 +259,10 @@ static int kbasep_csf_db_valid_standalone_test(struct seq_file *file, void *data
 }
 
 static int kbasep_csf_db_valid_standalone_test_debugfs_open(struct inode *in,
-        struct file *file)
+		struct file *file)
 {
-    return single_open(file, kbasep_csf_db_valid_standalone_test,
-            in->i_private);
+	return single_open(file, kbasep_csf_db_valid_standalone_test,
+			in->i_private);
 }
 
 static const struct file_operations
