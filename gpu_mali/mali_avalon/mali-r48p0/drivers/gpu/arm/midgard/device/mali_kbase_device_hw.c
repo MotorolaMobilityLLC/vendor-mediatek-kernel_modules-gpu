@@ -35,11 +35,6 @@
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
-#include <ged_mali_event.h>
-#include <platform/mtk_platform_common/mtk_platform_mali_event.h>
-#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
-
 bool kbase_is_gpu_removed(struct kbase_device *kbdev)
 {
 	if (!IS_ENABLED(CONFIG_MALI_ARBITER_SUPPORT))
@@ -131,12 +126,8 @@ static int busy_wait_cache_operation(struct kbase_device *kbdev, u32 irq_bit)
 			BUG_ON(1);
 #endif /* CONFIG_MALI_MTK_TRIGGER_KE */
 
-		if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_NONE)) {
-#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
-			ged_mali_event_update_gpu_reset_nolock(GPU_RESET_BUSY_WAIT_CACHE_OP_TIMEOUT);
-#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+		if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_NONE))
 			kbase_reset_gpu_locked(kbdev);
-		}
 
 		return -EBUSY;
 	}
@@ -349,17 +340,9 @@ int kbase_gpu_wait_cache_clean_timeout(struct kbase_device *kbdev, unsigned int 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_BITSTUCK_FAIL);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
-#if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)
-		if (kbdev->exception_mask & (1u << EXCEPTION_BIT_STUCK))
-			BUG_ON(1);
-#endif /* CONFIG_MALI_MTK_TRIGGER_KE */
 
-		if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
-#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
-			ged_mali_event_update_gpu_reset_nolock(GPU_RESET_GPU_WAIT_CACHE_CLEAN_TIMEOUT);
-#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+		if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
 			kbase_reset_gpu_locked(kbdev);
-		}
 
 		result = -ETIMEDOUT;
 	}
