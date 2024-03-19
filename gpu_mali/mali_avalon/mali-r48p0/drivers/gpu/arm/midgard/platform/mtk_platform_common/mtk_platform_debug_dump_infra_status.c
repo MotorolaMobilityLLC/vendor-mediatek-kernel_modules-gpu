@@ -56,6 +56,12 @@ void mtk_debug_dump_infra_status(struct kbase_device *kbdev)
 		mt_gpufreq_dump_infra_status();
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
 	}
+}
+
+void mtk_debug_dump_gic_status(struct kbase_device *kbdev)
+{
+	int i = 0;
+	unsigned int irq = 0;
 
 	/* Dump gic information */
 	for (i = 0; i < 3; i++) {

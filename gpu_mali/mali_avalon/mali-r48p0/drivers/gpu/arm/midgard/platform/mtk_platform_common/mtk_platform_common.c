@@ -214,6 +214,9 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 			if (!mtk_common_gpufreq_bringup())
 				mtk_debug_dump_infra_status(kbdev);
 			break;
+		case MTK_COMMON_DBG_DUMP_GIC_STATUS:
+			mtk_debug_dump_gic_status(kbdev);
+			break;
 		case MTK_COMMON_DBG_DUMP_PM_STATUS:
 			mtk_debug_dump_pm_status(kbdev);
 			break;
