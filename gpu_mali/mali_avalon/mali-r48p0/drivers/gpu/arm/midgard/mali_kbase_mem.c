@@ -1269,7 +1269,7 @@ int kbase_alloc_phy_pages_helper(struct kbase_mem_phy_alloc *alloc, size_t nr_pa
 	 * to satisfy the memory allocation request.
 	 */
 	size_t nr_pages_to_account = 0;
-	size_t nr_pages_from_sub_page = 0;
+	size_t nr_pages_from_partials = 0;
 
 	if (WARN_ON(alloc->type != KBASE_MEM_TYPE_NATIVE) ||
 	    WARN_ON(alloc->imported.native.kctx == NULL) ||
@@ -1362,7 +1362,7 @@ int kbase_alloc_phy_pages_helper(struct kbase_mem_phy_alloc *alloc, size_t nr_pa
 							      FROM_PARTIAL);
 #endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 					nr_left--;
-					nr_pages_from_sub_page++;
+					nr_pages_from_partials++;
 
 					if (bitmap_full(sa->sub_pages,
 							NUM_PAGES_IN_2MB_LARGE_PAGE)) {
@@ -1504,30 +1504,28 @@ alloc_failed:
 		*apc = curr_apc;
 #endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 
-		/* Undo the preliminary memory accounting that was done early on
-		 * in the function. If only small pages are used: nr_left is equal
-		 * to nr_pages_requested. If a combination of 2 MB and small pages was
-		 * attempted: nr_pages_requested is equal to the sum of nr_left
-		 * and nr_pages_to_free, and the latter has already been freed above.
-		 * but the sub page already calcuated when the first creation,
-		 * so here we always need to remove the sub_page allocate or it
-		 * will be calculated twice.
-		 *
-		 * Also notice that there's no need to update the page count
-		 * because memory allocation was rolled back.
+		/* Notice that the sub-pages from "partials" are not subtracted
+		 * from the counter by the free pages helper, because they just go
+		 * back to the "partials" they belong to, therefore they must be
+		 * subtracted from the counter here.
 		 */
-		mem_account_dec(kctx, nr_left + nr_pages_from_sub_page);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
-		kbase_trace_free_pages(kbdev->id, kctx, (nr_left + nr_pages_from_sub_page), (size_t)alloc->pages, alloc->category);
-#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
-	} else {
-		mem_account_dec(kctx, nr_left);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
-		kbase_trace_free_pages(kbdev->id, kctx, nr_left, (size_t)alloc->pages, alloc->category);
-#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
+		nr_left += nr_pages_from_partials;
 	}
+
+	/* Undo the preliminary memory accounting that was done early on
+	 * in the function. If only small pages are used: nr_left is equal
+	 * to nr_pages_requested. If a combination of 2 MB and small pages was
+	 * attempted: nr_pages_requested is equal to the sum of nr_left
+	 * and nr_pages_to_free, and the latter has already been freed above.
+	 *
+	 * Also notice that there's no need to update the page count
+	 * because memory allocation was rolled back.
+	 */
+	mem_account_dec(kctx, nr_left);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kbase_trace_free_pages(kbdev->id, kctx, nr_left, (size_t)alloc->pages, alloc->category);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 invalid_request:
 	return -ENOMEM;
