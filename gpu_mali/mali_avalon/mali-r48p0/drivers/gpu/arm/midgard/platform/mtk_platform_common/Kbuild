@@ -69,6 +69,10 @@ ifeq ($(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET),y)
     mali_kbase-y += $(curr)/mtk_platform_whitebox_force_hard_reset.o
 endif ## CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY ##
 
+ifeq ($(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET),y)
+    mali_kbase-y += $(curr)/mtk_platform_whitebox_force_terminate_csg.o
+endif ## CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY ##
+
 ifeq ($(CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER),y)
     mali_kbase-y += $(curr)/mtk_platform_whitebox_fault_worker.o
 endif ## CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER ##
