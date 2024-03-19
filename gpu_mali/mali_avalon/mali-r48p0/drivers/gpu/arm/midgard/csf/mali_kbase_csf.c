@@ -2639,6 +2639,9 @@ static void handle_fault_event(struct kbase_queue *const queue, const u32 cs_ack
 			queue->mtk_cs_error_exception_type = (u32)cs_fault_exception_type;
 			queue->mtk_cs_error_exception_data = cs_fault_exception_data;
 			queue->mtk_cs_error_info_exception_data = cs_fault_info_exception_data;
+			queue->mtk_cs_error_group_handle = queue->group->handle;
+			queue->mtk_cs_error_csg_nr = queue->group->csg_nr;
+			queue->mtk_cs_error_csi_index = queue->csi_index;
 			queue_work(queue->kctx->csf.wq, &queue->mtk_cs_error_dump_work);
 #else /* CONFIG_MALI_MTK_DEBUG_DUMP */
 			dev_warn(kbdev->dev,
@@ -2650,6 +2653,7 @@ static void handle_fault_event(struct kbase_queue *const queue, const u32 cs_ack
 				queue->group->csg_nr, queue->csi_index, cs_fault_exception_type,
 				kbase_gpu_exception_name(cs_fault_exception_type), cs_fault_exception_data,
 				cs_fault_info_exception_data);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 				"Ctx %d_%d Group %d CSG %d CSI: %d\n"
@@ -2661,7 +2665,6 @@ static void handle_fault_event(struct kbase_queue *const queue, const u32 cs_ack
 				kbase_gpu_exception_name(cs_fault_exception_type), cs_fault_exception_data,
 				cs_fault_info_exception_data);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
 			ged_mali_event_update_cs_error_nolock(queue->kctx->tgid, queue->group->handle, queue->group->csg_nr,
 				queue->csi_index, cs_fault_exception_type, cs_fault_exception_data, cs_fault_info_exception_data);
@@ -2849,29 +2852,30 @@ unlock:
 static void mtk_cs_error_dump_worker(struct work_struct *const data)
 {
 	struct kbase_queue *const queue = container_of(data, struct kbase_queue, mtk_cs_error_dump_work);
-	struct kbase_device *const kbdev = queue->kctx->kbdev;
-	const char* error_level = (queue->mtk_cs_error_is_fatal) ? "CS_FATAL" : "CS_FAULT";
+	struct kbase_context *const kctx = queue->kctx;
+	struct kbase_device *const kbdev = kctx->kbdev;
+	const char* error_level;
 
+	mutex_lock(&kctx->csf.lock);
+
+	if (!queue) {
+		pr_info("kbase_queue is null bypass the cs_error dump, please find log buffer for more infromation\n");
+		return;
+	}
+
+	error_level = (queue->mtk_cs_error_is_fatal) ? "CS_FATAL" : "CS_FAULT";
 	dev_warn(kbdev->dev,
 		"Ctx %d_%d Group %d CSG %d CSI: %d\n"
 		"%s.EXCEPTION_TYPE: 0x%x (%s)\n"
 		"%s.EXCEPTION_DATA: 0x%x\n"
 		"%s.EXCEPTION_DATA: 0x%llx\n",
-		queue->kctx->tgid, queue->kctx->id, queue->group->handle, queue->group->csg_nr, queue->csi_index,
+		queue->kctx->tgid, queue->kctx->id,
+		queue->mtk_cs_error_group_handle, queue->mtk_cs_error_csg_nr, queue->mtk_cs_error_csi_index,
 		error_level, queue->mtk_cs_error_exception_type, kbase_gpu_exception_name(queue->mtk_cs_error_exception_type),
 		error_level, queue->mtk_cs_error_exception_data,
 		error_level, queue->mtk_cs_error_info_exception_data);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-		"Ctx %d_%d Group %d CSG %d CSI: %d\n"
-		"%s.EXCEPTION_TYPE: 0x%x (%s)\n"
-		"%s.EXCEPTION_DATA: 0x%x\n"
-		"%s.EXCEPTION_DATA: 0x%llx\n",
-		queue->kctx->tgid, queue->kctx->id, queue->group->handle, queue->group->csg_nr, queue->csi_index,
-		error_level, queue->mtk_cs_error_exception_type, kbase_gpu_exception_name(queue->mtk_cs_error_exception_type),
-		error_level, queue->mtk_cs_error_exception_data,
-		error_level, queue->mtk_cs_error_info_exception_data);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+	mutex_unlock(&kctx->csf.lock);
 }
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
@@ -2912,6 +2916,9 @@ static void handle_fatal_event(struct kbase_queue *const queue,
 		queue->mtk_cs_error_exception_type = cs_fatal_exception_type;
 		queue->mtk_cs_error_exception_data = cs_fatal_exception_data;
 		queue->mtk_cs_error_info_exception_data = cs_fatal_info_exception_data;
+		queue->mtk_cs_error_group_handle = queue->group->handle;
+		queue->mtk_cs_error_csg_nr = queue->group->csg_nr;
+		queue->mtk_cs_error_csi_index = queue->csi_index;
 		queue_work(queue->kctx->csf.wq, &queue->mtk_cs_error_dump_work);
 #else /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		dev_warn(kbdev->dev,
@@ -2923,6 +2930,7 @@ static void handle_fatal_event(struct kbase_queue *const queue,
 			 queue->group->csg_nr, queue->csi_index, cs_fatal_exception_type,
 			 kbase_gpu_exception_name(cs_fatal_exception_type), cs_fatal_exception_data,
 			 cs_fatal_info_exception_data);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			 "Ctx %d_%d Group %d CSG %d CSI: %d\n"
@@ -2934,7 +2942,6 @@ static void handle_fatal_event(struct kbase_queue *const queue,
 			 kbase_gpu_exception_name(cs_fatal_exception_type), cs_fatal_exception_data,
 			 cs_fatal_info_exception_data);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 	}
 
 	if (cs_fatal_exception_type == CS_FATAL_EXCEPTION_TYPE_FIRMWARE_INTERNAL_ERROR) {

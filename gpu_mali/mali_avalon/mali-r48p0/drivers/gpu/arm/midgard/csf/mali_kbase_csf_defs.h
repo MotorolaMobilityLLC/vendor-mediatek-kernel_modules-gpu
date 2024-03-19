@@ -455,6 +455,9 @@ struct kbase_queue {
 	u64 saved_cmd_ptr;
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	bool mtk_cs_error_is_fatal;
+	u8 mtk_cs_error_group_handle;
+	s8 mtk_cs_error_csg_nr;
+	s8 mtk_cs_error_csi_index;
 	u32 mtk_cs_error_exception_type;
 	u32 mtk_cs_error_exception_data;
 	u64 mtk_cs_error_info_exception_data;
