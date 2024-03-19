@@ -694,7 +694,6 @@ static void kbase_pm_control_gpu_clock(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
 u64 mcu_state_history = 0;
-u64 l2_state_history = 0;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 
 #if MALI_USE_CSF
@@ -1319,10 +1318,6 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			break;
 #endif
 		case KBASE_MCU_RESET_WAIT:
-#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
-			mcu_state_history = mcu_state_history << 8;
-			mcu_state_history |= (u8)(backend->mcu_state & 0xFF);
-#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 			/* Reset complete  */
 			if (!backend->in_reset)
 				backend->mcu_state = KBASE_MCU_OFF;
@@ -1863,10 +1858,6 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 		case KBASE_L2_RESET_WAIT:
 			/* Reset complete  */
 			if (!backend->in_reset) {
-#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
-				l2_state_history = l2_state_history << 8;
-				l2_state_history |= (u8)(backend->l2_state & 0xFF);
-#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 #if MALI_USE_CSF
 				backend->l2_force_off_after_mcu_halt = false;
 #endif
@@ -1887,10 +1878,6 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 				kbase_l2_core_state_to_string(prev_state),
 				kbase_l2_core_state_to_string(backend->l2_state));
 			kbase_ktrace_log_l2_core_state(kbdev, backend->l2_state);
-#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
-			l2_state_history = l2_state_history << 8;
-			l2_state_history |= (u8)(backend->l2_state & 0xFF);
-#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 		}
 
 	} while (backend->l2_state != prev_state);
