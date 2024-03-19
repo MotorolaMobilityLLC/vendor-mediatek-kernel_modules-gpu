@@ -76,6 +76,10 @@ static struct proc_dir_entry *proc_root;
 #include <platform/mtk_platform_common/mtk_platform_whitebox_force_hard_reset.h>
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG)
+#include <platform/mtk_platform_common/mtk_platform_whitebox_force_terminate_csg.h>
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER)
 #include <platform/mtk_platform_common/mtk_platform_whitebox_fault_worker.h>
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER */
@@ -137,6 +141,13 @@ bool mtk_common_whitebox_force_hard_reset_enable(void)
 	return mtk_whitebox_force_hard_reset_enable();
 }
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG)
+bool mtk_common_whitebox_force_terminate_csg_enable(void)
+{
+	return mtk_whitebox_force_terminate_csg_enable();
+}
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE)
 int mtk_common_whitebox_sync_update_test_mode(void)
@@ -592,6 +603,9 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
 	mtk_whitebox_force_hard_reset_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG)
+	mtk_whitebox_force_terminate_csg_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG */
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER)
 	mtk_whitebox_fault_worker_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER */
@@ -690,6 +704,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
 	mtk_whitebox_force_hard_reset_init();
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG)
+	mtk_whitebox_force_terminate_csg_init();
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE)
 	mtk_whitebox_sync_update_test_init();

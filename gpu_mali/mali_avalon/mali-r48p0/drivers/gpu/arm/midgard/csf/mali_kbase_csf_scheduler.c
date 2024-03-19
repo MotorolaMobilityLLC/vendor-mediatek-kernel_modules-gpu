@@ -62,6 +62,8 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 #include <platform/mtk_platform_common.h>
 #include <platform/mtk_platform_common/mtk_platform_debug_dump_queue_data.h>
+#elif IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG)
+#include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 #if IS_ENABLED(CONFIG_MTK_AEE_FEATURE) && IS_ENABLED(CONFIG_MALI_MTK_CSG_ERROR_HANDLING)
@@ -6328,7 +6330,12 @@ void kbase_csf_scheduler_reset(struct kbase_device *kbdev)
 	if (kbase_reset_gpu_is_active(kbdev))
 		kbase_debug_csf_fault_wait_completion(kbdev);
 
-
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG)
+	if (mtk_common_whitebox_force_terminate_csg_enable()) {
+		pr_info("[WHITEBOX_FORCE_TERMINATE_CSG] CSG force terminate is enabled and bypass CSG suspend\n");
+		goto bypasse_csg_suspend;
+	}
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG */
 	if (scheduler_handle_reset_in_protected_mode(kbdev) &&
 	    !suspend_active_queue_groups_on_reset(kbdev)) {
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
@@ -6342,6 +6349,9 @@ void kbase_csf_scheduler_reset(struct kbase_device *kbdev)
 		return;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG)
+bypasse_csg_suspend:
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG */
 	mutex_lock(&kbdev->kctx_list_lock);
 
 	/* The loop to iterate over the kbase contexts is present due to lock
