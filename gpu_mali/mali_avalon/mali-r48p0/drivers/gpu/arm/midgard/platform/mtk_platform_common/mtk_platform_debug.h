@@ -86,6 +86,9 @@ void mtk_debug_dump_infra_status_init(void);
 void mtk_debug_dump_infra_status_term(void);
 void mtk_debug_dump_infra_status(struct kbase_device *kbdev);
 
+/* Dump gic status */
+void mtk_debug_dump_gic_status(struct kbase_device *kbdev);
+
 /* Dump pm status */
 void mtk_debug_dump_pm_status(struct kbase_device *kbdev);
 

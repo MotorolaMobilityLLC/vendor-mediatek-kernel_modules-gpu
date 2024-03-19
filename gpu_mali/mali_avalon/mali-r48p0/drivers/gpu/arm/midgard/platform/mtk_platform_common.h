@@ -19,6 +19,7 @@ enum mtk_common_debug_types {
 	MTK_COMMON_DBG_DUMP_FULL_DB,
 	MTK_COMMON_DBG_DUMP_DB_BY_SETTING,
 	MTK_COMMON_DBG_DUMP_ENOP_METADATA,
+	MTK_COMMON_DBG_DUMP_GIC_STATUS,
 };
 
 #define MTK_DBG_HOOK_NA                                        ((u64)0x0)
