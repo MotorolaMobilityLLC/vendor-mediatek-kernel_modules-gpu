@@ -159,7 +159,8 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
         mtk_debug_csf_dump_kcpu_queues(kbdev, kctx);
 
         /* dump cpu queues */
-        mtk_debug_csf_dump_cpu_queues(kbdev, kctx);
+        // KE at _raw_spin_lock_irq in kernel-6.6/kernel/sched/completion.c:96, disable first.
+        //mtk_debug_csf_dump_cpu_queues(kbdev, kctx);
 
         /* dump command stream buffer */
         if (dump_queue_data) {
