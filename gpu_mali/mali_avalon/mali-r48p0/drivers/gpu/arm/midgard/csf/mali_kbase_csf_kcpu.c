@@ -2172,7 +2172,7 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 		//kbasep_csf_csg_dump_print(kctx, kbpr);
 		//kbasep_csf_sync_gpu_dump_print(kctx, kbpr);
 		kbasep_csf_sync_kcpu_dump_print(kctx, kbpr);
-		kbasep_csf_cpu_queue_dump_print(kctx, kbpr);
+		//kbasep_csf_cpu_queue_dump_print(kctx, kbpr);
 
 		//kbasep_print(kbpr, "-----------------------------------------------\n");
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
