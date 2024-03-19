@@ -217,7 +217,11 @@ static inline void calc_prfcnt_delta(struct kbase_device *kbdev,
 		static bool warned;
 
 		if (!warned) {
+#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
+			dev_vdbg(kbdev->dev, "%s: GPU freq is unexpectedly 0", __func__);
+#else
 			dev_warn(kbdev->dev, "%s: GPU freq is unexpectedly 0", __func__);
+#endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 			warned = true;
 		}
 	} else if (prfcnt->gpu_norm)
