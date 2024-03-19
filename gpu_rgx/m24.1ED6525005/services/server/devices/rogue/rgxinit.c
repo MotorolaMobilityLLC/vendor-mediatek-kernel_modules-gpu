@@ -700,6 +700,10 @@ static PVRSRV_ERROR RGXGetGpuUtilStats(PVRSRV_DEVICE_NODE *psDeviceNode,
 	IMG_UINT32 ui32MaxDMCount;
 	RGXFWIF_DM eDM;
 
+#if defined(MTK_MINI_PORTING)
+	unsigned long uLockFlags;
+#endif /* MTK_MINI_PORTING */
+
 	/***** (1) Initialise return stats *****/
 
 	psReturnStats->bValid = IMG_FALSE;
@@ -741,7 +745,11 @@ static PVRSRV_ERROR RGXGetGpuUtilStats(PVRSRV_DEVICE_NODE *psDeviceNode,
 			ui64GpuLastWord = 0;
 			ui64GpuLastState = 0;
 
+#if defined(MTK_MINI_PORTING)
+			spin_lock_irqsave(&psDevInfo->sGPUUtilLock, uLockFlags);
+#else
 			OSLockAcquire(psDevInfo->hGPUUtilLock);
+#endif /* MTK_MINI_PORTING */
 
 			memcpy(&ui64GpuLastWordNew, &psDevInfo->psRGXFWIfGpuUtilFW->ui64GpuLastWord, sizeof(ui64GpuLastWord));
 			memcpy(aui64StatsCountersNew, psDevInfo->psRGXFWIfGpuUtilFW->aui64GpuStatsCounters, sizeof(aui64StatsCountersNew));
@@ -767,7 +775,11 @@ static PVRSRV_ERROR RGXGetGpuUtilStats(PVRSRV_DEVICE_NODE *psDeviceNode,
 				i++;
 			}
 
+#if defined(MTK_MINI_PORTING)
+			spin_unlock_irqrestore(&psDevInfo->sGPUUtilLock, uLockFlags);
+#else
 			OSLockRelease(psDevInfo->hGPUUtilLock);
+#endif /* MTK_MINI_PORTING */
 
 			if (i == MAX_ITERATIONS)
 			{
@@ -1633,8 +1645,12 @@ PVRSRV_ERROR RGXInitDevPart2(PVRSRV_DEVICE_NODE	*psDeviceNode,
 #endif
 
 	/* Setup GPU utilisation stats update callback */
+#if defined(MTK_MINI_PORTING)
+	spin_lock_init(&psDevInfo->sGPUUtilLock);
+#else
 	eError = OSLockCreate(&psDevInfo->hGPUUtilLock);
 	PVR_LOG_GOTO_IF_ERROR(eError, "OSLockCreate(GPUUtilLock)", ErrorExit);
+#endif /* MTK_MINI_PORTING */
 #if !defined(NO_HARDWARE)
 	psDevInfo->pfnGetGpuUtilStats = RGXGetGpuUtilStats;
 #endif
@@ -3426,10 +3442,12 @@ static void DevPart2DeInitRGX(PVRSRV_DEVICE_NODE *psDeviceNode)
 	PVRSRVRemovePowerDevice(psDeviceNode);
 
 	psDevInfo->pfnGetGpuUtilStats = NULL;
+#if !defined(MTK_MINI_PORTING)
 	if (psDevInfo->hGPUUtilLock != NULL)
 	{
 		OSLockDestroy(psDevInfo->hGPUUtilLock);
 	}
+#endif /* MTK_MINI_PORTING */
 
 #if defined(RGX_FEATURE_MIPS_BIT_MASK)
 	if (RGX_IS_FEATURE_SUPPORTED(psDevInfo, MIPS) &&

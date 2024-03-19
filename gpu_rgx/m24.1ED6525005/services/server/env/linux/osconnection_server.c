@@ -63,6 +63,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "ion_sys.h"
 #endif
 
+#if defined(MTK_MINI_PORTING)
+#include <mtk_ion_support.h>
+#endif
+
 PVRSRV_ERROR OSConnectionPrivateDataInit(IMG_HANDLE *phOsPrivateData, void *pvOSData)
 {
 	ENV_CONNECTION_PRIVATE_DATA *psPrivData = pvOSData;
@@ -105,9 +109,15 @@ PVRSRV_ERROR OSConnectionPrivateDataInit(IMG_HANDLE *phOsPrivateData, void *pvOS
 	*/
 	psEnvConnection->psIonData->psIonDev = IonDevAcquire();
 	OSSNPrintf(psEnvConnection->psIonData->azIonClientName, ION_CLIENT_NAME_SIZE, "pvr_ion_client-%p-%d", *phOsPrivateData, OSGetCurrentClientProcessIDKM());
+
+	/* MTK: we are using global ion client, which created once and never destroyed. */
+#if defined(MTK_MINI_PORTING)
+	psEnvConnection->psIonData->psIonClient = MTKGetIonClient();
+#else
 	psEnvConnection->psIonData->psIonClient =
 		ion_client_create(psEnvConnection->psIonData->psIonDev,
 						  psEnvConnection->psIonData->azIonClientName);
+#endif /* MTK_MINI_PORTING */
 
 	if (IS_ERR_OR_NULL(psEnvConnection->psIonData->psIonClient))
 	{
@@ -133,7 +143,10 @@ PVRSRV_ERROR OSConnectionPrivateDataDeInit(IMG_HANDLE hOsPrivateData)
 		PVR_ASSERT(psEnvConnection->psIonData != NULL);
 
 		PVR_ASSERT(psEnvConnection->psIonData->psIonClient != NULL);
+		/* MTK: we are using global ion client, which created once and never destroyed. */
+#if !defined(MTK_MINI_PORTING)
 		ion_client_destroy(psEnvConnection->psIonData->psIonClient);
+#endif
 
 		IonDevRelease(psEnvConnection->psIonData->psIonDev);
 		OSFreeMem(psEnvConnection->psIonData);

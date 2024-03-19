@@ -194,7 +194,7 @@ struct _SYNC_CHECKPOINT_CONTEXT_CTL_
 	POS_SPINLOCK    hSyncCheckpointPoolLock;     /*! Lock to protect access to pool control data */
 	IMG_UINT8       ui8PoolStateFlags;           /*! Flags to indicate state of pool */
 	/*! Array of SYNC_CHECKPOINTs. Must be last member in structure */
-	SYNC_CHECKPOINT *apsSyncCheckpointPool[1];   /*! The allocated checkpoint pool */
+	SYNC_CHECKPOINT *apsSyncCheckpointPool[];   /*! The allocated checkpoint pool */
 #endif
 }; /*_SYNC_CHECKPOINT_CONTEXT_CTL is already typedef-ed in sync_checkpoint_internal.h */
 

@@ -114,11 +114,18 @@ static void _RGXUpdateGPUUtilStats(PVRSRV_RGXDEV_INFO *psDevInfo)
 	IMG_UINT64 ui64TimeNow;
 	IMG_UINT32 ui32DriverID;
 	IMG_UINT64 ui64DMOSStatsCounter;
+#if defined(MTK_MINI_PORTING)
+	unsigned long uLockFlags;
+#endif /* MTK_MINI_PORTING */
 
 	psUtilFW = psDevInfo->psRGXFWIfGpuUtilFW;
 	RGXFwSharedMemCacheOpPtr(psDevInfo->psRGXFWIfGpuUtilFW, INVALIDATE);
 
+#if defined(MTK_MINI_PORTING)
+	spin_lock_irqsave(&psDevInfo->sGPUUtilLock, uLockFlags);
+#else
 	OSLockAcquire(psDevInfo->hGPUUtilLock);
+#endif /* MTK_MINI_PORTING */
 
 	ui64TimeNow = RGXFWIF_GPU_UTIL_GET_TIME(RGXTimeCorrGetClockns64(psDevInfo->psDeviceNode));
 
@@ -169,7 +176,11 @@ static void _RGXUpdateGPUUtilStats(PVRSRV_RGXDEV_INFO *psDevInfo)
 	}
 	RGXFwSharedMemCacheOpPtr(psDevInfo->psRGXFWIfGpuUtilFW, FLUSH);
 
+#if defined(MTK_MINI_PORTING)
+	spin_unlock_irqrestore(&psDevInfo->sGPUUtilLock, uLockFlags);
+#else
 	OSLockRelease(psDevInfo->hGPUUtilLock);
+#endif /* MTK_MINI_PORTING */
 }
 
 static INLINE PVRSRV_ERROR RGXDoStop(PVRSRV_DEVICE_NODE *psDeviceNode)
@@ -1228,10 +1239,10 @@ PVRSRV_ERROR RGXPostClockSpeedChange(PVRSRV_DEVICE_NODE		*psDeviceNode,
 			return eError;
 		}
 
-#if defined(PVRSRV_ANDROID_TRACE_GPU_FREQ)
+#if defined(PVRSRV_TRACE_ROGUE_EVENTS) || defined(PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD)
 		GpuTraceFrequency(psDeviceNode->sDevId.ui32InternalID,
 				psRGXData->psRGXTimingInfo->ui32CoreClockSpeed);
-#endif /* defined(PVRSRV_ANDROID_TRACE_GPU_FREQ) */
+#endif /* defined(PVRSRV_TRACE_ROGUE_EVENTS) || defined(PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD) */
 
 		PVR_DPF((PVR_DBG_MESSAGE, "RGXPostClockSpeedChange: RGX clock speed changed to %uHz",
 				psRGXData->psRGXTimingInfo->ui32CoreClockSpeed));
