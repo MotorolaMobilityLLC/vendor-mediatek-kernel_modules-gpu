@@ -677,7 +677,7 @@ void kbase_csf_queue_terminate(struct kbase_context *kctx,
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_RESET_FAIL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_RESET_FAIL);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 	} else
 		reset_prevented = true;
@@ -1562,7 +1562,7 @@ void kbase_csf_queue_group_terminate(struct kbase_context *kctx, u8 group_handle
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_RESET_FAIL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_RESET_FAIL);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 	} else
 		reset_prevented = true;
@@ -2671,7 +2671,7 @@ static void handle_fault_event(struct kbase_queue *const queue, const u32 cs_ack
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 		}
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_CSFAULT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_CSFAULT);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 #if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
 	}
@@ -2772,7 +2772,7 @@ static void cs_error_worker(struct work_struct *const data)
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_RESET_FAIL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_RESET_FAIL);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 	} else
 		reset_prevented = true;
@@ -2788,7 +2788,7 @@ static void cs_error_worker(struct work_struct *const data)
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_CSFATAL_QUEUENOTBOUND);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_CSFATAL_QUEUENOTBOUND);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		goto unlock;
 	}
@@ -2947,13 +2947,13 @@ static void handle_fatal_event(struct kbase_queue *const queue,
 	if (cs_fatal_exception_type == CS_FATAL_EXCEPTION_TYPE_FIRMWARE_INTERNAL_ERROR) {
 		kbase_debug_csf_fault_notify(kbdev, queue->kctx, DF_FW_INTERNAL_ERROR);
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_CSFATAL_FWINTERNAL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_CSFATAL_FWINTERNAL);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		queue_work(system_wq, &kbdev->csf.fw_error_work);
 	} else {
 		kbase_debug_csf_fault_notify(kbdev, queue->kctx, DF_CS_FATAL);
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_CSFATAL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_CSFATAL);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		if (cs_fatal_exception_type == CS_FATAL_EXCEPTION_TYPE_CS_UNRECOVERABLE) {
 			queue->group->cs_unrecoverable = true;

@@ -168,7 +168,7 @@ bool mtk_common_whitebox_missing_doorbell_enable(void)
 extern u64 mcu_state_history;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 #endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
-void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
+void mtk_common_debug(enum mtk_common_debug_types type, struct kbase_context *kctx, u64 hook_point)
 {
 	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
 #if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
@@ -221,7 +221,7 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 		switch (type) {
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 		case MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES:
-			mtk_debug_csf_dump_groups_and_queues(kbdev, pid);
+			mtk_debug_csf_dump_groups_and_queues(kbdev, kctx);
 			break;
 		case MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF:
 			mtk_debug_csf_dump_iterator_hwif(kbdev);
@@ -245,7 +245,7 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 			dev_info(kbdev->dev, "trigger gpu full DB dump");
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 			if (diagnosis_dump_mask & MTK_DBG_COMMON_DUMP_ENABLE_GROUPS_QUEUES) {
-				mtk_debug_csf_dump_groups_and_queues(kbdev, pid);
+				mtk_debug_csf_dump_groups_and_queues(kbdev, kctx);
 			}
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 #if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
@@ -262,7 +262,7 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 			break;
 		case MTK_COMMON_DBG_TRIGGER_KERNEL_API:
 #if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
-			aee_kernel_exception("GPU", "pid:%d", pid);
+			aee_kernel_exception("GPU", "pid:%d", kctx->tgid);
 #endif /* CONFIG_MTK_AEE_FEATURE */
 			break;
 #endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */

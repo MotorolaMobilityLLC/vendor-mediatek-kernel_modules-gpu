@@ -34,12 +34,16 @@ void mtk_debug_csf_dump_cpu_queues(struct kbase_device *kbdev, struct kbase_cont
 void mtk_debug_csf_dump_kcpu_queues(struct kbase_device *kbdev, struct kbase_context *kctx);
 void mtk_debug_csf_csg_active_dump_group(struct kbase_queue_group *const group,
                                          struct mtk_debug_cs_queue_data *cs_queue_data);
-void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
+void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, struct kbase_context *kctx)
 {
     int dump_queue_data = 0;
     static struct mtk_debug_cs_queue_data cs_queue_data;
     if (!kbdev) {
-        mtk_log_critical_exception(kbdev, true, "%s kbdev NULL!", __func__);
+        pr_info("[KBASE]%s Bad kbdev!\n", __func__);
+        return;
+    }
+    if (!kctx) {
+        mtk_log_critical_exception(kbdev, true, "%s kctx NULL!", __func__);
         return;
     }
 
@@ -48,32 +52,35 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
         INIT_LIST_HEAD(&cs_queue_data.queue_list);
     }
     do {
-        struct kbase_context *kctx, *kctx_dump;
+        struct kbase_context *kctx_dump, *kctx_checker;
         int found;
         int ret;
 
         mtk_log_critical_exception(kbdev, true,
             "[active_groups] MALI_CSF_CSG_DEBUGFS_VERSION: v%u", MALI_CSF_CSG_DUMP_VERSION);
-            //"[active_groups] MALI_CSF_CSG_DUMP_VERSION: v%u", MALI_CSF_CSG_DUMP_VERSION);
 
-        /* find kctx by pid and lock kctx->csf.lock */
+        /* check kctx if exist */
         if (!mtk_debug_trylock(&kbdev->kctx_list_lock)) {
             mtk_log_critical_exception(kbdev, true, "%s lock kctx_list_lock failed!", __func__);
             break;
         }
         found = false;
-        list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
-            if (kctx->tgid == pid) {
+        list_for_each_entry(kctx_checker, &kbdev->kctx_list, kctx_list_link) {
+            if (kctx == kctx_checker) {
                 found = true;
                 break;
             }
         }
         if (!found) {
+            mtk_log_critical_exception(kbdev, true,
+                    "%s kctx %d_%d isn't exist in kctx_list, kctx failed!",
+                    __func__, kctx->tgid, kctx->id);
             mutex_unlock(&kbdev->kctx_list_lock);
             break;
         }
-
         mutex_unlock(&kbdev->kctx_list_lock);
+
+        /* lock kctx->csf.lock */
         mutex_lock(&kctx->csf.lock);
         kbase_csf_scheduler_lock(kbdev);
         kbase_csf_csg_update_status(kbdev);
@@ -159,8 +166,7 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid)
         mtk_debug_csf_dump_kcpu_queues(kbdev, kctx);
 
         /* dump cpu queues */
-        // KE at _raw_spin_lock_irq in kernel-6.6/kernel/sched/completion.c:96, disable first.
-        //mtk_debug_csf_dump_cpu_queues(kbdev, kctx);
+        mtk_debug_csf_dump_cpu_queues(kbdev, kctx);
 
         /* dump command stream buffer */
         if (dump_queue_data) {

@@ -185,8 +185,8 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 						ticks, ms);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-					mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_NA);
-					mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_NA);
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_NA);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 					kbase_job_slot_hardstop(atom->kctx, s, atom);
 #endif
@@ -229,8 +229,8 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 						ticks, ms);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-					mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_NA);
-					mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_NA);
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_NA);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 					kbase_job_slot_hardstop(atom->kctx, s, atom);
 #endif
