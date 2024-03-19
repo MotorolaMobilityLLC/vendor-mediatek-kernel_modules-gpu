@@ -7,6 +7,7 @@
 #define __MTK_PLATFORM_COMMON_H__
 
 #include <linux/platform_device.h>
+#include <backend/gpu/mali_kbase_pm_defs.h>
 
 enum mtk_common_debug_types {
 	MTK_COMMON_DBG_DUMP_PM_STATUS,
@@ -95,7 +96,7 @@ void mtk_platform_pm_term(struct kbase_device *kbdev);
 #define REQ_DSU_POWER_ON (1)
 #define REQ_DSU_POWER_OFF (0)
 #define GPUACP_SMC_OP_CPUPM_PWR (1)
-void mtk_platform_cpu_cache_request(struct kbase_device *kbdev, int request);
+void mtk_platform_cpu_cache_request(struct kbase_device *kbdev, int request, enum kbase_l2_core_state l2_state);
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
