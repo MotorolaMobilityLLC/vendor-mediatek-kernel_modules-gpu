@@ -2037,8 +2037,7 @@ static void program_cs(struct kbase_device *kbdev, struct kbase_queue *queue,
 						 CS_REQ_IDLE_SHARED_SB_DEC_MASK);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
-	if (mtk_common_whitebox_missing_doorbell_enable())
-	{
+	if (mtk_common_whitebox_missing_doorbell_enable()) {
 		if (ring_csg_doorbell) {
 			kbase_csf_db_valid_push_event(DOORBELL_CSI_STATE(group->csg_nr, csi_index));
 		}
@@ -3272,8 +3271,7 @@ static void program_csg_slot(struct kbase_queue_group *group, s8 slot, u8 prio)
 	}
 
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
-	if (mtk_common_whitebox_missing_doorbell_enable())
-	{
+	if (mtk_common_whitebox_missing_doorbell_enable()) {
 		kbase_csf_db_valid_pend_event(DOORBELL_CSG_STATE(slot));
 		kbase_csf_db_valid_flush_pending_events();
 	}
@@ -4991,7 +4989,7 @@ static void scheduler_update_idle_slots_status(struct kbase_device *kbdev,
 		if (mtk_common_whitebox_missing_doorbell_enable())
 			kbase_csf_db_valid_flush_pending_events();
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
-	
+
 		kbase_csf_ring_csg_slots_doorbell(kbdev, db_slots);
 		spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 
@@ -7473,7 +7471,7 @@ static int kbase_csf_scheduler_kthread(void *data)
 		;
 
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
-		kbase_csf_db_valid_init(kbdev);
+	kbase_csf_db_valid_init(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
 	return 0;
