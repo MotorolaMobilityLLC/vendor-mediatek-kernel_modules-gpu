@@ -568,15 +568,31 @@ void mtk_platform_pm_term(struct kbase_device *kbdev)
 }
 
 #if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
-void mtk_platform_cpu_cache_request(struct kbase_device *kbdev, int request)
+static const char *kbase_l2_core_state_to_string(enum kbase_l2_core_state state)
+{
+	const char *const strings[] = {
+#define KBASEP_L2_STATE(n) #n,
+#include "mali_kbase_pm_l2_states.h"
+#undef KBASEP_L2_STATE
+	};
+	if (WARN_ON((size_t)state >= ARRAY_SIZE(strings)))
+		return "Bad level 2 cache state";
+	else
+		return strings[state];
+}
+#endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+void mtk_platform_cpu_cache_request(struct kbase_device *kbdev, int request, enum kbase_l2_core_state l2_state)
 {
 	struct arm_smccc_res res;
 	unsigned long flags;
+	bool is_ace_lite = (kbdev->gpu_props.coherency_mode == COHERENCY_ACE_LITE);
 
 	spin_lock_irqsave(&g_dsu_request_lock, flags);
-	if (request == REQ_DSU_POWER_ON)
+	if (request == REQ_DSU_POWER_ON && l2_state == KBASE_L2_OFF)
 	{
-		if (gIsDsuRequested == 0 && (kbdev->gpu_props.coherency_mode == COHERENCY_ACE_LITE))
+		if (gIsDsuRequested == 0 && is_ace_lite)
 		{
 			/* Call smc into security mode */
 			/* Check result in trusted zone */
@@ -587,14 +603,15 @@ void mtk_platform_cpu_cache_request(struct kbase_device *kbdev, int request)
 				0, 0, 0, 0, 0, &res);
 			gIsDsuRequested++;
 		}
-		else if (kbdev->gpu_props.coherency_mode == COHERENCY_ACE_LITE)
+		else if (is_ace_lite)
 		{
-			KBASE_PLATFORM_LOGE("%s Duplicated request to DSU power on\n", __func__);
+			KBASE_PLATFORM_LOGE("%s Duplicated request to DSU power on, unexpected ref count %d \n", __func__, gIsDsuRequested);
+			BUG_ON(1);
 		}
 	}
-	else if (request == REQ_DSU_POWER_OFF)
+	else if (request == REQ_DSU_POWER_OFF && (l2_state == KBASE_L2_PEND_OFF || l2_state ==  KBASE_L2_RESET_WAIT))
 	{
-		if (gIsDsuRequested != 0 && (kbdev->gpu_props.coherency_mode == COHERENCY_ACE_LITE))
+		if (gIsDsuRequested != 0 && is_ace_lite)
 		{
 			/* Call smc into security mode */
 			/* Check result in trusted zone */
@@ -605,14 +622,16 @@ void mtk_platform_cpu_cache_request(struct kbase_device *kbdev, int request)
 				0, 0, 0, 0, 0, &res);
 			gIsDsuRequested--;
 		}
-		else if (kbdev->gpu_props.coherency_mode == COHERENCY_ACE_LITE)
+		else if (is_ace_lite)
 		{
-			KBASE_PLATFORM_LOGE("%s Duplicated request to DSU power off\n", __func__);
+			KBASE_PLATFORM_LOGE("%s Duplicated request to DSU power off, unexpected ref count: %d , l2 state: %s\n", __func__, gIsDsuRequested, kbase_l2_core_state_to_string(l2_state));
 		}
 	}
 	else
-		KBASE_PLATFORM_LOGE("%s Unsupported request %d or bad ref cnt: %d\n",
-			__func__, request, gIsDsuRequested);
+	{
+		KBASE_PLATFORM_LOGE("%s Unsupported request %d , l2 state: %s \n",	__func__, request, kbase_l2_core_state_to_string(l2_state));
+		BUG_ON(1);
+	}
 	spin_unlock_irqrestore(&g_dsu_request_lock, flags);
 }
 #endif
