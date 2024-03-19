@@ -62,6 +62,9 @@
 #include "pvrmodule.h"
 #include "sysinfo.h"
 
+#if defined(MTK_MINI_PORTING)
+#include "mtk_mfgsys.h"
+#endif
 
 /* This header must always be included last */
 #include "kernel_compatibility.h"
@@ -70,6 +73,7 @@ MODULE_IMPORT_NS(DMA_BUF);
 
 static struct drm_driver pvr_drm_platform_driver;
 
+#if !defined(MTK_MINI_PORTING)
 #if defined(MODULE) && !defined(PVR_LDM_PLATFORM_PRE_REGISTERED)
 static unsigned int pvr_num_devices = 1;
 static struct platform_device **pvr_devices;
@@ -104,9 +108,11 @@ MODULE_PARM_DESC(num_devices,
 		 STRINGIFY(PVRSRV_MAX_DEVICES) ")");
 #endif /* defined(NO_HARDWARE) */
 #endif /* defined(MODULE) && !defined(PVR_LDM_PLATFORM_PRE_REGISTERED) */
+#endif /* MTK_MINI_PORTING */
 
 static int pvr_devices_register(void)
 {
+#if !defined(MTK_MINI_PORTING)
 #if defined(MODULE) && !defined(PVR_LDM_PLATFORM_PRE_REGISTERED)
 	struct platform_device_info pvr_dev_info = {
 		.name = SYS_RGX_DEV_NAME,
@@ -140,12 +146,14 @@ static int pvr_devices_register(void)
 		}
 	}
 #endif /* defined(MODULE) && !defined(PVR_LDM_PLATFORM_PRE_REGISTERED) */
+#endif /* MTK_MINI_PORTING */
 
 	return 0;
 }
 
 static void pvr_devices_unregister(void)
 {
+#if !defined(MTK_MINI_PORTING)
 #if defined(MODULE) && !defined(PVR_LDM_PLATFORM_PRE_REGISTERED)
 	unsigned int i;
 
@@ -157,6 +165,7 @@ static void pvr_devices_unregister(void)
 	kfree(pvr_devices);
 	pvr_devices = NULL;
 #endif /* defined(MODULE) && !defined(PVR_LDM_PLATFORM_PRE_REGISTERED) */
+#endif /* MTK_MINI_PORTING */
 }
 
 static int pvr_probe(struct platform_device *pdev)

@@ -200,7 +200,7 @@ HTBLogSimple_Impl(IMG_UINT32 SF, ...);
 #define HTB_LOG_TYPE_DBG    __BUILDERROR__
 #endif
 
-#if defined(PVRSRV_ENABLE_HTB)
+//#if defined(PVRSRV_ENABLE_HTB)
 /*************************************************************************/ /*!
  @Function      HTBIsConfigured
  @Description   Determine if HTB stream has been configured
@@ -225,8 +225,8 @@ HTBIsConfigured_Impl(void);
   HTBControlKM_Impl((ui32NumFlagGroups), (aui32GroupEnable), (ui32LogLevel), (ui32EnablePID), (eLogMode), (eOpMode))
 #define HTBInit() HTBInit_Impl()
 #define HTBDeInit() HTBDeInit_Impl()
-#else	/* !PVRSRV_ENABLE_HTB) */
-#define HTBIsConfigured()  IMG_FALSE
+//#else	/* !PVRSRV_ENABLE_HTB) */
+/*#define HTBIsConfigured()  IMG_FALSE
 #define HTBLogSimple(SF, args...)  PVRSRV_OK
 #define HTBSyncScale(a, b, c, d)
 #define HTBSyncPartitionMarkerRepeat(a, b, c, d)

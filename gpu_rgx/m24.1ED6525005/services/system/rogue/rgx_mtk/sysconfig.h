@@ -1,8 +1,13 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * Copyright (c) 2019 MediaTek Inc.
+ */
+
 /*************************************************************************/ /*!
-@File           ion_support.h
-@Title          Generic Ion support header
+ *
+@Title          System Description Header
 @Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
-@Description    This file defines the API for generic Ion support.
+@Description    This header provides system-specific declarations and macros
 @License        Dual MIT/GPLv2
 
 The contents of this file are subject to the MIT license as set out below.
@@ -41,19 +46,65 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
 
-#if 1 /* (LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)) */
-PVRSRV_ERROR IonInit(void *pvPrivateData);
+#include "pvrsrv_device.h"
+#include "rgxdevice.h"
 
-void IonDeinit(void);
-#else /* (LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)) */
-static inline PVRSRV_ERROR IonInit(void *pvPrivateData)
-{
-	(void) pvPrivateData;
+#if !defined(__SYSCCONFIG_H__)
+#define __SYSCCONFIG_H__
 
-	return PVRSRV_OK;
-}
 
-static inline void IonDeinit(void)
-{
-}
-#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)) */
+#define RGX_HW_SYSTEM_NAME "RGX HW"
+
+#if defined(CONFIG_MACH_MT8173)
+#define RGX_HW_CORE_CLOCK_SPEED			(455000000)
+#define SYS_RGX_ACTIVE_POWER_LATENCY_MS (30)
+#elif defined(CONFIG_MACH_MT8167)
+#define RGX_HW_CORE_CLOCK_SPEED			(500000000)
+#define SYS_RGX_ACTIVE_POWER_LATENCY_MS (50)
+#elif defined(CONFIG_MACH_MT6739)
+#define RGX_HW_CORE_CLOCK_SPEED			(481000000)
+#define SYS_RGX_ACTIVE_POWER_LATENCY_MS (3)
+#elif defined(CONFIG_MACH_MT6765)
+#define RGX_HW_CORE_CLOCK_SPEED			(400000000)
+#define SYS_RGX_ACTIVE_POWER_LATENCY_MS (3)
+#elif defined(CONFIG_MACH_MT6761)
+#define RGX_HW_CORE_CLOCK_SPEED			(460000000)
+#define SYS_RGX_ACTIVE_POWER_LATENCY_MS (3)
+#elif defined(CONFIG_MACH_MT6779)
+#define RGX_HW_CORE_CLOCK_SPEED			(100000000)
+#define SYS_RGX_ACTIVE_POWER_LATENCY_MS (3)
+#else
+#endif
+
+#if defined(MTK_CONFIG_OF) && defined(CONFIG_OF)
+int MTKSysGetIRQ(void);
+#else
+
+/* If CONFIG_OF is not set */
+/* please makesure the following address and IRQ number are right */
+/* #error RGX_GPU_please_fill_the_following_defines */
+#define SYS_MTK_RGX_REGS_SYS_PHYS_BASE      0x13000000
+#define SYS_MTK_RGX_REGS_SIZE               0x80000
+
+#if defined(CONFIG_MACH_MT8173)
+#define SYS_MTK_RGX_IRQ                     0x102
+#elif defined(CONFIG_MACH_MT8167)
+#define SYS_MTK_RGX_IRQ                     0xDB
+#elif defined(CONFIG_MACH_MT6739)
+#define SYS_MTK_RGX_IRQ                     0x150
+#elif defined(CONFIG_MACH_MT6765)
+#define SYS_MTK_RGX_IRQ                     0x103
+#elif defined(CONFIG_MACH_MT6779)
+#define SYS_MTK_RGX_IRQ                     0x130
+#else
+#endif
+
+#endif
+
+
+
+/*****************************************************************************
+ * system specific data structures
+ *****************************************************************************/
+
+#endif	/* __SYSCCONFIG_H__ */

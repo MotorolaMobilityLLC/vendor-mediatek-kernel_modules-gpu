@@ -261,7 +261,7 @@ typedef struct _MMU_Levelx_INFO_
 	MMU_MEMORY_DESC sMemDesc;
 
 	/*! Array of infos for the next level. Must be last member in structure */
-	struct _MMU_Levelx_INFO_ *apsNextLevel[1];
+	struct _MMU_Levelx_INFO_ *apsNextLevel[];
 } MMU_Levelx_INFO;
 
 /*!

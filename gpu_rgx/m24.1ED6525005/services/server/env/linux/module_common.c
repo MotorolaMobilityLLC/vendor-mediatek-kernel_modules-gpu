@@ -139,6 +139,10 @@ EXPORT_SYMBOL(OSRemoveTimer);
 #endif
 #endif
 
+#if defined(MTK_MINI_PORTING)
+#include "mtk_mfgsys.h"
+#endif
+
 static int PVRSRVDeviceSyncOpen(struct _PVRSRV_DEVICE_NODE_ *psDeviceNode,
                                 struct drm_file *psDRMFile);
 
@@ -273,6 +277,10 @@ int PVRSRVDriverInit(void)
 	PVRGpuTraceInitAppHintCallbacks(NULL);
 #endif
 
+#if defined(MTK_MINI_PORTING)
+	MTKMFGSystemInit();
+#endif
+
 	return 0;
 }
 
@@ -297,6 +305,9 @@ void PVRSRVDriverDeinit(void)
 
 	PVRSRVCommonDriverDeInit();
 
+#if defined(MTK_MINI_PORTING)
+	MTKMFGSystemDeInit();
+#endif
 	PVROSFuncDeInit();
 }
 
