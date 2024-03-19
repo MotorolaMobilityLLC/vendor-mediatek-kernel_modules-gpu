@@ -32,6 +32,8 @@ ifeq ($(CONFIG_MALI_MTK_DEBUG_DUMP),y)
     mali_kbase-y += $(curr)/mtk_platform_debug_dump_infra_status.o
     mali_kbase-y += $(curr)/mtk_platform_debug_dump_pm_status.o
     mali_kbase-y += $(curr)/mtk_platform_debug_dump_enop_metadata.o
+    mali_kbase-y += $(curr)/mtk_platform_debug_dump_iter_cshw.o
+    mali_kbase-y += $(curr)/mtk_platform_debug_dump_queue_data.o
 endif ## CONFIG_MALI_MTK_DEBUG_DUMP ##
 
 ifeq ($(CONFIG_MALI_MTK_DIAGNOSIS_MODE),y)

@@ -61,6 +61,7 @@
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 #include <platform/mtk_platform_common.h>
+#include <platform/mtk_platform_common/mtk_platform_debug_dump_queue_data.h>
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 #if IS_ENABLED(CONFIG_MTK_AEE_FEATURE) && IS_ENABLED(CONFIG_MALI_MTK_CSG_ERROR_HANDLING)
@@ -2287,6 +2288,9 @@ static void halt_csg_slot(struct kbase_queue_group *group, bool suspend)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_GSG_TIMEOUT);
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
+			mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, -1, MTK_DBG_HOOK_NA);
+			mtk_debug_csf_dump_queue_data(group);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		}
 	}
@@ -4115,6 +4119,9 @@ static void wait_csg_slots_start(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_GSG_TIMEOUT);
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
+			mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, -1, MTK_DBG_HOOK_NA);
+			mtk_debug_csf_dump_queue_data(group);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 			if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE)) {
@@ -5009,6 +5016,9 @@ static void scheduler_update_idle_slots_status(struct kbase_device *kbdev,
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_GSG_TIMEOUT);
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_NA);
+			mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, -1, MTK_DBG_HOOK_NA);
+			mtk_debug_csf_dump_queue_data(group);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 			/* Store the bitmap of timed out slots */
