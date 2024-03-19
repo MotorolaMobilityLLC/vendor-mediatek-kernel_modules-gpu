@@ -210,6 +210,9 @@ void mtk_common_debug(enum mtk_common_debug_types type, int pid, u64 hook_point)
 		case MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES:
 			mtk_debug_csf_dump_groups_and_queues(kbdev, pid);
 			break;
+		case MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF:
+			mtk_debug_csf_dump_iterator_hwif(kbdev);
+			break;
 		case MTK_COMMON_DBG_DUMP_INFRA_STATUS:
 			if (!mtk_common_gpufreq_bringup())
 				mtk_debug_dump_infra_status(kbdev);

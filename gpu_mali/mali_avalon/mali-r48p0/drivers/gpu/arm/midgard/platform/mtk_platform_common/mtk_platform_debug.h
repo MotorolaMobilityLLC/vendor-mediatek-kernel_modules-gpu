@@ -79,6 +79,7 @@ struct mtk_debug_cs_queue_data {
 int mtk_debug_csf_debugfs_init(struct kbase_device *kbdev);
 int mtk_debug_csf_debugfs_dump_mode(void);
 void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, int pid);
+void mtk_debug_csf_dump_iterator_hwif(struct kbase_device *kbdev);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 /* Dump infra status */
