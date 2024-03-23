@@ -1484,6 +1484,10 @@ struct kbase_device {
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT)
 	bool mem_whitebox_debug;
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_RESET_DEBUG)
+	u32 reset_exception_mask;
+#endif /* CONFIG_MALI_MTK_GPU_RESET_DEBUG */
 };
 
 /**
