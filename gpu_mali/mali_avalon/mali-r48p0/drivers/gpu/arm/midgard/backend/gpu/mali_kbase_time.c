@@ -197,6 +197,12 @@ void kbase_device_set_timeout(struct kbase_device *kbdev, enum kbase_timeout_sel
 	}
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
+	// For PM timeout, we need to keep the default value, since the timeout value is not only related to
+	// GPU frequency but also related to CPU worker execution time.
+	if (selector == CSF_PM_TIMEOUT) {
+		freq_khz = DEFAULT_REF_TIMEOUT_FREQ_KHZ;
+	}
+
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
 	// for mtk timeout reduce, we want to use a fixed suspend time under reset flow to
 	// make sure the timeout is align to the previous MP setting.
