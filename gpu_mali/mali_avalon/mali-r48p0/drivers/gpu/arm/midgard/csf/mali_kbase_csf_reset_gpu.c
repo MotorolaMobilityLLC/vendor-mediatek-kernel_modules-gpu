@@ -609,7 +609,50 @@ static void kbase_csf_reset_gpu_worker(struct work_struct *data)
 	kbase_csf_reset_end_hw_access(kbdev, err, firmware_inited);
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_RESET_DEBUG)
+char *gpu_reset_entry_name[] = {
+	// error event entry
+	"kbasep_ioctl_internal_fence_wait", //0
+	"kcpu_fence_timeout_dump", //1
+	"wait_mcu_as_inactive",//2
+	"kbase_pm_timed_out",//3
+	"handle_internal_firmware_fatal",//4
+	"kbase_csf_wait_protected_mode_enter",//5
+	"scheduler_force_protm_exit",//6
+	"halt_stream_sync_start",//7
+	"halt_stream_sync_stop",//8
+	"remove_group_from_runnable",//9
+	"term_group_sync",//10
+	"program_suspending_csg_slots",//11
+	"wait_csg_slots_start",//12
+	"wait_csg_slots_finish_prio_update",//13
+	"suspend_active_groups_on_powerdown",//14
+	"firmware_aliveness_monitor",//15
+	"handle_fatal_event",//16
+	"kbase_gpu_fault_interrupt",//17
+	"kbase_gpu_interrupt",//18
+	"kbase_mmu_report_mcu_as_fault_and_reset",//19
+	"kbase_gpueb_irq_handler",//20
+	"wait_ready_csf",//21
+	"wait_ready_mmu_hw",//22
+	"busy_wait_cache_operation",//23
+	"kbase_gpu_wait_cache_clean_timeout",//24
+	"GPU_RESET_HW_ISSUE_2019_3901_WA",//25
+
+	// nromal event entry
+	//"trigger_reset",
+	//"kbase_pm_set_policy",
+	//"int_id_overrides_write",
+	//"propagate_bits_write",
+};
+unsigned int gpu_reset_entry_size = sizeof(gpu_reset_entry_name)/sizeof(gpu_reset_entry_name[0]);
+#endif /* CONFIG_MALI_MTK_GPU_RESET_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_RESET_DEBUG)
+bool __kbase_prepare_to_reset_gpu(struct kbase_device *kbdev, unsigned int flags)
+#else
 bool kbase_prepare_to_reset_gpu(struct kbase_device *kbdev, unsigned int flags)
+#endif /* CONFIG_MALI_MTK_GPU_RESET_DEBUG */
 {
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 	if (kbase_pm_is_gpu_lost(kbdev)) {
@@ -632,14 +675,79 @@ bool kbase_prepare_to_reset_gpu(struct kbase_device *kbdev, unsigned int flags)
 	wake_up(&kbdev->pm.backend.gpu_in_desired_state_wait);
 	return true;
 }
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_RESET_DEBUG)
+KBASE_EXPORT_TEST_API(__kbase_prepare_to_reset_gpu);
+#else
 KBASE_EXPORT_TEST_API(kbase_prepare_to_reset_gpu);
+#endif /* CONFIG_MALI_MTK_GPU_RESET_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_RESET_DEBUG)
+bool kbase_prepare_to_reset_gpu_ext(struct kbase_device *kbdev, unsigned int flags, const char* file, const char* func)
+{
+	int idx = 0;
+	bool need_reset_flag = false;
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
+	need_reset_flag = __kbase_prepare_to_reset_gpu(kbdev, flags);
+
+	if (need_reset_flag && kbdev->reset_exception_mask != 0) {
+		dev_err(kbdev->dev, "gpu reset entry: %s,%s", file, func);
+		for (idx = 0; idx < gpu_reset_entry_size; idx++) {
+			if (kbdev->reset_exception_mask & (1u << idx)) {
+				if (strncmp(func, gpu_reset_entry_name[idx], strlen(func)) == 0) {
+					// Add debug dump here
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_NA);
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_NA);
+					mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, NULL, MTK_DBG_HOOK_NA);
+					BUG_ON(1);
+				}
+			}
+		}
+	}
+
+	return need_reset_flag;
+}
+#endif /* CONFIG_MALI_MTK_GPU_RESET_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_RESET_DEBUG)
+bool __kbase_prepare_to_reset_gpu_locked(struct kbase_device *kbdev, unsigned int flags)
+#else
 bool kbase_prepare_to_reset_gpu_locked(struct kbase_device *kbdev, unsigned int flags)
+#endif /* CONFIG_MALI_MTK_GPU_RESET_DEBUG */
 {
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
 	return kbase_prepare_to_reset_gpu(kbdev, flags);
 }
+
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_RESET_DEBUG)
+bool kbase_prepare_to_reset_gpu_ext_locked(struct kbase_device *kbdev, unsigned int flags, const char* file, const char* func)
+{
+	int idx = 0;
+	bool need_reset_flag = false;
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
+	need_reset_flag = __kbase_prepare_to_reset_gpu_locked(kbdev, flags);
+
+	if (need_reset_flag && kbdev->reset_exception_mask != 0) {
+		dev_err(kbdev->dev, "gpu reset entry: %s,%s", file, func);
+		for (idx = 0; idx < gpu_reset_entry_size; idx++) {
+			if (kbdev->reset_exception_mask & (1u << idx)) {
+				if (strncmp(func, gpu_reset_entry_name[idx], strlen(func)) == 0) {
+					// Add debug dump here
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_NA);
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_NA);
+					mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, NULL, MTK_DBG_HOOK_NA);
+					BUG_ON(1);
+				}
+			}
+		}
+	}
+
+	return need_reset_flag;
+}
+#endif /* CONFIG_MALI_MTK_GPU_RESET_DEBUG */
 
 void kbase_reset_gpu(struct kbase_device *kbdev)
 {
