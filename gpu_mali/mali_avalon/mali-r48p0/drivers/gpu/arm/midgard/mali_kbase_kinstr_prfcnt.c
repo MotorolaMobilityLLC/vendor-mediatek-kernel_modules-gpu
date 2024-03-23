@@ -1875,15 +1875,16 @@ int kbasep_kinstr_prfcnt_client_create(struct kbase_kinstr_prfcnt_context *kinst
 		case KINSTR_PRFCNT_DUMP_BUFFER:
 			kbase_hwcnt_gpu_enable_map_from_cm(&cli->enable_map,
 							   &cli->config.enable_cm);
-
-			cli->config.enable_cm.fe_bm[0] = 0xFFFFFFFF;
-			cli->config.enable_cm.fe_bm[1] = 0xFFFFFFFF;
-			cli->config.enable_cm.shader_bm[0] = 0xFFFFFFFF;
-			cli->config.enable_cm.shader_bm[1] = 0xFFFFFFFF;
-			cli->config.enable_cm.tiler_bm[0] = 0xFFFFFFFF;
-			cli->config.enable_cm.tiler_bm[1] = 0xFFFFFFFF;
-			cli->config.enable_cm.mmu_l2_bm[0] = 0xFFFFFFFF;
-			cli->config.enable_cm.mmu_l2_bm[1] = 0xFFFFFFFF;
+			if(mtk_pm_tool==pm_ltr) {
+				cli->config.enable_cm.fe_bm[0] = 0xFFFFFFFF;
+				cli->config.enable_cm.fe_bm[1] = 0xFFFFFFFF;
+				cli->config.enable_cm.shader_bm[0] = 0xFFFFFFFF;
+				cli->config.enable_cm.shader_bm[1] = 0xFFFFFFFF;
+				cli->config.enable_cm.tiler_bm[0] = 0xFFFFFFFF;
+				cli->config.enable_cm.tiler_bm[1] = 0xFFFFFFFF;
+				cli->config.enable_cm.mmu_l2_bm[0] = 0xFFFFFFFF;
+				cli->config.enable_cm.mmu_l2_bm[1] = 0xFFFFFFFF;
+			}
 			cli->sample_count = cli->config.buffer_count;
 			cli->sample_size =
 				kbasep_kinstr_prfcnt_get_sample_size(cli, kinstr_ctx->metadata);
