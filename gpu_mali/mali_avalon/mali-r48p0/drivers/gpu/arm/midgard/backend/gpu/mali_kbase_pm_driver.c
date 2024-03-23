@@ -694,6 +694,7 @@ static void kbase_pm_control_gpu_clock(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
 u64 mcu_state_history = 0;
+u64 l2_state_history = 0;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 
 #if MALI_USE_CSF
@@ -1318,6 +1319,10 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			break;
 #endif
 		case KBASE_MCU_RESET_WAIT:
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+			mcu_state_history = mcu_state_history << 8;
+			mcu_state_history |= (u8)(backend->mcu_state & 0xFF);
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 			/* Reset complete  */
 			if (!backend->in_reset)
 				backend->mcu_state = KBASE_MCU_OFF;
@@ -1858,6 +1863,10 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 		case KBASE_L2_RESET_WAIT:
 			/* Reset complete  */
 			if (!backend->in_reset) {
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+				l2_state_history = l2_state_history << 8;
+				l2_state_history |= (u8)(backend->l2_state & 0xFF);
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 #if MALI_USE_CSF
 				backend->l2_force_off_after_mcu_halt = false;
 #endif
@@ -1878,6 +1887,10 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 				kbase_l2_core_state_to_string(prev_state),
 				kbase_l2_core_state_to_string(backend->l2_state));
 			kbase_ktrace_log_l2_core_state(kbdev, backend->l2_state);
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+			l2_state_history = l2_state_history << 8;
+			l2_state_history |= (u8)(backend->l2_state & 0xFF);
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 		}
 
 	} while (backend->l2_state != prev_state);
@@ -2895,9 +2908,9 @@ static void kbase_pm_timed_out(struct kbase_device *kbdev, const char *timeout_m
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_PM_TIMEOUT);
-	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_PM_TIMEOUT);
-	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_PM_TIMEOUT);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_PM_TIMEOUT);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_PM_TIMEOUT);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_PM_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 #if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
 	dump_pm_callback_kbase_info();
@@ -3822,8 +3835,8 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 						kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_RAWSTAT)),
 						kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK)),
 						kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_STATUS)));
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_PM_RESET_FAIL);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_PM_RESET_FAIL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, -1, MTK_DBG_HOOK_PM_RESET_FAIL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, -1, MTK_DBG_HOOK_PM_RESET_FAIL);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		/* If interrupts aren't working we can't continue. */
 		destroy_hrtimer_on_stack(&rtdata.timer);
