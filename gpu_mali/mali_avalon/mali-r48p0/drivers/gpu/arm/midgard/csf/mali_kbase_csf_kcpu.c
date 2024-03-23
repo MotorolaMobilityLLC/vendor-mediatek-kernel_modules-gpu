@@ -1469,6 +1469,16 @@ static void fence_timeout_callback(struct timer_list *timer)
 			 fence, info.name,
 			 fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+		/* Check if fence wait on the display fence */
+		if(strstr(fence->ops->get_timeline_name(fence), "-P_0_")) {
+			pr_info("KCPU Queue is blocked by display fence timeout");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"KCPU Queue is blocked by display fence timeout");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		}
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 		/* Check if dma_fence_array and dump all fences */
 		if (dma_fence_is_array(fence)) {
@@ -1488,6 +1498,16 @@ static void fence_timeout_callback(struct timer_list *timer)
 							info.name, i, fences[i]->ops->get_driver_name(fences[i]), fences[i]->ops->get_timeline_name(fences[i]),
 							dma_fence_is_signaled(fences[i]) ? "signaled" : "not signaled");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+							/* Check if fence array include the non signal display fence */
+							if(!dma_fence_is_signaled(fences[i]) && strstr(fences[i]->ops->get_timeline_name(fences[i]), "-P_0_")) {
+								pr_info("KCPU Queue is blocked by display fence timeout");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+								mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+									"KCPU Queue is blocked by display fence timeout");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+							}
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 					} else {
 						dev_info(kctx->kbdev->dev, "context#seqno:%s dma_fence_array[%d] null and log bypass",
 						info.name, i);
