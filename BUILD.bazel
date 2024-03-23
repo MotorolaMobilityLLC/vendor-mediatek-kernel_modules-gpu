@@ -30,6 +30,10 @@ mt6761_outs = [
      "mt6761/m24.1ED6525005/pvrsrvkm_mt6761.ko",
 ]
 
+mt6765_outs = [
+     "mt6765/m24.1ED6525005/pvrsrvkm_mt6765.ko",
+]
+
 mt6877_outs = [
     "mt6877/mali_valhall/mali-r32p1/drivers/gpu/arm/midgard/mali_kbase_mt6877.ko",
     "mt6877/mali_valhall/mali-r32p1/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6877.ko",
@@ -90,5 +94,13 @@ define_mgk_ko(
     srcs = glob(["**"]),
     outs = (
     mt6761_outs if glob(["mt6761/*"]) else []
+    ),
+)
+
+define_mgk_ko(
+    name = "gpu_mt6765",
+    srcs = glob(["**"]),
+    outs = (
+    mt6765_outs if glob(["mt6765/*"]) else []
     ),
 )
