@@ -118,16 +118,7 @@ typedef IMG_UINT32 RA_BASE_ARRAY_SIZE_T;
  * they appear Real from another perspective but we the RA know they are a ghost of the
  * Real Base.
  * */
-#if defined(__GNUC__) && GCC_VERSION_AT_LEAST(9, 0)
-/* Use C99 dynamic arrays, older compilers do not support this. */
-typedef RA_BASE_T RA_BASE_ARRAY_T[];
-#else
-/* Variable length array work around, will contain at least 1 element.
- * Causes errors on newer compilers, in which case use dynamic arrays (see above).
- */
-#define RA_FLEX_ARRAY_ONE_OR_MORE_ELEMENTS 1U
-typedef RA_BASE_T RA_BASE_ARRAY_T[RA_FLEX_ARRAY_ONE_OR_MORE_ELEMENTS];
-#endif
+typedef RA_BASE_T RA_BASE_ARRAY_T[IMG_FLEX_ARRAY_MEMBER];
 
 /* Since 0x0 is a valid BaseAddr, we rely on max 64-bit value to be an invalid
  * page address.

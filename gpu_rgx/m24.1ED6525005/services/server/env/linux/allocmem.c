@@ -71,7 +71,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * lead to a lot of wasted memory. This is a reason why we're defaulting to 8
  * bytes alignment which should be enough for any architecture.
  */
-#define ALLOCMEM_PID_SIZE_PADDING PVR_ALIGN(sizeof(IMG_UINT32), 16)
+#define ALLOCMEM_PID_SIZE_PADDING PVR_ALIGN(sizeof(IMG_UINT32), 8)
 #else
 #define ALLOCMEM_PID_SIZE_PADDING 0UL
 #endif

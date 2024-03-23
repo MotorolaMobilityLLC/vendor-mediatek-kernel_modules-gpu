@@ -261,7 +261,7 @@ typedef struct _MMU_Levelx_INFO_
 	MMU_MEMORY_DESC sMemDesc;
 
 	/*! Array of infos for the next level. Must be last member in structure */
-	struct _MMU_Levelx_INFO_ *apsNextLevel[];
+	struct _MMU_Levelx_INFO_ *apsNextLevel[IMG_FLEX_ARRAY_MEMBER];
 } MMU_Levelx_INFO;
 
 /*!
@@ -1819,7 +1819,7 @@ static PVRSRV_ERROR _MMU_AllocLevel(MMU_CONTEXT *psMMUContext,
 				ui32AllocSize = sizeof(MMU_Levelx_INFO);
 				if (aeMMULevel[uiThisLevel + 1] != MMU_LEVEL_1)
 				{
-					ui32AllocSize += sizeof(MMU_Levelx_INFO *) * (uiNextEntries - 1);
+					ui32AllocSize += IMG_FLEX_ARRAY_SIZE(sizeof(MMU_Levelx_INFO *), uiNextEntries);
 				}
 				psNextLevel = OSAllocZMem(ui32AllocSize);
 				if (psNextLevel == NULL)

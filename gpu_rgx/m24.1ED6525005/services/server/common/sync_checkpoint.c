@@ -194,7 +194,7 @@ struct _SYNC_CHECKPOINT_CONTEXT_CTL_
 	POS_SPINLOCK    hSyncCheckpointPoolLock;     /*! Lock to protect access to pool control data */
 	IMG_UINT8       ui8PoolStateFlags;           /*! Flags to indicate state of pool */
 	/*! Array of SYNC_CHECKPOINTs. Must be last member in structure */
-	SYNC_CHECKPOINT *apsSyncCheckpointPool[];   /*! The allocated checkpoint pool */
+	SYNC_CHECKPOINT *apsSyncCheckpointPool[IMG_FLEX_ARRAY_MEMBER];   /*! The allocated checkpoint pool */
 #endif
 }; /*_SYNC_CHECKPOINT_CONTEXT_CTL is already typedef-ed in sync_checkpoint_internal.h */
 
@@ -1128,7 +1128,7 @@ SyncCheckpointContextCreate(PPVRSRV_DEVICE_NODE psDevNode,
 	PVR_LOG_GOTO_IF_NOMEM(psContext, eError, fail_alloc); /* Sets OOM error code */
 
 	/* psContextCtl includes allocation for the sync checkpoint pool) */
-	psContextCtl = OSAllocMem(sizeof(*psContextCtl) + (sizeof(SYNC_CHECKPOINT*) * ui32MaxPoolSize));
+	psContextCtl = OSAllocMem(sizeof(*psContextCtl) + IMG_FLEX_ARRAY_SIZE(sizeof(SYNC_CHECKPOINT*), ui32MaxPoolSize));
 	PVR_LOG_GOTO_IF_NOMEM(psContextCtl, eError, fail_alloc2); /* Sets OOM error code */
 
 	eError = OSSpinLockCreate(&psContextCtl->hDeferredCleanupListLock);

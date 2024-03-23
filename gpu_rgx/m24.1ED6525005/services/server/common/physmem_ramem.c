@@ -636,7 +636,7 @@ _AllocLMPageArray(PMR_SIZE_T uiSize,
 	uiNumPages = (IMG_UINT32)(((uiSize - 1) >> uiLog2AllocPageSize) + 1);
 	PVR_ASSERT(((PMR_SIZE_T)uiNumPages << uiLog2AllocPageSize) == uiSize);
 
-	psPageArrayData = OSAllocMem(sizeof(PMR_LMALLOCARRAY_DATA) + (sizeof(RA_BASE_T) * uiNumPages));
+	psPageArrayData = OSAllocMem(sizeof(PMR_LMALLOCARRAY_DATA) + IMG_FLEX_ARRAY_SIZE(sizeof(RA_BASE_T), uiNumPages));
 	PVR_GOTO_IF_NOMEM(psPageArrayData, eError, errorOnAllocArray);
 
 	if (BIT_ISSET(ui32Flags, FLAG_SPARSE))

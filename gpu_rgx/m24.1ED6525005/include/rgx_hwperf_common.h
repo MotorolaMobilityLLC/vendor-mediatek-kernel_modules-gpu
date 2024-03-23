@@ -422,17 +422,13 @@ static_assert(((IMG_UINT32)RGX_HWPERF_STREAM_ID_LAST - 1U) < (RGX_HWPERF_TYPEID_
  * Other Common Defines
  *****************************************************************************/
 
-/*! This macro is not a real array size, but indicates the array has a variable
- * length only known at run-time but always contains at least 1 element. The
- * final size of the array is deduced from the size field of a packet header.
- */
-#define RGX_HWPERF_ONE_OR_MORE_ELEMENTS  1U
-
-/*! This macro is not a real array size, but indicates the array is optional
- * and if present has a variable length only known at run-time. The final
- * size of the array is deduced from the size field of a packet header. */
-#define RGX_HWPERF_ZERO_OR_MORE_ELEMENTS 1U
-
+/*! Used to align structs using a flexible array member as the definition of the member
+ * size can change between C standards */
+#if (IMG_FLEX_ARRAY_MEMBER + 0)
+#define RGX_HWPERF_FLEX_ARRAY_ALIGN(_align_var) _align_var
+#else
+#define RGX_HWPERF_FLEX_ARRAY_ALIGN(...)
+#endif
 
 /*! Masks for use with the IMG_UINT32 ui32BlkInfo field */
 #define RGX_HWPERF_BLKINFO_BLKCOUNT_MASK	0xFFFF0000U
@@ -555,8 +551,8 @@ typedef struct
 	IMG_UINT32 ui32GPUIdMask;         /*!< GPU IDs active within this event */
 	IMG_UINT32 ui32KickInfo;          /*!< <31..8> Back End start time lowest 24 bits <7..0> GPU Pipeline DM kick ID, 0 if not using Pipeline DMs */
 	IMG_UINT32 ui32KickEndTime;       /*!< Back End finish time for Pipeline DMs */
-	IMG_UINT32 aui32CountBlksStream[RGX_HWPERF_ZERO_OR_MORE_ELEMENTS]; /*!< Optional variable length Counter data */
-	IMG_UINT32 ui32Padding2;          /*!< Reserved. To ensure correct alignment (not written in the packet) */
+	IMG_UINT32 aui32CountBlksStream[IMG_FLEX_ARRAY_MEMBER]; /*!< Optional variable length Counter data */
+	RGX_HWPERF_FLEX_ARRAY_ALIGN(IMG_UINT32 uiReserved);          /*!< Reserved. To ensure correct alignment (not written in the packet) */
 } RGX_HWPERF_HW_DATA;
 
 RGX_FW_STRUCT_SIZE_ASSERT(RGX_HWPERF_HW_DATA);
@@ -675,8 +671,8 @@ typedef struct
 	IMG_UINT32  ui32StreamVersion;  /*!< Version word, HWPERF_PWR_EST_V1_SIG */
 	IMG_UINT32  ui32StreamSize;     /*!< Size of array in bytes of stream data
 	                                     held in the aui32StreamData member */
-	IMG_UINT32  aui32StreamData[RGX_HWPERF_ONE_OR_MORE_ELEMENTS]; /*!< Counter data */
-	IMG_UINT32  ui32Padding; /*!< Reserved. To ensure correct alignment */
+	IMG_UINT32  aui32StreamData[IMG_FLEX_ARRAY_MEMBER]; /*!< Counter data */
+	RGX_HWPERF_FLEX_ARRAY_ALIGN(IMG_UINT32 uiReserved); /*!< Reserved. To ensure correct alignment */
 } RGX_HWPERF_PWR_EST_DATA;
 
 RGX_FW_STRUCT_SIZE_ASSERT(RGX_HWPERF_PWR_EST_DATA);
@@ -846,8 +842,8 @@ typedef struct
 	                                 stream and stream data offset in the
 	                                 payload */
 	RGX_HWPERF_DM eDM;             /*!< Data Master number, see RGX_HWPERF_DM */
-	IMG_UINT32 ui32Padding;        /*!< Unused, reserved */
-	IMG_UINT32 aui32StreamData[RGX_HWPERF_ONE_OR_MORE_ELEMENTS];  /*!< Series of tuples holding UFO objects data */
+	IMG_UINT32 aui32StreamData[IMG_FLEX_ARRAY_MEMBER];  /*!< Series of tuples holding UFO objects data */
+	RGX_HWPERF_FLEX_ARRAY_ALIGN(IMG_UINT32 uiReserved);        /*!< Unused, reserved */
 } RGX_HWPERF_UFO_DATA;
 
 RGX_FW_STRUCT_SIZE_ASSERT(RGX_HWPERF_UFO_DATA);
@@ -916,12 +912,13 @@ typedef union
 	struct RGX_RESOURCE_CAPTURE_RENDER_SURFACES
 	{
 		IMG_UINT32 ui32RenderSurfaceCount;
-		RGX_RESOURCE_PER_SURFACE_INFO sSurface[RGX_HWPERF_ONE_OR_MORE_ELEMENTS];
+		RGX_RESOURCE_PER_SURFACE_INFO sSurface[IMG_FLEX_ARRAY_MEMBER];
 	} sRenderSurfaces;
 
 	struct RGX_RESOURCE_CAPTURE_TILE_LIFETIME_BUFFERS
 	{
-		RGX_RESOURCE_PER_TLT_BUFFER_INFO sTLTBufInfo[RGX_HWPERF_ONE_OR_MORE_ELEMENTS];
+		IMG_UINT32 uiReserved;
+		RGX_RESOURCE_PER_TLT_BUFFER_INFO sTLTBufInfo[IMG_FLEX_ARRAY_MEMBER];
 	} sTLTBuffers;
 } RGX_RESOURCE_CAPTURE_DETAIL;
 
@@ -1127,10 +1124,8 @@ typedef struct
 	 * array member need to add a special case for Smatch static code analyser. */
 	IMG_UINT32 aui32StreamData[];
 #else
-	IMG_UINT32 aui32StreamData[RGX_HWPERF_ONE_OR_MORE_ELEMENTS];
-	                             /*!< Series of tuples holding UFO objects data */
-
-	IMG_UINT32 ui32Padding;      /*!< Reserved, align structure size to 8 bytes */
+	IMG_UINT32 aui32StreamData[IMG_FLEX_ARRAY_MEMBER];       /*!< Series of tuples holding UFO objects data */
+	RGX_HWPERF_FLEX_ARRAY_ALIGN(IMG_UINT32 uiReserved);      /*!< Reserved, align structure size to 8 bytes */
 #endif
 } RGX_HWPERF_HOST_UFO_DATA;
 
@@ -1422,13 +1417,13 @@ typedef union
 	{
 		IMG_UINT64 ui64TotalMemoryUsage;   /*!< Total memory usage (bytes) */
 		/*! Detailed memory usage */
-		struct
+		struct _RGX_HWPERF_HOST_INFO_PER_PROC_USAGE_
 		{
 			IMG_UINT32 ui32Pid;              /*!< Process ID */
 			IMG_UINT32 ui32Padding;          /*!< Padding */
 			IMG_UINT64 ui64KernelMemUsage;   /*!< Kernel memory usage (bytes) */
 			IMG_UINT64 ui64GraphicsMemUsage; /*!< GPU memory usage (bytes) */
-		} sPerProcessUsage[RGX_HWPERF_ZERO_OR_MORE_ELEMENTS];
+		} sPerProcessUsage[IMG_FLEX_ARRAY_MEMBER];
 	} sMemUsageStats;
 } RGX_HWPERF_HOST_INFO_DETAIL;
 
@@ -1535,7 +1530,7 @@ typedef struct
 {
 	IMG_PID uiClientPID; /*!< Client process identifier */
 	IMG_UINT32 ui32Length;  /*!< Number of bytes present in ``acName`` */
-	IMG_CHAR acName[RGX_HWPERF_ONE_OR_MORE_ELEMENTS]; /*!< Process name string, null terminated */
+	IMG_CHAR acName[IMG_FLEX_ARRAY_MEMBER]; /*!< Process name string, null terminated */
 } RGX_HWPERF_HOST_CLIENT_PROC_NAME;
 
 #define RGX_HWPERF_HOST_CLIENT_PROC_NAME_SIZE(ui32NameLen) \
@@ -1546,13 +1541,13 @@ typedef union
 	struct
 	{
 		IMG_UINT32 ui32Count; /*!< Number of elements in ``asProcNames`` */
-		RGX_HWPERF_HOST_CLIENT_PROC_NAME asProcNames[RGX_HWPERF_ONE_OR_MORE_ELEMENTS];
+		RGX_HWPERF_HOST_CLIENT_PROC_NAME asProcNames[IMG_FLEX_ARRAY_MEMBER];
 	} sProcName;
 } RGX_HWPERF_HOST_CLIENT_INFO_DETAIL;
 
 typedef struct
 {
-	IMG_UINT32 uiReserved1; /*!< Reserved. Align structure size to 8 bytes */
+	IMG_UINT32 uiReserved; /*!< Reserved. Align structure size to 8 bytes */
 	RGX_HWPERF_HOST_CLIENT_INFO_TYPE eType;
 	                        /*!< Type of the subevent, see
 	                         RGX_HWPERF_HOST_CLIENT_INFO_TYPE */
@@ -1563,8 +1558,6 @@ typedef struct
 
 } RGX_HWPERF_HOST_CLIENT_INFO_DATA;
 
-static_assert((sizeof(RGX_HWPERF_HOST_CLIENT_INFO_DATA) & (PVRSRVTL_PACKET_ALIGNMENT-1U)) == 0U,
-			  "sizeof(RGX_HWPERF_HOST_CLIENT_INFO_DATA) must be a multiple PVRSRVTL_PACKET_ALIGNMENT");
 
 /*! This type is a union of packet payload data structures associated with
  * various FW and Host events */
