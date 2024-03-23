@@ -3049,7 +3049,7 @@ static inline IMG_UINT32 _CalculateHostInfoPacketSize(RGX_HWPERF_INFO_EV eEvType
 			if (PVRSRVGetProcessMemUsage(pui64TotalMemoryUsage, pui32LivePids, ppsPerProcessMemUsage) == PVRSRV_OK)
 			{
 				ui32Size += offsetof(RGX_HWPERF_HOST_INFO_DETAIL, sMemUsageStats.sPerProcessUsage)
-					+ ((*pui32LivePids) * sizeof(((RGX_HWPERF_HOST_INFO_DETAIL*)0)->sMemUsageStats.sPerProcessUsage));
+					+ ((*pui32LivePids) * sizeof(struct _RGX_HWPERF_HOST_INFO_PER_PROC_USAGE_));
 			}
 #else
 			PVR_DPF((PVR_DBG_ERROR, "This functionality is not yet implemented for this platform"));

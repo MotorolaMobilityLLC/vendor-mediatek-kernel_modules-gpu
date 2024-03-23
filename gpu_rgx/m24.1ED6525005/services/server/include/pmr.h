@@ -93,7 +93,7 @@ struct _PMR_MAPPING_TABLE_
 	IMG_UINT32	ui32NumPhysChunks;		/*!< Number of physical chunks that are valid */
 	IMG_UINT32	ui32NumVirtChunks;		/*!< Number of virtual chunks in the mapping */
 	/* Must be last */
-	IMG_UINT32	aui32Translation[];	/*!< Translation mapping for "logical" to physical */
+	IMG_UINT32 aui32Translation[IMG_FLEX_ARRAY_MEMBER];    /*!< Translation mapping for "logical" to physical */
 };
 
 #define TRANSLATION_INVALID 0xFFFFFFFFUL

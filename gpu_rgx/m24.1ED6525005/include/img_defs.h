@@ -616,6 +616,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #define PVR_PRE_DPF (void) printf
 
+/* C STD >= C99 */
+#if !defined(INTEGRITY_OS) && defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
+#define IMG_FLEX_ARRAY_MEMBER
+#define IMG_FLEX_ARRAY_SIZE(size, count) ((size) * (count))
+#else
+/* In C STD prior to C99 flexible array members are an extension feature and syntax requires alternative approach */
+#define IMG_FLEX_ARRAY_MEMBER (1)
+#define IMG_FLEX_ARRAY_SIZE(size, count) ((size) * ((count) - 1))
+#endif
+
 #endif /* IMG_DEFS_H */
 /*****************************************************************************
  End of file (img_defs.h)

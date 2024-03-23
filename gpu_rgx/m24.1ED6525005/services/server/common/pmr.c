@@ -455,7 +455,7 @@ _PMRCreate(PMR_SIZE_T uiLogicalSize,
 		}
 	}
 
-	pvPMRLinAddr = OSAllocMem(sizeof(*psPMR) + sizeof(*psMappingTable) + sizeof(IMG_UINT32) * ui32NumVirtChunks);
+	pvPMRLinAddr = OSAllocMem(sizeof(*psPMR) + sizeof(*psMappingTable) + IMG_FLEX_ARRAY_SIZE(sizeof(IMG_UINT32), ui32NumVirtChunks));
 	PVR_RETURN_IF_NOMEM(pvPMRLinAddr);
 
 	psPMR = (PMR *) pvPMRLinAddr;

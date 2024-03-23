@@ -240,7 +240,7 @@ typedef struct DEBUG_REQUEST_ENTRY_TAG
 typedef struct DEBUG_REQUEST_TABLE_TAG
 {
 	POSWR_LOCK              hLock;
-	DEBUG_REQUEST_ENTRY     asEntry[];
+	DEBUG_REQUEST_ENTRY     asEntry[IMG_FLEX_ARRAY_MEMBER];;
 } DEBUG_REQUEST_TABLE;
 
 typedef struct DEBUG_REQUEST_NOTIFY_TAG
@@ -282,7 +282,7 @@ _RegisterDebugTableI(DEBUG_REQUEST_TABLE **ppsDebugTable)
 	}
 
 	psDebugTable = OSAllocMem(sizeof(DEBUG_REQUEST_TABLE) +
-							  (sizeof(DEBUG_REQUEST_ENTRY) * (g_ui32DebugOrderTableReqCount-1)));
+							  IMG_FLEX_ARRAY_SIZE(sizeof(DEBUG_REQUEST_ENTRY), g_ui32DebugOrderTableReqCount));
 	PVR_RETURN_IF_NOMEM(psDebugTable);
 
 	eError = OSWRLockCreate(&psDebugTable->hLock);
