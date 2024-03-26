@@ -1503,6 +1503,7 @@ struct kbase_csf_firmware_log {
  * @fw:                     Copy of the loaded MCU firmware image.
  * @fw_log:                 Contain members required for handling firmware log.
  * @tiler_heap_reclaim:     Tiler heap reclaim shrinker object.
+ * @pmode_sync_sem:         RW Semaphore to prevent MMU operations during P.Mode entrance.
  */
 struct kbase_csf_device {
 	struct kbase_mmu_table mcu_mmu;
@@ -1546,6 +1547,7 @@ struct kbase_csf_device {
 	struct kbase_csf_mcu_fw fw;
 	struct kbase_csf_firmware_log fw_log;
 	struct shrinker tiler_heap_reclaim;
+	struct rw_semaphore pmode_sync_sem;
 #if IS_ENABLED(CONFIG_MALI_MTK_IRQ_DEBUG)
 	ktime_t glb_start_tm;
 	ktime_t glb_end_tm;
