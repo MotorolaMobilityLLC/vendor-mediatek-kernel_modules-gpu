@@ -4160,7 +4160,10 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 	 * entry to protected mode happens with a memory region being locked and
 	 * the same region is then accessed by the GPU in protected mode.
 	 */
-	down_write(&kbdev->csf.pmode_sync_sem);
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
+	kbase_gpu_vm_lock(kctx);
+#endif
+	mutex_lock(&kbdev->mmu_hw_mutex);
 	spin_lock_irqsave(&scheduler->interrupt_lock, flags);
 
 	/* Check if the previous transition to enter & exit the protected
@@ -4215,9 +4218,9 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 					scheduler->apply_pmode_exit_wa = false;
 				} else {
 					spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
-					up_write(&kbdev->csf.pmode_sync_sem);
+					mutex_unlock(&kbdev->mmu_hw_mutex);
 					kbase_pm_apply_pmode_entry_wa(kbdev);
-					down_write(&kbdev->csf.pmode_sync_sem);
+					mutex_lock(&kbdev->mmu_hw_mutex);
 					spin_lock_irqsave(&scheduler->interrupt_lock, flags);
 				}
 
@@ -4226,8 +4229,6 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 					spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 					dev_vdbg(kbdev->dev, "kctx %p, pid %d,tid %d, coherent_regioon_nr: %u\n",
 						kctx, kctx->pid, kctx->tgid, kctx->coherent_region_nr);
-
-					kbase_gpu_vm_lock(kctx);
 					mutex_lock(&kctx->coherenct_region_lock);
 					for (r_index = 0; r_index < kctx->coherent_region_nr; r_index++) {
 						if (kctx->coherenct_regions[r_index] != NULL &&
@@ -4245,7 +4246,6 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 							}
 						}
 					mutex_unlock(&kctx->coherenct_region_lock);
-					kbase_gpu_vm_unlock(kctx);
 					dev_vdbg(kbdev->dev, "Flushed kctx pid: %d, tgid: %d\n", kctx->pid, kctx->tgid);
 
 					spin_lock_irqsave(&scheduler->interrupt_lock, flags);
@@ -4264,7 +4264,10 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 				spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 
 				kbase_csf_wait_protected_mode_enter(kbdev);
-				up_write(&kbdev->csf.pmode_sync_sem);
+				mutex_unlock(&kbdev->mmu_hw_mutex);
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
+				kbase_gpu_vm_unlock(input_grp->kctx);
+#endif
 
 				scheduler->protm_enter_time = ktime_get_raw();
 
@@ -4274,7 +4277,10 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 	}
 
 	spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
-	up_write(&kbdev->csf.pmode_sync_sem);
+	mutex_unlock(&kbdev->mmu_hw_mutex);
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_SVP_WA)
+	kbase_gpu_vm_unlock(kctx);
+#endif
 }
 
 /**

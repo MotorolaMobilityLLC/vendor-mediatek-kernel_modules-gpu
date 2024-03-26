@@ -1053,7 +1053,6 @@ int kbase_csf_firmware_early_init(struct kbase_device *kbdev)
 		  kbase_csf_firmware_reload_worker);
 	INIT_WORK(&kbdev->csf.fw_error_work, firmware_error_worker);
 
-	init_rwsem(&kbdev->csf.pmode_sync_sem);
 	mutex_init(&kbdev->csf.reg_lock);
 
 	return 0;
