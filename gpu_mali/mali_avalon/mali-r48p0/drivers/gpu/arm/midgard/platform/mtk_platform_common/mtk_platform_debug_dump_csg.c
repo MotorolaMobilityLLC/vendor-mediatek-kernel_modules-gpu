@@ -147,7 +147,7 @@ void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, struct kba
 
                 if (dump_queue_data) {
                     cs_queue_data.kctx = group->kctx;
-                    cs_queue_data.group_type = 0;
+                    cs_queue_data.group_type = 1;
                     cs_queue_data.handle = group->handle;
                     mtk_debug_csf_csg_active_dump_group(group, &cs_queue_data);
                 }
