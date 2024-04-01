@@ -812,6 +812,20 @@ static int kbase_kcpu_cqs_wait_process(struct kbase_device *kbdev,
 			if (sig_set) {
 				bool error = false;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+				/* Dump the CQS wait object that is set for fence timeout debug */
+				if (queue->fence_signal_command_timeout_counter >= 2) {
+					dev_info(kbdev->dev,
+						"ctx:%d_%d kcpu queue:%u Command - CQS_WAIT obj [0x%.16llx] is set!!",
+						queue->kctx->tgid, queue->kctx->id, queue->id, cqs_wait->objs[i].addr);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+					mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+						"ctx:%d_%d kcpu queue:%u Command - CQS_WAIT obj [0x%.16llx] is set!!\n",
+						queue->kctx->tgid, queue->kctx->id, queue->id, cqs_wait->objs[i].addr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+				}
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+
 				bitmap_set(cqs_wait->signaled, i, 1);
 				if ((cqs_wait->inherit_err_flags & (1U << i)) &&
 				    evt[BASEP_EVENT32_ERR_OFFSET / sizeof(u32)] > 0) {
@@ -1881,20 +1895,25 @@ static int kbasep_kcpu_fence_signal_process(struct kbase_kcpu_command_queue *kcp
 
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 	kbase_sync_fence_info_get(fence_info->fence, &info);
-	if (!strcmp(kcpu_queue->fence_signal_command_timeout_fence, info.name) &&
-		kcpu_queue->fence_signal_command_timeout_counter >= 2) {
-		dev_info(kctx->kbdev->dev,
-			"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout fence[%pK] context#seqno:%s is signaled!! (driver=%s, timeline=%s)",
-			kctx->tgid, kctx->id, kcpu_queue->id, fence_info->fence, info.name,
-			fence_info->fence->ops->get_driver_name(fence_info->fence),
-			fence_info->fence->ops->get_timeline_name(fence_info->fence));
+	if (!strcmp(kcpu_queue->fence_signal_command_timeout_fence, info.name)) {
+		/* The fence timeout log is start from 2s.
+		 * In order to check if the timeout fence is signaled, we have this log if the timeout counter is greater than or equal to 2.
+		 */
+		if (kcpu_queue->fence_signal_command_timeout_counter >= 2) {
+			dev_info(kctx->kbdev->dev,
+				"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout fence[%pK] context#seqno:%s is signaled!! (driver=%s, timeline=%s)",
+				kctx->tgid, kctx->id, kcpu_queue->id, fence_info->fence, info.name,
+				fence_info->fence->ops->get_driver_name(fence_info->fence),
+				fence_info->fence->ops->get_timeline_name(fence_info->fence));
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout fence[%pK] context#seqno:%s is signaled!! (driver=%s, timeline=%s)\n",
-			kctx->tgid, kctx->id, kcpu_queue->id, fence_info->fence, info.name,
-			fence_info->fence->ops->get_driver_name(fence_info->fence),
-			fence_info->fence->ops->get_timeline_name(fence_info->fence));
+			mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout fence[%pK] context#seqno:%s is signaled!! (driver=%s, timeline=%s)\n",
+				kctx->tgid, kctx->id, kcpu_queue->id, fence_info->fence, info.name,
+				fence_info->fence->ops->get_driver_name(fence_info->fence),
+				fence_info->fence->ops->get_timeline_name(fence_info->fence));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		}
+		kcpu_queue->fence_signal_command_timeout_counter = 0;
 	}
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
