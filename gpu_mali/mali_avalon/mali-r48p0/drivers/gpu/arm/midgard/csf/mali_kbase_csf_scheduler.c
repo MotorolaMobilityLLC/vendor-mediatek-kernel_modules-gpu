@@ -7492,7 +7492,7 @@ int kbase_csf_scheduler_init(struct kbase_device *kbdev)
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 	u32 num_groups = kbdev->csf.global_iface.group_num;
 #if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
-	struct sched_param param = { .sched_priority = MAX_RT_PRIO - 1 };
+	struct sched_param param = { .sched_priority = 2 };
 #endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
 	bitmap_zero(scheduler->csg_inuse_bitmap, num_groups);
