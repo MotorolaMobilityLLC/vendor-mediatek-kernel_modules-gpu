@@ -618,6 +618,9 @@ void kbase_csf_firmware_trigger_mcu_sleep(struct kbase_device *kbdev);
 bool kbase_csf_firmware_is_mcu_in_sleep(struct kbase_device *kbdev);
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_RESET_RELOAD_ON_FW)
+void kbase_csf_firmware_reload(struct kbase_device *kbdev);
+#endif
 /**
  * kbase_csf_firmware_trigger_reload() - Trigger the reboot of MCU firmware, for
  *                                       the cold boot case firmware image would

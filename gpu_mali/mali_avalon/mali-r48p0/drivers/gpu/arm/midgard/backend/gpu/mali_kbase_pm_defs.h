@@ -533,6 +533,9 @@ struct kbase_pm_backend_data {
 	bool shaders_desired;
 
 	bool in_reset;
+#if IS_ENABLED(CONFIG_MALI_MTK_RESET_RELOAD_ON_FW)
+	bool fw_reload_on_reset_worker;
+#endif
 
 #if !MALI_USE_CSF
 	bool partial_shaderoff;
