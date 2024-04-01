@@ -799,11 +799,7 @@ static unsigned long mtk_mgm_pool_reclaim_count_objects(struct shrinker *s,
 	struct mgm_groups *data;
 	size_t ret;
 
-#if (KERNEL_VERSION(6, 7, 0) > LINUX_VERSION_CODE)
-	data = container_of(s, struct mgm_groups, reclaim);
-#else
-	data = s->private_data;
-#endif
+	data = KBASE_GET_KBASE_DATA_FROM_SHRINKER(s, struct mgm_groups, reclaim);
 	if (data == NULL) {
 		pr_err("%s:mgm_groups pointer is NULL\n", __func__);
 		return 0;
@@ -829,11 +825,7 @@ static unsigned long mtk_mgm_pool_reclaim_scan_objects(struct shrinker *s,
 	size_t ret = 0;
 	struct page *p;
 
-#if (KERNEL_VERSION(6, 7, 0) > LINUX_VERSION_CODE)
-	data = container_of(s, struct mgm_groups, reclaim);
-#else
-	data = s->private_data;
-#endif
+	data = KBASE_GET_KBASE_DATA_FROM_SHRINKER(s, struct mgm_groups, reclaim);
 	if (data == NULL) {
 		pr_err("%s:mgm_groups pointer is NULL\n", __func__);
 		return 0;
@@ -1063,7 +1055,7 @@ static void example_mgm_free_page(struct memory_group_manager_device *mgm_dev,
 		return;
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
-	if (data->rank_mode >= 0) {
+	if (data->rank_mode >= 0 && data->rank_mode != BYPASS_MODE) {
 		r = (page_to_phys(page) < data->ui64RankBoundary) ? 0 : 1; // true: rank0, false: rank1
 		spin_lock(&data->MGMFree_lst_lk);
 		if (order == SP_ORDER) {
@@ -1085,6 +1077,9 @@ static void example_mgm_free_page(struct memory_group_manager_device *mgm_dev,
 				spin_unlock(&data->MGMFree_lst_lk);
 				goto BUD_SYS;
 			}
+		} else {
+			spin_unlock(&data->MGMFree_lst_lk);
+			goto BUD_SYS;
 		}
 		/* If pool is not full, add records to cache memory */
 		mod_node_page_state(page_pgdat(page), NR_KERNEL_MISC_RECLAIMABLE, 1 << order);
@@ -1295,8 +1290,11 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 	{
 		struct shrinker *reclaim;
 		reclaim = KBASE_INIT_RECLAIM(mgm_data, reclaim, "mali-mGMM");
-		if (!reclaim)
+		if (!reclaim) {
+			kfree(mgm_data);
+			kfree(mgm_dev);
 			return -ENOMEM;
+		}
 		KBASE_SET_RECLAIM(mgm_data, reclaim, reclaim);
 
 		reclaim->count_objects = mtk_mgm_pool_reclaim_count_objects;
@@ -1338,6 +1336,10 @@ static int memory_group_manager_remove(struct platform_device *pdev)
 {
 	struct memory_group_manager_device *mgm_dev = platform_get_drvdata(pdev);
 	struct mgm_groups *mgm_data = mgm_dev->data;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
+	KBASE_UNREGISTER_SHRINKER(mgm_data->reclaim);
+#endif	/* CONFIG_MALI_MTK_MGMM */
 
 	mgm_term_data(mgm_data);
 	kfree(mgm_data);
