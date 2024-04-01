@@ -286,6 +286,7 @@ static void print_group_queues_data(struct kbase_queue_group *const group)
 		}
 	}
 
+#if !IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG_NO_KLOG)
 	dev_warn(group->kctx->kbdev->dev,
 		"R0 %llx I0 %llx E0 %llx, R1 %llx I1 %llx E1 %llx, R2 %llx I2 %llx E2 %llx, R3 %llx I3 %llx E3 %llx, R4 %llx I4 %llx E4 %llx",
 		ringbuff[0], insert[0], extract[0],
@@ -293,6 +294,7 @@ static void print_group_queues_data(struct kbase_queue_group *const group)
 		ringbuff[2], insert[2], extract[2],
 		ringbuff[3], insert[3], extract[3],
 		ringbuff[4], insert[4], extract[4]);
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG_NO_KLOG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_type_print(group->kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
@@ -559,6 +561,7 @@ static void dump_mmu_teardown_records(struct kbase_device *kbdev) {
 
 	/* Each line include 5 records. */
 	for (idx = 0; (idx + 5) <= tail; idx += 5) {
+#if !IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG_NO_KLOG)
 		dev_err(kbdev->dev,
 			"[mmu] "
 			"%llu,%zu,%llx,%d,%d,%d,%d "
@@ -571,6 +574,7 @@ static void dump_mmu_teardown_records(struct kbase_device *kbdev) {
 			kbdev->mmu_dbg[idx+2].time, kbdev->mmu_dbg[idx+2].pgds, kbdev->mmu_dbg[idx+2].va, kbdev->mmu_dbg[idx+2].tgid, kbdev->mmu_dbg[idx+2].id, kbdev->mmu_dbg[idx+2].as_nr, kbdev->mmu_dbg[idx+2].ipm,
 			kbdev->mmu_dbg[idx+3].time, kbdev->mmu_dbg[idx+3].pgds, kbdev->mmu_dbg[idx+3].va, kbdev->mmu_dbg[idx+3].tgid, kbdev->mmu_dbg[idx+3].id, kbdev->mmu_dbg[idx+3].as_nr, kbdev->mmu_dbg[idx+3].ipm,
 			kbdev->mmu_dbg[idx+4].time, kbdev->mmu_dbg[idx+4].pgds, kbdev->mmu_dbg[idx+4].va, kbdev->mmu_dbg[idx+4].tgid, kbdev->mmu_dbg[idx+4].id, kbdev->mmu_dbg[idx+4].as_nr, kbdev->mmu_dbg[idx+4].ipm);
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG_NO_KLOG */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR,
 			"[mmu] "
@@ -589,8 +593,10 @@ static void dump_mmu_teardown_records(struct kbase_device *kbdev) {
 
 	/* Dump the rest of the records. */
 	for (; idx < tail; idx++) {
+#if !IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG_NO_KLOG)
 		dev_err(kbdev->dev, "[mmu] %llu,%zu,%llx,%d,%d,%d,%d",
 			kbdev->mmu_dbg[idx].time, kbdev->mmu_dbg[idx].pgds, kbdev->mmu_dbg[idx].va, kbdev->mmu_dbg[idx].tgid, kbdev->mmu_dbg[idx].id, kbdev->mmu_dbg[idx].as_nr, kbdev->mmu_dbg[idx].ipm);
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG_NO_KLOG */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR,
 			"[mmu] %llu,%zu,%llx,%d,%d,%d,%d\n",
