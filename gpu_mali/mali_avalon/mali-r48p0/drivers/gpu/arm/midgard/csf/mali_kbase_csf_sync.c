@@ -121,9 +121,15 @@ static void kbasep_csf_sync_print_kcpu_fence_wait_or_signal(char *buffer, int *l
 			    "cmd:%s obj:0x%pK live_value:0x%.8x | ", cmd_name, fence, is_signaled);
 
 	/* Note: fence->seqno was u32 until 5.1 kernel, then u64 */
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	*length += snprintf(buffer + *length, CSF_SYNC_DUMP_SIZE - *length,
+			    "timeline_name:%s context#seqno:%s",
+			    timeline_name, info.name);
+#else /* CONFIG_MALI_MTK_FENCE_DEBUG */
 	*length += snprintf(buffer + *length, CSF_SYNC_DUMP_SIZE - *length,
 			    "timeline_name:%s timeline_context:0x%.16llx fence_seqno:0x%.16llx",
 			    timeline_name, fence->context, (u64)fence->seqno);
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 	kbase_fence_put(fence);
 }
