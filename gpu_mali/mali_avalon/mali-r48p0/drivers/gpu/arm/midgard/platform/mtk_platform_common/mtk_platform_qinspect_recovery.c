@@ -180,9 +180,9 @@ static void mtk_qinspect_unlock_root_locker(void) {
 	for (i = 0; i < g_cqs_rootlocker_idx; i++)
 		mtk_qinspect_unlock_cqs(&g_cqs_rootlocker_list[i]);
 
-#if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
-	//if (g_cqs_rootlocker_idx)
-	//	aee_kernel_warning("GPU_RECOVERY", "\nCRDISPATCH_KEY:GPU_RECOVERY\nfound blocked cqs_wait");
+#if IS_ENABLED(CONFIG_MTK_AEE_FEATURE) && IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY_REPORT)
+	if (g_cqs_rootlocker_idx)
+		aee_kernel_warning("GPU_RECOVERY", "\nCRDISPATCH_KEY:GPU_RECOVERY\nfound blocked cqs_wait");
 #endif /* CONFIG_MTK_AEE_FEATURE */
 }
 
