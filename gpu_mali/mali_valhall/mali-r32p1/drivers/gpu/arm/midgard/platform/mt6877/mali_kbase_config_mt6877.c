@@ -16,6 +16,7 @@
 #include "platform/mtk_platform_common.h"
 #include <ged_dvfs.h>
 #include <mtk_gpufreq.h>
+#include <mtk_gpu_utility.h>
 #if IS_ENABLED(CONFIG_MTK_AEE_IPANIC)
 #include <mboot_params.h>
 #endif
@@ -211,6 +212,7 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 	int ret = 0;
 
 	mutex_lock(&g_mfg_lock);
+	mtk_notify_gpu_power_change(1);
 	ret = pm_callback_power_on_nolock(kbdev);
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
 	MTKGPUPower_model_resume();
@@ -227,6 +229,7 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 	MTKGPUPower_model_suspend();
 #endif
 	pm_callback_power_off_nolock(kbdev);
+	mtk_notify_gpu_power_change(0);
 	mutex_unlock(&g_mfg_lock);
 }
 
