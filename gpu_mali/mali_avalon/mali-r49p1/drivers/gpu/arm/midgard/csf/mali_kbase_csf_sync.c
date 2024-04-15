@@ -383,7 +383,7 @@ static void kbasep_csf_sync_kcpu_print_queue(struct kbase_context *kctx,
 					pr_info("KCPU Queue is blocked by display fence timeout");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 					mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-						"KCPU Queue is blocked by display fence timeout");
+						"KCPU Queue is blocked by display fence timeout\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 				}
 				kbasep_csf_sync_print_kcpu_fence_wait_or_signal(buffer, &length, cmd,
