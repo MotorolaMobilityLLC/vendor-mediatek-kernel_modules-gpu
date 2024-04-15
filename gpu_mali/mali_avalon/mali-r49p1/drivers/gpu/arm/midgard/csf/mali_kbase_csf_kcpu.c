@@ -1489,7 +1489,7 @@ static void fence_timeout_callback(struct timer_list *timer)
 			pr_info("KCPU Queue is blocked by display fence timeout");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 			mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-				"KCPU Queue is blocked by display fence timeout");
+				"KCPU Queue is blocked by display fence timeout\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		}
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
@@ -1518,7 +1518,7 @@ static void fence_timeout_callback(struct timer_list *timer)
 								pr_info("KCPU Queue is blocked by display fence timeout");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 								mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-									"KCPU Queue is blocked by display fence timeout");
+									"KCPU Queue is blocked by display fence timeout\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 							}
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */

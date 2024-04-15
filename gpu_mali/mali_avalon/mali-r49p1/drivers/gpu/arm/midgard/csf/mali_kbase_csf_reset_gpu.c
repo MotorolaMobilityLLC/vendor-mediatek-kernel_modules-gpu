@@ -531,7 +531,7 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_RESET);
-#endif /* CONFIG_MALI_MTK_DEBUG */
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 	WARN_ON(kbdev->irq_reset_flush);
 	/* The reset must now be happening otherwise other threads will not
 	 * have been synchronized with to stop their access to the HW

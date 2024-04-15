@@ -2637,41 +2637,40 @@ static void handle_fault_event(struct kbase_queue *const queue, const u32 cs_ack
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 
 
-#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
-	if (cs_fault_exception_type != CS_FAULT_EXCEPTION_TYPE_CS_INHERIT_FAULT) {
-#endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
-		if (use_old_log_format && !skip_fault_report) {
-			dev_warn(kbdev->dev,
-				"Ctx %d_%d Group %d CSG %d CSI: %d\n"
-				"CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
-				"CS_FAULT.EXCEPTION_DATA: 0x%x\n"
-				"CS_FAULT_INFO.EXCEPTION_DATA: 0x%llx\n",
-				queue->kctx->tgid, queue->kctx->id, queue->group->handle,
-				queue->group->csg_nr, queue->csi_index, cs_fault_exception_type,
-				kbase_gpu_exception_name(cs_fault_exception_type), cs_fault_exception_data,
-				cs_fault_info_exception_data);
+	if (use_old_log_format && !skip_fault_report) {
+		dev_warn(kbdev->dev,
+			"Ctx %d_%d Group %d CSG %d CSI: %d\n"
+			"CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
+			"CS_FAULT.EXCEPTION_DATA: 0x%x\n"
+			"CS_FAULT_INFO.EXCEPTION_DATA: 0x%llx\n",
+			queue->kctx->tgid, queue->kctx->id, queue->group->handle,
+			queue->group->csg_nr, queue->csi_index, cs_fault_exception_type,
+			kbase_gpu_exception_name(cs_fault_exception_type), cs_fault_exception_data,
+			cs_fault_info_exception_data);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-				"Ctx %d_%d Group %d CSG %d CSI: %d\n"
-				"CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
-				"CS_FAULT.EXCEPTION_DATA: 0x%x\n"
-				"CS_FAULT_INFO.EXCEPTION_DATA: 0x%llx\n",
-				queue->kctx->tgid, queue->kctx->id, queue->group->handle,
-				queue->group->csg_nr, queue->csi_index, cs_fault_exception_type,
-				kbase_gpu_exception_name(cs_fault_exception_type), cs_fault_exception_data,
-				cs_fault_info_exception_data);
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Ctx %d_%d Group %d CSG %d CSI: %d\n"
+			"CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
+			"CS_FAULT.EXCEPTION_DATA: 0x%x\n"
+			"CS_FAULT_INFO.EXCEPTION_DATA: 0x%llx\n",
+			queue->kctx->tgid, queue->kctx->id, queue->group->handle,
+			queue->group->csg_nr, queue->csi_index, cs_fault_exception_type,
+			kbase_gpu_exception_name(cs_fault_exception_type), cs_fault_exception_data,
+			cs_fault_info_exception_data);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
-			ged_mali_event_update_cs_error_nolock(queue->kctx->tgid, queue->group->handle, queue->group->csg_nr,
-				queue->csi_index, cs_fault_exception_type, cs_fault_exception_data, cs_fault_info_exception_data);
-#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
-		}
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_CSFAULT);
+		if ((cs_fault_exception_type != CS_FAULT_EXCEPTION_TYPE_CS_INHERIT_FAULT) &&
+			(cs_fault_exception_type != CS_FAULT_EXCEPTION_TYPE_CS_RESOURCE_TERMINATED))
+			queue_work(kbdev->mtk_enop_metadata_dump_workq, &kbdev->mtk_enop_metadata_dump_work);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
-#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+		ged_mali_event_update_cs_error_nolock(queue->kctx->tgid, queue->group->handle, queue->group->csg_nr,
+			queue->csi_index, cs_fault_exception_type, cs_fault_exception_data, cs_fault_info_exception_data);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 	}
-#endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_CSFAULT);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	/* If dump-on-fault daemon is waiting for a fault, wake up the daemon.
 	 * Acknowledging the fault is deferred to the bottom-half until the wait
