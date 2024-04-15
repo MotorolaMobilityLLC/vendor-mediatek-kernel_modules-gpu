@@ -253,6 +253,14 @@ int kbase_csf_firmware_cfg_init(struct kbase_device *kbdev)
 	list_for_each_entry(config, &kbdev->csf.firmware_config, node) {
 		int err;
 
+#if IS_ENABLED(CONFIG_MTK_GPU_FWLOG_DEBUG)
+		if (!strcmp(config->name, "Log verbosity")) {
+			dev_info(kbdev->dev, "Setting FW logging verbosity to low");
+			kbase_csf_update_firmware_memory(kbdev, config->address, 1);
+			kbase_csf_trigger_firmware_config_update(kbdev);
+		}
+#endif /* CONFIG_MTK_GPU_FWLOG_DEBUG */
+
 		kbase_csf_read_firmware_memory(kbdev, config->address, &config->cur_val);
 
 		if (!strcmp(config->name, CSF_FIRMWARE_CFG_LOG_VERBOSITY_ENTRY_NAME) &&
