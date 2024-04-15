@@ -5169,8 +5169,10 @@ static struct dentry *init_debugfs(struct kbase_device *kbdev)
 
 #ifdef CONFIG_MALI_DEVFREQ
 #if IS_ENABLED(CONFIG_DEVFREQ_THERMAL)
+#if !IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_THERMAL)
 	if (kbdev->devfreq)
 		kbase_ipa_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_DEVFREQ_THERMAL */
 #endif /* CONFIG_DEVFREQ_THERMAL */
 #endif /* CONFIG_MALI_DEVFREQ */
 
@@ -5185,6 +5187,9 @@ static struct dentry *init_debugfs(struct kbase_device *kbdev)
 #endif
 	kbase_dvfs_status_debugfs_init(kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS)
+	mtk_common_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_DEBUG_FS */
 
 	return dentry;
 }
@@ -6244,10 +6249,14 @@ static const struct dev_pm_ops kbase_pm_ops = {
 };
 
 #if IS_ENABLED(CONFIG_OF)
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+static const struct of_device_id kbase_dt_ids[] = { { .compatible = "arm,mali-valhall" },
+#else
 static const struct of_device_id kbase_dt_ids[] = { { .compatible = "arm,malit6xx" },
 						    { .compatible = "arm,mali-midgard" },
 						    { .compatible = "arm,mali-bifrost" },
 						    { .compatible = "arm,mali-valhall" },
+#endif /* CONFIG_MALI_MTK_COMMON */
 						    { /* sentinel */ } };
 MODULE_DEVICE_TABLE(of, kbase_dt_ids);
 #endif

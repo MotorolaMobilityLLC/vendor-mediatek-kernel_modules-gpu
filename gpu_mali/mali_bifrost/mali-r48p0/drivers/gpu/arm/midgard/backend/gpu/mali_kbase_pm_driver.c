@@ -31,6 +31,10 @@
 #include <mali_kbase_config_defaults.h>
 #include <mali_kbase_smc.h>
 
+#if IS_ENABLED(CONFIG_MTK_GPUFREQ_V2) && IS_ENABLED(CONFIG_MALI_MTK_MFG2_BACKDOOR)
+#include <mtk_gpufreq.h>
+#endif /* CONFIG_MTK_GPUFREQ_V2 && CONFIG_MALI_MTK_MFG2_BACKDOOR */
+
 #if MALI_USE_CSF
 #include <csf/ipa_control/mali_kbase_csf_ipa_control.h>
 #else
@@ -50,12 +54,39 @@
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 #include <arbiter/mali_kbase_arbiter_pm.h>
 #endif /* CONFIG_MALI_ARBITER_SUPPORT */
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
+#include <gpueb_debug.h>
+#include <ghpm_wrapper.h>
+#include <ged_notify_sw_vsync.h>
+#endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
 
 #if MALI_USE_CSF
 #include <linux/delay.h>
 #endif
 
 #include <linux/of.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) || IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MCU)
+#include <ged_dvfs.h>
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY || CONFIG_MALI_MTK_WHITEBOX_MCU */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP) || IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+#include <ged_mali_event.h>
+#include <platform/mtk_platform_common/mtk_platform_mali_event.h>
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 
 #ifdef CONFIG_MALI_CORESTACK
 bool corestack_driver_control = true;
@@ -661,6 +692,11 @@ static void kbase_pm_control_gpu_clock(struct kbase_device *kbdev)
 	queue_work(system_wq, &backend->gpu_clock_control_work);
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+u64 mcu_state_history = 0;
+u64 l2_state_history = 0;
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
+
 #if MALI_USE_CSF
 static const char *kbase_mcu_state_to_string(enum kbase_mcu_state state)
 {
@@ -775,8 +811,12 @@ static void wait_mcu_as_inactive(struct kbase_device *kbdev)
 
 	dev_err(kbdev->dev, "AS_ACTIVE_INT bit stuck for AS %d used by MCU FW", MCU_AS_NR);
 
-	if (kbase_prepare_to_reset_gpu(kbdev, 0))
+	if (kbase_prepare_to_reset_gpu(kbdev, 0)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+		ged_mali_event_update_gpu_reset_nolock(GPU_RESET_AS_ACTIVE_BIT_STUCK);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 		kbase_reset_gpu(kbdev);
+	}
 }
 #endif
 
@@ -1493,7 +1533,13 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 						kbase_pm_invoke(kbdev, KBASE_PM_CORE_TILER,
 								tiler_present, ACTION_PWRON);
 				} else {
-
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+					if (ged_gpu_apo_support())
+						ged_get_active_time();
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)
+					mtk_common_ged_dvfs_write_sysram_last_commit_dual();
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_ASYNC */
 					kbase_pm_invoke(kbdev, KBASE_PM_CORE_L2, l2_present,
 							ACTION_PWRON);
 				}
@@ -1687,6 +1733,19 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 			else if (can_power_down_l2(kbdev)) {
 				if (!backend->l2_always_on) {
 						/* Powering off the L2 will also power off the tiler. */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+					if (ged_gpu_apo_support())
+						ged_get_idle_time();
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
+#if IS_ENABLED(CONFIG_MTK_GPUFREQ_V2) && IS_ENABLED(CONFIG_MALI_MTK_MFG2_BACKDOOR)
+					/* only notify when L2 is power-on */
+					gpufreq_set_mfgsys_config(CONFIG_MFG2_BEFORE_OFF,
+						CONFIG_VAL_IGNORE);
+#endif /* CONFIG_MTK_GPUFREQ_V2 && CONFIG_MALI_MTK_MFG2_BACKDOOR */
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)
+					mtk_common_ged_dvfs_write_sysram_last_commit_dual();
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_ASYNC */
 						kbase_pm_invoke(kbdev, KBASE_PM_CORE_L2, l2_present,
 								ACTION_PWROFF);
 				} else

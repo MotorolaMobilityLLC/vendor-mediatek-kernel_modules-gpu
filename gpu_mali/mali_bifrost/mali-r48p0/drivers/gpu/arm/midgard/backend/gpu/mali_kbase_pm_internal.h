@@ -31,6 +31,10 @@
 #include "backend/gpu/mali_kbase_pm_ca.h"
 #include "mali_kbase_pm_policy.h"
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+#include <ged_dvfs.h>
+static bool shall_scheduler_sleep = true;
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 /**
  * kbase_pm_dev_idle - The GPU is idle.
  *
