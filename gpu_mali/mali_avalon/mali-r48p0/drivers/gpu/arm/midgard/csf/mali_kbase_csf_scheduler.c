@@ -939,7 +939,7 @@ bool kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev)
 			}
 		/* Handle enqueue */
 		} else {
-			ged_check_predict_power_duration(); // call for autosuspend_delay setting
+			ged_check_predict_power_autosuspend(); // call for autosuspend_delay setting
 			enqueue_gpu_idle_work(scheduler);
 		}
 #else
