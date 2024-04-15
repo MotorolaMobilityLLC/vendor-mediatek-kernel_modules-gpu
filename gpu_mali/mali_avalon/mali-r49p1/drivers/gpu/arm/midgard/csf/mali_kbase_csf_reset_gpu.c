@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -550,6 +550,7 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 	 */
 	if (likely(firmware_inited))
 		kbase_csf_scheduler_reset(kbdev);
+
 	cancel_work_sync(&kbdev->csf.firmware_reload_work);
 
 	dev_dbg(kbdev->dev, "Disable GPU hardware counters.\n");
@@ -559,6 +560,7 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 	kbdev->pm.backend.fw_reload_on_reset_worker = false;
 #endif
 	ret = kbase_csf_reset_gpu_once(kbdev, firmware_inited, silent);
+
 	if (ret == SOFT_RESET_FAILED) {
 		dev_err(kbdev->dev, "Soft-reset failed");
 		goto err;

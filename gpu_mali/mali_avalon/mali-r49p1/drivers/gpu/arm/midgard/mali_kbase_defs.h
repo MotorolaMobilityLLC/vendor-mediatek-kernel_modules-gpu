@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2011-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2011-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -888,8 +888,6 @@ enum mmu_dbg_log_config {
  * @as_free:               Bitpattern of free/available GPU address spaces.
  * @mmu_mask_change:       Lock to serialize the access to MMU interrupt mask
  *                         register used in the handling of Bus & Page faults.
- * @pagesize_2mb:          Boolean to determine whether 2MiB page sizes are
- *                         supported and used where possible.
  * @gpu_props:             Object containing complete information about the
  *                         configuration/properties of GPU HW device in use.
  * @hw_issues_mask:        List of SW workarounds for HW issues
@@ -1194,8 +1192,6 @@ struct kbase_device {
 	u16 as_free;
 
 	spinlock_t mmu_mask_change;
-
-	bool pagesize_2mb;
 
 	struct kbase_gpu_props gpu_props;
 
@@ -1533,11 +1529,11 @@ enum kbase_file_state {
  *                       the kbase_file_state enumeration.
  */
 struct kbase_file {
-	struct kbase_device  *kbdev;
-	struct file          *filp;
+	struct kbase_device *kbdev;
+	struct file *filp;
 	struct kbase_context *kctx;
-	unsigned long         api_version;
-	atomic_t              setup_state;
+	unsigned long api_version;
+	atomic_t setup_state;
 };
 #if MALI_JIT_PRESSURE_LIMIT_BASE
 /**

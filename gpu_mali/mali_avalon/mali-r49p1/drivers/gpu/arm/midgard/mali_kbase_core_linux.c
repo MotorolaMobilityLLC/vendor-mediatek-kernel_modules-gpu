@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -199,7 +199,8 @@ static const struct mali_kbase_capability_def kbase_caps_table[MALI_KBASE_NUM_CA
 	{ 1, 0 }, /* MEM_GROW_ON_GPF */
 	{ 1, 0 }, /* MEM_PROTECTED */
 	{ 1, 26 }, /* MEM_IMPORT_SYNC_ON_MAP_UNMAP */
-	{ 1, 26 } /* MEM_KERNEL_SYNC */
+	{ 1, 26 }, /* MEM_KERNEL_SYNC */
+	{ 1, 28 } /* MEM_SAME_VA */
 #else
 	{ 11, 15 }, /* SYSTEM_MONITOR */
 	{ 11, 25 }, /* JIT_PRESSURE_LIMIT */
@@ -207,7 +208,8 @@ static const struct mali_kbase_capability_def kbase_caps_table[MALI_KBASE_NUM_CA
 	{ 11, 2 }, /* MEM_GROW_ON_GPF */
 	{ 11, 2 }, /* MEM_PROTECTED */
 	{ 11, 43 }, /* MEM_IMPORT_SYNC_ON_MAP_UNMAP */
-	{ 11, 43 } /* MEM_KERNEL_SYNC */
+	{ 11, 43 }, /* MEM_KERNEL_SYNC */
+	{ 11, 44 } /* MEM_SAME_VA */
 #endif
 };
 
@@ -220,7 +222,7 @@ static struct mutex kbase_probe_mutex;
  * mali_kbase_supports_cap - Query whether a kbase capability is supported
  *
  * @api_version: API version to convert
- * @cap:         Capability to query for - see mali_kbase_caps.h
+ * @cap:         Capability to query for - see mali_kbase_caps.h. Shouldn't be negative.
  *
  * Return: true if the capability is supported
  */
@@ -231,13 +233,10 @@ bool mali_kbase_supports_cap(unsigned long api_version, enum mali_kbase_cap cap)
 
 	struct mali_kbase_capability_def const *cap_def;
 
-	if (WARN_ON(cap < 0))
-		return false;
-
 	if (WARN_ON(cap >= MALI_KBASE_NUM_CAPS))
 		return false;
 
-	cap_def = &kbase_caps_table[(int)cap];
+	cap_def = &kbase_caps_table[cap];
 	required_ver = KBASE_API_VERSION(cap_def->required_major, cap_def->required_minor);
 	supported = (api_version >= required_ver);
 
@@ -527,6 +526,9 @@ int kbase_get_irqs(struct kbase_device *kbdev)
 
 	kbdev->nr_irqs = 0;
 	result = get_irqs(kbdev, pdev);
+	if (!result)
+		return result;
+
 	if (result)
 		dev_err(kbdev->dev, "Invalid or No interrupt resources");
 
@@ -1331,10 +1333,11 @@ static int kbase_api_sticky_resource_map(struct kbase_context *kctx,
 	if (ret != 0)
 		return -EFAULT;
 
+	down_read(kbase_mem_get_process_mmap_lock());
 	kbase_gpu_vm_lock_with_pmode_sync(kctx);
 
 	for (i = 0; i < map->count; i++) {
-		if (!kbase_sticky_resource_acquire(kctx, gpu_addr[i])) {
+		if (!kbase_sticky_resource_acquire(kctx, gpu_addr[i], current->mm)) {
 			/* Invalid resource */
 			ret = -EINVAL;
 			break;
@@ -1349,6 +1352,7 @@ static int kbase_api_sticky_resource_map(struct kbase_context *kctx,
 	}
 
 	kbase_gpu_vm_unlock_with_pmode_sync(kctx);
+	up_read(kbase_mem_get_process_mmap_lock());
 
 	return ret;
 }
@@ -1459,10 +1463,8 @@ static int kbasep_cs_queue_group_create_1_6(struct kbase_context *kctx,
 			       } };
 
 	for (i = 0; i < ARRAY_SIZE(create->in.padding); i++) {
-		if (create->in.padding[i] != 0) {
-			dev_warn(kctx->kbdev->dev, "Invalid padding not 0 in queue group create\n");
+		if (create->in.padding[i] != 0)
 			return -EINVAL;
-		}
 	}
 
 	ret = kbase_csf_queue_group_create(kctx, &new_create);
@@ -1493,10 +1495,8 @@ static int kbasep_cs_queue_group_create_1_18(struct kbase_context *kctx,
 			       } };
 
 	for (i = 0; i < ARRAY_SIZE(create->in.padding); i++) {
-		if (create->in.padding[i] != 0) {
-			dev_warn(kctx->kbdev->dev, "Invalid padding not 0 in queue group create\n");
+		if (create->in.padding[i] != 0)
 			return -EINVAL;
-		}
 	}
 
 	ret = kbase_csf_queue_group_create(kctx, &new_create);
@@ -1752,12 +1752,20 @@ static int kbasep_ioctl_set_limited_core_count(
 	struct kbase_ioctl_set_limited_core_count *set_limited_core_count)
 {
 	const u64 shader_core_mask = kbase_pm_get_present_cores(kctx->kbdev, KBASE_PM_CORE_SHADER);
-	const u64 limited_core_mask = ((u64)1 << (set_limited_core_count->max_core_count)) - 1;
+	const u8 max_core_count = set_limited_core_count->max_core_count;
+	u64 limited_core_mask = 0;
 
-	if ((shader_core_mask & limited_core_mask) == 0) {
-		/* At least one shader core must be available after applying the mask */
+	/* Sanity check to avoid shift-out-of-bounds */
+	if (max_core_count > 64)
 		return -EINVAL;
-	}
+	else if (max_core_count == 64)
+		limited_core_mask = UINT64_MAX;
+	else
+		limited_core_mask = ((u64)1 << max_core_count) - 1;
+
+	/* At least one shader core must be available after applying the mask */
+	if ((shader_core_mask & limited_core_mask) == 0)
+		return -EINVAL;
 
 	kctx->limited_core_mask = limited_core_mask;
 	return 0;
@@ -2807,7 +2815,7 @@ static ssize_t core_mask_store(struct device *dev, struct device_attribute *attr
 	mutex_unlock(&kbdev->pm.lock);
 
 	if (err)
-	return err;
+		return err;
 
 	return count;
 }
@@ -4632,7 +4640,6 @@ void registers_unmap(struct kbase_device *kbdev)
 }
 
 #if defined(CONFIG_MALI_ARBITER_SUPPORT) && defined(CONFIG_OF)
-
 static bool kbase_is_pm_enabled(const struct device_node *gpu_node)
 {
 	const struct device_node *power_model_node;
@@ -4658,17 +4665,6 @@ static bool kbase_is_pm_enabled(const struct device_node *gpu_node)
 	return is_pm_enable;
 }
 
-static bool kbase_is_pv_enabled(const struct device_node *gpu_node)
-{
-	const void *arbiter_if_node;
-
-	arbiter_if_node = of_get_property(gpu_node, "arbiter-if", NULL);
-	if (!arbiter_if_node)
-		arbiter_if_node = of_get_property(gpu_node, "arbiter_if", NULL);
-
-	return arbiter_if_node ? true : false;
-}
-
 static bool kbase_is_full_coherency_enabled(const struct device_node *gpu_node)
 {
 	const void *coherency_dts;
@@ -4682,71 +4678,62 @@ static bool kbase_is_full_coherency_enabled(const struct device_node *gpu_node)
 	}
 	return false;
 }
+#endif /* defined(CONFIG_MALI_ARBITER_SUPPORT) && defined(CONFIG_OF) */
 
-#endif /* CONFIG_MALI_ARBITER_SUPPORT && CONFIG_OF */
-
-int kbase_device_pm_init(struct kbase_device *kbdev)
+int kbase_device_backend_init(struct kbase_device *kbdev)
 {
 	int err = 0;
 
 #if defined(CONFIG_MALI_ARBITER_SUPPORT) && defined(CONFIG_OF)
-	u32 product_model;
+	/*
+	 * Attempt to initialize arbitration.
+	 * If the platform is not suitable for arbitration, return -EPERM.
+	 * The device initialization should not fail but kbase will
+	 * not support arbitration.
+	 */
+	if (kbase_is_pm_enabled(kbdev->dev->of_node)) {
+		/* Arbitration AND power management invalid */
+		dev_err(kbdev->dev, "Invalid combination of arbitration AND power management\n");
+		return -EPERM;
+	}
 
-	if (kbase_is_pv_enabled(kbdev->dev->of_node)) {
-		dev_info(kbdev->dev, "Arbitration interface enabled\n");
-		if (kbase_is_pm_enabled(kbdev->dev->of_node)) {
-			/* Arbitration AND power management invalid */
-			dev_err(kbdev->dev,
-				"Invalid combination of arbitration AND power management\n");
-			return -EPERM;
-		}
-		if (kbase_is_full_coherency_enabled(kbdev->dev->of_node)) {
-			/* Arbitration AND full coherency invalid */
-			dev_err(kbdev->dev,
-				"Invalid combination of arbitration AND full coherency\n");
-			return -EPERM;
-		}
-		err = kbase_arbiter_pm_early_init(kbdev);
-		if (err == 0) {
-			/* Check if Arbitration is running on
-			 * supported GPU platform
-			 */
-			kbase_pm_register_access_enable(kbdev);
+	if (kbase_is_full_coherency_enabled(kbdev->dev->of_node)) {
+		/* Arbitration AND full coherency invalid */
+		dev_err(kbdev->dev, "Invalid combination of arbitration AND full coherency\n");
+		return -EPERM;
+	}
+
+	err = kbase_arbiter_pm_early_init(kbdev);
+	if (err == 0) {
+#if !MALI_USE_CSF
+		u32 product_model;
+
+		/*
+		 * Attempt to obtain and parse gpu_id in the event an external AW module
+		 * is used for messaging. We should have access to GPU at this point.
+		 */
+		if (kbdev->gpu_props.gpu_id.arch_major == 0)
 			kbase_gpuprops_parse_gpu_id(&kbdev->gpu_props.gpu_id,
 						    kbase_reg_get_gpu_id(kbdev));
-			kbase_pm_register_access_disable(kbdev);
-			product_model = kbdev->gpu_props.gpu_id.product_model;
 
-			if (product_model != GPU_ID_PRODUCT_TGOX &&
-			    product_model != GPU_ID_PRODUCT_TNOX &&
-			    product_model != GPU_ID_PRODUCT_TBAX) {
-				kbase_arbiter_pm_early_term(kbdev);
-				dev_err(kbdev->dev, "GPU platform not suitable for arbitration\n");
-				return -EPERM;
-			}
+		product_model = kbdev->gpu_props.gpu_id.product_model;
+		if (product_model != GPU_ID_PRODUCT_TGOX && product_model != GPU_ID_PRODUCT_TNOX &&
+		    product_model != GPU_ID_PRODUCT_TBAX) {
+			kbase_arbiter_pm_early_term(kbdev);
+			dev_err(kbdev->dev, "GPU platform not suitable for arbitration\n");
+			return -EPERM;
 		}
-	} else {
-		kbdev->arb.arb_if = NULL;
-		kbdev->arb.arb_dev = NULL;
-		err = power_control_init(kbdev);
+#endif /* !MALI_USE_CSF */
+		dev_info(kbdev->dev, "Arbitration interface enabled\n");
 	}
-#else
-	err = power_control_init(kbdev);
-#endif /* CONFIG_MALI_ARBITER_SUPPORT && CONFIG_OF */
+#endif /* defined(CONFIG_MALI_ARBITER_SUPPORT) && defined(CONFIG_OF) */
 	return err;
 }
 
-void kbase_device_pm_term(struct kbase_device *kbdev)
+void kbase_device_backend_term(struct kbase_device *kbdev)
 {
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
-#if IS_ENABLED(CONFIG_OF)
-	if (kbase_is_pv_enabled(kbdev->dev->of_node))
-		kbase_arbiter_pm_early_term(kbdev);
-	else
-		power_control_term(kbdev);
-#endif /* CONFIG_OF */
-#else
-	power_control_term(kbdev);
+	kbase_arbiter_pm_early_term(kbdev);
 #endif
 }
 
@@ -6253,9 +6240,11 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 
 	kbdev->dev = &pdev->dev;
 
+#if IS_ENABLED(CONFIG_REGULATOR)
 #if (KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE)
 	kbdev->token = -EPERM;
 #endif /* (KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE) */
+#endif /* IS_ENABLED(CONFIG_REGULATOR) */
 
 	dev_set_drvdata(kbdev->dev, kbdev);
 #if (KERNEL_VERSION(5, 3, 0) <= LINUX_VERSION_CODE)

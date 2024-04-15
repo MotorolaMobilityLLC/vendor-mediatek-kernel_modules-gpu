@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2018-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -2559,7 +2559,7 @@ void kbase_csf_kcpu_queue_process(struct kbase_kcpu_command_queue *queue, bool d
 
 				kbase_gpu_vm_lock_with_pmode_sync(queue->kctx);
 				meta = kbase_sticky_resource_acquire(queue->kctx,
-								     cmd->info.import.gpu_va);
+								     cmd->info.import.gpu_va, NULL);
 				kbase_gpu_vm_unlock_with_pmode_sync(queue->kctx);
 
 				if (meta == NULL) {
@@ -3066,8 +3066,8 @@ kbase_csf_kcpu_queue_metadata_new(struct kbase_context *kctx, u64 fence_context)
 	};
 
 	/* Please update MAX_TIMELINE_NAME macro when making changes to the string. */
-	n = snprintf(metadata->timeline_name, MAX_TIMELINE_NAME, "%u-%d_%u-%llu-kcpu",
-		     kctx->kbdev->id, kctx->tgid, kctx->id, fence_context);
+	n = scnprintf(metadata->timeline_name, MAX_TIMELINE_NAME, "%u-%d_%u-%llu-kcpu",
+		      kctx->kbdev->id, kctx->tgid, kctx->id, fence_context);
 	if (WARN_ON(n >= MAX_TIMELINE_NAME)) {
 #if IS_ENABLED(CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG)
 		dev_warn(kctx->kbdev->dev, "%s: Invalid timeline name length : %d exceed limit %ld",
@@ -3087,6 +3087,7 @@ kbase_csf_kcpu_queue_metadata_new(struct kbase_context *kctx, u64 fence_context)
 early_ret:
 	return metadata;
 }
+KBASE_ALLOW_ERROR_INJECTION_TEST_API(kbase_csf_kcpu_queue_metadata_new, ERRNO_NULL);
 
 int kbase_csf_kcpu_queue_new(struct kbase_context *kctx, struct kbase_ioctl_kcpu_queue_new *newq)
 {
@@ -3130,7 +3131,6 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx, struct kbase_ioctl_kcpu
 	}
 
 	queue = vzalloc(sizeof(*queue));
-
 	if (!queue) {
 #if IS_ENABLED(CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG)
 		dev_warn(kctx->kbdev->dev, "%s: Allocate kcpu queue (size=%zu) failed.",
@@ -3163,13 +3163,7 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx, struct kbase_ioctl_kcpu
 	INIT_WORK(&queue->timeout_work, kcpu_queue_timeout_worker);
 	INIT_LIST_HEAD(&queue->jit_blocked);
 
-	if (IS_ENABLED(CONFIG_MALI_FENCE_DEBUG))
-		kbase_timer_setup(&queue->fence_timeout, fence_timeout_callback);
-
 	if (IS_ENABLED(CONFIG_SYNC_FILE)) {
-		atomic_set(&queue->fence_signal_pending_cnt, 0);
-		kbase_timer_setup(&queue->fence_signal_timeout, fence_signal_timeout_cb);
-
 		metadata = kbase_csf_kcpu_queue_metadata_new(kctx, queue->fence_context);
 		if (!metadata) {
 #if IS_ENABLED(CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG)
@@ -3186,7 +3180,12 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx, struct kbase_ioctl_kcpu
 
 		queue->metadata = metadata;
 		atomic_inc(&kctx->kbdev->live_fence_metadata);
+		atomic_set(&queue->fence_signal_pending_cnt, 0);
+		kbase_timer_setup(&queue->fence_signal_timeout, fence_signal_timeout_cb);
 	}
+
+	if (IS_ENABLED(CONFIG_MALI_FENCE_DEBUG))
+		kbase_timer_setup(&queue->fence_timeout, fence_timeout_callback);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 	queue->wq = alloc_workqueue("mali_kbase_csf_kcpu_wq_%i", WQ_UNBOUND | WQ_HIGHPRI, 0, idx);

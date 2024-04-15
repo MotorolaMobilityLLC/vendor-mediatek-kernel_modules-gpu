@@ -2615,7 +2615,7 @@ static void kbase_js_move_to_tree(struct kbase_jd_atom *katom)
  *
  * Remove all post dependencies of an atom from the context ringbuffers.
  *
- * The original atom's event_code will be propogated to all dependent atoms.
+ * The original atom's event_code will be propagated to all dependent atoms.
  *
  * Context: Caller must hold the HW access lock
  */

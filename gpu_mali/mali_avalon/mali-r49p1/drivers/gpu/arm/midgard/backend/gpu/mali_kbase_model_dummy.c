@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2014-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -92,7 +92,7 @@ struct error_status_t hw_error_status;
  */
 struct control_reg_values_t {
 	const char *name;
-	u32 gpu_id;
+	u64 gpu_id;
 	u32 as_present;
 	u32 thread_max_threads;
 	u32 thread_max_workgroup_size;
@@ -490,7 +490,7 @@ MODULE_PARM_DESC(no_mali_gpu, "GPU to identify as");
 static u32 gpu_model_get_prfcnt_value(enum kbase_ipa_core_type core_type, u32 cnt_idx,
 				      bool is_low_word)
 {
-	u64 *counters_data;
+	u64 *counters_data = NULL;
 	u32 core_count = 0;
 	u32 event_index;
 	u64 value = 0;
@@ -545,6 +545,9 @@ static u32 gpu_model_get_prfcnt_value(enum kbase_ipa_core_type core_type, u32 cn
 		WARN(1, "Invalid core_type %d\n", core_type);
 		break;
 	}
+
+	if (unlikely(counters_data == NULL))
+		return 0;
 
 	for (core = 0; core < core_count; core++) {
 		value += counters_data[event_index];
@@ -1571,8 +1574,7 @@ void midgard_model_read_reg(void *h, u32 addr, u32 *const value)
 #else /* !MALI_USE_CSF */
 	if (addr == GPU_CONTROL_REG(GPU_ID)) {
 #endif /* !MALI_USE_CSF */
-
-		*value = dummy->control_reg_values->gpu_id;
+		*value = dummy->control_reg_values->gpu_id & U32_MAX;
 	} else if (addr == JOB_CONTROL_REG(JOB_IRQ_RAWSTAT)) {
 		*value = hw_error_status.job_irq_rawstat;
 		pr_debug("%s", "JS_IRQ_RAWSTAT being read");

@@ -197,22 +197,24 @@ int kbase_protected_mode_init(struct kbase_device *kbdev);
 void kbase_protected_mode_term(struct kbase_device *kbdev);
 
 /**
- * kbase_device_pm_init() - Performs power management initialization and
- * Verifies device tree configurations.
+ * kbase_device_backend_init() - Performs backend initialization and performs
+ * devicetree validation.
  * @kbdev: The kbase device structure for the device (must be a valid pointer)
  *
  * Return: 0 if successful, otherwise a standard Linux error code
+ * If -EPERM is returned, it means the device backend is not supported, but
+ * device initialization can continue.
  */
-int kbase_device_pm_init(struct kbase_device *kbdev);
+int kbase_device_backend_init(struct kbase_device *kbdev);
 
 /**
- * kbase_device_pm_term() - Performs power management deinitialization and
- * Free resources.
+ * kbase_device_backend_term() - Performs backend deinitialization and free
+ * resources.
  * @kbdev: The kbase device structure for the device (must be a valid pointer)
  *
  * Clean up all the resources
  */
-void kbase_device_pm_term(struct kbase_device *kbdev);
+void kbase_device_backend_term(struct kbase_device *kbdev);
 
 int power_control_init(struct kbase_device *kbdev);
 void power_control_term(struct kbase_device *kbdev);
@@ -803,6 +805,10 @@ bool kbasep_adjust_prioritized_process(struct kbase_device *kbdev, bool add, uin
 
 #if !defined(UINT64_MAX)
 #define UINT64_MAX ((uint64_t)0xFFFFFFFFFFFFFFFFULL)
+#endif
+
+#if !defined(UINT32_MAX)
+#define UINT32_MAX ((uint32_t)0xFFFFFFFFU)
 #endif
 
 #endif

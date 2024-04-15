@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -493,7 +493,7 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	} else /* we control the VA */ {
 		size_t align = 1;
 
-		if (kctx->kbdev->pagesize_2mb) {
+		if (kbase_is_large_pages_enabled()) {
 			/* If there's enough (> 33 bits) of GPU VA space, align to 2MB
 			* boundaries. The similar condition is used for mapping from
 			* the SAME_VA zone inside kbase_context_get_unmapped_area().
@@ -669,6 +669,17 @@ int kbase_mem_query(struct kbase_context *kctx, u64 gpu_addr, u64 query, u64 *co
 		if (mali_kbase_supports_mem_kernel_sync(kctx->api_version)) {
 			if (unlikely(reg->cpu_alloc != reg->gpu_alloc))
 				*out |= BASE_MEM_KERNEL_SYNC;
+		}
+		if (mali_kbase_supports_mem_same_va(kctx->api_version)) {
+			if (kbase_bits_to_zone(reg->flags) == SAME_VA_ZONE) {
+				/* Imported memory is an edge case, where declaring it SAME_VA
+				 * would be ambiguous.
+				 */
+				if (reg->gpu_alloc->type != KBASE_MEM_TYPE_IMPORTED_UMM &&
+				    reg->gpu_alloc->type != KBASE_MEM_TYPE_IMPORTED_USER_BUF) {
+					*out |= BASE_MEM_SAME_VA;
+				}
+			}
 		}
 
 		*out |= kbase_mem_group_id_set(reg->cpu_alloc->group_id);
@@ -1234,8 +1245,8 @@ out_unlock:
 
 #define KBASE_MEM_IMPORT_HAVE_PAGES (1UL << BASE_MEM_FLAGS_NR_BITS)
 
-int kbase_mem_do_sync_imported(struct kbase_context *kctx, struct kbase_va_region *reg,
-			       enum kbase_sync_type sync_fn)
+int kbase_sync_imported_umm(struct kbase_context *kctx, struct kbase_va_region *reg,
+			    enum kbase_sync_type sync_fn)
 {
 	int ret = -EINVAL;
 	struct dma_buf __maybe_unused *dma_buf;
@@ -1333,7 +1344,7 @@ static void kbase_mem_umm_unmap_attachment(struct kbase_context *kctx,
 					  alloc->imported.umm.sgt, DMA_BIDIRECTIONAL);
 #else
 	dma_buf_unmap_attachment(alloc->imported.umm.dma_attachment, alloc->imported.umm.sgt,
- 				 DMA_BIDIRECTIONAL);
+				 DMA_BIDIRECTIONAL);
 #endif
 	alloc->imported.umm.sgt = NULL;
 
@@ -1478,7 +1489,7 @@ int kbase_mem_umm_map(struct kbase_context *kctx, struct kbase_va_region *reg)
 		if (IS_ENABLED(CONFIG_MALI_DMA_BUF_LEGACY_COMPAT) ||
 		    alloc->imported.umm.need_sync) {
 			if (!kbase_is_region_invalid_or_free(reg)) {
-				err = kbase_mem_do_sync_imported(kctx, reg, KBASE_SYNC_TO_DEVICE);
+				err = kbase_sync_imported_umm(kctx, reg, KBASE_SYNC_TO_DEVICE);
 				WARN_ON_ONCE(err);
 			}
 		}
@@ -1540,7 +1551,7 @@ void kbase_mem_umm_unmap(struct kbase_context *kctx, struct kbase_va_region *reg
 		if (IS_ENABLED(CONFIG_MALI_DMA_BUF_LEGACY_COMPAT) ||
 		    alloc->imported.umm.need_sync) {
 			if (!kbase_is_region_invalid_or_free(reg)) {
-				int err = kbase_mem_do_sync_imported(kctx, reg, KBASE_SYNC_TO_CPU);
+				int err = kbase_sync_imported_umm(kctx, reg, KBASE_SYNC_TO_CPU);
 				WARN_ON_ONCE(err);
 			}
 		}
@@ -2457,7 +2468,7 @@ int kbase_mem_shrink(struct kbase_context *const kctx, struct kbase_va_region *c
 	}
 
 	delta = old_pages - new_pages;
-	if (kctx->kbdev->pagesize_2mb) {
+	if (kbase_is_large_pages_enabled()) {
 		struct tagged_addr *start_free = reg->gpu_alloc->pages + new_pages;
 
 		/* Move the end of new commited range to a valid location.

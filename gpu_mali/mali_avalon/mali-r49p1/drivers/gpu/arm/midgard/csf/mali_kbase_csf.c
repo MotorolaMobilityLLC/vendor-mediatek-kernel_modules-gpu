@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2018-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -608,11 +608,19 @@ int kbase_csf_queue_register_ex(struct kbase_context *kctx,
 	u32 const glb_version = iface->version;
 	u32 instr = iface->instr_features;
 	u8 max_size = GLB_INSTR_FEATURES_EVENT_SIZE_MAX_GET(instr);
-	u32 min_buf_size =
-		(1u << reg->ex_event_size) * GLB_INSTR_FEATURES_OFFSET_UPDATE_RATE_GET(instr);
+	const u8 event_size = reg->ex_event_size;
+	u64 min_buf_size;
 
 	/* If cs_trace_command not supported, the call fails */
 	if (glb_version < kbase_csf_interface_version(1, 1, 0))
+		return -EPERM;
+
+	/* Sanity check to avoid shift-out-of-bounds */
+	if (event_size >= 32)
+		return -EINVAL;
+
+	min_buf_size = ((u64)1 << event_size) * GLB_INSTR_FEATURES_OFFSET_UPDATE_RATE_GET(instr);
+	if (min_buf_size > UINT32_MAX)
 		return -EINVAL;
 
 	/* Validate the ring buffer configuration parameters */
@@ -624,8 +632,8 @@ int kbase_csf_queue_register_ex(struct kbase_context *kctx,
 
 	/* Validate the cs_trace configuration parameters */
 	if (reg->ex_buffer_size &&
-	    ((reg->ex_event_size > max_size) || (reg->ex_buffer_size & (reg->ex_buffer_size - 1)) ||
-	     (reg->ex_buffer_size < min_buf_size)))
+	    ((event_size > max_size) || (reg->ex_buffer_size & (reg->ex_buffer_size - 1)) ||
+	     (reg->ex_buffer_size < (u32)min_buf_size)))
 		return -EINVAL;
 
 	return csf_queue_register_internal(kctx, NULL, reg);
@@ -880,34 +888,40 @@ int kbase_csf_queue_group_clear_faults(struct kbase_context *kctx,
 {
 	void __user *user_bufs = u64_to_user_ptr(faults->addr);
 	u32 i;
-	int ret = 0;
+	struct kbase_device *kbdev = kctx->kbdev;
+	const u32 nr_queues = faults->nr_queues;
 
-	for (i = 0; i != faults->nr_queues; ++i) {
+	if (unlikely(nr_queues > kbdev->csf.global_iface.groups[0].stream_num)) {
+		dev_warn(kbdev->dev, "Invalid nr_queues %u", nr_queues);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < nr_queues; ++i) {
 		u64 buf_gpu_addr;
 		struct kbase_va_region *region;
 
 		if (copy_from_user(&buf_gpu_addr, user_bufs, sizeof(buf_gpu_addr)))
 			return -EFAULT;
-
+		mutex_lock(&kctx->csf.lock);
 		kbase_gpu_vm_lock(kctx);
 		region = kbase_region_tracker_find_region_enclosing_address(kctx, buf_gpu_addr);
-		if (!kbase_is_region_invalid_or_free(region)) {
+		if (likely(!kbase_is_region_invalid_or_free(region))) {
 			struct kbase_queue *queue = region->user_data;
 
 			queue->clear_faults = true;
 		} else {
-			dev_dbg(kctx->kbdev->dev,
-				"GPU queue %d without a valid command buffer region", i);
-			ret = -EFAULT;
-			goto out_unlock;
+			dev_warn(kbdev->dev, "GPU queue %u without a valid command buffer region",
+				 i);
+			kbase_gpu_vm_unlock(kctx);
+			mutex_unlock(&kctx->csf.lock);
+			return -EFAULT;
 		}
 		kbase_gpu_vm_unlock(kctx);
-
+		mutex_unlock(&kctx->csf.lock);
 		user_bufs = (void __user *)((uintptr_t)user_bufs + sizeof(buf_gpu_addr));
 	}
-out_unlock:
-	kbase_gpu_vm_unlock(kctx);
-	return ret;
+
+	return 0;
 }
 
 int kbase_csf_queue_kick(struct kbase_context *kctx, struct kbase_ioctl_cs_queue_kick *kick)
@@ -1269,6 +1283,8 @@ static int create_queue_group(struct kbase_context *const kctx,
 			group->deschedule_deferred_cnt = 0;
 #endif
 
+			group->cs_fault_report_enable = create->in.cs_fault_report_enable;
+
 			group->group_uid = generate_group_uid();
 			create->out.group_uid = group->group_uid;
 
@@ -1329,10 +1345,8 @@ int kbase_csf_queue_group_create(struct kbase_context *const kctx,
 	size_t i;
 
 	for (i = 0; i < ARRAY_SIZE(create->in.padding); i++) {
-		if (create->in.padding[i] != 0) {
-			dev_warn(kctx->kbdev->dev, "Invalid padding not 0 in queue group create\n");
+		if (create->in.padding[i] != 0)
 			return -EINVAL;
-		}
 	}
 
 	mutex_lock(&kctx->csf.lock);
@@ -2659,54 +2673,37 @@ static void handle_fault_event(struct kbase_queue *const queue, const u32 cs_ack
 	}
 #endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 
-#if IS_ENABLED(CONFIG_DEBUG_FS)
-	/* CS_RESOURCE_TERMINATED type fault event can be ignored from the
-	 * standpoint of dump on error. It is used to report fault for the CSIs
-	 * that are associated with the same CSG as the CSI for which the actual
-	 * fault was reported by the Iterator.
-	 * Dumping would be triggered when the actual fault is reported.
+	/* If dump-on-fault daemon is waiting for a fault, wake up the daemon.
+	 * Acknowledging the fault is deferred to the bottom-half until the wait
+	 * of the dump completion is done.
 	 *
-	 * CS_INHERIT_FAULT can also be ignored. It could happen due to the error
-	 * in other types of queues (cpu/kcpu). If a fault had occurred in some
-	 * other GPU queue then the dump would have been performed anyways when
-	 * that fault was reported.
+	 * Otherwise acknowledge the fault and ring the doorbell for the faulty queue
+	 * to enter into recoverable state.
 	 */
-	if ((cs_fault_exception_type != CS_FAULT_EXCEPTION_TYPE_CS_INHERIT_FAULT) &&
-	    (cs_fault_exception_type != CS_FAULT_EXCEPTION_TYPE_CS_RESOURCE_TERMINATED)) {
-		if (unlikely(kbase_debug_csf_fault_notify(kbdev, queue->kctx, DF_CS_FAULT))) {
-			queue->cs_error = cs_fault;
-			queue->cs_error_info = cs_fault_info;
-			queue->cs_error_fatal = false;
-			queue_work(queue->kctx->csf.wq, &queue->cs_error_work);
-			return;
-		}
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-		queue_work(kbdev->mtk_enop_metadata_dump_workq, &kbdev->mtk_enop_metadata_dump_work);
-#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
-	}
-#endif
+	if (likely(!kbase_debug_csf_fault_notify(kbdev, queue->kctx, DF_CS_FAULT))) {
+		kbase_csf_firmware_cs_input_mask(stream, CS_REQ, cs_ack, CS_REQ_FAULT_MASK);
+		kbase_csf_ring_cs_kernel_doorbell(kbdev, queue->csi_index, queue->group->csg_nr,
+						  true);
+		queue->cs_error_acked = true;
+	} else
+		queue->cs_error_acked = false;
+
+	queue->cs_error = cs_fault;
+	queue->cs_error_info = cs_fault_info;
+	queue->cs_error_fatal = false;
+	if (!queue_work(queue->kctx->csf.wq, &queue->cs_error_work))
+		dev_warn(kbdev->dev, "%s: failed to enqueue a work", __func__);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
 	if (mtk_common_whitebox_missing_doorbell_enable())
 		kbase_csf_db_valid_push_event(DOORBELL_CSI_FAULT(queue->group->csg_nr,  queue->csi_index));
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
-	kbase_csf_firmware_cs_input_mask(stream, CS_REQ, cs_ack, CS_REQ_FAULT_MASK);
-	kbase_csf_ring_cs_kernel_doorbell(kbdev, queue->csi_index, queue->group->csg_nr, true);
 }
 
-static void report_queue_fatal_error(struct kbase_queue *const queue, u32 cs_fatal,
-				     u64 cs_fatal_info, struct kbase_queue_group *group)
+static void report_queue_error(struct kbase_queue *const queue, u32 cs_error, u64 cs_error_info,
+			       struct kbase_queue_group *group, bool fatal)
 {
-	struct base_csf_notification
-		error = { .type = BASE_CSF_NOTIFICATION_GPU_QUEUE_GROUP_ERROR,
-			  .payload = {
-				  .csg_error = {
-					  .error = { .error_type =
-							     BASE_GPU_QUEUE_GROUP_QUEUE_ERROR_FATAL,
-						     .payload = { .fatal_queue = {
-									  .sideband = cs_fatal_info,
-									  .status = cs_fatal,
-								  } } } } } };
+	struct base_csf_notification error = { .type = BASE_CSF_NOTIFICATION_GPU_QUEUE_GROUP_ERROR };
 
 	if (!queue)
 		return;
@@ -2719,9 +2716,22 @@ static void report_queue_fatal_error(struct kbase_queue *const queue, u32 cs_fat
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 
 	error.payload.csg_error.handle = group->handle;
-	error.payload.csg_error.error.payload.fatal_queue.csi_index = (__u8)queue->csi_index;
+	if (fatal) {
+		error.payload.csg_error.error.error_type = BASE_GPU_QUEUE_GROUP_QUEUE_ERROR_FATAL;
+		error.payload.csg_error.error.payload.fatal_queue.sideband = cs_error_info;
+		error.payload.csg_error.error.payload.fatal_queue.status = cs_error;
+		error.payload.csg_error.error.payload.fatal_queue.csi_index = queue->csi_index;
+	} else {
+		error.payload.csg_error.error.error_type = BASE_GPU_QUEUE_GROUP_QUEUE_ERROR_FAULT;
+		error.payload.csg_error.error.payload.fault_queue.sideband = cs_error_info;
+		error.payload.csg_error.error.payload.fault_queue.status = cs_error;
+		error.payload.csg_error.error.payload.fault_queue.csi_index = queue->csi_index;
+	}
 	kbase_csf_event_add_error(queue->kctx, &group->error_fatal, &error);
 	kbase_event_wakeup(queue->kctx);
+
+	if (!fatal)
+		queue->clear_faults = false;
 }
 
 /**
@@ -2729,7 +2739,7 @@ static void report_queue_fatal_error(struct kbase_queue *const queue, u32 cs_fat
  *
  * @data: Pointer to a work_struct embedded in GPU command queue.
  *
- * Terminate the CSG and report the error to userspace.
+ * Terminate the CSG for CS_FATAL and report the error to userspace.
  */
 static void cs_error_worker(struct work_struct *const data)
 {
@@ -2740,6 +2750,7 @@ static void cs_error_worker(struct work_struct *const data)
 	struct kbase_queue_group *group;
 	bool reset_prevented = false;
 	int err;
+	const bool cs_fatal = queue->cs_error_fatal;
 
 	kbase_debug_csf_fault_wait_completion(kbdev);
 	err = kbase_reset_gpu_prevent_and_wait(kbdev);
@@ -2763,10 +2774,10 @@ static void cs_error_worker(struct work_struct *const data)
 
 	group = get_bound_queue_group(queue);
 	if (!group) {
-		dev_warn(kbdev->dev, "queue not bound when handling fatal event");
+		dev_warn(kbdev->dev, "queue not bound when handling an error event");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"queue not bound when handling fatal event\n");
+			"queue not bound when handling an error event\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
@@ -2775,33 +2786,39 @@ static void cs_error_worker(struct work_struct *const data)
 		goto unlock;
 	}
 
-#if IS_ENABLED(CONFIG_DEBUG_FS)
-	if (!queue->cs_error_fatal) {
-		unsigned long flags;
-		int slot_num;
+	if (!cs_fatal) {
+		if (group->cs_fault_report_enable && queue->clear_faults)
+			report_queue_error(queue, queue->cs_error, queue->cs_error_info, group,
+					   false);
+		if (unlikely(!queue->cs_error_acked)) {
+			unsigned long flags;
+			int slot_num;
 
-		kbase_csf_scheduler_spin_lock(kbdev, &flags);
-		slot_num = kbase_csf_scheduler_group_get_slot_locked(group);
-		if (slot_num >= 0) {
-			struct kbase_csf_cmd_stream_group_info const *ginfo =
-				&kbdev->csf.global_iface.groups[slot_num];
-			struct kbase_csf_cmd_stream_info const *stream =
-				&ginfo->streams[queue->csi_index];
-			u32 const cs_ack = kbase_csf_firmware_cs_output(stream, CS_ACK);
+			kbase_csf_scheduler_spin_lock(kbdev, &flags);
+			slot_num = kbase_csf_scheduler_group_get_slot_locked(group);
+			if (likely(slot_num >= 0)) {
+				struct kbase_csf_cmd_stream_group_info const *ginfo =
+					&kbdev->csf.global_iface.groups[slot_num];
+				struct kbase_csf_cmd_stream_info const *stream =
+					&ginfo->streams[queue->csi_index];
+				u32 const cs_ack = kbase_csf_firmware_cs_output(stream, CS_ACK);
+				u32 const cs_req = kbase_csf_firmware_cs_input_read(stream, CS_REQ);
 
-#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
-			if (mtk_common_whitebox_missing_doorbell_enable())
-				kbase_csf_db_valid_push_event(DOORBELL_CSI_FAULT(slot_num, queue->csi_index));
-#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
-			kbase_csf_firmware_cs_input_mask(stream, CS_REQ, cs_ack, CS_REQ_FAULT_MASK);
-			kbase_csf_ring_cs_kernel_doorbell(kbdev, queue->csi_index, slot_num, true);
+				/* Acknowledge the fault and ring the doorbell for the queue
+				 * if it hasn't yet done.
+				 */
+				if ((cs_ack & CS_ACK_FAULT_MASK) != (cs_req & CS_REQ_FAULT_MASK)) {
+					kbase_csf_firmware_cs_input_mask(stream, CS_REQ, cs_ack,
+									 CS_REQ_FAULT_MASK);
+					kbase_csf_ring_cs_kernel_doorbell(kbdev, queue->csi_index,
+									  slot_num, true);
+				}
+			}
+			kbase_csf_scheduler_spin_unlock(kbdev, flags);
 		}
-		kbase_csf_scheduler_spin_unlock(kbdev, flags);
-		goto unlock;
-	}
-#endif
-
+	} else {
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		// TODO: GW: please review this section
 		dev_info(kbdev->dev, "Terminate ctx %d_%d, group %d, cs_error_worker", group->kctx->tgid, group->kctx->id, group->handle);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
@@ -2809,19 +2826,22 @@ static void cs_error_worker(struct work_struct *const data)
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
-	term_queue_group(group);
-	flush_gpu_cache_on_fatal_error(kbdev);
-	/* For an invalid GPU page fault, CS_BUS_FAULT fatal error is expected after the
-	 * page fault handler disables the AS of faulty context. Need to skip reporting the
-	 * CS_BUS_FAULT fatal error to the Userspace as it doesn't have the full fault info.
-	 * Page fault handler will report the fatal error with full page fault info.
-	 */
-	if ((cs_fatal_exception_type == CS_FATAL_EXCEPTION_TYPE_CS_BUS_FAULT) && group->faulted) {
-		dev_dbg(kbdev->dev,
-			"Skipped reporting CS_BUS_FAULT for queue %d of group %d of ctx %d_%d",
-			queue->csi_index, group->handle, kctx->tgid, kctx->id);
-	} else {
-		report_queue_fatal_error(queue, queue->cs_error, queue->cs_error_info, group);
+		term_queue_group(group);
+		flush_gpu_cache_on_fatal_error(kbdev);
+		/* For an invalid GPU page fault, CS_BUS_FAULT fatal error is expected after the
+		 * page fault handler disables the AS of faulty context. Need to skip reporting the
+		 * CS_BUS_FAULT fatal error to the Userspace as it doesn't have the full fault info.
+		 * Page fault handler will report the fatal error with full page fault info.
+		 */
+		if ((cs_fatal_exception_type == CS_FATAL_EXCEPTION_TYPE_CS_BUS_FAULT) &&
+		    group->faulted) {
+			dev_dbg(kbdev->dev,
+				"Skipped reporting CS_BUS_FAULT for queue %d of group %d of ctx %d_%d",
+				queue->csi_index, group->handle, kctx->tgid, kctx->id);
+		} else {
+			report_queue_error(queue, queue->cs_error, queue->cs_error_info, group,
+					   true);
+		}
 	}
 
 unlock:
@@ -3580,13 +3600,10 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 
 	if (deferred_handling_glb_idle_irq) {
 		unsigned long flags;
-		bool invoke_pm_state_machine;
 
 		kbase_csf_scheduler_spin_lock(kbdev, &flags);
-		invoke_pm_state_machine = kbase_csf_scheduler_process_gpu_idle_event(kbdev);
+		kbase_csf_scheduler_process_gpu_idle_event(kbdev);
 		kbase_csf_scheduler_spin_unlock(kbdev, flags);
-		if (unlikely(invoke_pm_state_machine))
-			kbase_pm_update_state(kbdev);
 	}
 
 	wake_up_all(&kbdev->csf.event_wait);

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2014-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -39,14 +39,6 @@
 #include <ged_mali_event.h>
 #include <platform/mtk_platform_common/mtk_platform_mali_event.h>
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
-
-bool kbase_is_gpu_removed(struct kbase_device *kbdev)
-{
-	if (!IS_ENABLED(CONFIG_MALI_ARBITER_SUPPORT))
-		return false;
-
-	return (kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_ID)) == 0);
-}
 
 /**
  * busy_wait_cache_operation - Wait for a pending cache flush to complete

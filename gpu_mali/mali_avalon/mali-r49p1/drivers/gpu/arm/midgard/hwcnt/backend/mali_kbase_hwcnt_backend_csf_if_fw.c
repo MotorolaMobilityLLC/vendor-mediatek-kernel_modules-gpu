@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2021-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2021-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -522,8 +522,11 @@ kbasep_hwcnt_backend_csf_if_fw_ring_buf_free(struct kbase_hwcnt_backend_csf_if_c
 		memset(fw_ring_buf->cpu_dump_base, 0, fw_ring_buf->num_pages * PAGE_SIZE);
 		vunmap(fw_ring_buf->cpu_dump_base);
 
+		/* After zeroing, the ring_buf pages are dirty so need to pass the 'dirty' flag
+		 * as true when freeing the pages to the Global pool.
+		 */
 		kbase_mem_pool_free_pages(&fw_ctx->kbdev->mem_pools.small[KBASE_MEM_GROUP_CSF_FW],
-					  fw_ring_buf->num_pages, fw_ring_buf->phys, false, false);
+					  fw_ring_buf->num_pages, fw_ring_buf->phys, true, false);
 
 		kfree(fw_ring_buf->phys);
 

@@ -237,10 +237,10 @@ static int debug_mem_open(struct inode *i, struct file *file)
 	int ret;
 	enum kbase_memory_zone idx;
 
-#if (KERNEL_VERSION(6, 7, 0) <= LINUX_VERSION_CODE)
-	if (!get_file_rcu(&kctx->filp))
-#else
+#if (KERNEL_VERSION(6, 7, 0) > LINUX_VERSION_CODE)
 	if (get_file_rcu(kctx->filp) == 0)
+#else
+	if (get_file_rcu(&kctx->filp) == 0)
 #endif
 		return -ENOENT;
 

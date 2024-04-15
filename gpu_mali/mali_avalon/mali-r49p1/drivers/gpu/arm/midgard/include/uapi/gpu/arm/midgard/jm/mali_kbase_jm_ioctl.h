@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2020-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -159,13 +159,15 @@
  * - Made the BASE_MEM_IMPORT_SYNC_ON_MAP_UNMAP and BASE_MEM_KERNEL_SYNC memory
  *   flags queryable.
  * 11.44:
+ * - Made the SAME_VA memory flag queryable.
+ * 11.45:
  * - Re-allow child process to do supported file operations (like mmap, ioctl
  *   read, poll) on the file descriptor of mali device that was inherited
  *   from the parent process.
  */
 
 #define BASE_UK_VERSION_MAJOR 11
-#define BASE_UK_VERSION_MINOR 44
+#define BASE_UK_VERSION_MINOR 45
 
 /**
  * struct kbase_ioctl_version_check - Check version compatibility between
@@ -179,9 +181,7 @@ struct kbase_ioctl_version_check {
 	__u16 minor;
 };
 
-#define KBASE_IOCTL_VERSION_CHECK \
-	_IOWR(KBASE_IOCTL_TYPE, 0, struct kbase_ioctl_version_check)
-
+#define KBASE_IOCTL_VERSION_CHECK _IOWR(KBASE_IOCTL_TYPE, 0, struct kbase_ioctl_version_check)
 
 /**
  * struct kbase_ioctl_job_submit - Submit jobs/atoms to the kernel
@@ -196,11 +196,9 @@ struct kbase_ioctl_job_submit {
 	__u32 stride;
 };
 
-#define KBASE_IOCTL_JOB_SUBMIT \
-	_IOW(KBASE_IOCTL_TYPE, 2, struct kbase_ioctl_job_submit)
+#define KBASE_IOCTL_JOB_SUBMIT _IOW(KBASE_IOCTL_TYPE, 2, struct kbase_ioctl_job_submit)
 
-#define KBASE_IOCTL_POST_TERM \
-	_IO(KBASE_IOCTL_TYPE, 4)
+#define KBASE_IOCTL_POST_TERM _IO(KBASE_IOCTL_TYPE, 4)
 
 /**
  * struct kbase_ioctl_soft_event_update - Update the status of a soft-event
@@ -257,9 +255,7 @@ union kbase_kinstr_jm_fd {
 	struct kbase_kinstr_jm_fd_out out;
 };
 
-#define KBASE_IOCTL_KINSTR_JM_FD \
-	_IOWR(KBASE_IOCTL_TYPE, 51, union kbase_kinstr_jm_fd)
-
+#define KBASE_IOCTL_KINSTR_JM_FD _IOWR(KBASE_IOCTL_TYPE, 51, union kbase_kinstr_jm_fd)
 
 #define KBASE_IOCTL_VERSION_CHECK_RESERVED \
 	_IOWR(KBASE_IOCTL_TYPE, 52, struct kbase_ioctl_version_check)

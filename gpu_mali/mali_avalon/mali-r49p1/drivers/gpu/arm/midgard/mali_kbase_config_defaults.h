@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2013-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2013-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -209,6 +209,9 @@ enum {
 #define CSF_CSG_SUSPEND_TIMEOUT_CYCLES (3100000000ull)
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
+/* Waiting timeout in clock cycles for GPU suspend to complete. */
+#define CSF_GPU_SUSPEND_TIMEOUT_CYCLES (CSF_CSG_SUSPEND_TIMEOUT_CYCLES)
+
 /* Waiting timeout in clock cycles for GPU reset to complete. */
 #define CSF_GPU_RESET_TIMEOUT_CYCLES (CSF_CSG_SUSPEND_TIMEOUT_CYCLES * 2)
 
@@ -238,7 +241,10 @@ enum {
  *
  * Based on 10s timeout at 100MHz, scaled from a 50MHz GPU system.
  */
-#if IS_ENABLED(CONFIG_MALI_IS_FPGA)
+#if IS_ENABLED(CONFIG_MALI_VECTOR_DUMP)
+/* Set a large value to avoid timing out while vector dumping */
+#define KCPU_FENCE_SIGNAL_TIMEOUT_CYCLES (250000000000ull)
+#elif IS_ENABLED(CONFIG_MALI_IS_FPGA)
 #define KCPU_FENCE_SIGNAL_TIMEOUT_CYCLES (2500000000ull)
 #else
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)

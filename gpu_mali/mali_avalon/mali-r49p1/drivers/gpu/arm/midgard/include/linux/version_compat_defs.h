@@ -356,7 +356,8 @@ static inline long kbase_pin_user_pages_remote(struct task_struct *tsk, struct m
 #if KERNEL_VERSION(6, 0, 0) > LINUX_VERSION_CODE
 #define KBASE_REGISTER_SHRINKER(reclaim, name, priv_data) register_shrinker(reclaim)
 
-#elif (KERNEL_VERSION(6, 7, 0) > LINUX_VERSION_CODE)
+#elif ((KERNEL_VERSION(6, 7, 0) > LINUX_VERSION_CODE) && \
+	!(defined(__ANDROID_COMMON_KERNEL__) && (KERNEL_VERSION(6, 6, 0) == LINUX_VERSION_CODE)))
 #define KBASE_REGISTER_SHRINKER(reclaim, name, priv_data) register_shrinker(reclaim, name)
 
 #else
@@ -368,7 +369,8 @@ static inline long kbase_pin_user_pages_remote(struct task_struct *tsk, struct m
 
 #endif /* KERNEL_VERSION(6, 0, 0) > LINUX_VERSION_CODE */
 
-#if (KERNEL_VERSION(6, 7, 0) > LINUX_VERSION_CODE)
+#if ((KERNEL_VERSION(6, 7, 0) > LINUX_VERSION_CODE) && \
+	!(defined(__ANDROID_COMMON_KERNEL__) && (KERNEL_VERSION(6, 6, 0) == LINUX_VERSION_CODE)))
 #define KBASE_UNREGISTER_SHRINKER(reclaim) unregister_shrinker(&reclaim)
 #define KBASE_GET_KBASE_DATA_FROM_SHRINKER(s, type, var) container_of(s, type, var)
 #define DEFINE_KBASE_SHRINKER struct shrinker
@@ -383,6 +385,13 @@ static inline long kbase_pin_user_pages_remote(struct task_struct *tsk, struct m
 #define KBASE_INIT_RECLAIM(var, attr, name) (KBASE_SHRINKER_ALLOC(name))
 #define KBASE_SET_RECLAIM(var, attr, reclaim) ((var)->attr = reclaim)
 
+#endif
+
+#if (KERNEL_VERSION(4, 20, 0) <= LINUX_VERSION_CODE)
+#include <linux/compiler_attributes.h>
+#endif
+#ifndef __maybe_unused
+#define __maybe_unused __attribute__((unused))
 #endif
 
 #endif /* _VERSION_COMPAT_DEFS_H_ */
