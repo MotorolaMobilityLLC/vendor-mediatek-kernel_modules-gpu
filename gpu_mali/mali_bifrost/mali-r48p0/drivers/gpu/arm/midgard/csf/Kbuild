@@ -56,8 +56,8 @@ mali_kbase-$(CONFIG_DEBUG_FS) += csf/mali_kbase_debug_csf_fault.o
 
 ifeq ($(KBUILD_EXTMOD),)
 # in-tree
-    -include $(src)/csf/ipa_control/Kbuild
+    -include $(srctree)/$(src)/csf/ipa_control/Kbuild
 else
 # out-of-tree
-    include $(src)/csf/ipa_control/Kbuild
+    include $(srctree)/$(src)/csf/ipa_control/Kbuild
 endif

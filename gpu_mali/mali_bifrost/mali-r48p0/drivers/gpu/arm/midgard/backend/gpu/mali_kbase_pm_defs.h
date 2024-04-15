@@ -35,6 +35,18 @@
 #define KBASE_PM_RUNTIME 1
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+    IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY) && \
+    IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)
+/* counters defined in mali_kbase_csf_defs.h */
+#define NUM_PERF_COUNTERS (9)
+
+#elif IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+    IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+/* counters defined in mali_kbase_csf_defs.h */
+#define NUM_PERF_COUNTERS (6)
+#endif
+
 /* Forward definition - see mali_kbase.h */
 struct kbase_device;
 struct kbase_jd_atom;
@@ -134,10 +146,23 @@ enum kbase_pm_runtime_suspend_abort_reason {
  *           with 2 (2x256ns).
  */
 struct kbasep_pm_metrics {
+#if !MALI_USE_CSF || \
+	!IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) || !IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	u32 time_busy;
 	u32 time_idle;
+#endif
 #if MALI_USE_CSF
 	u32 time_in_protm;
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	//[0]: Active, [1]: TILER, [2]: COMP, [3]: FRAGP, [4]: ITER
+	u32 time_busy[NUM_PERF_COUNTERS];
+	u32 time_idle[NUM_PERF_COUNTERS];
+	u32 counterRaw[NUM_PERF_COUNTERS];
+	u32 busy_cl[2];
+	u32 busy_gl;
+	u32 busy_gl_plus[3];
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 #else
 	u32 busy_cl[2];
 	u32 busy_gl;
