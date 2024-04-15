@@ -480,6 +480,16 @@ unsigned int kbase_csf_firmware_trace_buffer_read_data(
 	u32 insert_offset = *(trace_buffer->cpu_va.insert_cpu_va);
 	u32 buffer_size = trace_buffer->num_pages << PAGE_SHIFT;
 
+	/* The access to insert offset needs to be ordered with respect to the data
+	 * to be read from the trace buffer to avoid the scenario where the update
+	 * of insert offset becomes visible before the update of data is completely
+	 * visible. Memory barrier is required, both on Host and FW side, to guarantee
+	 * the ordering.
+	 *
+	 * 'osh' is used as CPU and GPU would be in the same Outer shareable domain.
+	 */
+	dmb(osh);
+
 	if ((bytes_copied == 0) && (buffer_size == 0x100000)) /* CONFIG_MALI_MTK_KE_DUMP_FWLOG: need to check fwlog size = 1MB */
 		extract_offset_tmp = extract_offset;
 
