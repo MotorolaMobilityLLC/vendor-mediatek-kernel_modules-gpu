@@ -255,13 +255,6 @@ static bool gpu_metrics_read_event(struct kbase_device *kbdev, struct kbase_cont
 {
 	struct firmware_trace_buffer *tb = kbdev->csf.scheduler.gpu_metrics_tb;
 	struct gpu_metrics_event e;
-#if IS_ENABLED(CONFIG_MALI_MTK_CSG_ERROR_HANDLING)
-	u32 *data_cpu_va = tb->data_mapping.cpu_addr;
-	u32 extract_offset = *(tb->cpu_va.extract_cpu_va);
-	u32 insert_offset = *(tb->cpu_va.insert_cpu_va);
-	u32 buffer_size = tb->num_pages << PAGE_SHIFT;
-	int i, j;
-#endif /* CONFIG_MALI_MTK_CSG_ERROR_HANDLING */
 
 	if (kbase_csf_firmware_trace_buffer_read_data(tb, (u8 *)&e, GPU_METRICS_EVENT_SIZE) ==
 	    GPU_METRICS_EVENT_SIZE) {
@@ -272,17 +265,7 @@ static bool gpu_metrics_read_event(struct kbase_device *kbdev, struct kbase_cont
 			dev_err(kbdev->dev, "invalid CSG slot (%u)", slot);
 #if IS_ENABLED(CONFIG_MALI_MTK_CSG_ERROR_HANDLING)
 			dev_err(kbdev->dev, "TB invalid CSG slot(%u) (%u) (%lu)", slot, kbdev->csf.scheduler.state, GPU_METRICS_EVENT_SIZE);
-			dev_err(kbdev->dev, "Dump gpu event (%p, 0x%x, 0x%x, 0x%x)",
-				data_cpu_va, extract_offset, insert_offset, buffer_size);
-			for( i = 0; i < 10; i++){
-				if(data_cpu_va[i] > 0) dev_err(kbdev->dev, "TB(0x%x) (0x%x)", data_cpu_va[i], i);
-			}
-			for( i = extract_offset/4; (i < extract_offset/4 + 10) && (i < buffer_size/4); i++){
-				if(data_cpu_va[i] > 0) dev_err(kbdev->dev, "TB(0x%x) (0x%x)", data_cpu_va[i], i);
-			}
-			for( i = buffer_size/4; (i < buffer_size/4 + 10) && (i < buffer_size/4); i++){
-				if(data_cpu_va[i] > 0) dev_err(kbdev->dev, "TB(0x%x) (0x%x)", data_cpu_va[i], i);
-			}
+			mtk_kbase_csf_firmware_dump_gpu_event(kbdev, tb);
 			WARN_ON(1);
 #if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
 			aee_kernel_warning("GPU_LOG", "\nRead Event");

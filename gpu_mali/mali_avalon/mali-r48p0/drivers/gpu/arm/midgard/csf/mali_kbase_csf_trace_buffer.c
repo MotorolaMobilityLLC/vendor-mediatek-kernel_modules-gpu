@@ -672,3 +672,26 @@ void mtk_kbase_csf_firmware_ke_dump_fwlog(struct kbase_device *kbdev)
 }
 EXPORT_SYMBOL(mtk_kbase_csf_firmware_ke_dump_fwlog);
 #endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_CSG_ERROR_HANDLING)
+void mtk_kbase_csf_firmware_dump_gpu_event(struct kbase_device *kbdev, struct firmware_trace_buffer *tb)
+{
+	u32 *data_cpu_va = tb->data_mapping.cpu_addr;
+	u32 extract_offset = *(tb->cpu_va.extract_cpu_va);
+	u32 insert_offset = *(tb->cpu_va.insert_cpu_va);
+	u32 buffer_size = tb->num_pages << PAGE_SHIFT;
+	int i;
+
+	dev_err(kbdev->dev, "Dump gpu event (%p, 0x%x, 0x%x, 0x%x)",
+		data_cpu_va, extract_offset, insert_offset, buffer_size);
+	for( i = 0; i < 10; i++){
+		if(data_cpu_va[i] > 0) dev_err(kbdev->dev, "TB(0x%x) (0x%x)", data_cpu_va[i], i);
+	}
+	for( i = extract_offset/4; (i < extract_offset/4 + 10) && (i < buffer_size/4); i++){
+		if(data_cpu_va[i] > 0) dev_err(kbdev->dev, "TB(0x%x) (0x%x)", data_cpu_va[i], i);
+	}
+	for( i = buffer_size/4; (i < buffer_size/4 + 10) && (i < buffer_size/4); i++){
+		if(data_cpu_va[i] > 0) dev_err(kbdev->dev, "TB(0x%x) (0x%x)", data_cpu_va[i], i);
+	}
+}
+#endif /* CONFIG_MALI_MTK_CSG_ERROR_HANDLING */

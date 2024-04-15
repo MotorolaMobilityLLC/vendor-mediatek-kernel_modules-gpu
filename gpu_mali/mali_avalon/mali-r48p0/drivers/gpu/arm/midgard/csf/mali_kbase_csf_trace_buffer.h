@@ -181,6 +181,17 @@ unsigned int kbase_csf_firmware_trace_buffer_read_data(struct firmware_trace_buf
 void mtk_kbase_csf_firmware_ke_dump_fwlog(struct kbase_device *kbdev);
 #endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CSG_ERROR_HANDLING)
+/**
+ * mtk_kbase_csf_firmware_dump_gpu_event - dump gpu event
+ *
+ * @kbdev: Device pointer
+ * @tb: Trace buffer handle
+ *
+ */
+void mtk_kbase_csf_firmware_dump_gpu_event(struct kbase_device *kbdev, struct firmware_trace_buffer *tb);
+#endif /* CONFIG_MALI_MTK_CSG_ERROR_HANDLING */
+
 /**
  * kbase_csf_firmware_trace_buffer_discard - Discard data from a trace buffer
  *
