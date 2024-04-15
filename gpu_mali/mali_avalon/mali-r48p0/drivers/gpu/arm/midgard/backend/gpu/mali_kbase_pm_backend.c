@@ -1262,6 +1262,7 @@ int kbase_pm_handle_runtime_suspend(struct kbase_device *kbdev)
 #endif
 		dev_info(kbdev->dev, "Skip runtime_suspend, autosuspend_delay:%d\n",kbdev->dev->power.autosuspend_delay);
 		ret = -EBUSY;
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 		goto unlock;
 	}
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
