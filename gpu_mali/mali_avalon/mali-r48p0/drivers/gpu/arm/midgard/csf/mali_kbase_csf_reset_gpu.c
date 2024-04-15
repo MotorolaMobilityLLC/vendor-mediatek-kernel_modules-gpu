@@ -30,6 +30,7 @@
 #include <csf/ipa_control/mali_kbase_csf_ipa_control.h>
 #include <mali_kbase_reset_gpu.h>
 #include <csf/mali_kbase_csf_firmware_log.h>
+#include <hw_access/mali_kbase_hw_access_regmap_legacy.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GPUEB_IRQ)
 #include <gpueb_ipi.h>
@@ -239,18 +240,79 @@ static void kbase_csf_reset_end_hw_access(struct kbase_device *kbdev, int err_du
 		kbase_csf_scheduler_enable_tick_timer(kbdev);
 }
 
-static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
+static bool kbase_is_register_accessible(u32 offset)
+{
+#ifdef CONFIG_MALI_DEBUG
+	if (((offset >= MCU_SUBSYSTEM_BASE) && (offset < IPA_CONTROL_BASE)) ||
+	    ((offset >= GPU_CONTROL_MCU_BASE) && (offset < USER_BASE))) {
+		WARN(1, "Invalid register offset 0x%x", offset);
+		return false;
+	}
+#endif
+
+	return true;
+}
+
+static u32 kbase_reg_read_directly(struct kbase_device *kbdev, u32 offset)
+{
+	u32 val;
+
+	if (WARN_ON(!kbdev->pm.backend.gpu_powered))
+		return 0;
+
+	if (WARN_ON(kbdev->dev == NULL))
+		return 0;
+
+	if (!kbase_is_register_accessible(offset))
+		return 0;
+
+	val = readl(kbdev->reg + offset);
+
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+	if (unlikely(kbdev->io_history.enabled))
+		kbase_io_history_add(&kbdev->io_history, kbdev->reg + offset,
+				     val, 0);
+#endif /* CONFIG_DEBUG_FS */
+	dev_dbg(kbdev->dev, "r: reg %08x val %08x", offset, val);
+
+	return val;
+}
+
+#define DOORBELL_CFG_BASE 0x20000
+#define MCUC_DB_VALUE_0 0x80
+
+const char *kbase_mcu_state_to_string(enum kbase_mcu_state state);
+const char *kbase_l2_core_state_to_string(enum kbase_l2_core_state state);
+void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 {
 	unsigned long flags;
+	struct kbase_csf_global_iface *global_iface = &kbdev->csf.global_iface;
+	u32 glb_req, glb_ack, glb_db_req, glb_db_ack;
 
 	kbase_io_history_dump(kbdev);
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	dev_err(kbdev->dev, "\tMCU desired = %d\n",
+			kbase_pm_is_mcu_desired(kbdev));
+	dev_err(kbdev->dev, "\tMCU sw state = %d(%s)\n",
+			kbdev->pm.backend.mcu_state,
+			kbase_mcu_state_to_string(kbdev->pm.backend.mcu_state));
+	dev_err(kbdev->dev, "\tL2 sw state = %d(%s)\n",
+			kbdev->pm.backend.l2_state,
+			kbase_l2_core_state_to_string(kbdev->pm.backend.l2_state));
 	dev_err(kbdev->dev, "Register state:");
 	dev_err(kbdev->dev, "  GPU_IRQ_RAWSTAT=0x%08x  GPU_STATUS=0x%08x MCU_STATUS=0x%08x",
 		kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_RAWSTAT)),
 		kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_STATUS)),
 		kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_STATUS)));
+	dev_err(kbdev->dev, "\tMCU control = %d\n",
+			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_CONTROL)));
+	dev_err(kbdev->dev, "\tMCUC_DB_VALUE_0 = %d\n",
+			kbase_reg_read_directly(kbdev, DOORBELL_CFG_BASE + MCUC_DB_VALUE_0));
+	dev_err(kbdev->dev, "\tGPU_IRQ_MASK = %x\n",
+			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK)));
+	dev_err(kbdev->dev, "\tGPU_IRQ_RAWSTAT = %x\n",
+			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_RAWSTAT)));
 	dev_err(kbdev->dev,
 		"  JOB_IRQ_RAWSTAT=0x%08x  MMU_IRQ_RAWSTAT=0x%08x  GPU_FAULTSTATUS=0x%08x",
 		kbase_reg_read32(kbdev, JOB_CONTROL_ENUM(JOB_IRQ_RAWSTAT)),
@@ -270,6 +332,13 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(L2_MMU_CONFIG)),
 			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(TILER_CONFIG)));
 	}
+
+	glb_db_ack = kbase_csf_firmware_global_output(global_iface, GLB_DB_ACK);
+	glb_db_req = kbase_csf_firmware_global_input_read(global_iface, GLB_DB_REQ);
+	glb_ack = kbase_csf_firmware_global_output(global_iface, GLB_ACK);
+	glb_req = kbase_csf_firmware_global_input_read(global_iface, GLB_REQ);
+	dev_err(kbdev->dev, "\tglb_req %x glb_ack %x glb_db_req %x glb_db_ack %x\n",
+			glb_req, glb_ack, glb_db_req, glb_db_ack);
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
@@ -733,6 +802,8 @@ bool kbase_prepare_to_reset_gpu_ext(struct kbase_device *kbdev, unsigned int fla
 					mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_NA);
 					mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_NA);
 					mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, NULL, MTK_DBG_HOOK_NA);
+					kbase_csf_debug_dump_registers(kbdev);
+					kbase_csf_firmware_log_dump_buffer(kbdev);
 					BUG_ON(1);
 				}
 			}
@@ -773,6 +844,8 @@ bool kbase_prepare_to_reset_gpu_ext_locked(struct kbase_device *kbdev, unsigned 
 					mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_NA);
 					mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_NA);
 					mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, NULL, MTK_DBG_HOOK_NA);
+					kbase_csf_debug_dump_registers(kbdev);
+					kbase_csf_firmware_log_dump_buffer(kbdev);
 					BUG_ON(1);
 				}
 			}
