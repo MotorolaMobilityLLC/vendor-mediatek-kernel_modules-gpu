@@ -14,17 +14,14 @@ static int mtk_debug_gpu_idle_test(struct seq_file *file, void *data)
 	struct kbase_device *kbdev = file->private;
 	struct device_node *np;
 	unsigned long flags,flags2;
-	bool invoke_pm_state_machine = false;
 
 	if (IS_ERR_OR_NULL(kbdev))
 		return -1;
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	kbase_csf_scheduler_spin_lock(kbdev,&flags2);
-	invoke_pm_state_machine = kbase_csf_scheduler_process_gpu_idle_event(kbdev);
+	kbase_csf_scheduler_process_gpu_idle_event(kbdev);
 	kbase_csf_scheduler_spin_unlock(kbdev, flags2);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-	if (unlikely(invoke_pm_state_machine))
-		kbase_pm_update_state(kbdev);
 
 	return 0;
 }
