@@ -85,13 +85,14 @@ struct _DEVMEMINT_CTX_
 	   is associated with the context. */
 	IMG_HANDLE hPrivData;
 
-	/* Protects access to sProcessNotifyListHead */
-	POSWR_LOCK hListLock;
-
 	/* The following tracks UM applications that need to be notified of a
-	 * page fault */
+	 * page fault.
+	 * Access to this list is protected by lock defined on a device node:
+	 * PVRSRV_DEVICE_NODE::hPageFaultNotifyLock. */
 	DLLIST_NODE sProcessNotifyListHead;
-	/* The following is a node for the list of registered devmem contexts */
+	/* The following is a node for the list of registered devmem contexts.
+	 * Access to this list is protected by lock defined on a device node:
+	 * PVRSRV_DEVICE_NODE::hPageFaultNotifyLock. */
 	DLLIST_NODE sPageFaultNotifyListElem;
 
 	/* Device virtual address of a page fault on this context */
@@ -278,6 +279,19 @@ static INLINE void DevmemIntCtxRelease(DEVMEMINT_CTX *psDevmemCtx)
 		PVRSRV_DEVICE_NODE *psDevNode = psDevmemCtx->psDevNode;
 		DLLIST_NODE *psNode, *psNodeNext;
 
+		/* Protect removing the node from the list in case it's being accessed
+		 * by DevmemIntPFNotify(). */
+		OSWRLockAcquireWrite(psDevNode->hPageFaultNotifyLock);
+		/* If this context is in the list registered for a debugger, remove
+		 * from that list */
+		if (dllist_node_is_in_list(&psDevmemCtx->sPageFaultNotifyListElem))
+		{
+			dllist_remove_node(&psDevmemCtx->sPageFaultNotifyListElem);
+		}
+		/* It should be safe to release the lock here (as long as
+		 * DevmemIntPFNotify() protects accessing memory contexts as well). */
+		OSWRLockReleaseWrite(psDevNode->hPageFaultNotifyLock);
+
 		/* If there are any PIDs registered for page fault notification.
 		 * Loop through the registered PIDs and free each one */
 		dllist_foreach_node(&(psDevmemCtx->sProcessNotifyListHead), psNode, psNodeNext)
@@ -288,20 +302,11 @@ static INLINE void DevmemIntCtxRelease(DEVMEMINT_CTX *psDevmemCtx)
 			OSFreeMem(psNotifyNode);
 		}
 
-		/* If this context is in the list registered for a debugger, remove
-		 * from that list */
-		if (dllist_node_is_in_list(&psDevmemCtx->sPageFaultNotifyListElem))
-		{
-			dllist_remove_node(&psDevmemCtx->sPageFaultNotifyListElem);
-		}
-
 		if (psDevNode->pfnUnregisterMemoryContext)
 		{
 			psDevNode->pfnUnregisterMemoryContext(psDevmemCtx->hPrivData);
 		}
 		MMU_ContextDestroy(psDevmemCtx->psMMUContext);
-
-		OSWRLockDestroy(psDevmemCtx->hListLock);
 
 		PVR_DPF((PVR_DBG_MESSAGE, "%s: Freed memory context %p",
 				 __func__, psDevmemCtx));
@@ -606,7 +611,6 @@ DevmemIntCtxCreate(CONNECTION_DATA *psConnection,
 	*pui32CPUCacheLineSize = OSCPUCacheAttributeSize(OS_CPU_CACHE_ATTRIBUTE_LINE_SIZE);
 
 	/* Initialise the PID notify list */
-	OSWRLockCreate(&psDevmemCtx->hListLock);
 	dllist_init(&(psDevmemCtx->sProcessNotifyListHead));
 	psDevmemCtx->sPageFaultNotifyListElem.psNextNode = NULL;
 	psDevmemCtx->sPageFaultNotifyListElem.psPrevNode = NULL;
@@ -1123,25 +1127,62 @@ ErrorReturnError:
 PVRSRV_ERROR
 DevmemXIntUnreserveRange(DEVMEMXINT_RESERVATION *psRsrv)
 {
-	IMG_UINT32 i;
-
-	MMU_Free(psRsrv->psDevmemHeap->psDevmemCtx->psMMUContext,
-	         psRsrv->sBase,
-	         psRsrv->uiLength,
-	         psRsrv->psDevmemHeap->uiLog2PageSize);
+	IMG_UINT32 ui32FirstMappedIdx = IMG_UINT32_MAX; // Initialise with invalid value.
+	IMG_UINT32 ui32ContigPageCount = 0;
+	IMG_UINT32 ui32PageIdx;
+	PVRSRV_ERROR eError = PVRSRV_OK;
 
 	/* No need to lock the mapping here since this is a handle destruction path which can not be
 	 * executed while there are outstanding handle lookups, i.e. other operations are performed
 	 * on the mapping. Bridge and handle framework also make sure this path can also not be executed
 	 * concurrently. */
 
-	for (i = 0; i < _DevmemXReservationPageCount(psRsrv); i++)
+	for (ui32PageIdx = 0; ui32PageIdx < _DevmemXReservationPageCount(psRsrv); ui32PageIdx++)
 	{
-		if (psRsrv->ppsPMR[i] != NULL)
+		if (psRsrv->ppsPMR[ui32PageIdx] != NULL)
 		{
-			PMRUnrefPMR2(psRsrv->ppsPMR[i]);
+			if (ui32ContigPageCount == 0)
+			{
+#if defined(DEBUG)
+				if(ui32FirstMappedIdx == IMG_UINT32_MAX)
+				{
+					PVR_DPF((PVR_DBG_WARNING,
+					         "%s: Reservation was not unmapped! The reservation will "
+					         "be unmapped before proceeding.",
+					         __func__));
+				}
+#endif
+				ui32FirstMappedIdx = ui32PageIdx;
+			}
+
+			ui32ContigPageCount++;
+		}
+		else
+		{
+			if (ui32ContigPageCount != 0)
+			{
+				eError = DevmemXIntUnmapPages(psRsrv,
+				                              ui32FirstMappedIdx,
+				                              ui32ContigPageCount);
+				PVR_RETURN_IF_ERROR(eError);
+			}
+
+			ui32ContigPageCount = 0;
 		}
 	}
+
+	if (ui32ContigPageCount != 0)
+	{
+		eError = DevmemXIntUnmapPages(psRsrv,
+		                              ui32FirstMappedIdx,
+		                              ui32ContigPageCount);
+		PVR_RETURN_IF_ERROR(eError);
+	}
+
+	MMU_Free(psRsrv->psDevmemHeap->psDevmemCtx->psMMUContext,
+	         psRsrv->sBase,
+	         psRsrv->uiLength,
+	         psRsrv->psDevmemHeap->uiLog2PageSize);
 
 	/* Don't bother with refcount on reservation, as a reservation only ever
 	 * holds one mapping, so we directly decrement the refcount on the heap
@@ -2506,13 +2547,19 @@ PVRSRV_ERROR DevmemIntRegisterPFNotifyKM(DEVMEMINT_CTX *psDevmemCtx,
 
 	PVR_LOG_RETURN_IF_INVALID_PARAM(psDevmemCtx, "psDevmemCtx");
 
-	/* Acquire write lock for the duration, to avoid resource free
-	 * while trying to read (no need to then also acquire the read lock
-	 * as we have exclusive access while holding the write lock)
+	/* We can be certain that the memory context is valid and not freed during
+	 * the call time of this function as it's assured by the handle framework
+	 * (while the handle is looked up it cannot be freed). Therefore we can
+	 * safely retrieve the pointer to the device node and acquire the
+	 * hPageFaultNotifyLock lock.
 	 */
-	OSWRLockAcquireWrite(psDevmemCtx->hListLock);
-
 	psDevNode = psDevmemCtx->psDevNode;
+
+	/* Acquire write lock to avoid resource free while
+	 * sMemoryContextPageFaultNotifyListHead and sProcessNotifyListHead
+	 * are being accessed.
+	 */
+	OSWRLockAcquireWrite(psDevNode->hPageFaultNotifyLock);
 
 	if (bRegister)
 	{
@@ -2520,10 +2567,8 @@ PVRSRV_ERROR DevmemIntRegisterPFNotifyKM(DEVMEMINT_CTX *psDevmemCtx,
 		 * needs to be registered for notification */
 		if (dllist_is_empty(&psDevmemCtx->sProcessNotifyListHead))
 		{
-			OSWRLockAcquireWrite(psDevNode->hMemoryContextPageFaultNotifyListLock);
 			dllist_add_to_tail(&psDevNode->sMemoryContextPageFaultNotifyListHead,
 			                   &psDevmemCtx->sPageFaultNotifyListElem);
-			OSWRLockReleaseWrite(psDevNode->hMemoryContextPageFaultNotifyListLock);
 		}
 	}
 
@@ -2583,9 +2628,7 @@ PVRSRV_ERROR DevmemIntRegisterPFNotifyKM(DEVMEMINT_CTX *psDevmemCtx,
 		 * unregister the device memory context from the notify list. */
 		if (dllist_is_empty(&psDevmemCtx->sProcessNotifyListHead))
 		{
-			OSWRLockAcquireWrite(psDevNode->hMemoryContextPageFaultNotifyListLock);
 			dllist_remove_node(&psDevmemCtx->sPageFaultNotifyListElem);
-			OSWRLockReleaseWrite(psDevNode->hMemoryContextPageFaultNotifyListLock);
 		}
 	}
 	eError = PVRSRV_OK;
@@ -2593,8 +2636,7 @@ PVRSRV_ERROR DevmemIntRegisterPFNotifyKM(DEVMEMINT_CTX *psDevmemCtx,
 err_already_registered:
 err_out_of_mem:
 err_not_registered:
-
-	OSWRLockReleaseWrite(psDevmemCtx->hListLock);
+	OSWRLockReleaseWrite(psDevNode->hPageFaultNotifyLock);
 	return eError;
 }
 
@@ -2618,10 +2660,14 @@ PVRSRV_ERROR DevmemIntPFNotify(PVRSRV_DEVICE_NODE *psDevNode,
 	DEVMEMINT_CTX       *psDevmemCtx = NULL;
 	IMG_BOOL            bFailed = IMG_FALSE;
 
-	OSWRLockAcquireRead(psDevNode->hMemoryContextPageFaultNotifyListLock);
+	/* Protect access both to sMemoryContextPageFaultNotifyListHead and
+	 * to sProcessNotifyListHead. Those lists must be accessed atomically
+	 * in relation to each other, otherwise we risk accessing context that
+	 * might have already been destroyed. */
+	OSWRLockAcquireRead(psDevNode->hPageFaultNotifyLock);
 	if (dllist_is_empty(&(psDevNode->sMemoryContextPageFaultNotifyListHead)))
 	{
-		OSWRLockReleaseRead(psDevNode->hMemoryContextPageFaultNotifyListLock);
+		OSWRLockReleaseRead(psDevNode->hPageFaultNotifyLock);
 		return PVRSRV_OK;
 	}
 
@@ -2635,7 +2681,7 @@ PVRSRV_ERROR DevmemIntPFNotify(PVRSRV_DEVICE_NODE *psDevNode,
 		if (eError != PVRSRV_OK)
 		{
 			PVR_LOG_ERROR(eError, "MMU_AcquireBaseAddr");
-			OSWRLockReleaseRead(psDevNode->hMemoryContextPageFaultNotifyListLock);
+			OSWRLockReleaseRead(psDevNode->hPageFaultNotifyLock);
 			return eError;
 		}
 
@@ -2645,14 +2691,13 @@ PVRSRV_ERROR DevmemIntPFNotify(PVRSRV_DEVICE_NODE *psDevNode,
 			break;
 		}
 	}
-	OSWRLockReleaseRead(psDevNode->hMemoryContextPageFaultNotifyListLock);
 
 	if (psDevmemCtx == NULL)
 	{
 		/* Not found, just return */
+		OSWRLockReleaseRead(psDevNode->hPageFaultNotifyLock);
 		return PVRSRV_OK;
 	}
-	OSWRLockAcquireRead(psDevmemCtx->hListLock);
 
 	/*
 	 * Store the first occurrence of a page fault address,
@@ -2682,7 +2727,7 @@ PVRSRV_ERROR DevmemIntPFNotify(PVRSRV_DEVICE_NODE *psDevNode,
 			bFailed = IMG_TRUE;
 		}
 	}
-	OSWRLockReleaseRead(psDevmemCtx->hListLock);
+	OSWRLockReleaseRead(psDevNode->hPageFaultNotifyLock);
 
 	if (bFailed)
 	{
