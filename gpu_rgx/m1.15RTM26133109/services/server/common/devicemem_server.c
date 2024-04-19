@@ -66,6 +66,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define DEVMEMHEAP_REFCOUNT_MAX IMG_INT32_MAX
 #define DEVMEMRESERVATION_REFCOUNT_MIN 1
 #define DEVMEMRESERVATION_REFCOUNT_MAX IMG_INT32_MAX
+#define DEVMEMCTX_REFCOUNT_MIN 1
+#define DEVMEMCTX_REFCOUNT_MAX IMG_INT32_MAX
 
 struct _DEVMEMINT_CTX_
 {
@@ -77,8 +79,6 @@ struct _DEVMEMINT_CTX_
 	   what the MMU does with its context, and the MMU code need not
 	   know about us at all. */
 	MMU_CONTEXT *psMMUContext;
-
-	ATOMIC_T hRefCount;
 
 	/* This handle is for devices that require notification when a new
 	   memory context is created and they need to store private data that
@@ -98,6 +98,12 @@ struct _DEVMEMINT_CTX_
 	/* Device virtual address of a page fault on this context */
 	IMG_DEV_VIRTADDR sFaultAddress;
 
+	/* Bitfield stating which heaps were created on this context. */
+	IMG_UINT64 uiCreatedHeaps;
+
+	/* Context's reference count */
+	ATOMIC_T hRefCount;
+
 	/* General purpose flags */
 	IMG_UINT32 ui32Flags;
 };
@@ -113,10 +119,8 @@ struct _DEVMEMINT_CTX_EXPORT_
 struct _DEVMEMINT_HEAP_
 {
 	struct _DEVMEMINT_CTX_ *psDevmemCtx;
-	IMG_UINT32 uiLog2PageSize;
 	IMG_DEV_VIRTADDR sBaseAddr;
 	IMG_DEV_VIRTADDR sLastAddr;
-	ATOMIC_T uiRefCount;
 
 	/* Private data for callback functions */
 	IMG_HANDLE hPrivData;
@@ -126,6 +130,15 @@ struct _DEVMEMINT_HEAP_
 
 	/* Callback function deinit */
 	PFN_HEAP_DEINIT pfnDeInit;
+
+	/* Heap's reference count */
+	ATOMIC_T uiRefCount;
+
+	/* Page shift of the heap */
+	IMG_UINT32 uiLog2PageSize;
+
+	/* Copy of the heap index from Device Heap Configuration module */
+	IMG_UINT32 uiHeapIndex;
 };
 
 struct _DEVMEMINT_RESERVATION_
@@ -257,11 +270,21 @@ static void DevmemIntReservationSetMappingIndex(DEVMEMINT_RESERVATION2 *psReserv
 /*************************************************************************/ /*!
 @Function       DevmemIntCtxAcquire
 @Description    Acquire a reference to the provided device memory context.
-@Return         None
+@Return         IMG_TRUE on success, IMG_FALSE on overflow
 */ /**************************************************************************/
-static INLINE void DevmemIntCtxAcquire(DEVMEMINT_CTX *psDevmemCtx)
+static INLINE IMG_BOOL DevmemIntCtxAcquire(DEVMEMINT_CTX *psDevmemCtx)
 {
-	OSAtomicIncrement(&psDevmemCtx->hRefCount);
+	IMG_BOOL bSuccess = OSAtomicAddUnless(&psDevmemCtx->hRefCount, 1,
+	                                      DEVMEMCTX_REFCOUNT_MAX);
+
+	if (!bSuccess)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s(): Failed to acquire the device memory "
+		         "context, reference count has overflowed.", __func__));
+		return IMG_FALSE;
+	}
+
+	return IMG_TRUE;
 }
 
 /*************************************************************************/ /*!
@@ -621,6 +644,8 @@ DevmemIntCtxCreate(CONNECTION_DATA *psConnection,
 	/* Initialise flags */
 	psDevmemCtx->ui32Flags = 0;
 
+	psDevmemCtx->uiCreatedHeaps = 0;
+
 	return PVRSRV_OK;
 
 fail_register:
@@ -784,19 +809,14 @@ DevmemIntHeapCreate2(DEVMEMINT_CTX *psDevmemCtx,
 
 	PVR_DPF((PVR_DBG_MESSAGE, "%s", __func__));
 
-	/* allocate a Devmem context */
-	psDevmemHeap = OSAllocMem(sizeof(*psDevmemHeap));
-	PVR_LOG_RETURN_IF_NOMEM(psDevmemHeap, "psDevmemHeap");
-
-	psDevmemHeap->psDevmemCtx = psDevmemCtx;
-
-	DevmemIntCtxAcquire(psDevmemHeap->psDevmemCtx);
-
-	OSAtomicWrite(&psDevmemHeap->uiRefCount, 1);
+	if (!DevmemIntCtxAcquire(psDevmemCtx))
+	{
+		return PVRSRV_ERROR_REFCOUNT_OVERFLOW;
+	}
 
 	/* Check page size and base addr match the heap blueprint */
 	eError = HeapCfgHeapDetails(NULL,
-	                            psDevmemHeap->psDevmemCtx->psDevNode,
+	                            psDevmemCtx->psDevNode,
 	                            uiHeapConfigIndex,
 	                            uiHeapIndex,
 	                            0, NULL,
@@ -809,6 +829,18 @@ DevmemIntHeapCreate2(DEVMEMINT_CTX *psDevmemCtx,
 	{
 		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to get details for HeapConfig:%d HeapIndex:%d.",
 				 __func__, uiHeapConfigIndex, uiHeapIndex));
+		goto ErrorCtxRelease;
+	}
+
+	/* uiHeapConfigIndex and uiHeapIndex are validated in HeapCfgHeapDetails()
+	 * so it should be safe to use here without additional checks. We must assert
+	 * though that the index is less than the number of bits in uiCreatedHeaps
+	 * bitfield (we assume 8 bits in a byte and bitfield width of 64). */
+	PVR_ASSERT(uiHeapIndex < sizeof(psDevmemCtx->uiCreatedHeaps) * 8);
+
+	if (BIT_ISSET(psDevmemCtx->uiCreatedHeaps, uiHeapIndex))
+	{
+		eError = PVRSRV_ERROR_ALREADY_EXISTS;
 		goto ErrorCtxRelease;
 	}
 
@@ -829,14 +861,22 @@ DevmemIntHeapCreate2(DEVMEMINT_CTX *psDevmemCtx,
 		goto ErrorCtxRelease;
 	}
 
+	/* allocate a Devmem context */
+	psDevmemHeap = OSAllocMem(sizeof(*psDevmemHeap));
+	PVR_LOG_GOTO_IF_NOMEM(psDevmemHeap, eError, ErrorCtxRelease);
+
+	psDevmemHeap->psDevmemCtx = psDevmemCtx;
 	psDevmemHeap->uiLog2PageSize = uiLog2DataPageSize;
 	psDevmemHeap->sBaseAddr = sHeapBaseAddr;
 	/* Store the last accessible address as our LastAddr. We can access
 	 * every address between sHeapBaseAddr and sHeapBaseAddr + HeapLength - 1
 	 */
 	psDevmemHeap->sLastAddr.uiAddr = sHeapBaseAddr.uiAddr + uiBlueprintHeapLength - 1;
+	psDevmemHeap->uiHeapIndex = uiHeapIndex;
 
-	eError = HeapCfgGetCallbacks(psDevmemHeap->psDevmemCtx->psDevNode,
+	OSAtomicWrite(&psDevmemHeap->uiRefCount, 1);
+
+	eError = HeapCfgGetCallbacks(psDevmemCtx->psDevNode,
 	                             uiHeapConfigIndex,
 	                             uiHeapIndex,
 	                             &psDevmemHeap->pfnInit,
@@ -845,28 +885,31 @@ DevmemIntHeapCreate2(DEVMEMINT_CTX *psDevmemCtx,
 	{
 		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to get callbacks for HeapConfig:%d HeapIndex:%d.",
 				 __func__, uiHeapConfigIndex, uiHeapIndex));
-		goto ErrorCtxRelease;
+		goto ErrorFreeDevmemHeap;
 	}
 
 	if (psDevmemHeap->pfnInit != NULL)
 	{
-		eError = psDevmemHeap->pfnInit(psDevmemHeap->psDevmemCtx->psDevNode,
+		eError = psDevmemHeap->pfnInit(psDevmemCtx->psDevNode,
 		                               psDevmemHeap,
 		                               &psDevmemHeap->hPrivData);
-		PVR_GOTO_IF_ERROR(eError, ErrorCtxRelease);
+		PVR_GOTO_IF_ERROR(eError, ErrorFreeDevmemHeap);
 	}
 
 	PVR_DPF((PVR_DBG_VERBOSE, "%s: sBaseAddr = %" IMG_UINT64_FMTSPECX ", "
 	        "sLastAddr = %" IMG_UINT64_FMTSPECX, __func__,
 	        psDevmemHeap->sBaseAddr.uiAddr, psDevmemHeap->sLastAddr.uiAddr));
 
+	BIT_SET(psDevmemCtx->uiCreatedHeaps, uiHeapIndex);
+
 	*ppsDevmemHeapPtr = psDevmemHeap;
 
 	return PVRSRV_OK;
 
-ErrorCtxRelease:
-	DevmemIntCtxRelease(psDevmemHeap->psDevmemCtx);
+ErrorFreeDevmemHeap:
 	OSFreeMem(psDevmemHeap);
+ErrorCtxRelease:
+	DevmemIntCtxRelease(psDevmemCtx);
 
 	return eError;
 }
@@ -1851,6 +1894,8 @@ DevmemIntHeapDestroy(DEVMEMINT_HEAP *psDevmemHeap)
 
 	PVR_ASSERT(OSAtomicRead(&psDevmemHeap->uiRefCount) == DEVMEMHEAP_REFCOUNT_MIN);
 
+	BIT_UNSET(psDevmemHeap->psDevmemCtx->uiCreatedHeaps, psDevmemHeap->uiHeapIndex);
+
 	DevmemIntCtxRelease(psDevmemHeap->psDevmemCtx);
 
 	PVR_DPF((PVR_DBG_MESSAGE, "%s: Freed heap %p", __func__, psDevmemHeap));
@@ -2451,11 +2496,15 @@ DevmemIntExportCtx(DEVMEMINT_CTX *psContext,
                    DEVMEMINT_CTX_EXPORT **ppsContextExport)
 {
 	DEVMEMINT_CTX_EXPORT *psCtxExport;
+	PVRSRV_ERROR eError;
 
 	psCtxExport = OSAllocMem(sizeof(DEVMEMINT_CTX_EXPORT));
 	PVR_LOG_RETURN_IF_NOMEM(psCtxExport, "psCtxExport");
 
-	DevmemIntCtxAcquire(psContext);
+	if (!DevmemIntCtxAcquire(psContext))
+	{
+		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_REFCOUNT_OVERFLOW, ErrorFreeCtxExport);
+	}
 	PMRRefPMR(psPMR);
 	/* Now that the source PMR is exported, the layout
 	 * can't change as there could be outstanding importers
@@ -2471,6 +2520,11 @@ DevmemIntExportCtx(DEVMEMINT_CTX *psContext,
 	*ppsContextExport = psCtxExport;
 
 	return PVRSRV_OK;
+
+ErrorFreeCtxExport:
+	OSFreeMem(psCtxExport);
+
+	return eError;
 }
 
 PVRSRV_ERROR
@@ -2502,7 +2556,12 @@ DevmemIntAcquireRemoteCtx(PMR *psPMR,
 		psCtxExport = IMG_CONTAINER_OF(psListNode, DEVMEMINT_CTX_EXPORT, sNode);
 		if (psCtxExport->psPMR == psPMR)
 		{
-			DevmemIntCtxAcquire(psCtxExport->psDevmemCtx);
+			if (!DevmemIntCtxAcquire(psCtxExport->psDevmemCtx))
+			{
+				OSWRLockReleaseRead(g_hExportCtxListLock);
+
+				return PVRSRV_ERROR_REFCOUNT_OVERFLOW;
+			}
 			*ppsContext = psCtxExport->psDevmemCtx;
 			*phPrivData = psCtxExport->psDevmemCtx->hPrivData;
 
