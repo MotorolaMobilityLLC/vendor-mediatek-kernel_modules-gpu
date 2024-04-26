@@ -713,7 +713,11 @@ u64 l2_state_history = 0;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 
 #if MALI_USE_CSF
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 const char *kbase_mcu_state_to_string(enum kbase_mcu_state state)
+#else
+static const char *kbase_mcu_state_to_string(enum kbase_mcu_state state)
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 {
 	const char *const strings[] = {
 #define KBASEP_MCU_STATE(n) #n,
@@ -1400,7 +1404,11 @@ static void core_idle_worker(struct work_struct *work)
 }
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 const char *kbase_l2_core_state_to_string(enum kbase_l2_core_state state)
+#else
+static const char *kbase_l2_core_state_to_string(enum kbase_l2_core_state state)
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 {
 	const char *const strings[] = {
 #define KBASEP_L2_STATE(n) #n,
