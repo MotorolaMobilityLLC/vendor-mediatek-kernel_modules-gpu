@@ -4822,8 +4822,10 @@ static void scheduler_rotate_ctxs(struct kbase_device *kbdev)
 	}
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 void kbase_csf_firmware_log_dump_buffer(struct kbase_device *kbdev);
 void kbase_csf_debug_dump_registers(struct kbase_device *kbdev);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 /**
  * scheduler_update_idle_slots_status() - Get the status update for the CSG
@@ -4941,16 +4943,16 @@ static void scheduler_update_idle_slots_status(struct kbase_device *kbdev,
 			struct kbase_queue_group *group =
 				scheduler->csg_slots[csg_nr].resident_group;
 
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER) && IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 			dev_warn(
 				kbdev->dev,
 				"[%llxt] Timeout (%d ms) on CSG_REQ:STATUS_UPDATE, treat groups as not idle: slot mask=0x%lx",
 				(u64)kbase_backend_get_timestamp(kbdev), fw_timeout_ms, csg_bitmap[0]);
 #else
 			dev_warn(
-                kbdev->dev,
-                "[%llu] Timeout (%d ms) on CSG_REQ:STATUS_UPDATE, treat groups as not idle: slot mask=0x%lx",
-                kbase_backend_get_cycle_cnt(kbdev), fw_timeout_ms, csg_bitmap[0]);
+				kbdev->dev,
+				"[%llu] Timeout (%d ms) on CSG_REQ:STATUS_UPDATE, treat groups as not idle: slot mask=0x%lx",
+				kbase_backend_get_cycle_cnt(kbdev), fw_timeout_ms, csg_bitmap[0]);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
@@ -4966,9 +4968,9 @@ static void scheduler_update_idle_slots_status(struct kbase_device *kbdev,
 			mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_NA);
 			mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, NULL, MTK_DBG_HOOK_NA);
 			mtk_debug_csf_dump_queue_data(group);
-#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 			kbase_csf_debug_dump_registers(kbdev);
 			kbase_csf_firmware_log_dump_buffer(kbdev);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 			/* Store the bitmap of timed out slots */
 			bitmap_copy(failed_csg_bitmap, csg_bitmap, num_groups);

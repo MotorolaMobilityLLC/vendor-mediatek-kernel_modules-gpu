@@ -30,7 +30,6 @@
 #include <csf/ipa_control/mali_kbase_csf_ipa_control.h>
 #include <mali_kbase_reset_gpu.h>
 #include <csf/mali_kbase_csf_firmware_log.h>
-#include <hw_access/mali_kbase_hw_access_regmap_legacy.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GPUEB_IRQ)
 #include <gpueb_ipi.h>
@@ -38,6 +37,7 @@
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 #include <platform/mtk_platform_common.h>
+#include <hw_access/mali_kbase_hw_access_regmap_legacy.h>
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
@@ -240,6 +240,7 @@ static void kbase_csf_reset_end_hw_access(struct kbase_device *kbdev, int err_du
 		kbase_csf_scheduler_enable_tick_timer(kbdev);
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 static bool kbase_is_register_accessible(u32 offset)
 {
 #ifdef CONFIG_MALI_DEBUG
@@ -283,15 +284,24 @@ static u32 kbase_reg_read_directly(struct kbase_device *kbdev, u32 offset)
 
 const char *kbase_mcu_state_to_string(enum kbase_mcu_state state);
 const char *kbase_l2_core_state_to_string(enum kbase_l2_core_state state);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
+#else
+static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 {
 	unsigned long flags;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	struct kbase_csf_global_iface *global_iface = &kbdev->csf.global_iface;
 	u32 glb_req, glb_ack, glb_db_req, glb_db_ack;
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	kbase_io_history_dump(kbdev);
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	dev_err(kbdev->dev, "\tMCU desired = %d\n",
 			kbase_pm_is_mcu_desired(kbdev));
 	dev_err(kbdev->dev, "\tMCU sw state = %d(%s)\n",
@@ -300,11 +310,13 @@ void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 	dev_err(kbdev->dev, "\tL2 sw state = %d(%s)\n",
 			kbdev->pm.backend.l2_state,
 			kbase_l2_core_state_to_string(kbdev->pm.backend.l2_state));
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 	dev_err(kbdev->dev, "Register state:");
 	dev_err(kbdev->dev, "  GPU_IRQ_RAWSTAT=0x%08x  GPU_STATUS=0x%08x MCU_STATUS=0x%08x",
 		kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_RAWSTAT)),
 		kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_STATUS)),
 		kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_STATUS)));
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	dev_err(kbdev->dev, "\tMCU control = %d\n",
 			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_CONTROL)));
 	dev_err(kbdev->dev, "\tMCUC_DB_VALUE_0 = %d\n",
@@ -313,6 +325,7 @@ void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK)));
 	dev_err(kbdev->dev, "\tGPU_IRQ_RAWSTAT = %x\n",
 			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_RAWSTAT)));
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 	dev_err(kbdev->dev,
 		"  JOB_IRQ_RAWSTAT=0x%08x  MMU_IRQ_RAWSTAT=0x%08x  GPU_FAULTSTATUS=0x%08x",
 		kbase_reg_read32(kbdev, JOB_CONTROL_ENUM(JOB_IRQ_RAWSTAT)),
@@ -332,13 +345,14 @@ void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(L2_MMU_CONFIG)),
 			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(TILER_CONFIG)));
 	}
-
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	glb_db_ack = kbase_csf_firmware_global_output(global_iface, GLB_DB_ACK);
 	glb_db_req = kbase_csf_firmware_global_input_read(global_iface, GLB_DB_REQ);
 	glb_ack = kbase_csf_firmware_global_output(global_iface, GLB_ACK);
 	glb_req = kbase_csf_firmware_global_input_read(global_iface, GLB_REQ);
 	dev_err(kbdev->dev, "\tglb_req %x glb_ack %x glb_db_req %x glb_db_ack %x\n",
 			glb_req, glb_ack, glb_db_req, glb_db_ack);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 

@@ -2817,7 +2817,6 @@ static void cs_error_worker(struct work_struct *const data)
 		}
 	} else {
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-		// TODO: GW: please review this section
 		dev_info(kbdev->dev, "Terminate ctx %d_%d, group %d, cs_error_worker", group->kctx->tgid, group->kctx->id, group->handle);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
