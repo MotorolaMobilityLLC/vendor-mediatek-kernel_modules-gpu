@@ -303,7 +303,7 @@ static int kbase_simple_power_model_recalculate(struct kbase_ipa_model *model)
 	} else {
 		char tz_name[THERMAL_NAME_LENGTH];
 
-		strlcpy(tz_name, model_data->tz_name, sizeof(tz_name));
+		strscpy(tz_name, model_data->tz_name, sizeof(tz_name));
 
 		/* Release ipa.lock so that thermal_list_lock is not acquired
 		 * with ipa.lock held, thereby avoid lock ordering violation
