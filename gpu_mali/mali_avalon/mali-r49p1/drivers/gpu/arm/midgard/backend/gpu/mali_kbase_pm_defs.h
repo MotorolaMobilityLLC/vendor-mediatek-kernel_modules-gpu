@@ -166,6 +166,7 @@ struct kbasep_pm_metrics {
 #else
 	u32 busy_cl[2];
 	u32 busy_gl;
+	u32 busy_gl_plus[3];
 #endif
 };
 
