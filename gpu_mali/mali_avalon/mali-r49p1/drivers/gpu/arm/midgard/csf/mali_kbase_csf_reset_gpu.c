@@ -565,8 +565,12 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 		dev_err(kbdev->dev, "Soft-reset failed");
 		goto err;
 	} else if (ret == L2_ON_FAILED) {
-		dev_err(kbdev->dev, "L2 power up failed after the soft-reset");
-		goto err;
+		dev_err(kbdev->dev, "[1]L2 power up failed after the soft-reset try again[%d].",ret);
+		ret = kbase_csf_reset_gpu_once(kbdev, firmware_inited, true);
+		if (ret != RESET_SUCCESS) {
+			dev_err(kbdev->dev, "[2]L2 power up failed after the soft-reset[%d].",ret);
+			goto err;
+		}
 	} else if (ret == MCU_REINIT_FAILED) {
 #if IS_ENABLED(CONFIG_MALI_MTK_RESET_RELOAD_ON_FW)
 		dev_err(kbdev->dev, "[1]MCU re-init failed, trying reload firmware on reset worker[%d]",ret);
