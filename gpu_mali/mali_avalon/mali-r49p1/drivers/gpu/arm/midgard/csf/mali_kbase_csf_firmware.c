@@ -1763,13 +1763,13 @@ static void enable_gpu_idle_timer(struct kbase_device *const kbdev)
 	u32 glb_req;
 
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
-	if (mtk_common_whitebox_missing_doorbell_enable()) {
-		glb_req = kbase_csf_firmware_global_input_read(global_iface, GLB_REQ);
+	// if (mtk_common_whitebox_missing_doorbell_enable()) {
+		// glb_req = kbase_csf_firmware_global_input_read(global_iface, GLB_REQ);
 
-		if ((glb_req & GLB_REQ_IDLE_ENABLE_MASK) == 0) {
-			kbase_csf_db_valid_push_event(DOORBELL_GLB_IDLE_ENABLE);
-		}
-	}
+		// if ((glb_req & GLB_REQ_IDLE_ENABLE_MASK) == 0) {
+		// 	kbase_csf_db_valid_push_event(DOORBELL_GLB_IDLE_ENABLE);
+		// }
+	// }
 #else
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
@@ -3001,7 +3001,21 @@ void kbase_csf_firmware_enable_gpu_idle_timer(struct kbase_device *kbdev)
 
 void kbase_csf_firmware_disable_gpu_idle_timer(struct kbase_device *kbdev)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	struct kbase_csf_global_iface *global_iface = &kbdev->csf.global_iface;
+	u32 glb_req;
+
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
+	if (mtk_common_whitebox_missing_doorbell_enable()) {
+		glb_req = kbase_csf_firmware_global_input_read(global_iface, GLB_REQ);
+
+		if ((glb_req & GLB_REQ_IDLE_DISABLE_MASK) != 0) {
+			kbase_csf_db_valid_push_event(DOORBELL_GLB_IDLE_ENABLE);
+		}
+	}
+#else
+	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
 	set_gpu_idle_timer_glb_req(kbdev, false);
 	dev_dbg(kbdev->dev, "Sending request to disable gpu idle timer");
@@ -3165,7 +3179,6 @@ void kbase_csf_firmware_trigger_mcu_sleep(struct kbase_device *kbdev)
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 	set_gpu_idle_timer_glb_req(kbdev, false);
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
-	// TODO: GW: please review this section
 	if (mtk_common_whitebox_missing_doorbell_enable())
 		kbase_csf_db_valid_push_event(DOORBELL_GLB_SLEEP);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
