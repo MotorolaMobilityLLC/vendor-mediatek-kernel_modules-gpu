@@ -7108,10 +7108,10 @@ void kbase_csf_scheduler_context_term(struct kbase_context *kctx)
 #if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
 #define MALI_KTHREAD_WORK_START(work, function) \
 	mali_kthread_event("work start", work, function); \
-	MALI_TRACE_BEGIN(function)
+	MALI_TRACE_BEGIN(function);
 
 #define MALI_KTHREAD_WORK_END(work, function) \
-	MALI_TRACE_END() \
+	MALI_TRACE_END(); \
 	mali_kthread_event("work end", work, function);
 #endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 
@@ -7270,9 +7270,9 @@ static void handle_pending_queue_kicks(struct kbase_device *kbdev)
 			    atomic_read(&scheduler->pending_tock_work))
 #if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
 			{
-				MALI_TRACE_BEGIN("schedule_on_tock")
+				MALI_TRACE_BEGIN("schedule_on_tock");
 				schedule_on_tock(kbdev);
-				MALI_TRACE_END()
+				MALI_TRACE_END();
 			}
 #else
 				schedule_on_tock(kbdev);
