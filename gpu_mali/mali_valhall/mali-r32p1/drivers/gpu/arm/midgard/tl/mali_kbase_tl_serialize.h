@@ -84,7 +84,7 @@ static inline size_t kbasep_serialize_string(
 	KBASE_DEBUG_ASSERT(max_write_size >= sizeof(string_len) + sizeof(char));
 	max_write_size -= sizeof(string_len);
 
-	string_len = strlcpy(
+	string_len = strscpy(
 			&buffer[pos + sizeof(string_len)],
 			string,
 			max_write_size);

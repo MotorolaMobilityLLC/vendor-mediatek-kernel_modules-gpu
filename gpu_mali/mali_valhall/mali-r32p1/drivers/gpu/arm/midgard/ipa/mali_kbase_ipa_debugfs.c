@@ -129,7 +129,7 @@ static ssize_t param_string_set(struct file *file, const char __user *user_buf,
 	err = kbase_ipa_model_recalculate(model);
 	if (err < 0) {
 		ret = err;
-		strlcpy(param->addr.str, old_str, param->size);
+		strscpy(param->addr.str, old_str, param->size);
 	}
 
 end:
