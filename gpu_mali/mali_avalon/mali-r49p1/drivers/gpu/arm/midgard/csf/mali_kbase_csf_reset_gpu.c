@@ -742,25 +742,23 @@ char *gpu_reset_entry_name[] = {
 	"handle_internal_firmware_fatal",//4
 	"kbase_csf_wait_protected_mode_enter",//5
 	"scheduler_force_protm_exit",//6
-	"halt_stream_sync_start",//7
-	"halt_stream_sync_stop",//8
-	"remove_group_from_runnable",//9
-	"term_group_sync",//10
-	"program_suspending_csg_slots",//11
-	"wait_csg_slots_start",//12
-	"wait_csg_slots_finish_prio_update",//13
-	"suspend_active_groups_on_powerdown",//14
-	"firmware_aliveness_monitor",//15
-	"handle_fatal_event",//16
-	"kbase_gpu_fault_interrupt",//17
-	"kbase_gpu_interrupt",//18
-	"kbase_mmu_report_mcu_as_fault_and_reset",//19
-	"kbase_gpueb_irq_handler",//20
-	"wait_ready_csf",//21
-	"wait_ready_mmu_hw",//22
-	"busy_wait_cache_operation",//23
-	"kbase_gpu_wait_cache_clean_timeout",//24
-	"GPU_RESET_HW_ISSUE_2019_3901_WA",//25
+	"halt_stream_sync",//7
+	"remove_group_from_runnable",//8
+	"term_group_sync",//9
+	"program_suspending_csg_slots",//10
+	"wait_csg_slots_start",//11
+	"wait_csg_slots_finish_prio_update",//12
+	"suspend_active_groups_on_powerdown",//13
+	"firmware_aliveness_monitor",//14
+	"handle_fatal_event",//15
+	"kbase_gpu_fault_interrupt",//16
+	"kbase_gpu_interrupt",//17
+	"kbase_mmu_report_mcu_as_fault_and_reset",//18
+	"kbase_gpueb_irq_handler",//19
+	"wait_ready",//20
+	"busy_wait_cache_operation",//21
+	"kbase_gpu_wait_cache_clean_timeout",//22
+	"apply_hw_issue_GPU2019_3901_wa",//23
 
 	// nromal event entry
 	//"trigger_reset",
