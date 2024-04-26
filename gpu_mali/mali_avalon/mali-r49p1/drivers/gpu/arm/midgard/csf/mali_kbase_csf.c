@@ -2680,6 +2680,10 @@ static void handle_fault_event(struct kbase_queue *const queue, const u32 cs_ack
 	 * to enter into recoverable state.
 	 */
 	if (likely(!kbase_debug_csf_fault_notify(kbdev, queue->kctx, DF_CS_FAULT))) {
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+		if (mtk_common_whitebox_missing_doorbell_enable())
+			kbase_csf_db_valid_push_event(DOORBELL_CSI_FAULT(queue->group->csg_nr,  queue->csi_index));
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 		kbase_csf_firmware_cs_input_mask(stream, CS_REQ, cs_ack, CS_REQ_FAULT_MASK);
 		kbase_csf_ring_cs_kernel_doorbell(kbdev, queue->csi_index, queue->group->csg_nr,
 						  true);
@@ -2692,11 +2696,6 @@ static void handle_fault_event(struct kbase_queue *const queue, const u32 cs_ack
 	queue->cs_error_fatal = false;
 	if (!queue_work(queue->kctx->csf.wq, &queue->cs_error_work))
 		dev_warn(kbdev->dev, "%s: failed to enqueue a work", __func__);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
-	if (mtk_common_whitebox_missing_doorbell_enable())
-		kbase_csf_db_valid_push_event(DOORBELL_CSI_FAULT(queue->group->csg_nr,  queue->csi_index));
-#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 }
 
 static void report_queue_error(struct kbase_queue *const queue, u32 cs_error, u64 cs_error_info,
@@ -2807,6 +2806,10 @@ static void cs_error_worker(struct work_struct *const data)
 				 * if it hasn't yet done.
 				 */
 				if ((cs_ack & CS_ACK_FAULT_MASK) != (cs_req & CS_REQ_FAULT_MASK)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+					if (mtk_common_whitebox_missing_doorbell_enable())
+						kbase_csf_db_valid_push_event(DOORBELL_CSI_FAULT(slot_num, queue->csi_index));
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 					kbase_csf_firmware_cs_input_mask(stream, CS_REQ, cs_ack,
 									 CS_REQ_FAULT_MASK);
 					kbase_csf_ring_cs_kernel_doorbell(kbdev, queue->csi_index,
