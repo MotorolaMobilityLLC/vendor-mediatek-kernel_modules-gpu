@@ -159,7 +159,7 @@ noinline void mtk_alloc_req_stats(struct tagged_addr *pages,
 enum kbase_large_page_state { LARGE_PAGE_AUTO, LARGE_PAGE_ON, LARGE_PAGE_OFF, LARGE_PAGE_MAX };
 
 static enum kbase_large_page_state large_page_conf =
-	IS_ENABLED(CONFIG_LARGE_PAGE_SUPPORT) ? LARGE_PAGE_ON : LARGE_PAGE_OFF;
+	IS_ENABLED(CONFIG_LARGE_PAGE_SUPPORT) ? LARGE_PAGE_AUTO : LARGE_PAGE_OFF;
 
 static int set_large_page_conf(const char *val, const struct kernel_param *kp)
 {
@@ -222,6 +222,13 @@ static void kbasep_mem_page_size_init(struct kbase_device *kbdev)
 		return;
 	}
 
+#if IS_ENABLED(CONFIG_LARGE_PAGE_SUPPORT_CHECK_PAGE_SIZE)
+	if (PAGE_SIZE != SZ_4K) {
+		large_page_conf = LARGE_PAGE_OFF;
+		dev_info(kbdev->dev, "PAGE_SIZE=%zu, not support large page now, force to disable\n", PAGE_SIZE);
+	}
+#endif /* CONFIG_LARGE_PAGE_SUPPORT_CHECK_PAGE_SIZE */
+
 	switch (large_page_conf) {
 	case LARGE_PAGE_AUTO: {
 		if (kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_LARGE_PAGE_ALLOC))
@@ -248,13 +255,6 @@ static void kbasep_mem_page_size_init(struct kbase_device *kbdev)
 		break;
 	}
 	}
-
-#if IS_ENABLED(CONFIG_LARGE_PAGE_SUPPORT)
-	if (PAGE_SIZE != SZ_4K) {
-		kbdev->pagesize_2mb = false;
-		dev_info(kbdev->dev, "PAGE_SIZE=%zu, not support large page now, force to disable\n", PAGE_SIZE);
-	}
-#endif /* CONFIG_LARGE_PAGE_SUPPORT */
 
 	/* We want the final state of the setup to be reflected in the module parameter,
 	 * so that userspace could read it to figure out the state of the configuration

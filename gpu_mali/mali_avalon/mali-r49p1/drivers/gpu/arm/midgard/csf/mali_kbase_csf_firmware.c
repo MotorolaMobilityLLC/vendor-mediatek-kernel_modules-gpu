@@ -591,10 +591,6 @@ static inline bool entry_find_large_page_to_reuse(struct kbase_device *kbdev,
 	if (force_small_page)
 		goto out;
 
-	// TODO: GW: please review this section
-	//if (kbdev->pagesize_2mb != true)
-	//	goto out;
-
 	/* If the section starts at 2MB aligned boundary,
 	 * then use 2MB page(s) for it.
 	 */
@@ -731,8 +727,7 @@ static int parse_memory_setup_entry(struct kbase_device *kbdev,
 	if (protected_mode) {
 		/* Use small prot/normal pages */
 		force_small_page = true;
-		// TODO: GW: please review this section
-		//dev_err(kbdev->dev, "Set force_small_page of prot mem when fw init (%x)", kbdev->pagesize_2mb);
+		dev_err(kbdev->dev, "Set force_small_page of prot mem when fw init (%x)", kbase_is_large_pages_enabled());
 	}
 #endif /* CONFIG_MALI_MTK_PROTECTED_PATCH */
 
