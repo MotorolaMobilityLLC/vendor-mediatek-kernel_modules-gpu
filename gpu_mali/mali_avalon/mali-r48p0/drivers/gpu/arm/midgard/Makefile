@@ -39,6 +39,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG := y
         CONFIG_MALI_SCMI_ENABLE := y
         CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG := n
+        CONFIG_MALI_MTK_OOM_LOG_REDUCE := y
     endif ## mt6897 ##
 endif
 
