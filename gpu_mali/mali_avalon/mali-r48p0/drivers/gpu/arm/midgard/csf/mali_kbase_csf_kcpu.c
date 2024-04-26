@@ -2210,7 +2210,8 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 		//kbasep_csf_csg_active_dump_print(kctx->kbdev, kbpr);
 		//kbasep_csf_csg_dump_print(kctx, kbpr);
 		//kbasep_csf_sync_gpu_dump_print(kctx, kbpr);
-		kbasep_csf_sync_kcpu_dump_print(kctx, kbpr);
+		if (kbpr)
+			kbasep_csf_sync_kcpu_dump_print(kctx, kbpr);
 		//kbasep_csf_cpu_queue_dump_print(kctx, kbpr);
 
 		//kbasep_print(kbpr, "-----------------------------------------------\n");
@@ -2298,11 +2299,19 @@ static void kcpu_queue_timeout_worker(struct work_struct *data)
 	struct kbasep_printer *kbpr = NULL;
 
 	kbpr = kbasep_printer_buffer_init(queue->kctx->kbdev, KBASEP_PRINT_TYPE_DEV_WARN);
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	kcpu_fence_timeout_dump(queue, kbpr);
+	if (kbpr) {
+		kbasep_printer_buffer_flush(kbpr);
+		kbasep_printer_term(kbpr);
+	}
+#else /* CONFIG_MALI_MTK_FENCE_DEBUG */
 	if (kbpr) {
 		kcpu_fence_timeout_dump(queue, kbpr);
 		kbasep_printer_buffer_flush(kbpr);
 		kbasep_printer_term(kbpr);
 	}
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 	kcpu_queue_force_fence_signal(queue);
 }

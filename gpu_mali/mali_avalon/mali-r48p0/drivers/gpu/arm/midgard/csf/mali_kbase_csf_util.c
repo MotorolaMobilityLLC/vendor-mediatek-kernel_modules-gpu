@@ -28,8 +28,8 @@
 #include <linux/vmalloc.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
-/* Enlarge the dump buffer to 512KB to align the exception log buffer */
-#define KBASEP_PRINTER_BUFFER_MAX_SIZE (128 * PAGE_SIZE)
+/* Because the ARM dump is reduced to KCPU queue dump only */
+#define KBASEP_PRINTER_BUFFER_MAX_SIZE (1 * PAGE_SIZE)
 #else /* CONFIG_MALI_MTK_FENCE_DEBUG */
 #define KBASEP_PRINTER_BUFFER_MAX_SIZE (2 * PAGE_SIZE)
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
