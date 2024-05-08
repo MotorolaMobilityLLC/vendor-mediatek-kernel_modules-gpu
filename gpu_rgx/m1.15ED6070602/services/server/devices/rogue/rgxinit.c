@@ -4571,16 +4571,29 @@ ErrorDeinit:
 
 static void _ReadNon4KHeapPageSize(IMG_UINT32 *pui32Log2Non4KPgSize)
 {
-	void *pvAppHintState = NULL;
-	IMG_UINT32 ui32AppHintDefault = PVRSRV_APPHINT_GENERALNON4KHEAPPAGESIZE;
-	IMG_UINT32 ui32GeneralNon4KHeapPageSize;
+	IMG_UINT32 uiLog2OSPageShift = OSGetPageShift();
 
-	/* Get the page size for the dummy page from the NON4K heap apphint */
-	OSCreateKMAppHintState(&pvAppHintState);
-	OSGetKMAppHintUINT32(pvAppHintState, GeneralNon4KHeapPageSize,
-			&ui32AppHintDefault, &ui32GeneralNon4KHeapPageSize);
-	*pui32Log2Non4KPgSize = ExactLog2(ui32GeneralNon4KHeapPageSize);
-	OSFreeKMAppHintState(pvAppHintState);
+	/* We support Non4K pages only on platforms with 4KB pages. On all platforms
+	 * where OS pages are larger than 4KB we must ensure the non4K device memory
+	 * heap matches the page size used in all other device memory heaps, which
+	 * is the OS page size, see RGXHeapDerivePageSize. */
+	if (uiLog2OSPageShift > RGX_HEAP_4KB_PAGE_SHIFT)
+	{
+		*pui32Log2Non4KPgSize = RGXHeapDerivePageSize(uiLog2OSPageShift);
+	}
+	else
+	{
+		void *pvAppHintState = NULL;
+		IMG_UINT32 ui32AppHintDefault = PVRSRV_APPHINT_GENERALNON4KHEAPPAGESIZE;
+		IMG_UINT32 ui32GeneralNon4KHeapPageSize;
+
+		/* Get the page size for the dummy page from the NON4K heap apphint */
+		OSCreateKMAppHintState(&pvAppHintState);
+		OSGetKMAppHintUINT32(pvAppHintState, GeneralNon4KHeapPageSize,
+				&ui32AppHintDefault, &ui32GeneralNon4KHeapPageSize);
+		*pui32Log2Non4KPgSize = ExactLog2(ui32GeneralNon4KHeapPageSize);
+		OSFreeKMAppHintState(pvAppHintState);
+	}
 }
 
 /*
