@@ -50,6 +50,7 @@
 
 #include <mali_kbase_trace_gpu_mem.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
@@ -1012,13 +1013,8 @@ void kbase_mmu_page_fault_worker(struct work_struct *data)
 	as_no = faulting_as->number;
 
 	kbdev = container_of(faulting_as, struct kbase_device, as[as_no]);
-#if IS_ENABLED(CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG)
-	dev_info(kbdev->dev, "Entering %s %pK, fault_pfn %lld, as_no %u", __func__, (void *)data,
-		fault_pfn, as_no);
-#else
 	dev_dbg(kbdev->dev, "Entering %s %pK, fault_pfn %lld, as_no %u", __func__, (void *)data,
 		fault_pfn, as_no);
-#endif /* CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG */
 
 	/* Grab the context that was already refcounted in kbase_mmu_interrupt()
 	 * Therefore, it cannot be scheduled out of this AS until we explicitly
