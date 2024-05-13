@@ -4,6 +4,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/dma-mapping.h>
 #include <linux/sched.h>
 #include "mtk_mfgsys.h"
 #include <mtk_gpufreq.h>
@@ -1336,6 +1337,10 @@ int MTKRGXDeviceInit(PVRSRV_DEVICE_CONFIG *psDevConfig)
 	/* Need Init here */
 	if (g_RGXutilUser == NULL)
 		SORgxGpuUtilStatsRegister(&g_RGXutilUser);
+
+	/* set bit mask to 34-bit to pass "dma_capable" check */
+	dma_set_mask(psDevConfig->pvOSDevice, DMA_BIT_MASK(34));
+	dma_set_coherent_mask(psDevConfig->pvOSDevice, DMA_BIT_MASK(34));
 
 #if MTK_PM_SUPPORT
 	MTKDisableMfgClock(IMG_TRUE);
