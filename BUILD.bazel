@@ -61,6 +61,12 @@ mt6893_outs = [
     "mt6893/mali_valhall/mali-r32p1/drivers/base/arm/memory_group_manager/mali_mgm_mt6893.ko",
 ]
 
+mt6833_outs = [
+    "mt6833/mali_valhall/mali-r32p1/drivers/gpu/arm/midgard/mali_kbase_mt6833.ko",
+    "mt6833/mali_valhall/mali-r32p1/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6833.ko",
+    "mt6833/mali_valhall/mali-r32p1/drivers/base/arm/memory_group_manager/mali_mgm_mt6833.ko",
+]
+
 define_mgk_ko(
     name = "gpu",
     srcs = glob(["**"]),
@@ -94,6 +100,14 @@ define_mgk_ko(
     srcs = glob(["**"]),
     outs = (
     mt6893_outs if glob(["mt6893/*"]) else []
+    ),
+)
+
+define_mgk_ko(
+    name = "gpu_mt6833",
+    srcs = glob(["**"]),
+    outs = (
+    mt6833_outs if glob(["mt6833/*"]) else []
     ),
 )
 
