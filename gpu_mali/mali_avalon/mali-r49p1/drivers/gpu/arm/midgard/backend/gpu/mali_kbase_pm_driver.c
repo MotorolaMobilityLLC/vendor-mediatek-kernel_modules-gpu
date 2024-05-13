@@ -3334,10 +3334,6 @@ void kbase_pm_clock_on(struct kbase_device *kbdev, bool is_resume)
 	update_user_reg_page_mapping(kbdev);
 #endif
 
-
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-	kbdev->reset_required_after_power_on = true;
-#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 	if (ret == GPU_STATE_IN_RESET) {
 		/* GPU is already in reset state after power on and no
 		 * soft-reset needed. Just reconfiguration is needed.
@@ -3349,9 +3345,6 @@ void kbase_pm_clock_on(struct kbase_device *kbdev, bool is_resume)
 		 */
 		kbase_pm_init_hw(kbdev, PM_ENABLE_IRQS);
 	}
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-	kbdev->reset_required_after_power_on = false;
-#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 	else {
@@ -3852,13 +3845,11 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		hrtimer_cancel(&rtdata.timer);
 		destroy_hrtimer_on_stack(&rtdata.timer);
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-		if (!kbdev->reset_required_after_power_on) {
-			dev_info(kbdev->dev, "GPU soft reset completed");
+		dev_info(kbdev->dev, "GPU soft reset completed");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL,
-				"GPU soft reset completed\n");
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL,
+			"GPU soft reset completed\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-		}
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		return 0;
 	}
@@ -4012,15 +4003,8 @@ int kbase_pm_init_hw(struct kbase_device *kbdev, unsigned int flags)
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, irq_flags);
 
 	/* Soft reset the GPU */
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-	if (!kbdev->reset_required_after_power_on) {
-#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
-
 	if (!(flags & PM_NO_RESET))
 		err = kbdev->protected_ops->protected_mode_disable(kbdev->protected_dev);
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-	}
-#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, irq_flags);
 #if MALI_USE_CSF

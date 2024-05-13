@@ -706,7 +706,6 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	mtk_debug_dump_infra_status_init();
 	mtk_debug_dump_enop_metadata_init(kbdev);
-	kbdev->reset_required_after_power_on = false;
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
