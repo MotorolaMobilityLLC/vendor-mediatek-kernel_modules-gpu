@@ -88,6 +88,7 @@ static unsigned int csf_firmware_boot_timeout_ms;
 module_param(csf_firmware_boot_timeout_ms, uint, 0444);
 MODULE_PARM_DESC(csf_firmware_boot_timeout_ms, "Maximum time to wait for firmware to boot.");
 
+static bool kbase_iter_trace_enable;
 
 #ifdef CONFIG_MALI_DEBUG
 /* Makes Driver wait indefinitely for an acknowledgment for the different
@@ -135,7 +136,8 @@ MODULE_PARM_DESC(fw_debug, "Enables effective use of a debugger for debugging fi
 
 #define CSF_GLB_REQ_CFG_MASK                                           \
 	(GLB_REQ_CFG_ALLOC_EN_MASK | GLB_REQ_CFG_PROGRESS_TIMER_MASK | \
-	 GLB_REQ_CFG_PWROFF_TIMER_MASK | GLB_REQ_IDLE_ENABLE_MASK)
+	 GLB_REQ_CFG_PWROFF_TIMER_MASK | GLB_REQ_IDLE_ENABLE_MASK |    \
+	 GLB_REQ_ITER_TRACE_ENABLE_MASK)
 
 static inline u32 input_page_read(const u32 *const input, const u32 offset)
 {
@@ -198,6 +200,62 @@ struct firmware_timeline_metadata {
 	char *data;
 	size_t size;
 };
+
+/**
+ * set_iterator_trace_enable - Set the value for 'kbase_iter_trace_enable' global variable
+ *                             taking to account the GLB_FEATURES.ITER_TRACE_SUPPORTED bit,
+ *                             the corresponding module parameter and the corresponding
+ *                             device tree entry.
+ * @kbdev: Kernel base device pointer
+ */
+static void set_iterator_trace_enable(struct kbase_device *kbdev)
+{
+	const struct kbase_csf_global_iface *iface = &kbdev->csf.global_iface;
+	bool dev_support_iter_trace = iface->features & GLB_FEATURES_ITER_TRACE_SUPPORTED_MASK;
+	const void *dt_iter_trace_param;
+	unsigned int val;
+
+	if (!dev_support_iter_trace) {
+		kbase_iter_trace_enable = false;
+		return;
+	}
+
+	/* If module parameter 'kbase_iter_trace_enable' != 0 then it's enabled. */
+	if (kbase_iter_trace_enable) {
+		dev_dbg(kbdev->dev, "Iterator trace enable module config value: %u",
+			kbase_iter_trace_enable);
+		return;
+	}
+
+	/* check device tree for iterator trace enable property and
+	 * fallback to "iter_trace_enable" if not found and try again
+	 */
+	dt_iter_trace_param = of_get_property(kbdev->dev->of_node, "iter-trace-enable", NULL);
+
+	if (!dt_iter_trace_param)
+		dt_iter_trace_param =
+			of_get_property(kbdev->dev->of_node, "iter_trace_enable", NULL);
+
+	val = (dt_iter_trace_param) ? be32_to_cpup(dt_iter_trace_param) : 0;
+	dev_dbg(kbdev->dev, "Iterator trace enable device-tree config value: %u", val);
+
+	kbase_iter_trace_enable = val ? true : false;
+}
+
+static void iterator_trace_reinit(struct kbase_device *kbdev)
+{
+	if (kbase_iter_trace_enable) {
+		kbase_csf_firmware_global_input_mask(&kbdev->csf.global_iface, GLB_REQ,
+						     GLB_REQ_ITER_TRACE_ENABLE_MASK,
+						     GLB_REQ_ITER_TRACE_ENABLE_MASK);
+	}
+}
+
+static void iterator_trace_init(struct kbase_device *kbdev)
+{
+	set_iterator_trace_enable(kbdev);
+	iterator_trace_reinit(kbdev);
+}
 
 /* The shared interface area, used for communicating with firmware, is managed
  * like a virtual memory zone. Reserve the virtual space from that zone
@@ -533,6 +591,7 @@ static int reload_fw_image(struct kbase_device *kbdev)
 	kbdev->csf.firmware_full_reload_needed = false;
 
 	kbase_csf_firmware_reload_trace_buffers_data(kbdev);
+	iterator_trace_reinit(kbdev);
 out:
 	return ret;
 }
@@ -1878,7 +1937,8 @@ static void global_init(struct kbase_device *const kbdev, u64 core_mask)
 		GLB_ACK_IRQ_MASK_PROTM_EXIT_MASK | GLB_ACK_IRQ_MASK_FIRMWARE_CONFIG_UPDATE_MASK |
 		GLB_ACK_IRQ_MASK_CFG_PWROFF_TIMER_MASK | GLB_ACK_IRQ_MASK_IDLE_EVENT_MASK |
 		GLB_REQ_DEBUG_CSF_REQ_MASK | GLB_ACK_IRQ_MASK_IDLE_ENABLE_MASK |
-		GLB_REQ_ITER_TRACE_ENABLE_MASK;
+		GLB_ACK_IRQ_MASK_ITER_TRACE_ENABLE_MASK;
+
 
 	const struct kbase_csf_global_iface *const global_iface = &kbdev->csf.global_iface;
 	unsigned long flags;
@@ -2348,93 +2408,11 @@ u32 kbase_csf_firmware_reset_mcu_core_pwroff_time(struct kbase_device *kbdev)
 	return kbase_csf_firmware_set_mcu_core_pwroff_time(kbdev, DEFAULT_GLB_PWROFF_TIMEOUT_NS);
 }
 
-/**
- * kbase_csf_get_iterator_trace_enable - Parsing the iterator_trace enable firstly from
- *                                       the module parameter, and then from device-tree.
- * @kbdev: Kernel base device pointer
- *
- * Return: true on enabled, otherwise false.
- */
-static bool kbase_csf_get_iterator_trace_enable(struct kbase_device *kbdev)
-{
-	const void *dt_iter_trace_param;
-	unsigned int val;
-
-
-	/* check device tree for iterator trace enable property and
-	 * fallback to "iter_trace_enable" if not found and try again
-	 */
-	dt_iter_trace_param = of_get_property(kbdev->dev->of_node, "iter-trace-enable", NULL);
-
-	if (!dt_iter_trace_param)
-		dt_iter_trace_param =
-			of_get_property(kbdev->dev->of_node, "iter_trace_enable", NULL);
-
-	val = (dt_iter_trace_param) ? be32_to_cpup(dt_iter_trace_param) : 0;
-	dev_dbg(kbdev->dev, "Iterator trace enable device-tree config value: %u", val);
-
-	return (val != 0);
-}
-
-/**
- * kbase_device_csf_iterator_trace_init - Send request to enable iterator
- *                                        trace port.
- * @kbdev: Kernel base device pointer
- *
- * Return: 0 on success (or if enable request is not sent), or error
- *         code -EINVAL on failure of GPU to acknowledge enable request.
- */
-static int kbase_device_csf_iterator_trace_init(struct kbase_device *kbdev)
-{
-	/* Enable the iterator trace port if supported by the GPU and is
-	 * configured to do so. The FW must advertise this feature in GLB_FEATURES.
-	 */
-	if (kbdev->pm.backend.gpu_powered) {
-		const struct kbase_csf_global_iface *iface = &kbdev->csf.global_iface;
-		bool dev_support_iter_trace = iface->features &
-					      GLB_FEATURES_ITER_TRACE_SUPPORTED_MASK;
-
-// #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
-// 		/* hardcode for doorbell test without updating DTS */
-// 		const u32 iter_trace_value = 1;
-// 		iter_trace_param = &iter_trace_value;
-// #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
-
-		dev_dbg(kbdev->dev, "Device supporting iterator trace: %s\n",
-			dev_support_iter_trace ? "true" : "false");
-		if (dev_support_iter_trace && kbase_csf_get_iterator_trace_enable(kbdev)) {
-			long ack_timeout = kbase_csf_timeout_in_jiffies(
-				kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT));
-
-#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
-			if (mtk_common_whitebox_missing_doorbell_enable())
-				kbase_csf_db_valid_push_event(DOORBELL_GLB_ITER_TRACE_ENABLE);
-#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
-
-			/* write enable request to global input */
-			kbase_csf_firmware_global_input_mask(iface, GLB_REQ,
-							     GLB_REQ_ITER_TRACE_ENABLE_MASK,
-							     GLB_REQ_ITER_TRACE_ENABLE_MASK);
-			/* Ring global doorbell */
-			kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
-
-			ack_timeout = wait_event_timeout(
-				kbdev->csf.event_wait,
-				!((kbase_csf_firmware_global_input_read(iface, GLB_REQ) ^
-				   kbase_csf_firmware_global_output(iface, GLB_ACK)) &
-				  GLB_REQ_ITER_TRACE_ENABLE_MASK),
-				ack_timeout);
-
-			return ack_timeout ? 0 : -EINVAL;
-		}
-	}
-	return 0;
-}
-
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
 int kbase_device_csf_iterator_trace_test(struct kbase_device *kbdev)
 {
-	return kbase_device_csf_iterator_trace_init(kbdev);
+	iterator_trace_init(kbdev);
+	return 0;
 }
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
@@ -2710,6 +2688,8 @@ int kbase_csf_firmware_load_init(struct kbase_device *kbdev)
 	if (ret != 0)
 		goto err_out;
 
+	iterator_trace_init(kbdev);
+
 	ret = kbase_csf_doorbell_mapping_init(kbdev);
 	if (ret != 0)
 		goto err_out;
@@ -2740,10 +2720,6 @@ int kbase_csf_firmware_load_init(struct kbase_device *kbdev)
 	}
 
 	ret = kbase_csf_firmware_cfg_init(kbdev);
-	if (ret != 0)
-		goto err_out;
-
-	ret = kbase_device_csf_iterator_trace_init(kbdev);
 	if (ret != 0)
 		goto err_out;
 
