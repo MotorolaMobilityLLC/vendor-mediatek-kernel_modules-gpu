@@ -40,6 +40,8 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_SCMI_ENABLE := y
         CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG := n
         CONFIG_MALI_MTK_OOM_LOG_REDUCE := y
+        CONFIG_MALI_MTK_DEBUG_DUMP := y
+        CONFIG_MALI_MTK_FENCE_DEBUG := y
     endif ## mt6897 ##
 endif
 
