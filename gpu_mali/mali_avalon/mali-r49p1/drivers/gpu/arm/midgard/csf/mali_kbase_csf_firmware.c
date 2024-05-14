@@ -1693,9 +1693,13 @@ static bool global_request_complete(struct kbase_device *const kbdev, u32 const 
 
 	return complete;
 }
-
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+int wait_for_global_request_with_timeout(struct kbase_device *const kbdev,
+						u32 const req_mask, unsigned int timeout_ms)
+#else
 static int wait_for_global_request_with_timeout(struct kbase_device *const kbdev,
 						u32 const req_mask, unsigned int timeout_ms)
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 {
 	const long wait_timeout = kbase_csf_timeout_in_jiffies(timeout_ms);
 	long remaining;
@@ -1819,16 +1823,17 @@ static void enable_gpu_idle_timer(struct kbase_device *const kbdev)
 {
 	struct kbase_csf_global_iface *global_iface = &kbdev->csf.global_iface;
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
-	u32 glb_req;
+	u32 glb_req, glb_ack;
 
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
-	// if (mtk_common_whitebox_missing_doorbell_enable()) {
-		// glb_req = kbase_csf_firmware_global_input_read(global_iface, GLB_REQ);
+	if (mtk_common_whitebox_missing_doorbell_enable()) {
+		glb_req = kbase_csf_firmware_global_input_read(global_iface, GLB_REQ);
+		glb_ack = kbase_csf_firmware_global_output(global_iface, GLB_ACK);
 
-		// if ((glb_req & GLB_REQ_IDLE_ENABLE_MASK) == 0) {
-		// 	kbase_csf_db_valid_push_event(DOORBELL_GLB_IDLE_ENABLE);
-		// }
-	// }
+		if ((glb_req & GLB_REQ_IDLE_ENABLE_MASK) == 0 && (glb_ack & GLB_REQ_IDLE_ENABLE_MASK) == 0) {
+			kbase_csf_db_valid_push_event(DOORBELL_GLB_IDLE_ENABLE);
+		}
+	}
 #else
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
