@@ -929,4 +929,8 @@ int kbase_csf_trigger_firmware_config_update(struct kbase_device *kbdev);
  */
 int kbase_csf_firmware_req_core_dump(struct kbase_device *const kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+int wait_for_global_request_with_timeout(struct kbase_device *const kbdev,
+						u32 const req_mask, unsigned int timeout_ms);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 #endif

@@ -5782,9 +5782,17 @@ static void scheduler_enable_gpu_idle_timer(struct kbase_device *kbdev)
 	lockdep_assert_held(&scheduler->lock);
 
 	if (!kbdev->csf.gpu_idle_timer_enabled) {
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+		if (mtk_common_whitebox_missing_doorbell_enable())
+			wait_for_global_request_with_timeout(kbdev, GLB_REQ_IDLE_DISABLE_MASK, kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT));
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 		spin_lock_irqsave(&scheduler->interrupt_lock, flags);
 		kbase_csf_firmware_enable_gpu_idle_timer(kbdev);
 		spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+		if (mtk_common_whitebox_missing_doorbell_enable())
+			wait_for_global_request_with_timeout(kbdev, GLB_REQ_IDLE_DISABLE_MASK, kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT));
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 	}
 }
 
