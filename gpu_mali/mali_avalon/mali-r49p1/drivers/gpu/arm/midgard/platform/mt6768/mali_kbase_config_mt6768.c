@@ -22,6 +22,9 @@
 #include <platform/mtk_platform_common.h>
 #include <platform/mtk_platform_common/mtk_platform_debug.h>
 #include <ged_dvfs.h>
+#if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+#include "platform/mtk_platform_common/mtk_ltr_pmu.h"
+#endif
 #if IS_ENABLED(CONFIG_MALI_MTK_AUTOSUSPEND_DELAY) || IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 #include <ged_kpi.h>
 #include <ged_notify_sw_vsync.h>
@@ -135,14 +138,14 @@ static int pm_callback_power_on_nolock(struct kbase_device *kbdev)
 	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_1);
 
 	if (g_is_suspend == 1) {
-		//mali_pr_info("@%s: discard powering on since GPU is suspended\n", __func__);
+		KBASE_PLATFORM_LOGI("%s, discard powering on since GPU is suspended", __func__);
 		return 0;
 	}
 
 	/* on,off/ SWCG(BG3D)/ MTCMOS/ BUCK */
 #if defined(CONFIG_MTK_GPUFREQ_V2)
 	if (gpufreq_power_control(GPU_PWR_ON) < 0) {
-		//mali_pr_info("@%s: fail to power on\n", __func__);
+		KBASE_PLATFORM_LOGI("%s, GPU fail to power on", __func__);
 		return 0;
 	}
 #else
@@ -242,7 +245,7 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 	mutex_lock(&g_mfg_lock);
 	ret = pm_callback_power_on_nolock(kbdev);
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
-	//MTKGPUPower_model_resume();
+	MTK_LTR_gpu_pmu_resume();
 #endif
 	mutex_unlock(&g_mfg_lock);
 
@@ -253,7 +256,7 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 {
 	mutex_lock(&g_mfg_lock);
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
-	//MTKGPUPower_model_suspend();
+	MTK_LTR_gpu_pmu_suspend();
 #endif
 	pm_callback_power_off_nolock(kbdev);
 	mutex_unlock(&g_mfg_lock);

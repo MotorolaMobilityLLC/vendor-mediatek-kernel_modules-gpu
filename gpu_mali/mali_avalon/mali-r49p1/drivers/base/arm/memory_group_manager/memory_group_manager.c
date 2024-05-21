@@ -379,7 +379,7 @@ static int max_pool_mb_get(void *data, u64 *val)
 	unsigned long long mb_order = __builtin_ffs(SZ_1M / PAGE_SIZE) - 1;
 
 	mgm_data = (struct mgm_groups *)data;
-	*val = (mgm_data->max_pool[1] >> mb_order) << 32 | (mgm_data->max_pool[0] >> mb_order);
+	*val = ((u64)mgm_data->max_pool[1] >> mb_order) << 32 | ((u64)mgm_data->max_pool[0] >> mb_order);
 
 	return 0;
 }
@@ -1325,8 +1325,8 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
 	si_meminfo(&info);
-	dev_info(&pdev->dev, "Total kmem: %zu (pages) [%d] 0x%llx, offset: 0x%lx, LP_ORDER=%d SP_ORDER=%d\n",
-		info.totalram, mtk_emicen_get_rk_cnt(), mtk_emicen_get_rk_size(0), MTK_EMI_DRAM_OFFSET, LP_ORDER, SP_ORDER);
+	dev_info(&pdev->dev, "Total kmem: %llu (pages) [%d] 0x%llx, offset: 0x%lx, LP_ORDER=%d SP_ORDER=%d\n",
+		(unsigned long long)info.totalram, mtk_emicen_get_rk_cnt(), mtk_emicen_get_rk_size(0), MTK_EMI_DRAM_OFFSET, LP_ORDER, SP_ORDER);
 	spin_lock_init(&mgm_data->MGMFree_lst_lk);
 	spin_lock_init(&mgm_data->free_SP_lst_lk);
 	mgm_data->free_SP_lst.next = mgm_data->free_SP_lst.prev = &mgm_data->free_SP_lst;
