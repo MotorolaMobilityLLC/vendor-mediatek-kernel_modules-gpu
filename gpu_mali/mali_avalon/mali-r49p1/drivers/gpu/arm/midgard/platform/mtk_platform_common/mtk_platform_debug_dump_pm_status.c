@@ -16,13 +16,15 @@ static void pm_status_print(struct kbase_device *kbdev, const char *fmt, ...)
 	uint8_t buffer[MTK_LOG_BUFFER_ENTRY_SIZE];
 
 	va_start(args, fmt);
-	vsnprintf(buffer, sizeof(buffer), fmt, args);
+	int ret = vsnprintf(buffer, sizeof(buffer), fmt, args);
 	va_end(args);
 
-	dev_info(kbdev->dev, "%s", buffer);
+	if (ret > 0) {
+		dev_info(kbdev->dev, "%s", buffer);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "%s", buffer);
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "%s", buffer);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	}
 }
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)

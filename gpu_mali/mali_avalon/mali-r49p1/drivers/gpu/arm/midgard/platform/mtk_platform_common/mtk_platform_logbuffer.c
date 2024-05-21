@@ -243,19 +243,22 @@ void mtk_logbuffer_type_print(struct kbase_device *const kbdev, uint32_t logType
 {
 	va_list args;
 	uint8_t buffer[MTK_LOG_BUFFER_ENTRY_SIZE];
+	int ret = 0;
 
 	va_start(args, fmt);
-	vsnprintf(buffer, sizeof(buffer), fmt, args);
+	ret = vsnprintf(buffer, sizeof(buffer), fmt, args);
 	va_end(args);
 
-	if (logType & MTK_LOGBUFFER_TYPE_REGULAR)
-		__mtk_logbuffer_print(&kbdev->logbuf_regular, buffer);
+	if (ret > 0) {
+		if (logType & MTK_LOGBUFFER_TYPE_REGULAR)
+			__mtk_logbuffer_print(&kbdev->logbuf_regular, buffer);
 
-	if (logType & MTK_LOGBUFFER_TYPE_CRITICAL)
-		__mtk_logbuffer_print(&kbdev->logbuf_critical, buffer);
+		if (logType & MTK_LOGBUFFER_TYPE_CRITICAL)
+			__mtk_logbuffer_print(&kbdev->logbuf_critical, buffer);
 
-	if (logType & MTK_LOGBUFFER_TYPE_EXCEPTION)
-		__mtk_logbuffer_print(&kbdev->logbuf_exception, buffer);
+		if (logType & MTK_LOGBUFFER_TYPE_EXCEPTION)
+			__mtk_logbuffer_print(&kbdev->logbuf_exception, buffer);
+	}
 }
 
 void mtk_logbuffer_dump(struct mtk_logbuffer_info *logbuf, struct seq_file *seq)
@@ -309,8 +312,11 @@ static void mtk_logbuffer_init_internal(struct kbase_device *kbdev, struct mtk_l
 			logbuf->entries = kcalloc(1, size, GFP_KERNEL);
 	}
 
-	if (logbuf->entries)
-		snprintf(logbuf->name, MTK_LOG_BUFFER_NAME_LEN, "%s", name);
+	if (logbuf->entries) {
+		int ret = snprintf(logbuf->name, MTK_LOG_BUFFER_NAME_LEN, "%s", name);
+		if (ret < 0)
+			dev_warn(kbdev->dev, "failed to copy name\n");
+	}
 
 	dev_info(kbdev->dev,
 	         "@%s: name='%s' entries=0x%p size=%u is_circular=%d rmem_virt=0x%p rmem_size=%zu fallback=%d",
