@@ -3252,16 +3252,15 @@ PVRSRV_ERROR DevDeInitRGX(PVRSRV_DEVICE_NODE *psDeviceNode)
 		KM_SET_OS_CONNECTION(OFFLINE, psDevInfo);
 	}
 
-	eError = DeviceDepBridgeDeInit(psDevInfo->sDevFeatureCfg.ui64Features);
+	eError = DeviceDepBridgeDeInit(psDevInfo);
 	PVR_LOG_IF_ERROR(eError, "DeviceDepBridgeDeInit");
-#if defined(PDUMP)
+
 	DevmemIntFreeDefBackingPage(psDeviceNode,
 								&psDeviceNode->sDummyPage,
 								DUMMY_PAGE);
 	DevmemIntFreeDefBackingPage(psDeviceNode,
 								&psDeviceNode->sDevZeroPage,
 								DEV_ZERO_PAGE);
-#endif
 
 #if defined(PVRSRV_FORCE_UNLOAD_IF_BAD_STATE)
 	if (PVRSRVGetPVRSRVData()->eServicesState != PVRSRV_SERVICES_STATE_OK)
@@ -4547,7 +4546,6 @@ PVRSRV_ERROR RGXRegisterDevice (PVRSRV_DEVICE_NODE *psDeviceNode)
 	eError = RGXDebugInit(psDevInfo);
 	PVR_LOG_GOTO_IF_ERROR(eError, "RGXDebugInit", e16);
 
-#if defined(PDUMP)
 	eError = DevmemIntAllocDefBackingPage(psDeviceNode,
 										  &psDeviceNode->sDummyPage,
 										  PVR_DUMMY_PAGE_INIT_VALUE,
@@ -4568,10 +4566,9 @@ PVRSRV_ERROR RGXRegisterDevice (PVRSRV_DEVICE_NODE *psDeviceNode)
 		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to allocate Zero page.", __func__));
 		goto e18;
 	}
-#endif
 
 	/* Initialise the device dependent bridges */
-	eError = DeviceDepBridgeInit(psDevInfo->sDevFeatureCfg.ui64Features);
+	eError = DeviceDepBridgeInit(psDevInfo);
 	PVR_LOG_IF_ERROR(eError, "DeviceDepBridgeInit");
 
 	/* Initialise error counters */
@@ -4579,14 +4576,12 @@ PVRSRV_ERROR RGXRegisterDevice (PVRSRV_DEVICE_NODE *psDeviceNode)
 
 	return PVRSRV_OK;
 
-#if defined(PDUMP)
 e18:
 	DevmemIntFreeDefBackingPage(psDeviceNode,
 								&psDeviceNode->sDummyPage,
 								DUMMY_PAGE);
 e17:
 	RGXDebugDeinit(psDevInfo);
-#endif
 e16:
 #if defined(SUPPORT_VALIDATION)
 	RGXPowerDomainDeInitState(&psDevInfo->sPowerDomainState);
