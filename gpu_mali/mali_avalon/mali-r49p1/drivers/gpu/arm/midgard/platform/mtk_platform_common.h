@@ -118,4 +118,10 @@ int mtk_common_whitebox_sync_update_test_mode(void);
 bool mtk_common_whitebox_missing_doorbell_enable(void);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
+#ifdef CONFIG_MALI_MTK_SHADER_PWR_CTL_WA
+void mtk_set_gpufreq_clock_parking_lock(unsigned long *pFlags);
+void mtk_set_gpufreq_clock_parking_unlock(unsigned long *pFlags);
+int mtk_set_gpufreq_clock_parking(int clksrc);
+#endif /* CONFIG_MALI_MTK_SHADER_PWR_CTL_WA */
+
 #endif /* __MTK_PLATFORM_COMMON_H__ */
