@@ -136,6 +136,9 @@ ifeq ($(BUILD_RULE),OOT)
     ifeq ($(MTK_PLATFORM_VERSION),mt6768)
     MTK_GPU_VERSION := $(LOCAL_MTK_GPU_VERSION)
     MTK_PLATFORM := $(MTK_PLATFORM_VERSION)
+    CONFIG_MALI_FENCE_DEBUG := y
+    CONFIG_MALI_MTK_FENCE_DEBUG := y
+    CONFIG_MALI_FENCE_DEBUG_EXTEND := y
     CONFIG_MALI_REAL_HW := y
     CONFIG_MALI_DEBUG := y
     CONFIG_MALI_MIDGARD_DVFS := y
@@ -228,6 +231,12 @@ ifeq ($(CONFIG_MALI_FENCE_DEBUG), y)
         ifneq ($(CONFIG_SYNC_FILE), y)
             $(error CONFIG_MALI_FENCE_DEBUG depends on CONFIG_SYNC || CONFIG_SYNC_FILE to be set in Kernel configuration)
         endif
+    endif
+endif
+
+ifeq ($(CONFIG_MALI_FENCE_DEBUG_EXTEND), y)
+    ifneq ($(CONFIG_MALI_FENCE_DEBUG), y)
+        $(error CONFIG_MALI_FENCE_DEBUG_EXTEND depends on CONFIG_MALI_FENCE_DEBUG)
     endif
 endif
 
