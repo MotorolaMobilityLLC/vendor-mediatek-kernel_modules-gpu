@@ -3755,13 +3755,6 @@ void kbase_jit_free(struct kbase_context *kctx, struct kbase_va_region *reg)
 
 	list_move(&reg->jit_node, &kctx->jit_pool_head);
 
-	/* Inactive JIT regions should be freed by the shrinker and not impacted
-	 * by page migration. Once freed, they will enter into the page migration
-	 * state machine via the mempools.
-	 */
-	if (kbase_is_page_migration_enabled())
-		kbase_set_phy_alloc_page_status(reg->gpu_alloc, NOT_MOVABLE);
-
 #if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
 	reg->last_used_ts = ktime_get_raw_ns();
 #endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
