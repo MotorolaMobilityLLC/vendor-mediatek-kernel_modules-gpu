@@ -33,6 +33,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_DEVFREQ_THERMAL := y
         CONFIG_MALI_MTK_PROC_FS := y
         CONFIG_MTK_GPU_SWPM_SUPPORT :=y
+        CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD := y
     endif
 endif
 
@@ -53,6 +54,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MTK_GPU_SWPM_SUPPORT :=y
         CONFIG_MALI_MTK_GPU_BM_2 := y
         CONFIG_MALI_MTK_SHADER_PWR_CTL_WA := y
+        CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD := y
     endif
 endif
 
