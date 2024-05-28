@@ -1079,6 +1079,15 @@ void kbase_mmu_interrupt(struct kbase_device *kbdev, u32 irq_stat)
 	spin_unlock_irqrestore(&kbdev->mmu_mask_change, flags);
 }
 
+int kbase_mmu_switch_to_ir(struct kbase_context *const kctx, struct kbase_va_region *const reg)
+{
+	CSTD_UNUSED(kctx);
+	CSTD_UNUSED(reg);
+
+	/* Can't soft-stop the provoking job */
+	return -EPERM;
+}
+
 /**
  * kbase_mmu_gpu_fault_worker() - Process a GPU fault for the device.
  *

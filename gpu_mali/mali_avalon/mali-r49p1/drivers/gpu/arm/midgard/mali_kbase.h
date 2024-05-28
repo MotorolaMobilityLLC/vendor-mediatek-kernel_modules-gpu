@@ -339,21 +339,6 @@ void kbase_job_slot_ctx_priority_check_locked(struct kbase_context *kctx,
 					      struct kbase_jd_atom *katom);
 
 /**
- * kbase_job_slot_softstop_start_rp() - Soft-stop the atom at the start
- *                                      of a renderpass.
- * @kctx: Pointer to a kernel base context.
- * @reg:  Reference of a growable GPU memory region in the same context.
- *        Takes ownership of the reference if successful.
- *
- * Used to switch to incremental rendering if we have nearly run out of
- * virtual address space in a growable memory region and the atom currently
- * executing on a job slot is the tiler job chain at the start of a renderpass.
- *
- * Return: 0 if successful, otherwise a negative error code.
- */
-int kbase_job_slot_softstop_start_rp(struct kbase_context *kctx, struct kbase_va_region *reg);
-
-/**
  * kbase_job_slot_softstop - Soft-stop the specified job slot
  *
  * @kbdev:         The kbase device

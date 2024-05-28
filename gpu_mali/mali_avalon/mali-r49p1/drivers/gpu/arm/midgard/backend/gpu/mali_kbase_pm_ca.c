@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2013-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2013-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -55,8 +55,14 @@ void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
 	unsigned long flags;
 #if MALI_USE_CSF
 	u64 old_core_mask = 0;
-#endif
+	bool mmu_sync_needed = false;
 
+	if (!IS_ENABLED(CONFIG_MALI_NO_MALI) &&
+	    kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_GPU2019_3901)) {
+		mmu_sync_needed = true;
+		down_write(&kbdev->csf.mmu_sync_sem);
+	}
+#endif
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 #if MALI_USE_CSF
@@ -98,6 +104,9 @@ void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
 				 old_core_mask, core_mask);
 		}
 	}
+
+	if (mmu_sync_needed)
+		up_write(&kbdev->csf.mmu_sync_sem);
 #endif
 
 	dev_dbg(kbdev->dev, "Devfreq policy : new core mask=%llX\n", pm_backend->ca_cores_enabled);
@@ -105,6 +114,10 @@ void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
 	return;
 unlock:
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+#if MALI_USE_CSF
+	if (mmu_sync_needed)
+		up_write(&kbdev->csf.mmu_sync_sem);
+#endif
 }
 KBASE_EXPORT_TEST_API(kbase_devfreq_set_core_mask);
 #endif

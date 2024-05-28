@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2014-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -900,7 +900,7 @@ void kbase_backend_slot_update(struct kbase_device *kbdev)
 				break;
 
 			case KBASE_ATOM_GPU_RB_WAITING_BLOCKED:
-				if (kbase_js_atom_blocked_on_x_dep(katom[idx]))
+				if (katom[idx]->atom_flags & KBASE_KATOM_FLAG_X_DEP_BLOCKED)
 					break;
 
 				katom[idx]->gpu_rb_state =
@@ -1335,6 +1335,9 @@ void kbase_gpu_complete_hw(struct kbase_device *kbdev, unsigned int js, u32 comp
 		dev_dbg(kbdev->dev, "Update job chain address of atom %pK to resume from 0x%llx\n",
 			(void *)katom, job_tail);
 
+		/* Some of the job has been executed, so we update the job chain address to where
+		 *  we should resume from
+		 */
 		katom->jc = job_tail;
 		KBASE_KTRACE_ADD_JM_SLOT(kbdev, JM_UPDATE_HEAD, katom->kctx, katom, job_tail, js);
 	}
@@ -1410,6 +1413,8 @@ void kbase_gpu_complete_hw(struct kbase_device *kbdev, unsigned int js, u32 comp
 	if (katom) {
 		dev_dbg(kbdev->dev, "Cross-slot dependency %pK has become runnable.\n",
 			(void *)katom);
+
+		/* Cross-slot dependency has now become runnable. Try to submit it. */
 
 		/* Check if there are lower priority jobs to soft stop */
 		kbase_job_slot_ctx_priority_check_locked(kctx, katom);

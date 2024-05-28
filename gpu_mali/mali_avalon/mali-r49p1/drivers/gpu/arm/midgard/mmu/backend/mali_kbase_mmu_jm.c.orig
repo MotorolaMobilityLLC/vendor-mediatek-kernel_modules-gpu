@@ -395,6 +395,13 @@ void kbase_mmu_interrupt(struct kbase_device *kbdev, u32 irq_stat)
 	dev_dbg(kbdev->dev, "Leaving %s irq_stat %u\n", __func__, irq_stat);
 }
 
+int kbase_mmu_switch_to_ir(struct kbase_context *const kctx, struct kbase_va_region *const reg)
+{
+	dev_dbg(kctx->kbdev->dev, "Switching to incremental rendering for region %pK\n",
+		(void *)reg);
+	return kbase_job_slot_softstop_start_rp(kctx, reg);
+}
+
 int kbase_mmu_as_init(struct kbase_device *kbdev, unsigned int i)
 {
 	kbdev->as[i].number = i;

@@ -1,0 +1,71 @@
+--- drivers/gpu/arm/midgard/mmu/mali_kbase_mmu.c	2024-04-08 11:26:58.000000000 +0800
++++ drivers/gpu/arm/midgard/mmu/mali_kbase_mmu.c	2024-05-10 17:10:11.000000000 +0800
+@@ -780,6 +779,7 @@
+  *                 either small or 2 MiB pages, depending on the number of pages requested.
+  * @grow_2mb_pool: Pointer to variable to store which pool needs to grow - true for 2 MiB, false for
+  *                 pool of small pages.
++ * @fallback_to_small:  Whether fallback to small pages or not
+  * @prealloc_sas:  Pointer to kbase_sub_alloc structures
+  *
+  * This function will try to allocate as many pages as possible from the context pool, then if
+@@ -797,7 +797,7 @@
+  */
+ static bool page_fault_try_alloc(struct kbase_context *kctx, struct kbase_va_region *region,
+ 				 size_t new_pages, size_t *pages_to_grow, bool *grow_2mb_pool,
+-				 struct kbase_sub_alloc **prealloc_sas)
++				 bool fallback_to_small, struct kbase_sub_alloc **prealloc_sas)
+ {
+ 	size_t total_gpu_pages_alloced = 0;
+ 	size_t total_cpu_pages_alloced = 0;
+@@ -815,7 +815,8 @@
+ 		return false;
+ 	}
+ 
+-	if (kbase_is_large_pages_enabled() && new_pages >= NUM_PAGES_IN_2MB_LARGE_PAGE) {
++	if (kbase_is_large_pages_enabled() && new_pages >= NUM_PAGES_IN_2MB_LARGE_PAGE &&
++	    !fallback_to_small) {
+ 		root_pool = &kctx->mem_pools.large[region->gpu_alloc->group_id];
+ 		*grow_2mb_pool = true;
+ 	} else {
+@@ -963,6 +964,7 @@
+ 	bool grown = false;
+ 	size_t pages_to_grow;
+ 	bool grow_2mb_pool = false;
++	bool fallback_to_small = false;
+ 	struct kbase_sub_alloc *prealloc_sas[2] = { NULL, NULL };
+ 	int i;
+ 	size_t current_backed_size;
+@@ -1132,7 +1134,7 @@
+ 	}
+ 
+ page_fault_retry:
+-	if (kbase_is_large_pages_enabled()) {
++	if (kbase_is_large_pages_enabled() && !fallback_to_small) {
+ 		/* Preallocate (or re-allocate) memory for the sub-allocation structs if necessary */
+ 		for (i = 0; i != ARRAY_SIZE(prealloc_sas); ++i) {
+ 			if (!prealloc_sas[i]) {
+@@ -1296,7 +1298,7 @@
+ 
+ 	spin_lock(&kctx->mem_partials_lock);
+ 	grown = page_fault_try_alloc(kctx, region, new_pages, &pages_to_grow, &grow_2mb_pool,
+-				     prealloc_sas);
++				     fallback_to_small, prealloc_sas);
+ 	spin_unlock(&kctx->mem_partials_lock);
+ 
+ 	if (grown) {
+@@ -1423,6 +1409,15 @@
+ 					lp_mem_pool->order;
+ 
+ 				ret = kbase_mem_pool_grow(lp_mem_pool, pages_to_grow, kctx->task);
++				/* Retry handling the fault with small pages if required
++				 * number of 2MB pages couldn't be allocated.
++				 */
++				if (ret < 0) {
++					fallback_to_small = true;
++					dev_dbg(kbdev->dev,
++						"No room for 2MB pages, fallback to small pages");
++					goto page_fault_retry;
++				}
+ 			} else {
+ 				struct kbase_mem_pool *const mem_pool =
+ 					&kctx->mem_pools.small[group_id];

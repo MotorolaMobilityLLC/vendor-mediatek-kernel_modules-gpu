@@ -4435,7 +4435,7 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 	 * entry to protected mode happens with a memory region being locked and
 	 * the same region is then accessed by the GPU in protected mode.
 	 */
-	down_write(&kbdev->csf.mmu_sync_sem);
+	down_write(&kbdev->csf.pmode_sync_sem);
 	spin_lock_irqsave(&scheduler->interrupt_lock, flags);
 
 	/* Check if the previous transition to enter & exit the protected
@@ -4501,7 +4501,7 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 				spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 
 				err = kbase_csf_wait_protected_mode_enter(kbdev);
-				up_write(&kbdev->csf.mmu_sync_sem);
+				up_write(&kbdev->csf.pmode_sync_sem);
 
 				if (err)
 					schedule_actions_trigger_df(
@@ -4520,7 +4520,7 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 	}
 
 	spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
-	up_write(&kbdev->csf.mmu_sync_sem);
+	up_write(&kbdev->csf.pmode_sync_sem);
 }
 
 /**

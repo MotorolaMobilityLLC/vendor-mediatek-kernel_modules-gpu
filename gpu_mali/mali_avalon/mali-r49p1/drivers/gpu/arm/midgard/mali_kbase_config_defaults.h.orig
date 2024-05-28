@@ -346,6 +346,14 @@ enum {
  */
 #define DEFAULT_PROGRESS_TIMEOUT ((u64)5 * 500 * 1024 * 1024)
 
+/* Default threshold at which to switch to incremental rendering
+ *
+ * Fraction of the maximum size of an allocation that grows on GPU page fault
+ * that can be used up before the driver switches to incremental rendering,
+ * in 256ths. 0 means disable incremental rendering.
+ */
+#define DEFAULT_IR_THRESHOLD (192)
+
 /* Waiting time in clock cycles for the completion of a MMU operation.
  *
  * Ideally 1.6M GPU cycles required for the L2 cache (512KiB slice) flush.

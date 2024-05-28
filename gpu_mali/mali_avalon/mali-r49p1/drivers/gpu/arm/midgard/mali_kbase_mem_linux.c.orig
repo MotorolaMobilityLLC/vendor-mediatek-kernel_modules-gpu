@@ -94,6 +94,8 @@
 #define KBASE_MEM_ION_SYNC_WORKAROUND
 #endif
 
+#define IR_THRESHOLD_STEPS (256u)
+
 /*
  * fully_backed_gpf_memory - enable full physical backing of all grow-on-GPU-page-fault
  * allocations in the kernel.
@@ -421,8 +423,17 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 		*flags &= ~BASE_MEM_CACHED_CPU;
 
 	if (*flags & BASE_MEM_GROW_ON_GPF) {
-		/* kbase_check_alloc_sizes() already checks extension is valid for assigning to
-		 * reg->extension.
+		unsigned int const ir_threshold =
+			(unsigned int)atomic_read(&kctx->kbdev->memdev.ir_threshold);
+
+		reg->threshold_pages =
+			((va_pages * ir_threshold) + (IR_THRESHOLD_STEPS / 2)) / IR_THRESHOLD_STEPS;
+	} else
+		reg->threshold_pages = 0;
+
+	if (*flags & BASE_MEM_GROW_ON_GPF) {
+		/* kbase_check_alloc_sizes() already checks extension is valid for
+		 * assigning to reg->extension
 		 */
 		reg->extension = extension;
 #if !MALI_USE_CSF
@@ -803,7 +814,7 @@ static unsigned long kbase_mem_evictable_reclaim_scan_objects(struct shrinker *s
 #endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 
 #if MALI_USE_CSF
-	if (!down_read_trylock(&kctx->kbdev->csf.mmu_sync_sem)) {
+	if (!down_read_trylock(&kctx->kbdev->csf.pmode_sync_sem)) {
 		dev_warn(kctx->kbdev->dev,
 			 "Can't shrink GPU memory when P.Mode entrance is in progress");
 		return 0;
@@ -860,7 +871,7 @@ static unsigned long kbase_mem_evictable_reclaim_scan_objects(struct shrinker *s
 
 	mutex_unlock(&kctx->jit_evict_lock);
 #if MALI_USE_CSF
-	up_read(&kctx->kbdev->csf.mmu_sync_sem);
+	up_read(&kctx->kbdev->csf.pmode_sync_sem);
 #endif
 	return freed;
 }
@@ -961,7 +972,7 @@ void kbase_mem_evictable_make(struct kbase_mem_phy_alloc *gpu_alloc)
 	/* Indicate to page migration that the memory can be reclaimed by the shrinker.
 	 */
 	if (kbase_is_page_migration_enabled())
-		kbase_set_phy_alloc_page_status(kctx, gpu_alloc, NOT_MOVABLE);
+		kbase_set_phy_alloc_page_status(gpu_alloc, NOT_MOVABLE);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
 	gpu_alloc->reg->last_used_ts = 0;
@@ -1023,7 +1034,7 @@ bool kbase_mem_evictable_unmake(struct kbase_mem_phy_alloc *gpu_alloc)
 			 * from.
 			 */
 			if (kbase_is_page_migration_enabled())
-				kbase_set_phy_alloc_page_status(kctx, gpu_alloc, ALLOCATED_MAPPED);
+				kbase_set_phy_alloc_page_status(gpu_alloc, ALLOCATED_MAPPED);
 		}
 	}
 
