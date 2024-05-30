@@ -98,6 +98,10 @@ static void MTKPP_PrintQueueBuffer(struct MTK_PROC_PRINT_DATA *data,
 
 	if ((data->current_line >= data->line_array_size)
 	    || (data->current_data >= (data->data_array_size - 128))) {
+                va_start(args, fmt);
+                if (g_bForce_klog)
+                        pr_err(fmt, args);
+                va_end(args);
 		MTKPP_UnLock(data);
 		return;
 	}
@@ -108,6 +112,8 @@ static void MTKPP_PrintQueueBuffer(struct MTK_PROC_PRINT_DATA *data,
 
 	/* print string */
 	va_start(args, fmt);
+	if (g_bForce_klog)
+                pr_err(fmt, args);
 	len = vsnprintf(buf,
 			(data->data_array_size - data->current_data),
 			fmt,
@@ -135,6 +141,10 @@ static void MTKPP_PrintQueueBuffer2(struct MTK_PROC_PRINT_DATA *data,
 	if ((data->current_line >= data->line_array_size)
 	    || (data->current_data >= (data->data_array_size - 128))) {
 		/* buffer full, ignore the coming input */
+		va_start(args, fmt);
+		if (g_bForce_klog)
+			pr_err(fmt, args);
+		va_end(args);
 		MTKPP_UnLock(data);
 		return;
 	}
@@ -151,6 +161,8 @@ static void MTKPP_PrintQueueBuffer2(struct MTK_PROC_PRINT_DATA *data,
 
 	/* print string */
 	va_start(args, fmt);
+	if (g_bForce_klog)
+		pr_err(fmt, args);
 	len = vsnprintf(buf,
 			(data->data_array_size - data->current_data),
 			fmt,
@@ -194,6 +206,8 @@ static void MTKPP_PrintRingBuffer(struct MTK_PROC_PRINT_DATA *data,
 
 	/* print string */
 	va_start(args, fmt);
+	if (g_bForce_klog)
+		pr_err(fmt, args);
 	len = vsnprintf(buf,
 			(data->data_array_size - data->current_data),
 			fmt,

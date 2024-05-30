@@ -33,6 +33,7 @@ static struct proc_dir_entry *g_MTKPP_proc;
 static struct MTK_PROC_PRINT_DATA *g_MTKPPdata[MTKPP_ID_SIZE];
 static int g_init_done;
 int g_use_id;
+bool g_bForce_klog;
 
 #if defined(ENABLE_AEE_WHEN_LOCKUP)
 struct MTKPP_WORKQUEUE {
@@ -486,6 +487,7 @@ void MTKPP_Init(void)
 
 	g_use_id = MTKPP_ID_FW;
 	g_init_done = 1;
+	g_bForce_klog = false;
 
 err_out:
 	return;

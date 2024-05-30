@@ -23,6 +23,7 @@ enum MTKPP_ID {
 };
 
 extern int g_use_id;
+extern bool g_bForce_klog;
 
 enum MTKPP_BUFFERTYPE {
 	MTKPP_QUEUEBUFFER,

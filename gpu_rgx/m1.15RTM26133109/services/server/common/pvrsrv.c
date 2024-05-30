@@ -503,8 +503,10 @@ static void DevicesWatchdogThread_ForEachVaCb(PVRSRV_DEVICE_NODE *psDeviceNode,
 			{
 				PVR_DPF((PVR_DBG_ERROR, "DevicesWatchdogThread: "
 						 "Device status not OK!!!"));
+				g_bForce_klog = true;
 				PVRSRVDebugRequest(psDeviceNode, DEBUG_REQUEST_VERBOSITY_MAX,
 								   NULL, NULL);
+				g_bForce_klog = false;
 			}
 		}
 	}
