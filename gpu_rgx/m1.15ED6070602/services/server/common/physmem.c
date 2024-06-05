@@ -52,6 +52,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pdump_km.h"
 #include "rgx_heaps.h"
 #include "pvr_ricommon.h"
+#include "allocmem.h"
 
 #include "physmem_lma.h"
 #include "physmem_osmem.h"
@@ -73,6 +74,12 @@ MODULE_PARM_DESC(gPMRAllocFail, "When number of PMR allocs reaches "
 #include "process_stats.h"
 #include "proc_stats.h"
 #endif
+
+/** Computes division using log2 of divisor. */
+#define LOG2_DIV(x, log2) ((x) >> (log2))
+
+/** Computes modulo of a power of 2. */
+#define LOG2_MOD(x, log2) ((x) & ((1 << (log2)) - 1))
 
 PVRSRV_ERROR DevPhysMemAlloc(PVRSRV_DEVICE_NODE	*psDevNode,
                              IMG_UINT32 ui32MemSize,
@@ -264,10 +271,68 @@ void DevPhysMemFree(PVRSRV_DEVICE_NODE *psDevNode,
 
 }
 
+PVRSRV_ERROR PhysMemValidateMappingTable(IMG_UINT32 ui32TotalNumVirtChunks,
+                                         IMG_UINT32 ui32IndexCount,
+                                         const IMG_UINT32 *pui32MappingTable)
+{
+	IMG_UINT8 *paui8TrackedIndices;
+	IMG_UINT32 ui32BytesToTrackIndicies;
+	IMG_UINT32 i;
+	PVRSRV_ERROR eError = PVRSRV_OK;
+
+	/* Allocate memory for a bitmask to track indices.
+	 * We allocate 'n' bytes with 1 bit representing each index, to allow
+	 * us to check for any repeated entries in pui32MappingTable.
+	 */
+	ui32BytesToTrackIndicies = LOG2_DIV(ui32TotalNumVirtChunks, 3);
+	if (LOG2_MOD(ui32TotalNumVirtChunks, 3) != 0)
+	{
+		++ui32BytesToTrackIndicies;
+	}
+	paui8TrackedIndices = OSAllocZMem(ui32BytesToTrackIndicies);
+	if (paui8TrackedIndices == NULL)
+	{
+		return PVRSRV_ERROR_OUT_OF_MEMORY;
+	}
+
+	for (i = 0; i < ui32IndexCount; i++)
+	{
+		IMG_UINT32 ui32LogicalIndex = pui32MappingTable[i];
+
+		/* Check that index is within the bounds of the allocation */
+		if (ui32LogicalIndex >= ui32TotalNumVirtChunks)
+		{
+			PVR_DPF((PVR_DBG_ERROR,
+			         "%s: Index %u is OOB",
+			         __func__,
+			         ui32LogicalIndex));
+			eError = PVRSRV_ERROR_PMR_INVALID_MAP_INDEX_ARRAY;
+			break;
+		}
+
+		/* Check that index is not repeated */
+		if (BIT_ISSET(paui8TrackedIndices[LOG2_DIV(ui32LogicalIndex, 3)], LOG2_MOD(ui32LogicalIndex, 3)))
+		{
+			PVR_DPF((PVR_DBG_ERROR,
+			         "%s: Duplicate index found: %u",
+			         __func__,
+			         ui32LogicalIndex));
+
+			eError = PVRSRV_ERROR_PMR_INVALID_MAP_INDEX_ARRAY;
+			break;
+		}
+		BIT_SET(paui8TrackedIndices[LOG2_DIV(ui32LogicalIndex, 3)], LOG2_MOD(ui32LogicalIndex, 3));
+	}
+
+	OSFreeMem(paui8TrackedIndices);
+
+	return eError;
+}
 
 /* Checks the input parameters and adjusts them if possible and necessary */
 PVRSRV_ERROR PhysMemValidateParams(IMG_UINT32 ui32NumPhysChunks,
                                    IMG_UINT32 ui32NumVirtChunks,
+                                   IMG_UINT32 *pui32MappingTable,
                                    PVRSRV_MEMALLOCFLAGS_T uiFlags,
                                    IMG_UINT32 *puiLog2AllocPageSize,
                                    IMG_DEVMEM_SIZE_T *puiSize,
@@ -413,6 +478,14 @@ PVRSRV_ERROR PhysMemValidateParams(IMG_UINT32 ui32NumPhysChunks,
 		return PVRSRV_ERROR_PMR_NOT_PAGE_MULTIPLE;
 	}
 
+	/* Parameter validation - Mapping table entries */
+	{
+		PVRSRV_ERROR eErr = PhysMemValidateMappingTable(ui32NumVirtChunks,
+		                                                ui32NumPhysChunks,
+		                                                pui32MappingTable);
+		PVR_RETURN_IF_ERROR(eErr);
+	}
+
 	*puiLog2AllocPageSize = uiLog2AllocPageSize;
 	*puiSize = uiSize;
 
@@ -479,6 +552,7 @@ PhysmemNewRamBackedPMR_direct(CONNECTION_DATA *psConnection,
 
 	eError = PhysMemValidateParams(ui32NumPhysChunks,
 	                               ui32NumVirtChunks,
+								   pui32MappingTable,
 	                               uiFlags,
 	                               &uiLog2AllocPageSize,
 	                               &uiSize,

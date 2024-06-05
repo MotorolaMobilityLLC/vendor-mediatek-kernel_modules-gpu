@@ -510,28 +510,45 @@ _Unref(PMR *psPMR)
 	return OSAtomicDecrement(&psPMR->iRefCount);
 }
 
+static INLINE void
+_FactoryLock(const PMR_IMPL_FUNCTAB *psFuncTable)
+{
+	if (psFuncTable->pfnGetPMRFactoryLock != NULL)
+	{
+		psFuncTable->pfnGetPMRFactoryLock();
+	}
+}
+
+static INLINE void
+_FactoryUnlock(const PMR_IMPL_FUNCTAB *psFuncTable)
+{
+	if (psFuncTable->pfnReleasePMRFactoryLock != NULL)
+	{
+		psFuncTable->pfnReleasePMRFactoryLock();
+	}
+}
+
 static void
 _UnrefAndMaybeDestroy(PMR *psPMR)
 {
 	PVRSRV_ERROR eError2;
 	struct _PMR_CTX_ *psCtx;
 	IMG_INT iRefCount;
+	const PMR_IMPL_FUNCTAB *psFuncTab;
 
 	PVR_ASSERT(psPMR != NULL);
 
 	/* Acquire PMR factory lock if provided */
-	if (psPMR->psFuncTab->pfnGetPMRFactoryLock)
-	{
-		psPMR->psFuncTab->pfnGetPMRFactoryLock();
-	}
+	psFuncTab = psPMR->psFuncTab;
+	_FactoryLock(psFuncTab);
 
 	iRefCount = _Unref(psPMR);
 
 	if (iRefCount == 0)
 	{
-		if (psPMR->psFuncTab->pfnFinalize != NULL)
+		if (psFuncTab->pfnFinalize != NULL)
 		{
-			eError2 = psPMR->psFuncTab->pfnFinalize(psPMR->pvFlavourData);
+			eError2 = psFuncTab->pfnFinalize(psPMR->pvFlavourData);
 
 			/* PMR unref can be called asynchronously by the kernel or other
 			 * third party modules (eg. display) which doesn't go through the
@@ -548,10 +565,7 @@ _UnrefAndMaybeDestroy(PMR *psPMR)
 			 * */
 			if (PVRSRV_ERROR_PMR_STILL_REFERENCED == eError2)
 			{
-				if (psPMR->psFuncTab->pfnReleasePMRFactoryLock)
-				{
-					psPMR->psFuncTab->pfnReleasePMRFactoryLock();
-				}
+				_FactoryUnlock(psFuncTab);
 				return;
 			}
 			PVR_ASSERT (eError2 == PVRSRV_OK); /* can we do better? */
@@ -599,30 +613,25 @@ _UnrefAndMaybeDestroy(PMR *psPMR)
 #endif /* if defined(PVRSRV_ENABLE_GPU_MEMORY_INFO) */
 		psCtx = psPMR->psContext;
 
-		OSLockDestroy(psPMR->hLock);
-
-		/* Release PMR factory lock acquired if any */
-		if (psPMR->psFuncTab->pfnReleasePMRFactoryLock)
-		{
-			psPMR->psFuncTab->pfnReleasePMRFactoryLock();
-		}
-
-		OSFreeMem(psPMR);
-
 		/* Decrement live PMR count. Probably only of interest for debugging */
 		PVR_ASSERT(psCtx->uiNumLivePMRs > 0);
 
 		OSLockAcquire(psCtx->hLock);
 		psCtx->uiNumLivePMRs--;
 		OSLockRelease(psCtx->hLock);
+
+		/* Release PMR factory lock acquired if any */
+		_FactoryUnlock(psFuncTab);
+
+		OSLockDestroy(psPMR->hLock);
+
+		OSFreeMem(psPMR);
+
 	}
 	else
 	{
 		/* Release PMR factory lock acquired if any */
-		if (psPMR->psFuncTab->pfnReleasePMRFactoryLock)
-		{
-			psPMR->psFuncTab->pfnReleasePMRFactoryLock();
-		}
+		_FactoryUnlock(psFuncTab);
 	}
 }
 
@@ -3364,13 +3373,7 @@ PMRWritePMPageList(/* Target PMR, offset, and length */
 		PVR_LOG_GOTO_IF_NOMEM(pasDevAddrPtr, eError, unlock_phys_addrs);
 
 		pbPageIsValid = OSAllocMem(uiNumPages * sizeof(IMG_BOOL));
-		if (pbPageIsValid == NULL)
-		{
-			/* Clean-up before exit */
-			OSFreeMem(pasDevAddrPtr);
-
-			PVR_LOG_GOTO_WITH_ERROR("pbPageIsValid", eError, PVRSRV_ERROR_OUT_OF_MEMORY, free_devaddr_array);
-		}
+		PVR_LOG_GOTO_IF_NOMEM(pbPageIsValid, eError, free_devaddr_array);
 	}
 	else
 	{
