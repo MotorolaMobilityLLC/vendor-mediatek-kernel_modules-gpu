@@ -1338,6 +1338,7 @@ DevmemXIntUnmapPages(DEVMEMXINT_RESERVATION *psRsrv,
 {
 	DEVMEMINT_HEAP *psDevmemHeap = psRsrv->psDevmemHeap;
 	IMG_UINT32 i;
+	PVRSRV_ERROR eError;
 
 	PVR_LOG_RETURN_IF_FALSE((uiVirtPageOffset + uiPageCount) <= _DevmemXReservationPageCount(psRsrv),
 	                        "mapping offset out of range", PVRSRV_ERROR_DEVICEMEM_OUT_OF_RANGE);
@@ -1345,13 +1346,14 @@ DevmemXIntUnmapPages(DEVMEMXINT_RESERVATION *psRsrv,
 	OSLockAcquire(psRsrv->hLock);
 
 	/* Unmap the pages and mark them invalid in the MMU PTE */
-	MMU_UnmapPages(psDevmemHeap->psDevmemCtx->psMMUContext,
-	               0,
-	               _DevmemXReservationPageAddress(psRsrv, uiVirtPageOffset),
-	               uiPageCount,
-	               NULL,
-	               psDevmemHeap->uiLog2PageSize,
-	               0);
+	eError = MMU_UnmapPages(psDevmemHeap->psDevmemCtx->psMMUContext,
+	                        0,
+	                        _DevmemXReservationPageAddress(psRsrv, uiVirtPageOffset),
+	                        uiPageCount,
+	                        NULL,
+	                        psDevmemHeap->uiLog2PageSize,
+	                        0);
+	PVR_LOG_GOTO_IF_ERROR(eError, "MMU_UnmapPages", ErrUnlock);
 
 	for (i = uiVirtPageOffset; i < (uiVirtPageOffset + uiPageCount); i++)
 	{
@@ -1365,6 +1367,11 @@ DevmemXIntUnmapPages(DEVMEMXINT_RESERVATION *psRsrv,
 	OSLockRelease(psRsrv->hLock);
 
 	return PVRSRV_OK;
+
+ErrUnlock:
+	OSLockRelease(psRsrv->hLock);
+
+	return eError;
 }
 
 static INLINE IMG_UINT32
@@ -1679,13 +1686,14 @@ DevmemIntUnmapPMR2(DEVMEMINT_RESERVATION2 *psReservation)
 			}
 		}
 
-		MMU_UnmapPages (psDevmemHeap->psDevmemCtx->psMMUContext,
-				0,
-				sAllocationDevVAddr,
-				ui32NumDevPages,
-				NULL,
-				psDevmemHeap->uiLog2PageSize,
-				0);
+		eError = MMU_UnmapPages(psDevmemHeap->psDevmemCtx->psMMUContext,
+		                        0,
+		                        sAllocationDevVAddr,
+		                        ui32NumDevPages,
+		                        NULL,
+		                        psDevmemHeap->uiLog2PageSize,
+		                        0);
+		PVR_LOG_RETURN_IF_ERROR(eError, "MMU_UnmapPages");
 		/* We are unmapping the whole PMR */
 		for (i = 0; i < ui32NumDevPages; i++)
 		{
@@ -1700,10 +1708,11 @@ DevmemIntUnmapPMR2(DEVMEMINT_RESERVATION2 *psReservation)
 	}
 	else
 	{
-		MMU_UnmapPMRFast(psDevmemHeap->psDevmemCtx->psMMUContext,
-		                 sAllocationDevVAddr,
-		                 ui32NumDevPages,
-		                 psDevmemHeap->uiLog2PageSize);
+		eError = MMU_UnmapPMRFast(psDevmemHeap->psDevmemCtx->psMMUContext,
+		                          sAllocationDevVAddr,
+		                          ui32NumDevPages,
+		                          psDevmemHeap->uiLog2PageSize);
+		PVR_LOG_RETURN_IF_ERROR(eError, "MMU_UnmapPMRFast");
 	}
 
 	PMRGpuResCountDecr(psReservation->psMappedPMR);
@@ -2241,23 +2250,7 @@ DevmemIntChangeSparse2(DEVMEMINT_HEAP *psDevmemHeap,
 			}
 		}
 
-		/* Do the PMR specific changes first */
-		eError = PMR_ChangeSparseMem(psPMR,
-		                             ui32AllocPageCount,
-		                             pai32AllocIndices,
-		                             ui32FreePageCount,
-		                             pai32FreeIndices,
-		                             uiSparseFlags);
-		if (PVRSRV_OK != eError)
-		{
-			PVR_DPF((PVR_DBG_MESSAGE,
-					"%s: Failed to do PMR specific changes.",
-					__func__));
-			goto e1;
-		}
-
-		/* Invalidate the page table entries for the free pages.
-		 * Optimisation later would be not to touch the ones that gets re-mapped */
+		/* Invalidate the page table entries before freeing the physical pages. */
 		if (uiSparseFlags & SPARSE_RESIZE_FREE)
 		{
 			PMR_FLAGS_T uiPMRFlags;
@@ -2267,13 +2260,14 @@ DevmemIntChangeSparse2(DEVMEMINT_HEAP *psDevmemHeap,
 			uiPMRFlags = PMR_Flags(psPMR);
 
 			/* Unmap the pages and mark them invalid in the MMU PTE */
-			MMU_UnmapPages (psReservation->psDevmemHeap->psDevmemCtx->psMMUContext,
-			                uiFlags,
-			                psReservation->sBase,
-			                uiUnmapPageCount,
-			                pai32UnmapIndices,
-			                uiLog2HeapContiguity,
-			                uiPMRFlags);
+			eError = MMU_UnmapPages(psReservation->psDevmemHeap->psDevmemCtx->psMMUContext,
+			                        uiFlags,
+			                        psReservation->sBase,
+			                        uiUnmapPageCount,
+			                        pai32UnmapIndices,
+			                        uiLog2HeapContiguity,
+			                        uiPMRFlags);
+			PVR_LOG_GOTO_IF_ERROR(eError, "MMU_UnmapPages", e1);
 
 			for (i = 0; i < uiUnmapPageCount; i++)
 			{
@@ -2287,6 +2281,21 @@ DevmemIntChangeSparse2(DEVMEMINT_HEAP *psDevmemHeap,
 					                                    IMG_FALSE);
 				}
 			}
+		}
+
+		/* Do the PMR specific changes */
+		eError = PMR_ChangeSparseMem(psPMR,
+		                             ui32AllocPageCount,
+		                             pai32AllocIndices,
+		                             ui32FreePageCount,
+		                             pai32FreeIndices,
+		                             uiSparseFlags);
+		if (PVRSRV_OK != eError)
+		{
+			PVR_DPF((PVR_DBG_MESSAGE,
+			         "%s: Failed to do PMR specific changes.",
+			         __func__));
+			goto e1;
 		}
 
 		/* Wire the pages tables that got allocated */

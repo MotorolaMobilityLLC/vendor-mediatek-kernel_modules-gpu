@@ -470,20 +470,11 @@ OSMMapPMRGeneric(PMR *psPMR, PMR_MMAP_DATA pOSMMapData)
 	if (uiNumOfPFNs > PMR_MAX_TRANSLATION_STACK_ALLOC)
 	{
 		psCpuPAddr = OSAllocMem(uiNumOfPFNs * sizeof(*psCpuPAddr));
-		if (psCpuPAddr == NULL)
-		{
-			eError = PVRSRV_ERROR_OUT_OF_MEMORY;
-			goto e1;
-		}
+		PVR_LOG_GOTO_IF_NOMEM(psCpuPAddr, eError, e1);
 
 		/* Should allocation fail, clean-up here before exiting */
 		pbValid = OSAllocMem(uiNumOfPFNs * sizeof(*pbValid));
-		if (pbValid == NULL)
-		{
-			eError = PVRSRV_ERROR_OUT_OF_MEMORY;
-			OSFreeMem(psCpuPAddr);
-			goto e2;
-		}
+		PVR_LOG_GOTO_IF_NOMEM(pbValid, eError, e2);
 	}
 	else
 	{
