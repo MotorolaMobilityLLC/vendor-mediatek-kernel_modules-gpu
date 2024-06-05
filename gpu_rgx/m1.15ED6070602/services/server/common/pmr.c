@@ -176,6 +176,11 @@ struct _PMR_
 	 */
 	ATOMIC_T iCpuMapCount;
 
+	/* Count of how many reservations refer to this
+	 * PMR as a part of a GPU mapping.
+	 */
+	ATOMIC_T iAssociatedResCount;
+
 	/* Lock count - this is the number of times PMRLockSysPhysAddresses()
 	 * has been called, less the number of PMRUnlockSysPhysAddresses()
 	 * calls. This is arguably here for debug reasons only, as the refcount
@@ -445,6 +450,7 @@ _PMRCreate(PMR_SIZE_T uiLogicalSize,
 	/* Setup the PMR */
 	OSAtomicWrite(&psPMR->iRefCount, 0);
 	OSAtomicWrite(&psPMR->iCpuMapCount, 0);
+	OSAtomicWrite(&psPMR->iAssociatedResCount, 0);
 
 	/* If allocation is not made on demand, it will be backed now and
 	 * backing will not be removed until the PMR is destroyed, therefore
@@ -1795,6 +1801,41 @@ PMR_IsCpuMapped(PMR *psPMR)
 	PVR_ASSERT(psPMR != NULL);
 
 	return (OSAtomicRead(&psPMR->iCpuMapCount) > 0);
+}
+
+void
+PMRGpuResCountIncr(PMR *psPMR)
+{
+	if (OSAtomicAddUnless(&psPMR->iAssociatedResCount, 1, PMR_MAPCOUNT_MAX) == PMR_MAPCOUNT_MAX)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: iAssociatedResCount for PMR: @0x%p (%s) has overflowed.",
+		                        __func__,
+		                        psPMR,
+		                        psPMR->szAnnotation));
+		OSWarnOn(1);
+	}
+}
+
+void
+PMRGpuResCountDecr(PMR *psPMR)
+{
+	if (OSAtomicSubtractUnless(&psPMR->iAssociatedResCount, 1, PMR_MAPCOUNT_MIN) == PMR_MAPCOUNT_MIN)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: iAssociatedResCount (now %d) for PMR: @0x%p (%s) has underflowed.",
+		                        __func__,
+		                        (IMG_INT32) OSAtomicRead(&psPMR->iAssociatedResCount),
+		                        psPMR,
+		                        psPMR->szAnnotation));
+		OSWarnOn(1);
+	}
+}
+
+IMG_BOOL
+PMR_IsGpuMultiMapped(PMR *psPMR)
+{
+	PVR_ASSERT(psPMR != NULL);
+
+	return (OSAtomicRead(&psPMR->iAssociatedResCount) > 1);
 }
 
 PVRSRV_DEVICE_NODE *
