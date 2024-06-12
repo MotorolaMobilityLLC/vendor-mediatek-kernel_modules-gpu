@@ -765,8 +765,11 @@ static void kbase_pm_control_gpu_clock(struct kbase_device *kbdev)
 }
 
 #if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
-u64 mcu_state_history = 0;
-u64 l2_state_history = 0;
+#define MAX_STATES_NUM 16
+u8 mcu_state_array[MAX_STATES_NUM];
+int mcu_history_idx = 0;
+u8 l2_state_array[MAX_STATES_NUM];
+int l2_history_idx = 0;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 
 #if MALI_USE_CSF
@@ -1396,8 +1399,10 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 #endif
 		case KBASE_MCU_RESET_WAIT:
 #if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
-			mcu_state_history = mcu_state_history << 8;
-			mcu_state_history |= (u8)(backend->mcu_state & 0xFF);
+			if (mcu_history_idx >= MAX_STATES_NUM)
+				mcu_history_idx = 0;
+			mcu_state_array[mcu_history_idx] = (u8)(backend->mcu_state & 0xFF);
+			mcu_history_idx++;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 			/* Reset complete  */
 			if (!backend->in_reset)
@@ -1419,8 +1424,10 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 				kbase_mcu_state_to_string(backend->mcu_state));
 			kbase_ktrace_log_mcu_state(kbdev, backend->mcu_state);
 #if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
-			mcu_state_history = mcu_state_history << 8;
-			mcu_state_history |= (u8)(backend->mcu_state & 0xFF);
+			if (mcu_history_idx >= MAX_STATES_NUM)
+				mcu_history_idx = 0;
+			mcu_state_array[mcu_history_idx] = (u8)(backend->mcu_state & 0xFF);
+			mcu_history_idx++;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MCU)
@@ -1946,8 +1953,10 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 			/* Reset complete  */
 			if (!backend->in_reset) {
 #if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
-				l2_state_history = l2_state_history << 8;
-				l2_state_history |= (u8)(backend->l2_state & 0xFF);
+				if (l2_history_idx >= MAX_STATES_NUM)
+					l2_history_idx = 0;
+				l2_state_array[l2_history_idx] = (u8)(backend->l2_state & 0xFF);
+				l2_history_idx++;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 #if MALI_USE_CSF
 				backend->l2_force_off_after_mcu_halt = false;
@@ -1970,8 +1979,10 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 				kbase_l2_core_state_to_string(backend->l2_state));
 			kbase_ktrace_log_l2_core_state(kbdev, backend->l2_state);
 #if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
-			l2_state_history = l2_state_history << 8;
-			l2_state_history |= (u8)(backend->l2_state & 0xFF);
+			if (l2_history_idx >= MAX_STATES_NUM)
+				l2_history_idx = 0;
+			l2_state_array[l2_history_idx] = (u8)(backend->l2_state & 0xFF);
+			l2_history_idx++;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 		}
 
@@ -2910,6 +2921,43 @@ static void mtk_kbase_pm_timed_out_mcu_transition_check(struct kbase_device *kbd
 	}
 }
 #endif /* CONFIG_MALI_MTK_DEBUG */
+
+void kbase_pm_debug_status(struct kbase_device *kbdev)
+{
+#if !MALI_USE_CSF
+		dev_err(kbdev->dev, "Desired state :\n");
+		dev_err(kbdev->dev, "\tShader=%016llx\n",
+			kbdev->pm.backend.shaders_desired ? kbdev->pm.backend.shaders_avail : 0);
+#else
+		dev_err(kbdev->dev, "\tMCU desired = %d\n", kbase_pm_is_mcu_desired(kbdev));
+		dev_err(kbdev->dev, "\tMCU sw state = %d\n", kbdev->pm.backend.mcu_state);
+#endif
+		if (kbdev->pm.backend.gpu_powered) {
+			dev_err(kbdev->dev, "Current state :\n");
+			dev_err(kbdev->dev, "\tShader=%016llx\n",
+				kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(SHADER_READY)));
+			dev_err(kbdev->dev, "\tTiler =%016llx\n",
+				kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(TILER_READY)));
+			dev_err(kbdev->dev, "\tL2    =%016llx\n",
+				kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(L2_READY)));
+#if MALI_USE_CSF
+			dev_err(kbdev->dev, "\tMCU status = %d\n",
+				kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_STATUS)));
+#endif
+			dev_err(kbdev->dev, "Cores transitioning :\n");
+			dev_err(kbdev->dev, "\tShader=%016llx\n",
+				kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(SHADER_PWRTRANS)));
+			dev_err(kbdev->dev, "\tTiler =%016llx\n",
+				kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(TILER_PWRTRANS)));
+			dev_err(kbdev->dev, "\tL2    =%016llx\n",
+				kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(L2_PWRTRANS)));
+		}
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_PM_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_PM_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_PM_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+}
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 
 #if !MALI_USE_CSF
