@@ -127,6 +127,7 @@ struct mgm_groups {
 	spinlock_t free_SP_lst_lk;
 	struct list_head free_SP_lst;
 	struct list_head free_list_r[2][2];
+	size_t nr_free_SP_lst;
 	size_t nr_rank[2][2];
 	size_t max_pool[2];
 	bool bRank0[2]; // true: rank0, false: rank1
@@ -660,7 +661,6 @@ struct page* mtk_fetch_page(struct mgm_groups *data, int order, int i32Rank)
 static struct page *__MTKAllocPage(struct mgm_groups *data,
 									gfp_t gfp_mask, unsigned int order)
 {
-	static size_t nr_free_SP_lst = 0;
 	static unsigned int try_order = 10;
 	unsigned int order_scan_walk;
 	unsigned int count;
@@ -683,11 +683,11 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 	/* if pre-alloc list pool got available SP page */
 	spin_lock(&data->free_SP_lst_lk);
 	order_scan_walk = try_order;
-	if (nr_free_SP_lst) {
+	if (data->nr_free_SP_lst) {
 		p = list_first_entry(&data->free_SP_lst, struct page, lru);
 		if (p) {
 			list_del_init(&p->lru);
-			nr_free_SP_lst--;
+			data->nr_free_SP_lst--;
 			spin_unlock(&data->free_SP_lst_lk);
 			return p;
 		}
@@ -705,7 +705,7 @@ static struct page *__MTKAllocPage(struct mgm_groups *data,
 			split_page(p, order_scan_walk);
 			count = (1 << order_scan_walk) - 1;
 			spin_lock(&data->free_SP_lst_lk);
-			nr_free_SP_lst += count;
+			data->nr_free_SP_lst += count;
 
 			pp = p + 1;
 			while (count--) {
@@ -726,6 +726,8 @@ FALLBACK:
 	/* This page would insert into high order rank pool */
 	if (p)
 		mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, (1 << order));
+	else if (order == SP_ORDER)
+		dev_err(data->dev, "alloc_pages (%u) failed, gfp_mask=0x%x\n", order, gfp_mask);
 	return p;
 }
 
@@ -1075,8 +1077,15 @@ static struct page *example_mgm_alloc_page(struct memory_group_manager_device *m
 #if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
 		if (order)
 			dev_info(data->dev, "Return no order %u, let kbase fallback\n", order);
-		else
-			dev_err(data->dev, "alloc_pages (%u) failed\n", order);
+		else {
+			dev_err(data->dev, "mtk_fetch_page (%u) failed\n", order);
+			dev_err(data->dev, "rank_mode=%d gfp_mask=0x%x(0x%x) nr_free_SP_lst=%zu nr_rank={%zu,%zu,%zu,%zu} max_pool={%zu,%zu}\n",
+				data->rank_mode,
+				gfp_mask, data->gfp_mask,
+				data->nr_free_SP_lst,
+				data->nr_rank[0][0], data->nr_rank[0][1], data->nr_rank[1][0], data->nr_rank[1][1],
+				data->max_pool[0], data->max_pool[1]);
+		}
 #else /* CONFIG_MALI_MTK_MGMM */
 		dev_dbg(data->dev, "alloc_pages failed\n");
 #endif /* CONFIG_MALI_MTK_MGMM */
@@ -1335,6 +1344,8 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 	mgm_data->free_list_r[0][1].next = mgm_data->free_list_r[0][1].prev = &mgm_data->free_list_r[0][1];
 	mgm_data->free_list_r[1][0].next = mgm_data->free_list_r[1][0].prev = &mgm_data->free_list_r[1][0];
 	mgm_data->free_list_r[1][1].next = mgm_data->free_list_r[1][1].prev = &mgm_data->free_list_r[1][1];
+
+	mgm_data->nr_free_SP_lst = 0;
 
 	nr_rank = mgm_data->nr_rank[0];
 	nr_LP_rank = mgm_data->nr_rank[1];
