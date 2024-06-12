@@ -1282,8 +1282,6 @@ DevmemXIntMapPages(DEVMEMXINT_RESERVATION *psRsrv,
 	                        "mapping offset out of range", PVRSRV_ERROR_DEVICEMEM_OUT_OF_RANGE);
 	PVR_LOG_RETURN_IF_FALSE((uiFlags & ~PVRSRV_MEMALLOCFLAGS_DEVMEMX_VIRTUAL_MASK) == 0,
 	                        "invalid flags", PVRSRV_ERROR_INVALID_FLAGS);
-	PVR_LOG_RETURN_IF_FALSE(!PMR_IsSparse(psPMR),
-		                    "PMR is Sparse, devmemx PMRs should be non-sparse", PVRSRV_ERROR_INVALID_FLAGS);
 
 	if (uiLog2PageSize > PMR_GetLog2Contiguity(psPMR))
 	{
@@ -1553,11 +1551,6 @@ DevmemIntMapPMR2(DEVMEMINT_HEAP *psDevmemHeap,
 
 	psReservation->psMappedPMR = psPMR;
 
-	/* Increase reservation association count so we know if multiple mappings have been created
-	 * on the PMR
-	 */
-	PMRGpuResCountIncr(psPMR);
-
 	OSLockRelease(psReservation->hLock);
 
 	return PVRSRV_OK;
@@ -1715,7 +1708,6 @@ DevmemIntUnmapPMR2(DEVMEMINT_RESERVATION2 *psReservation)
 		PVR_LOG_RETURN_IF_ERROR(eError, "MMU_UnmapPMRFast");
 	}
 
-	PMRGpuResCountDecr(psReservation->psMappedPMR);
 	eError = PMRUnlockSysPhysAddresses(psReservation->psMappedPMR);
 	PVR_ASSERT(eError == PVRSRV_OK);
 
@@ -2071,15 +2063,6 @@ DevmemIntChangeSparse2(DEVMEMINT_HEAP *psDevmemHeap,
 				"%s: Given PMR is not Sparse",
 				__func__));
 		return PVRSRV_ERROR_INVALID_PARAMS;
-	}
-	
-	if (PMR_IsGpuMultiMapped(psPMR))
-	{
-		PVR_DPF((PVR_DBG_ERROR,
-				"%s: This PMR layout cannot be changed - PMR_IsGpuMultiMapped=%c",
-				__func__,
-				PMR_IsGpuMultiMapped(psPMR) ? 'Y' : 'n'));
-		return PVRSRV_ERROR_PMR_NOT_PERMITTED;
 	}
 
 	uiLog2PMRContiguity = PMR_GetLog2Contiguity(psPMR);
