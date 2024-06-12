@@ -58,9 +58,10 @@ mt6991_outs = [
 ]
 
 mt6893_outs = [
-    "mt6893/mali_valhall/mali-r32p1/drivers/gpu/arm/midgard/mali_kbase_mt6893.ko",
-    "mt6893/mali_valhall/mali-r32p1/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6893.ko",
-    "mt6893/mali_valhall/mali-r32p1/drivers/base/arm/memory_group_manager/mali_mgm_mt6893.ko",
+    "mt6893/mali_avalon/mali-r49p1/drivers/base/arm/memory_group_manager/mali_mgm_mt6893_r49.ko",
+    "mt6893/mali_avalon/mali-r49p1/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6893_r49.ko",
+    "mt6893/mali_avalon/mali-r49p1/drivers/base/arm/dma_buf_test_exporter/mali_dmabuf_test_mt6893_r49.ko",
+    "mt6893/mali_avalon/mali-r49p1/drivers/gpu/arm/midgard/mali_kbase_mt6893_r49.ko",
 ]
 
 mt6781_outs = [
