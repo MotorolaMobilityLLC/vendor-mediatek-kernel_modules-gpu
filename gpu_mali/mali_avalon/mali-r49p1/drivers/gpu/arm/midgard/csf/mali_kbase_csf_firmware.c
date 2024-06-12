@@ -2769,6 +2769,7 @@ void kbase_csf_firmware_unload_term(struct kbase_device *kbdev)
 	 * power policy.
 	 */
 	kbdev->pm.backend.mcu_desired = false;
+	kbdev->pm.backend.l2_desired = false;
 	kbase_pm_wait_for_desired_state(kbdev);
 
 	free_global_iface(kbdev);
