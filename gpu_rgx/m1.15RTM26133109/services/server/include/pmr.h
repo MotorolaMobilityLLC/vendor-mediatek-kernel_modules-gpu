@@ -581,25 +581,6 @@ PMRCpuMapCountDecr(PMR *psPMR);
 IMG_BOOL
 PMR_IsCpuMapped(PMR *psPMR);
 
-/*
- * PMRGpuResCountIncr()
- *
- * Increment count of the number of current GPU reservations associated with the PMR.
- */
-void
-PMRGpuResCountIncr(PMR *psPMR);
-
-/*
- * PMRGpuResCountDecr()
- *
- * Decrement count of the number of current GPU reservations associated with the PMR.
- */
-void
-PMRGpuResCountDecr(PMR *psPMR);
-
-IMG_BOOL
-PMR_IsGpuMultiMapped(PMR *psPMR);
-
 PPVRSRV_DEVICE_NODE
 PMR_DeviceNode(const PMR *psPMR);
 
