@@ -31,9 +31,9 @@
 #include <mali_kbase_config_defaults.h>
 #include <mali_kbase_smc.h>
 
-#if IS_ENABLED(CONFIG_MTK_GPUFREQ_V2) && IS_ENABLED(CONFIG_MALI_MTK_MFG2_BACKDOOR)
+#if IS_ENABLED(CONFIG_MTK_GPUFREQ_V2)
 #include <mtk_gpufreq.h>
-#endif /* CONFIG_MTK_GPUFREQ_V2 && CONFIG_MALI_MTK_MFG2_BACKDOOR */
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
 
 #if MALI_USE_CSF
 #include <csf/ipa_control/mali_kbase_csf_ipa_control.h>
@@ -3886,11 +3886,13 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 	u32 reg_offset, reg_val;
 	int ret;
 
-#if IS_ENABLED(CONFIG_MTK_GPUFREQ_V2) && IS_ENABLED(CONFIG_MALI_MTK_MFG2_BACKDOOR)
+#if IS_ENABLED(CONFIG_MTK_GPUFREQ_V2)
+#if IS_ENABLED(CONFIG_MALI_MTK_MFG2_BACKDOOR) || IS_ENABLED(CONFIG_MALI_MTK_HARD_RESET_WA)
 	u64 l2_present = kbdev->gpu_props.curr_config.l2_present;
 	u64 l2_trans = 0, l2_ready = 0;
 	int retry_count = 0;
-#endif /* CONFIG_MTK_GPUFREQ_V2 && CONFIG_MALI_MTK_MFG2_BACKDOOR */
+#endif /* CONFIG_MALI_MTK_MFG2_BACKDOOR || CONFIG_MALI_MTK_HARD_RESET_WA */
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
 
 	KBASE_KTRACE_ADD(kbdev, CORE_GPU_SOFT_RESET, NULL, 0);
 
@@ -3922,10 +3924,10 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 	while (l2_trans) {
 		if (++retry_count == 300) {
 			dev_err(kbdev->dev,
-				"Waiting for L2 transition: 0x%llx timeout when reset\n", l2_trans);
+				"Waiting for L2 transition: 0x%llx timeout before soft reset\n", l2_trans);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-				"Waiting for L2 transition: 0x%llx timeout when reset\n", l2_trans);
+				"Waiting for L2 transition: 0x%llx timeout before soft reset\n", l2_trans);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			break;
 		}
@@ -4026,6 +4028,29 @@ whitebox_directly_hard_reset:
 	if (mtk_common_whitebox_directly_hard_reset_enable())
 		pr_info("[WHITEBOX] directly hard reset enabled, keep going to trigger hard reset");
 #endif /* CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET */
+
+#if IS_ENABLED(CONFIG_MTK_GPUFREQ_V2) && IS_ENABLED(CONFIG_MALI_MTK_HARD_RESET_WA)
+	/* wait until L2 power transition is compelted or 3ms timeout */
+	l2_trans = kbase_pm_get_trans_cores(kbdev, KBASE_PM_CORE_L2);
+	while (l2_trans) {
+		if (++retry_count == 300) {
+			dev_err(kbdev->dev,
+				"Waiting for L2 transition: 0x%llx timeout before hard reset\n", l2_trans);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"Waiting for L2 transition: 0x%llx timeout before hard reset\n", l2_trans);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+			break;
+		}
+		udelay(10);
+		l2_trans = kbase_pm_get_trans_cores(kbdev, KBASE_PM_CORE_L2);
+	}
+
+	l2_ready = kbase_pm_get_ready_cores(kbdev, KBASE_PM_CORE_L2);
+	/* only notify when L2 is power-on */
+	if (!l2_trans && l2_ready == l2_present)
+		gpufreq_set_mfgsys_config(CONFIG_MFG2_BEFORE_OFF, CONFIG_VAL_IGNORE);
+#endif /* CONFIG_MTK_GPUFREQ_V2 && CONFIG_MALI_MTK_HARD_RESET_WA */
 
 	/* The GPU doesn't seem to be responding to the reset so try a hard
 	 * reset, but only when NOT in arbitration mode.
