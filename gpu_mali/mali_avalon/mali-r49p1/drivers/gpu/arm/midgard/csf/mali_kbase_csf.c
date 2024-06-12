@@ -3021,7 +3021,11 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 					 * one pending OoM event for a
 					 * queue.
 					 */
+#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
+					dev_vdbg(
+#else
 					dev_warn(
+#endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 						kbdev->dev,
 						"Tiler OOM work pending: queue %d group %d (ctx %d_%d)",
 						queue->csi_index, group->handle, queue->kctx->tgid,
