@@ -1043,7 +1043,7 @@ static INLINE IMG_DEV_VIRTADDR
 _DevmemXReservationPageAddress(DEVMEMXINT_RESERVATION *psRsrv, IMG_UINT32 uiVirtPageOffset)
 {
 	IMG_DEV_VIRTADDR sAddr = {
-		.uiAddr = psRsrv->sBase.uiAddr + (uiVirtPageOffset << psRsrv->psDevmemHeap->uiLog2PageSize)
+		.uiAddr = psRsrv->sBase.uiAddr + ((IMG_UINT64)uiVirtPageOffset << psRsrv->psDevmemHeap->uiLog2PageSize)
 	};
 
 	return sAddr;
@@ -1275,8 +1275,13 @@ DevmemXIntMapPages(DEVMEMXINT_RESERVATION *psRsrv,
 	IMG_UINT32 uiLog2PageSize = psDevmemHeap->uiLog2PageSize;
 	IMG_UINT32 i;
 
+	/* Test uiPageCount+uiPhysPageOffset will not exceed IMG_UINT32_MAX (and thereby wrap) */
+	PVR_LOG_RETURN_IF_INVALID_PARAM(((IMG_UINT64)uiPageCount + (IMG_UINT64)uiPhysPageOffset) <= (IMG_UINT64)IMG_UINT32_MAX, "uiPageCount+uiPhysPageOffset exceeds IMG_UINT32_MAX");
+	/* Test we do not exceed the PMR's maximum physical extent (in pages) */
 	PVR_LOG_RETURN_IF_INVALID_PARAM((uiPageCount + uiPhysPageOffset) <= uiPMRMaxChunkCount, "uiPageCount+uiPhysPageOffset");
 
+	/* Test uiVirtPageOffset+uiPageCount will not exceed IMG_UINT32_MAX (and thereby wrap) */
+	PVR_LOG_RETURN_IF_INVALID_PARAM(((IMG_UINT64)uiVirtPageOffset + (IMG_UINT64)uiPageCount) <= (IMG_UINT64)IMG_UINT32_MAX, "uiVirtPageOffset+uiPageCount exceeds IMG_UINT32_MAX");
 	/* The range is not valid for the given virtual descriptor */
 	PVR_LOG_RETURN_IF_FALSE((uiVirtPageOffset + uiPageCount) <= _DevmemXReservationPageCount(psRsrv),
 	                        "mapping offset out of range", PVRSRV_ERROR_DEVICEMEM_OUT_OF_RANGE);
@@ -1338,6 +1343,8 @@ DevmemXIntUnmapPages(DEVMEMXINT_RESERVATION *psRsrv,
 	IMG_UINT32 i;
 	PVRSRV_ERROR eError;
 
+	/* Test uiVirtPageOffset+uiPageCount will not exceed IMG_UINT32_MAX (and thereby wrap) */
+	PVR_LOG_RETURN_IF_INVALID_PARAM(((IMG_UINT64)uiVirtPageOffset + (IMG_UINT64)uiPageCount) <= (IMG_UINT64)IMG_UINT32_MAX, "uiVirtPageOffset+uiPageCount exceeds IMG_UINT32_MAX");
 	PVR_LOG_RETURN_IF_FALSE((uiVirtPageOffset + uiPageCount) <= _DevmemXReservationPageCount(psRsrv),
 	                        "mapping offset out of range", PVRSRV_ERROR_DEVICEMEM_OUT_OF_RANGE);
 
