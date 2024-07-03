@@ -6007,6 +6007,18 @@ PVRSRV_ERROR RGXUpdateHealthStatus(PVRSRV_DEVICE_NODE* psDevNode,
 							psRGXFWIfTraceBufCtl->sTraceBuf[ui32ThreadCount].sAssertBuf.ui32LineNum));
 					eNewStatus = PVRSRV_DEVICE_HEALTH_STATUS_DEAD;
 					eNewReason = PVRSRV_DEVICE_HEALTH_REASON_ASSERTED;
+#if defined(MTK_FULL_PORTING)
+					{
+						/* MTK: dump log */
+						static int dump = 0;
+
+						if (dump == 0)
+						{
+							MTKPP_TriggerAEE(0);
+							dump = 1;
+						}
+					}
+#endif /* MTK_FULL_PORTING */
 					PVRSRVPowerUnlock(psDevNode);
 					goto _RGXUpdateHealthStatus_Exit;
 				}

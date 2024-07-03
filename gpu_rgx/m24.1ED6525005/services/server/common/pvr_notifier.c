@@ -572,7 +572,11 @@ PVRSRVDebugRequest(PVRSRV_DEVICE_NODE *psDevNode,
 
 	PVR_DUMPDEBUG_LOG("Time now: %" IMG_UINT64_FMTSPEC "us",
 	                  OSClockus64());
-
+#if defined(MTK_FULL_PORTING)
+	if (!pfnDumpDebugPrintf) {
+		MTKPP_LOGTIME(g_use_id, "Dump Debug Data");
+	}
+#endif /* MTK_FULL_PORTING */
 	switch (psPVRSRVData->eServicesState)
 	{
 		case PVRSRV_SERVICES_STATE_OK:

@@ -66,6 +66,20 @@
 
 #include "kernel_compatibility.h"
 
+#if defined(MTK_FULL_PORTING)
+/* MTK: sync log */
+#include "mtk_pp.h"
+static uint32_t MTKGetCurrentProcessIDKM(void)
+{
+	if (in_interrupt())
+	{
+		return 0;
+	}
+
+	return (uint32_t)task_tgid_nr(current);
+}
+#endif /* MTK_FULL_PORTING */
+
 static inline int sync_fence_get_status(struct sync_fence *psFence)
 {
 	int iStatus = atomic_read(&psFence->status);
@@ -1216,7 +1230,9 @@ static void pvr_sync_foreign_sync_pt_signaled(struct sync_fence *fence,
 					    PVRSRV_FENCE_FLAG_SUPPRESS_HWP_PKT))
 			complete_sync_checkpoint(waiter->kernel->fence_sync,
 						 PVRSRV_FENCE_FLAG_CTX_ATOMIC);
-
+#if defined(MTK_FULL_PORTING)
+		MTKPP_LOG(MTKPP_ID_SYNC, "[%p] sigl tid:%d", fence, MTKGetCurrentProcessIDKM());
+#endif
 		/* We can 'put' the fence now, but this function might be called in
 		 * irq context so we must defer to WQ.
 		 * This WQ is triggered in pvr_sync_defer_free, so adding it to the
@@ -1331,8 +1347,19 @@ pvr_sync_create_waiter_for_foreign_sync(int fd, PSYNC_CHECKPOINT_CONTEXT psSyncC
 			       pvr_sync_foreign_sync_pt_signaled);
 
 	spin_lock_irqsave(&pvr_sync_pt_active_list_spinlock, flags);
+#if defined(MTK_FULL_PORTING)
+	MTKPP_LOG(MTKPP_ID_SYNC, "[%p] wait tid:%d", fence, MTKGetCurrentProcessIDKM());
+#endif
 	err = sync_fence_wait_async(fence, &waiter->waiter);
 	if (err) {
+#if defined(MTK_FULL_PORTING)
+		if (err < 0) {
+			/* Fall-thru */
+			MTKPP_LOG(MTKPP_ID_SYNC, "[%p] error tid: %d err %d", fence, MTKGetCurrentProcessIDKM(), err);
+			pr_err("pvr_sync2: %s: Fence %p was in error state (%d)\n", __func__, fence, err);
+		} else
+			MTKPP_LOG(MTKPP_ID_SYNC, "[%p] sigled tid:%d", fence, MTKGetCurrentProcessIDKM());
+#endif
 		spin_unlock_irqrestore(&pvr_sync_pt_active_list_spinlock, flags);
 		/* -1 means the fence was broken, 1 means the fence already
 		 * signalled. In either case, roll back what we've done and
