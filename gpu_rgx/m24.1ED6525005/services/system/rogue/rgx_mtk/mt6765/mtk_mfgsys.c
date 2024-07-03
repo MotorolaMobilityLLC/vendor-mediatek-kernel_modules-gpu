@@ -593,6 +593,7 @@ static void MTKCalGpuLoading(unsigned int *pui32Loading,
 			(unsigned long)sGpuUtilStats.ui64GpuStatCumulative;
 #endif
 			util_ex->util_active = *pui32Loading;
+			util_ex->delta_time = sGpuUtilStats.ui64GpuStatCumulative * 1000; //unit:ns
 		}
 	}
 }
