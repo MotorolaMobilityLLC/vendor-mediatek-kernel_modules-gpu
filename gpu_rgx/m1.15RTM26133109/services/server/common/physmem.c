@@ -91,6 +91,7 @@ PVRSRV_ERROR DevPhysMemAlloc(PVRSRV_DEVICE_NODE	*psDevNode,
                              const IMG_CHAR *pszSymbolicAddress,
                              IMG_HANDLE *phHandlePtr,
 #endif
+                             IMG_PID uiPid,
                              IMG_HANDLE hMemHandle,
                              IMG_DEV_PHYADDR *psDevPhysAddr)
 {
@@ -105,14 +106,8 @@ PVRSRV_ERROR DevPhysMemAlloc(PVRSRV_DEVICE_NODE	*psDevNode,
 	PG_HANDLE *psMemHandle;
 	IMG_UINT64 uiMask;
 	IMG_DEV_PHYADDR sDevPhysAddr_int;
-	IMG_PID uiPid = 0;
 
 	psMemHandle = hMemHandle;
-
-#if defined(PVRSRV_ENABLE_PROCESS_STATS)
-	uiPid = psDevNode->eDevState == PVRSRV_DEVICE_STATE_INIT ?
-	        PVR_SYS_ALLOC_PID : OSGetCurrentClientProcessIDKM();
-#endif
 
 	/* Allocate the pages */
 	eError = psDevNode->sDevMMUPxSetup.pfnDevPxAlloc(psDevNode,
