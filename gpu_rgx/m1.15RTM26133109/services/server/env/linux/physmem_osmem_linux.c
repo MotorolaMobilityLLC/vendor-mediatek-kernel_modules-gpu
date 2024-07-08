@@ -184,6 +184,8 @@ typedef struct _PMR_OSPAGEARRAY_DATA_ {
 #define FLAG_IS_CMA            (5U)
 #define FLAG_UNSET_MEMORY_TYPE (6U)
 
+#define FLAG_IS_ZOMBIE         (7U)
+
 	/*
 	 * Allocation flags related to the pages:
 	 * Zero              - Should we Zero memory on alloc
@@ -193,6 +195,7 @@ typedef struct _PMR_OSPAGEARRAY_DATA_ {
 	 * Unpinned          - Should be protected by page pool lock
 	 * CMA               - Is CMA memory allocated via DMA framework
 	 * Unset Memory Type - Upon free do we need to revert the cache type before return to OS
+	 * Zombie            - Pages are part of a zombie PMR
 	 * */
 	IMG_UINT32 ui32AllocFlags;
 
@@ -1135,11 +1138,12 @@ eExit:
  * Handles locking and checks whether the pages are
  * suitable to be stored in the pool. */
 static inline IMG_BOOL
-_PutPagesToPoolLocked(IMG_UINT32 ui32CPUCacheFlags,
-					  struct page **ppsPageArray,
+_PutPagesToPoolLocked(PVRSRV_DEVICE_NODE *psDevNode,
+                      IMG_UINT32 ui32CPUCacheFlags,
+                      struct page **ppsPageArray,
 					  IMG_BOOL bUnpinned,
-					  IMG_UINT32 uiOrder,
-					  IMG_UINT32 uiNumPages)
+                      IMG_UINT32 uiOrder,
+                      IMG_UINT32 uiNumPages)
 {
 	LinuxCleanupData *psCleanupData;
 	PVRSRV_CLEANUP_THREAD_WORK *psCleanupThreadFn;
@@ -1217,6 +1221,7 @@ _PutPagesToPoolLocked(IMG_UINT32 ui32CPUCacheFlags,
 				psCleanupThreadFn->pfnFree = _CleanupThread_CleanPages;
 				psCleanupThreadFn->pvData = psCleanupData;
 				psCleanupThreadFn->bDependsOnHW = IMG_FALSE;
+				psCleanupThreadFn->psDevNode = psDevNode;
 				CLEANUP_THREAD_SET_RETRY_COUNT(psCleanupThreadFn,
 				                               CLEANUP_THREAD_RETRY_COUNT_DEFAULT);
 
@@ -1234,15 +1239,12 @@ _PutPagesToPoolLocked(IMG_UINT32 ui32CPUCacheFlags,
 				 * free pooled pages directly when unloading the driver	 */
 				_PagePoolUnlock();
 
-				PVRSRVCleanupThreadAddWork(psCleanupThreadFn);
-
-
+				PVRSRVCleanupThreadAddWork(psDevNode, psCleanupThreadFn);
 			}
 			else
 			{
 				goto eDecrement;
 			}
-
 		}
 		else
 		{
@@ -1830,7 +1832,7 @@ _AllocOSPage(PMR_OSPAGEARRAY_DATA *psPageArrayData,
 #if defined(PVRSRV_ENABLE_MEMORY_STATS)
 
 static inline void _AddMemAllocRecord_UmaPages(PMR_OSPAGEARRAY_DATA *psPageArrayData,
-                                               struct page *psPage)
+                                               const struct page *psPage)
 {
 	IMG_CPU_PHYADDR sCPUPhysAddr = { page_to_phys(psPage) };
 	PVRSRVStatsAddMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE_ALLOC_UMA_PAGES,
@@ -1841,12 +1843,37 @@ static inline void _AddMemAllocRecord_UmaPages(PMR_OSPAGEARRAY_DATA *psPageArray
 }
 
 static inline void _RemoveMemAllocRecord_UmaPages(PMR_OSPAGEARRAY_DATA *psPageArrayData,
-                                                  struct page *psPage)
+                                                  const struct page *psPage)
 {
-	PVRSRVStatsRemoveMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE_ALLOC_UMA_PAGES,
-	                                (IMG_UINT64) page_to_phys(psPage),
+#if defined(SUPPORT_PMR_DEFERRED_FREE)
+	IMG_UINT32 uiStat = BIT_ISSET(psPageArrayData->ui32AllocFlags, FLAG_IS_ZOMBIE)
+		? PVRSRV_MEM_ALLOC_TYPE_ZOMBIE_UMA_PAGES
+		: PVRSRV_MEM_ALLOC_TYPE_ALLOC_UMA_PAGES;
+#else
+	IMG_UINT32 uiStat = PVRSRV_MEM_ALLOC_TYPE_ALLOC_UMA_PAGES;
+#endif
+
+	PVRSRVStatsRemoveMemAllocRecord(uiStat, (IMG_UINT64) page_to_phys(psPage),
 	                                psPageArrayData->uiPid);
 }
+
+#if defined(SUPPORT_PMR_DEFERRED_FREE)
+static inline void _AddMemZombieRecord_UmaPages(PMR_OSPAGEARRAY_DATA *psPageArrayData,
+                                                const struct page *psPage)
+{
+	IMG_CPU_PHYADDR sCPUPhysAddr = { page_to_phys(psPage) };
+
+	PVRSRVStatsRemoveMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE_ALLOC_UMA_PAGES,
+	                                (IMG_UINT64) sCPUPhysAddr.uiAddr,
+	                                psPageArrayData->uiPid);
+	PVRSRVStatsAddMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE_ZOMBIE_UMA_PAGES,
+	                             NULL, sCPUPhysAddr,
+	                             1 << psPageArrayData->uiLog2AllocPageSize,
+	                             NULL,
+	                             psPageArrayData->uiPid
+	                             DEBUG_MEMSTATS_VALUES);
+}
+#endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
 
 #else /* defined(PVRSRV_ENABLE_MEMORY_STATS) */
 
@@ -1856,11 +1883,29 @@ static inline void _IncrMemAllocStat_UmaPages(size_t uiSize, IMG_PID uiPid)
 	                            uiSize, uiPid);
 }
 
-static inline void _DecrMemAllocStat_UmaPages(size_t uiSize, IMG_PID uiPid)
+static inline void _DecrMemAllocStat_UmaPages(PMR_OSPAGEARRAY_DATA *psPageArrayData,
+                                              size_t uiSize, IMG_PID uiPid)
+{
+	IMG_UINT32 uiStat = PVRSRV_MEM_ALLOC_TYPE_ALLOC_UMA_PAGES;
+#if defined(SUPPORT_PMR_DEFERRED_FREE)
+	if (BIT_ISSET(psPageArrayData->ui32AllocFlags, FLAG_IS_ZOMBIE))
+	{
+		uiStat = PVRSRV_MEM_ALLOC_TYPE_ZOMBIE_UMA_PAGES;
+	}
+#endif
+
+	PVRSRVStatsDecrMemAllocStat(uiStat, uiSize, uiPid);
+}
+
+#if defined(SUPPORT_PMR_DEFERRED_FREE)
+static inline void _ZombifyMemAllocStat_UmaPages(size_t uiSize, IMG_PID uiPid)
 {
 	PVRSRVStatsDecrMemAllocStat(PVRSRV_MEM_ALLOC_TYPE_ALLOC_UMA_PAGES,
 	                            uiSize, uiPid);
+	PVRSRVStatsIncrMemAllocStat(PVRSRV_MEM_ALLOC_TYPE_ZOMBIE_UMA_PAGES,
+	                            uiSize, uiPid);
 }
+#endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
 
 #endif /* defined(PVRSRV_ENABLE_MEMORY_STATS) */
 #endif /* defined(PVRSRV_ENABLE_PROCESS_STATS) */
@@ -2732,11 +2777,12 @@ _FreeOSPages_Sparse(PMR_OSPAGEARRAY_DATA *psPageArrayData,
 		}
 
 		/* Try to move the temp page array to the pool */
-		bSuccess = _PutPagesToPoolLocked(psPageArrayData->ui32CPUCacheFlags,
-										 ppsTempPageArray,
+		bSuccess = _PutPagesToPoolLocked(psPageArrayData->psDevNode,
+		                                 psPageArrayData->ui32CPUCacheFlags,
+		                                 ppsTempPageArray,
 										 BIT_ISSET(psPageArrayData->ui32AllocFlags, FLAG_UNPINNED),
-										 0,
-										 uiTempIdx);
+		                                 0,
+		                                 uiTempIdx);
 		if (bSuccess)
 		{
 			goto exit_ok;
@@ -2769,7 +2815,8 @@ _FreeOSPages_Sparse(PMR_OSPAGEARRAY_DATA *psPageArrayData,
 exit_ok:
 
 #if defined(PVRSRV_ENABLE_PROCESS_STATS) && !defined(PVRSRV_ENABLE_MEMORY_STATS)
-	_DecrMemAllocStat_UmaPages(((uiTempIdx * PAGE_SIZE)-(psPageArrayData->ui32CMAAdjustedPageCount)),
+	_DecrMemAllocStat_UmaPages(psPageArrayData,
+	                           ((uiTempIdx * PAGE_SIZE)-(psPageArrayData->ui32CMAAdjustedPageCount)),
 	                           psPageArrayData->uiPid);
 #endif
 
@@ -2806,13 +2853,14 @@ _FreeOSPages_Fast(PMR_OSPAGEARRAY_DATA *psPageArrayData)
 		if (BIT_ISSET(psPageArrayData->ui32AllocFlags, FLAG_IS_CMA))
 		{
 			_RemoveMemAllocRecord_UmaPages(psPageArrayData, ppsPageArray[i]);
-		}else
+		}
+		else
 		{
 			_RemoveMemAllocRecord_UmaPages(psPageArrayData, ppsPageArray[i << uiOrder]);
 		}
 	}
 #else
-	_DecrMemAllocStat_UmaPages(((uiNumPages * PAGE_SIZE)-(psPageArrayData->ui32CMAAdjustedPageCount)),
+	_DecrMemAllocStat_UmaPages(psPageArrayData, uiNumPages * PAGE_SIZE - psPageArrayData->ui32CMAAdjustedPageCount,
 	                           psPageArrayData->uiPid);
 #endif
 #endif
@@ -2830,11 +2878,12 @@ _FreeOSPages_Fast(PMR_OSPAGEARRAY_DATA *psPageArrayData)
 	}
 
 	/* Try to move the page array to the pool */
-	bSuccess = _PutPagesToPoolLocked(psPageArrayData->ui32CPUCacheFlags,
-									 ppsPageArray,
+	bSuccess = _PutPagesToPoolLocked(psPageArrayData->psDevNode,
+	                                 psPageArrayData->ui32CPUCacheFlags,
+	                                 ppsPageArray,
 									 BIT_ISSET(psPageArrayData->ui32AllocFlags, FLAG_UNPINNED),
-									 uiOrder,
-									 uiNumPages);
+	                                 uiOrder,
+	                                 uiNumPages);
 	if (bSuccess)
 	{
 		psPageArrayData->pagearray = NULL;
@@ -2972,6 +3021,102 @@ PMRFinalizeOSMem(PMR_IMPL_PRIVDATA pvPriv)
 	PVR_ASSERT(eError == PVRSRV_OK); /* can we do better? */
 	return PVRSRV_OK;
 }
+
+#if defined(SUPPORT_PMR_DEFERRED_FREE)
+static PVRSRV_ERROR PMRZombifyOSMem(PMR_IMPL_PRIVDATA pvPriv, PMR *psPMR)
+{
+#if defined(PVRSRV_ENABLE_PROCESS_STATS)
+	PMR_OSPAGEARRAY_DATA *psPageArrayData = pvPriv;
+	IMG_UINT32 uiNumPages = psPageArrayData->uiTotalNumOSPages;
+	const IMG_UINT32 uiFlags = psPageArrayData->ui32AllocFlags;
+
+	BIT_SET(psPageArrayData->ui32AllocFlags, FLAG_IS_ZOMBIE);
+
+	/* no need to check for free indices as it's always all the memory we're
+	 * freeing */
+	if (psPageArrayData->iNumOSPagesAllocated != psPageArrayData->uiTotalNumOSPages)
+	{
+		/* _FreeOSPages_Sparse() path */
+
+		struct page *const *const ppsPageArray = psPageArrayData->pagearray;
+
+#if defined(PVRSRV_ENABLE_MEMORY_STATS)
+		IMG_UINT32 i;
+
+		for (i = 0; i < uiNumPages; i++)
+		{
+			if (ppsPageArray[i] != NULL)
+			{
+				_AddMemZombieRecord_UmaPages(psPageArrayData, ppsPageArray[i]);
+			}
+		}
+#else /* defined(PVRSRV_ENABLE_MEMORY_STATS) */
+		const IMG_UINT32 uiOrder = psPageArrayData->uiLog2AllocPageSize - PAGE_SHIFT;
+		IMG_UINT32 i, j, uiAllocatedNumPages = 0;
+
+		uiNumPages >>= uiOrder;
+
+		if (BIT_ISSET(uiFlags, FLAG_IS_CMA))
+		{
+			for (i = 0; i < uiNumPages; i++)
+			{
+				if (ppsPageArray[i] != NULL)
+				{
+					uiAllocatedNumPages++;
+				}
+			}
+			uiAllocatedNumPages <<= uiOrder;
+		}
+		else
+		{
+			for (i = 0; i < uiNumPages; i++)
+			{
+				if (ppsPageArray[i] != NULL)
+				{
+					for (j = 0; j < (1<<uiOrder); j++)
+					{
+						uiAllocatedNumPages++;
+					}
+				}
+			}
+		}
+
+		_ZombifyMemAllocStat_UmaPages(
+		    uiAllocatedNumPages * PAGE_SIZE - psPageArrayData->ui32CMAAdjustedPageCount,
+		    psPageArrayData->uiPid
+		);
+#endif /* defined(PVRSRV_ENABLE_MEMORY_STATS) */
+	}
+	else
+	{
+		/* _FreeOSPages_Fast() path */
+
+#if defined(PVRSRV_ENABLE_MEMORY_STATS)
+		struct page *const *const ppsPageArray = psPageArrayData->pagearray;
+		const IMG_UINT32 uiOrder = psPageArrayData->uiLog2AllocPageSize - PAGE_SHIFT;
+		IMG_UINT32 i;
+
+		for (i = 0; i < uiNumPages; i++)
+		{
+			IMG_UINT32 uiIdx = BIT_ISSET(uiFlags, FLAG_IS_CMA) ? i : i << uiOrder;
+			_AddMemZombieRecord_UmaPages(psPageArrayData, ppsPageArray[uiIdx]);
+		}
+#else /* defined(PVRSRV_ENABLE_MEMORY_STATS) */
+		_ZombifyMemAllocStat_UmaPages(
+		    uiNumPages * PAGE_SIZE - psPageArrayData->ui32CMAAdjustedPageCount,
+		    psPageArrayData->uiPid
+		);
+#endif /* defined(PVRSRV_ENABLE_MEMORY_STATS) */
+	}
+#else /* defined(PVRSRV_ENABLE_PROCESS_STATS) */
+#endif /* defined(PVRSRV_ENABLE_PROCESS_STATS) */
+
+	PVR_UNREFERENCED_PARAMETER(pvPriv);
+	PVR_UNREFERENCED_PARAMETER(psPMR);
+
+	return PVRSRV_OK;
+}
+#endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
 
 /* Callback function for locking the system physical page addresses.
  * This function must be called before the lookup address func. */
@@ -3654,6 +3799,9 @@ static PMR_IMPL_FUNCTAB _sPMROSPFuncTab = {
 	.pfnChangeSparseMem = &PMRChangeSparseMemOSMem,
 	.pfnChangeSparseMemCPUMap = &PMRChangeSparseMemCPUMapOSMem,
 	.pfnFinalize = &PMRFinalizeOSMem,
+#if defined(SUPPORT_PMR_DEFERRED_FREE)
+	.pfnZombify = &PMRZombifyOSMem,
+#endif
 };
 
 /* Wrapper around OS page allocation. */
