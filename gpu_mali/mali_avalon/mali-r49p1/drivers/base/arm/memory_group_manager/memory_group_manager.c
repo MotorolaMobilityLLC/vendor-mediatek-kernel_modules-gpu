@@ -1186,9 +1186,6 @@ static int example_mgm_get_import_memory_id(struct memory_group_manager_device *
 	if(gid == slbc_gid_val(ID_GPU)){
 		group_id = GPU_ONLY_PBHA;
 	}
-	else if(gid == slbc_gid_val(ID_GPU_W)){
-		group_id = GPU_TO_OVL_PBHA;
-	}
 	return group_id;
 #endif
 

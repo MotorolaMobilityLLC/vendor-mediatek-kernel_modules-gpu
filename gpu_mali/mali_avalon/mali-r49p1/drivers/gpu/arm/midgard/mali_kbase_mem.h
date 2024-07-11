@@ -44,11 +44,6 @@
 #include <linux/sched/mm.h>
 #include <linux/kref.h>
 
-#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
-#include <slbc_ops.h>
-#include <linux/memory_group_manager.h>
-#endif
-
 static inline void kbase_process_page_usage_inc(struct kbase_context *kctx, int pages);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
