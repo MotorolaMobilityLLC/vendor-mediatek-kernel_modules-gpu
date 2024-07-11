@@ -267,10 +267,6 @@ static bool gpu_metrics_read_event(struct kbase_device *kbdev, struct kbase_cont
 #if IS_ENABLED(CONFIG_MALI_MTK_CSG_ERROR_HANDLING)
 			dev_err(kbdev->dev, "TB invalid CSG slot(%u) (%u) (%lu)", slot, kbdev->csf.scheduler.state, GPU_METRICS_EVENT_SIZE);
 			mtk_kbase_csf_firmware_dump_gpu_event(kbdev, tb);
-			WARN_ON(1);
-#if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
-			aee_kernel_warning("GPU_LOG", "\nRead Event");
-#endif /* CONFIG_MTK_AEE_FEATURE */
 #endif /* CONFIG_MALI_MTK_CSG_ERROR_HANDLING */
 			return false;
 		}
