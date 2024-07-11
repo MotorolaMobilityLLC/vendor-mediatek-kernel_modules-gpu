@@ -6912,7 +6912,7 @@ static void check_sync_update_in_sleep_mode(struct kbase_device *kbdev)
 		is_mcu_need_sleep = !kbdev->pm.backend.exit_gpu_sleep_mode &&
 			!kbdev->csf.scheduler.pm_active_count;
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-		if (kbdev->pm.backend.mcu_state != KBASE_MCU_IN_SLEEP) {
+		if (!kbase_csf_firmware_mcu_halted(kbdev)) {
 			if (is_mcu_need_sleep) {
 				dev_err(kbdev->dev, "FW is not ready during sync update! (%d)", kbdev->pm.backend.mcu_state);
 			}
