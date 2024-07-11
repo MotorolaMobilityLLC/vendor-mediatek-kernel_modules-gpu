@@ -349,7 +349,7 @@ static unsigned long kbase_csf_tiler_heap_reclaim_scan_objects(struct shrinker *
 #if IS_ENABLED(CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM)
 void mtk_force_reclaim(struct kbase_device *kbdev)
 {
-	struct shrink_control sc;
+	struct shrink_control sc = {0};
 	pr_info("[KBASE][+++] Directly trigger tiler heap reclaim\n");
 	kbase_csf_tiler_heap_reclaim_scan_free_pages(kbdev, &sc);
 	pr_info("[KBASE][---] Directly trigger tiler heap reclaim\n");

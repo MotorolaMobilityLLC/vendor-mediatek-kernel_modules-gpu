@@ -2397,7 +2397,7 @@ static int mmu_insert_pages_no_flush(struct kbase_device *kbdev, struct kbase_mm
 	mutex_lock(&mmut->mmu_lock);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
-	if(kbdev->mmu_dbg_config_value != MMU_DBG_CFG_LOG_DIS) {
+	if(kbdev->mmu_dbg_config_value != MMU_DBG_CFG_LOG_DIS && phys) {
 		dev_err(kbdev->dev, "[MMU][map] va 0x%llx, phys 0x%llx, flag 0x%lx, nr 0x%lx, ctx %d_%d, as %d\n",
 			start_vpfn, as_phys_addr_t(phys[0]), flags, nr,
 			mmut->kctx ? mmut->kctx->tgid : 0,
@@ -3207,7 +3207,7 @@ static int mmu_teardown_pages(struct kbase_device *kbdev, struct kbase_mmu_table
 
 	mutex_lock(&mmut->mmu_lock);
 #if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
-	if(kbdev->mmu_dbg_config_value != MMU_DBG_CFG_LOG_DIS) {
+	if(kbdev->mmu_dbg_config_value != MMU_DBG_CFG_LOG_DIS && phys) {
 		dev_err(kbdev->dev, "[MMU][unmap] va 0x%llx, phys 0x%llx, nr 0x%lx, ctx %d_%d, as %d\n",
 			start_vpfn, as_phys_addr_t(phys[0]), nr_phys_pages,
 			mmut->kctx ? mmut->kctx->tgid : 0,
