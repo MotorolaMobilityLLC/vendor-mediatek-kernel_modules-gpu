@@ -144,7 +144,7 @@ static int pm_callback_power_on_nolock(struct kbase_device *kbdev)
 
 	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_4);
 
-	return 0;
+	return 2;
 }
 
 static void pm_callback_power_off_nolock(struct kbase_device *kbdev)
