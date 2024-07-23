@@ -3624,17 +3624,11 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 
 				/* Handle IDLE Hysteresis notification event */
 				if ((glb_req ^ glb_ack) & GLB_REQ_IDLE_EVENT_MASK) {
-					u32 const glb_idle_timer_cfg =
-						kbase_csf_firmware_global_input_read(
-							global_iface, GLB_IDLE_TIMER_CONFIG);
-
 					dev_dbg(kbdev->dev, "Idle-hysteresis event flagged");
 					kbase_csf_firmware_global_input_mask(
 						global_iface, GLB_REQ, glb_ack,
 						GLB_REQ_IDLE_EVENT_MASK);
-
-					if (glb_idle_timer_cfg &
-					    GLB_IDLE_TIMER_CONFIG_SLEEP_ON_IDLE_MASK) {
+					if (atomic_read(&kbdev->csf.scheduler.fw_soi_enabled)) {
 						/* The FW is going to sleep, we shall:
 						 * - Enable fast GPU idle handling to avoid
 						 *   confirming CSGs status in gpu_idle_worker().

@@ -1819,12 +1819,12 @@ static inline void set_gpu_idle_timer_glb_req(struct kbase_device *const kbdev, 
 	}
 
 	atomic_set(&kbdev->csf.scheduler.gpu_idle_timer_enabled, set);
+	KBASE_KTRACE_ADD(kbdev, CSF_FIRMWARE_GLB_IDLE_TIMER_CHANGED, NULL, set);
 }
 
 static void enable_gpu_idle_timer(struct kbase_device *const kbdev)
 {
 	struct kbase_csf_global_iface *global_iface = &kbdev->csf.global_iface;
-	bool const fw_soi_allowed = kbase_pm_fw_sleep_on_idle_allowed(kbdev);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
 	u32 glb_req, glb_ack;
@@ -1848,13 +1848,8 @@ static void enable_gpu_idle_timer(struct kbase_device *const kbdev)
 					     kbdev->csf.gpu_idle_dur_count_no_modifier
 						     << GLB_IDLE_TIMER_CONFIG_NO_MODIFIER_SHIFT,
 					     GLB_IDLE_TIMER_CONFIG_NO_MODIFIER_MASK);
-	kbase_csf_firmware_global_input_mask(global_iface, GLB_IDLE_TIMER_CONFIG,
-					     fw_soi_allowed
-						     << GLB_IDLE_TIMER_CONFIG_SLEEP_ON_IDLE_SHIFT,
-					     GLB_IDLE_TIMER_CONFIG_SLEEP_ON_IDLE_MASK);
 
 	set_gpu_idle_timer_glb_req(kbdev, true);
-	atomic_set(&kbdev->csf.scheduler.fw_soi_enabled, fw_soi_allowed);
 	dev_dbg(kbdev->dev, "Enabling GPU idle timer with count-value: 0x%.8x",
 		kbdev->csf.gpu_idle_dur_count);
 }
@@ -2040,15 +2035,15 @@ static void kbasep_enable_rtu(struct kbase_device *kbdev)
 
 static void global_init(struct kbase_device *const kbdev, u64 core_mask)
 {
+	struct kbase_csf_global_iface *global_iface = &kbdev->csf.global_iface;
 	u32 ack_irq_mask =
 		GLB_ACK_IRQ_MASK_CFG_ALLOC_EN_MASK | GLB_ACK_IRQ_MASK_PING_MASK |
 		GLB_ACK_IRQ_MASK_CFG_PROGRESS_TIMER_MASK | GLB_ACK_IRQ_MASK_PROTM_ENTER_MASK |
 		GLB_ACK_IRQ_MASK_PROTM_EXIT_MASK | GLB_ACK_IRQ_MASK_FIRMWARE_CONFIG_UPDATE_MASK |
 		GLB_ACK_IRQ_MASK_CFG_PWROFF_TIMER_MASK | GLB_ACK_IRQ_MASK_IDLE_EVENT_MASK |
 		GLB_REQ_DEBUG_CSF_REQ_MASK | GLB_ACK_IRQ_MASK_IDLE_ENABLE_MASK |
-		GLB_ACK_IRQ_MASK_ITER_TRACE_ENABLE_MASK | GLB_ACK_IRQ_MASK_CFG_EVICTION_TIMER_MASK;
-
-	const struct kbase_csf_global_iface *const global_iface = &kbdev->csf.global_iface;
+		GLB_ACK_IRQ_MASK_CFG_EVICTION_TIMER_MASK | GLB_ACK_IRQ_MASK_ITER_TRACE_ENABLE_MASK;
+	bool const fw_soi_allowed = kbase_pm_fw_sleep_on_idle_allowed(kbdev);
 	unsigned long flags;
 
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
@@ -2060,6 +2055,23 @@ static void global_init(struct kbase_device *const kbdev, u64 core_mask)
 	set_shader_poweroff_timer(kbdev, global_iface);
 
 	set_timeout_global(global_iface, kbase_csf_timeout_get(kbdev));
+
+	/* Update the FW Sleep-on-Idle config. This will take effect when the
+	 * GLB_IDLE timer is enabled at a later point.
+	 * Whilst the GLB_IDLE timer could be disabled/enabled multiple times
+	 * during the normal course of operation, this is the only place where
+	 * SoI config is updated for simplicity. This is to ensure that SoI
+	 * config cannot change (and so will FW's expected behaviour) so that
+	 * the top-half, bottom-half of GPU idle event handling & the MCU SM
+	 * gets the same view of the config.
+	 */
+	kbase_csf_firmware_global_input_mask(global_iface, GLB_IDLE_TIMER_CONFIG,
+					     fw_soi_allowed
+						     << GLB_IDLE_TIMER_CONFIG_SLEEP_ON_IDLE_SHIFT,
+					     GLB_IDLE_TIMER_CONFIG_SLEEP_ON_IDLE_MASK);
+	atomic_set(&kbdev->csf.scheduler.fw_soi_enabled, fw_soi_allowed);
+	dev_dbg(kbdev->dev, "FW Sleep-on-Idle was %s", fw_soi_allowed ? "enabled" : "disabled");
+	KBASE_KTRACE_ADD(kbdev, CSF_FIRMWARE_SLEEP_ON_IDLE_CHANGED, NULL, fw_soi_allowed);
 
 	/* The csg suspend timeout is always enabled so customer has the flexibility to update it
 	 * at any time.
@@ -2388,17 +2400,11 @@ u32 kbase_csf_firmware_set_gpu_idle_hysteresis_time(struct kbase_device *kbdev, 
 		return kbdev->csf.gpu_idle_dur_count;
 	}
 
-	/* The scheduler lock is also taken and is held till the update is not
+	/* The scheduler lock is also taken and is held till the update is
 	 * complete, to ensure the update of idle timer value by multiple Users
 	 * gets serialized.
 	 */
 	kbase_csf_scheduler_lock(kbdev);
-	while (atomic_read(&kbdev->csf.scheduler.pending_gpu_idle_work) > 0) {
-		kbase_csf_scheduler_unlock(kbdev);
-		kbase_csf_scheduler_wait_for_kthread_pending_work(
-			kbdev, &kbdev->csf.scheduler.pending_gpu_idle_work);
-		kbase_csf_scheduler_lock(kbdev);
-	}
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 
 	kbdev->csf.gpu_idle_hysteresis_ns = dur_ns;
@@ -3115,7 +3121,6 @@ void kbase_csf_firmware_disable_gpu_idle_timer(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
 	set_gpu_idle_timer_glb_req(kbdev, false);
-	atomic_set(&kbdev->csf.scheduler.fw_soi_enabled, false);
 	dev_dbg(kbdev->dev, "Sending request to disable gpu idle timer");
 
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
@@ -3292,19 +3297,13 @@ bool kbase_csf_firmware_is_mcu_in_sleep(struct kbase_device *kbdev)
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
-
 	db_notif_disabled = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_CONTROL)) &
 			    MCU_CNTRL_DOORBELL_DISABLE_MASK;
-
 	if (!db_notif_disabled || !kbase_csf_firmware_mcu_halted(kbdev))
 		return false;
 
-	if (global_request_complete(kbdev, GLB_REQ_SLEEP_MASK))
-		return true;
 
-	kbase_pm_enable_mcu_db_notification(kbdev);
-	dev_dbg(kbdev->dev, "Enabled DB notification");
-	return false;
+	return global_request_complete(kbdev, GLB_REQ_SLEEP_MASK);
 }
 #endif
 
@@ -3576,38 +3575,69 @@ void kbase_csf_firmware_mcu_shared_mapping_term(struct kbase_device *kbdev,
 void kbase_csf_firmware_soi_update(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
-	unsigned long flags;
+	bool const soi_allowed = kbase_pm_fw_sleep_on_idle_allowed(kbdev);
 
-	/* There are 3 possibilities:
-	 * - Sleep-on-Idle allowed
-	 * - Sleep-on-Idle not allowed, GLB_IDLE timer disabled
-	 * - Sleep-on-Idle not allowed, GLB_IDLE timer enabled
+	if (likely(!(soi_allowed ^ atomic_read(&kbdev->csf.scheduler.fw_soi_enabled))))
+		return;
+
+	if (likely(!soi_allowed && !atomic_read(&kbdev->csf.scheduler.gpu_idle_timer_enabled)))
+		return;
+
+	kbase_csf_scheduler_lock(kbdev);
+
+	if (unlikely(scheduler->pm_active_count > 1))
+		goto out_unlock_scheduler_lock;
+
+	if ((scheduler->state == SCHED_SUSPENDED) || (scheduler->state == SCHED_SLEEPING))
+		goto out_unlock_scheduler_lock;
+
+	if (kbase_csf_scheduler_protected_mode_in_use(kbdev))
+		goto out_unlock_scheduler_lock;
+
+	/* Force the scheduler to suspend to allow the SoI config to be
+	 * updated safely without racing with any ongoing or future GPU idle
+	 * events.
 	 */
-	if (kbase_pm_fw_sleep_on_idle_allowed(kbdev)) {
-		if (likely(atomic_read(&kbdev->csf.scheduler.fw_soi_enabled)))
-			return;
-	} else {
-		if (test_bit(KBASE_GPU_NON_IDLE_OFF_SLOT_GROUPS_AVAILABLE,
-			     &kbdev->pm.backend.gpu_sleep_allowed)) {
-			if (likely(!atomic_read(&kbdev->csf.scheduler.gpu_idle_timer_enabled)))
-				return;
-		} else if (likely(atomic_read(&kbdev->csf.scheduler.gpu_idle_timer_enabled))) {
-			return;
-		}
+	if (kbase_csf_scheduler_pm_suspend_no_lock(kbdev)) {
+		dev_warn(
+			kbdev->dev,
+			"Failed to suspend the scheduler, FW Sleep-on-Idle config remains unchanged");
+		goto out_unlock_scheduler_lock;
 	}
+	if (kbase_pm_wait_for_desired_state(kbdev))
+		dev_err(kbdev->dev,
+			"Scheduler suspension timed out, going to try resumption regardless");
+	kbase_csf_scheduler_pm_resume_no_lock(kbdev);
+
+out_unlock_scheduler_lock:
+	kbase_csf_scheduler_unlock(kbdev);
+}
+
+void kbase_csf_firmware_glb_idle_timer_update(struct kbase_device *kbdev)
+{
+	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
+	unsigned long flags;
+	enum kbase_mcu_state mcu_state;
+
+	if (likely(atomic_read(&scheduler->non_idle_offslot_grps) ^
+		   atomic_read(&scheduler->gpu_idle_timer_enabled)))
+		return;
 
 	if (kbase_reset_gpu_try_prevent(kbdev))
 		return;
 
 	kbase_csf_scheduler_lock(kbdev);
 
-	if (atomic_read(&scheduler->pending_gpu_idle_work) > 0)
-		goto out_unlock_scheduler_lock;
-
 	if ((scheduler->state == SCHED_SUSPENDED) || (scheduler->state == SCHED_SLEEPING))
 		goto out_unlock_scheduler_lock;
 
-	if (kbdev->pm.backend.mcu_state != KBASE_MCU_ON)
+	if (kbase_csf_scheduler_protected_mode_in_use(kbdev))
+		goto out_unlock_scheduler_lock;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	mcu_state = kbdev->pm.backend.mcu_state;
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+	if (mcu_state != KBASE_MCU_ON)
 		goto out_unlock_scheduler_lock;
 
 	/* Ensure that an existing DISABLE request is completed before
@@ -3615,49 +3645,24 @@ void kbase_csf_firmware_soi_update(struct kbase_device *kbdev)
 	 * as when enabling the MCU.
 	 */
 	if (wait_for_global_request(kbdev, GLB_REQ_IDLE_DISABLE_MASK)) {
-		dev_err(kbdev->dev,
+		dev_warn(
+			kbdev->dev,
 			"Existing GLB_IDLE timer config change failed to complete in time (gpu_sleep_allowed:%lx)",
 			kbdev->pm.backend.gpu_sleep_allowed);
 		goto out_unlock_scheduler_lock;
 	}
 
-	/* Disable the GLB IDLE timer if it's currently enabled */
-	if (atomic_read(&kbdev->csf.scheduler.gpu_idle_timer_enabled)) {
-		kbase_csf_scheduler_spin_lock(kbdev, &flags);
-		kbase_csf_firmware_disable_gpu_idle_timer(kbdev);
-		kbase_csf_scheduler_spin_unlock(kbdev, flags);
-		if (wait_for_global_request(kbdev, GLB_REQ_IDLE_DISABLE_MASK)) {
-			dev_err(kbdev->dev,
-				"Failed to disable GLB_IDLE timer following FW Sleep-on-Idle config change (gpu_sleep_allowed:%lx)",
-				kbdev->pm.backend.gpu_sleep_allowed);
-			goto out_unlock_scheduler_lock;
-		}
-	}
-
-	/* The GLB IDLE timer and, consequently, FW Sleep-on-Idle could remain
-	 * disabled in certain cases. Otherwise, we shall re-enable GLB IDLE
-	 * timer with the new FW Sleep-on-Idle configuration.
-	 */
-	if (!test_bit(KBASE_GPU_NON_IDLE_OFF_SLOT_GROUPS_AVAILABLE,
-		      &kbdev->pm.backend.gpu_sleep_allowed)) {
-		kbase_csf_scheduler_spin_lock(kbdev, &flags);
+	kbase_csf_scheduler_spin_lock(kbdev, &flags);
+	if (atomic_read(&scheduler->non_idle_offslot_grps)) {
+		if (atomic_read(&scheduler->gpu_idle_timer_enabled))
+			kbase_csf_firmware_disable_gpu_idle_timer(kbdev);
+	} else if (!atomic_read(&scheduler->gpu_idle_timer_enabled)) {
 		kbase_csf_firmware_enable_gpu_idle_timer(kbdev);
-		kbase_csf_scheduler_spin_unlock(kbdev, flags);
-		if (wait_for_global_request(kbdev, GLB_REQ_IDLE_ENABLE_MASK)) {
-			dev_err(kbdev->dev,
-				"Failed to re-enable GLB_IDLE timer following FW Sleep-on-Idle config change (gpu_sleep_allowed:%lx)",
-				kbdev->pm.backend.gpu_sleep_allowed);
-			goto out_unlock_scheduler_lock;
-		}
 	}
-
-	if (atomic_read(&scheduler->fw_soi_enabled)) {
-		dev_dbg(kbdev->dev, "FW Sleep-on-Idle was enabled");
-		KBASE_KTRACE_ADD(kbdev, FIRMWARE_SLEEP_ON_IDLE_CHANGED, NULL, true);
-	} else {
-		dev_dbg(kbdev->dev, "FW Sleep-on-Idle was disabled");
-		KBASE_KTRACE_ADD(kbdev, FIRMWARE_SLEEP_ON_IDLE_CHANGED, NULL, false);
-	}
+	kbase_csf_scheduler_spin_unlock(kbdev, flags);
+	if (wait_for_global_request(kbdev, GLB_REQ_IDLE_DISABLE_MASK))
+		dev_warn(kbdev->dev, "Failed to %s GLB_IDLE timer",
+			 atomic_read(&scheduler->non_idle_offslot_grps) ? "disable" : "enable");
 
 out_unlock_scheduler_lock:
 	kbase_csf_scheduler_unlock(kbdev);
@@ -3685,7 +3690,6 @@ int kbase_csf_firmware_soi_disable_on_scheduler_suspend(struct kbase_device *kbd
 			dev_err(kbdev->dev, "Failed to disable Sleep-on-Idle config");
 			return -ETIMEDOUT;
 		}
-		KBASE_KTRACE_ADD(kbdev, FIRMWARE_SLEEP_ON_IDLE_CHANGED, NULL, false);
 	} else {
 		kbase_csf_scheduler_spin_unlock(kbdev, flags);
 	}

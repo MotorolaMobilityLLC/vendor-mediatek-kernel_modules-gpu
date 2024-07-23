@@ -269,6 +269,9 @@ enum kbase_queue_group_priority {
  * @CSF_GPU_RESET_TIMEOUT: Waiting timeout for GPU reset to complete.
  * @CSF_CSG_TERM_TIMEOUT: Timeout given for a CSG to be terminated.
  * @CSF_FIRMWARE_BOOT_TIMEOUT: Maximum time to wait for firmware to boot.
+ * @CSF_FIRMWARE_WAKE_UP_TIMEOUT: Maximum time to wait for firmware to wake up from sleep.
+ * @CSF_FIRMWARE_SOI_HALT_TIMEOUT: Maximum time to wait for the MCU to become halted after FW has
+ *                                 raised the GLB_IDLE IRQ in preparation for automatic sleeping.
  * @CSF_FIRMWARE_PING_TIMEOUT: Maximum time to wait for firmware to respond
  *                             to a ping from KBase.
  * @CSF_SCHED_PROTM_PROGRESS_TIMEOUT: Timeout used to prevent protected mode execution hang.
@@ -297,6 +300,8 @@ enum kbase_timeout_selector {
 	CSF_CSG_SUSPEND_TIMEOUT_AFTER_ABNORMAL_TIMEOUT,
 #endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
 	CSF_FIRMWARE_BOOT_TIMEOUT,
+	CSF_FIRMWARE_WAKE_UP_TIMEOUT,
+	CSF_FIRMWARE_SOI_HALT_TIMEOUT,
 	CSF_FIRMWARE_PING_TIMEOUT,
 	CSF_SCHED_PROTM_PROGRESS_TIMEOUT,
 	MMU_AS_INACTIVE_WAIT_TIMEOUT,

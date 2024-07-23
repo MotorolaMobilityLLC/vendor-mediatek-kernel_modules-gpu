@@ -5901,15 +5901,6 @@ redo_local_tock:
 	}
 
 	evict_lru_or_blocked_csg(kbdev);
-
-#ifdef KBASE_PM_RUNTIME
-	if (atomic_read(&scheduler->non_idle_offslot_grps))
-		set_bit(KBASE_GPU_NON_IDLE_OFF_SLOT_GROUPS_AVAILABLE,
-			&kbdev->pm.backend.gpu_sleep_allowed);
-	else
-		clear_bit(KBASE_GPU_NON_IDLE_OFF_SLOT_GROUPS_AVAILABLE,
-			  &kbdev->pm.backend.gpu_sleep_allowed);
-#endif /* KBASE_PM_RUNTIME */
 }
 
 /**
@@ -6265,7 +6256,6 @@ static void scheduler_inner_reset(struct kbase_device *kbdev)
 	scheduler->top_grp = NULL;
 
 	atomic_set(&scheduler->gpu_idle_timer_enabled, false);
-	atomic_set(&scheduler->fw_soi_enabled, false);
 
 	KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_TOP_GRP, scheduler->top_grp,
 				 scheduler->num_active_address_spaces |
@@ -6874,7 +6864,8 @@ static void wait_for_mcu_sleep_before_sync_update_check(struct kbase_device *kbd
 
 	/* Wait until MCU enters sleep state or there is a pending GPU reset */
 	if (!wait_event_timeout(kbdev->pm.backend.gpu_in_desired_state_wait,
-				kbdev->pm.backend.mcu_state == KBASE_MCU_IN_SLEEP ||
+				kbase_csf_firmware_mcu_halted(kbdev) ||
+					kbdev->pm.backend.exit_gpu_sleep_mode ||
 					!kbase_reset_gpu_is_not_pending(kbdev),
 				timeout))
 		dev_warn(kbdev->dev, "Wait for MCU sleep timed out");
@@ -7443,6 +7434,7 @@ static int kbase_csf_scheduler_kthread(void *data)
 		 * have been disabled during FW boot et. al.).
 		 */
 		kbase_csf_firmware_soi_update(kbdev);
+		kbase_csf_firmware_glb_idle_timer_update(kbdev);
 
 		dev_dbg(kbdev->dev, "Waking up for event after a scheduling iteration.");
 		wake_up_all(&kbdev->csf.event_wait);
@@ -7515,7 +7507,6 @@ int kbase_csf_scheduler_init(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
 
 	atomic_set(&scheduler->gpu_idle_timer_enabled, false);
-	atomic_set(&scheduler->fw_soi_enabled, false);
 
 	return kbase_csf_mcu_shared_regs_data_init(kbdev);
 }

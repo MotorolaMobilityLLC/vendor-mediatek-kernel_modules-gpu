@@ -941,6 +941,15 @@ int kbase_csf_firmware_req_core_dump(struct kbase_device *const kbdev);
 void kbase_csf_firmware_soi_update(struct kbase_device *kbdev);
 
 /**
+ * kbase_csf_firmware_glb_idle_timer_update - Update GLB_IDLE timer config
+ *
+ * @kbdev: Device pointer
+ *
+ * This function reconfigures the GLB_IDLE timer configuration if necessary.
+ */
+void kbase_csf_firmware_glb_idle_timer_update(struct kbase_device *kbdev);
+
+/**
  * kbase_csf_firmware_soi_disable_on_scheduler_suspend - Disable FW Sleep-on-Idle config
  *                                                       on scheduler suspension
  *

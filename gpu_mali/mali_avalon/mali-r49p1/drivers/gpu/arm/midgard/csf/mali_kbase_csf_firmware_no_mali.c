@@ -686,6 +686,7 @@ static inline void set_gpu_idle_timer_glb_req(struct kbase_device *const kbdev, 
 	}
 
 	atomic_set(&kbdev->csf.scheduler.gpu_idle_timer_enabled, set);
+	KBASE_KTRACE_ADD(kbdev, CSF_FIRMWARE_GLB_IDLE_TIMER_CHANGED, NULL, set);
 }
 
 static void enable_gpu_idle_timer(struct kbase_device *const kbdev)
@@ -1663,6 +1664,10 @@ void kbase_csf_firmware_mcu_shared_mapping_term(struct kbase_device *kbdev,
 #ifdef KBASE_PM_RUNTIME
 
 void kbase_csf_firmware_soi_update(struct kbase_device *kbdev)
+{
+}
+
+void kbase_csf_firmware_glb_idle_timer_update(struct kbase_device *kbdev)
 {
 }
 
