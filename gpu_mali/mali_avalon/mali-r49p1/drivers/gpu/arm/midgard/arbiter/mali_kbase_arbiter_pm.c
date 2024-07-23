@@ -295,7 +295,9 @@ int kbase_arbiter_pm_early_init(struct kbase_device *kbdev)
 
 	err = kbase_arbif_init(kbdev);
 	if (err) {
-		dev_err(kbdev->dev, "Failed to initialise arbif module. (err = %d)\n", err);
+		if (err != -EPERM)
+			dev_err(kbdev->dev, "Failed to initialise arbif module. (err = %d)", err);
+
 		goto arbif_init_fail;
 	}
 

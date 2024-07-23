@@ -45,6 +45,7 @@
 #include <linux/set_memory.h>
 #endif
 #include <asm/arch_timer.h>
+#include <mali_kbase_config_defaults.h>
 
 #ifdef CONFIG_MALI_DEBUG
 /* Makes Driver wait indefinitely for an acknowledgment for the different
@@ -1162,6 +1163,8 @@ int kbase_csf_firmware_late_init(struct kbase_device *kbdev)
 	kbdev->csf.gpu_idle_dur_count =
 		convert_dur_to_idle_count(kbdev, kbdev->csf.gpu_idle_hysteresis_ns, &no_modifier);
 	kbdev->csf.gpu_idle_dur_count_no_modifier = no_modifier;
+
+	kbdev->csf.csg_suspend_timeout_ms = CSG_SUSPEND_TIMEOUT_MS;
 
 	return 0;
 }
