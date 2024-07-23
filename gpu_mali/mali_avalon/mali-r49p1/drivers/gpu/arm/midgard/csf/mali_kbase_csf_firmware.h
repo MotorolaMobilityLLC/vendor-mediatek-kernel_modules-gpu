@@ -929,6 +929,29 @@ int kbase_csf_trigger_firmware_config_update(struct kbase_device *kbdev);
  */
 int kbase_csf_firmware_req_core_dump(struct kbase_device *const kbdev);
 
+#ifdef KBASE_PM_RUNTIME
+
+/**
+ * kbase_csf_firmware_soi_update - Update FW Sleep-on-Idle config
+ *
+ * @kbdev: Device pointer
+ *
+ * This function reconfigures the FW Sleep-on-Idle configuration if necessary.
+ */
+void kbase_csf_firmware_soi_update(struct kbase_device *kbdev);
+
+/**
+ * kbase_csf_firmware_soi_disable_on_scheduler_suspend - Disable FW Sleep-on-Idle config
+ *                                                       on scheduler suspension
+ *
+ * @kbdev: Device pointer
+ *
+ * Return: 0 on success, otherwise failure
+ */
+int kbase_csf_firmware_soi_disable_on_scheduler_suspend(struct kbase_device *kbdev);
+
+#endif /* KBASE_PM_RUNTIME */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
 int wait_for_global_request_with_timeout(struct kbase_device *const kbdev,
 						u32 const req_mask, unsigned int timeout_ms);

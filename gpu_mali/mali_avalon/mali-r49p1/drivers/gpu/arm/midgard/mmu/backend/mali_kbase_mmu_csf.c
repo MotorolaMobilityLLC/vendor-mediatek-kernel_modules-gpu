@@ -113,7 +113,7 @@ void kbase_mmu_report_mcu_as_fault_and_reset(struct kbase_device *kbdev, struct 
 	u32 as_no;
 
 	/* terminal fault, print info about the fault */
-	if (kbdev->gpu_props.gpu_id.product_model <= GPU_ID_MODEL_MAKE(13, 0)) {
+	if (kbdev->gpu_props.gpu_id.product_model < GPU_ID_MODEL_MAKE(14, 0)) {
 		dev_err(kbdev->dev,
 			"Unexpected Page fault in firmware address space at VA 0x%016llX\n"
 			"raw fault status: 0x%X\n"
@@ -142,40 +142,6 @@ void kbase_mmu_report_mcu_as_fault_and_reset(struct kbase_device *kbdev, struct 
 			FAULT_SOURCE_ID_UTLB_ID_GET(source_id),
 			fault_source_id_internal_requester_get(kbdev, source_id),
 			fault_source_id_core_type_description_get(kbdev, source_id),
-			fault_source_id_internal_requester_get_str(kbdev, source_id, access_type));
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-	} else {
-		dev_err(kbdev->dev,
-			"Unexpected Page fault in firmware address space at VA 0x%016llX\n"
-			"raw fault status: 0x%X\n"
-			"exception type 0x%X: %s\n"
-			"access type 0x%X: %s\n"
-			"source id 0x%X (type:idx:IR 0x%X:0x%X:0x%X): %s %u, %s\n",
-			fault->addr, fault->status, exception_type,
-			kbase_gpu_exception_name(exception_type), access_type,
-			kbase_gpu_access_type_name(fault->status), source_id,
-			FAULT_SOURCE_ID_CORE_TYPE_GET(source_id),
-			FAULT_SOURCE_ID_CORE_INDEX_GET(source_id),
-			fault_source_id_internal_requester_get(kbdev, source_id),
-			fault_source_id_core_type_description_get(kbdev, source_id),
-			FAULT_SOURCE_ID_CORE_INDEX_GET(source_id),
-			fault_source_id_internal_requester_get_str(kbdev, source_id, access_type));
-			
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"Unexpected Page fault in firmware address space at VA 0x%016llX\n"
-			"raw fault status: 0x%X\n"
-			"exception type 0x%X: %s\n"
-			"access type 0x%X: %s\n"
-			"source id 0x%X (type:idx:IR 0x%X:0x%X:0x%X): %s %u, %s\n",
-			fault->addr, fault->status, exception_type,
-			kbase_gpu_exception_name(exception_type), access_type,
-			kbase_gpu_access_type_name(fault->status), source_id,
-			FAULT_SOURCE_ID_CORE_TYPE_GET(source_id),
-			FAULT_SOURCE_ID_CORE_INDEX_GET(source_id),
-			fault_source_id_internal_requester_get(kbdev, source_id),
-			fault_source_id_core_type_description_get(kbdev, source_id),
-			FAULT_SOURCE_ID_CORE_INDEX_GET(source_id),
 			fault_source_id_internal_requester_get_str(kbdev, source_id, access_type));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
@@ -219,7 +185,7 @@ void kbase_gpu_report_bus_fault_and_kill(struct kbase_context *kctx, struct kbas
 	const uintptr_t fault_addr = fault->addr;
 
 	/* terminal fault, print info about the fault */
-	if (kbdev->gpu_props.gpu_id.product_model <= GPU_ID_MODEL_MAKE(13, 0)) {
+	if (kbdev->gpu_props.gpu_id.product_model < GPU_ID_MODEL_MAKE(14, 0)) {
 		dev_err(kbdev->dev,
 			"GPU bus fault in AS%u at PA %pK\n"
 			"PA_VALID: %s\n"
@@ -253,46 +219,6 @@ void kbase_gpu_report_bus_fault_and_kill(struct kbase_context *kctx, struct kbas
 			FAULT_SOURCE_ID_UTLB_ID_GET(source_id),
 			fault_source_id_internal_requester_get(kbdev, source_id),
 			fault_source_id_core_type_description_get(kbdev, source_id),
-			fault_source_id_internal_requester_get_str(kbdev, source_id, access_type),
-			kctx->pid);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-	} else {
-		dev_err(kbdev->dev,
-			"GPU bus fault in AS%u at PA %pK\n"
-			"PA_VALID: %s\n"
-			"raw fault status: 0x%X\n"
-			"exception type 0x%X: %s\n"
-			"access type 0x%X: %s\n"
-			"source id 0x%X (type:idx:IR 0x%X:0x%X:0x%X): %s %u, %s\n"
-			"pid: %d\n",
-			as_no, (void *)fault_addr, addr_valid, status, exception_type,
-			kbase_gpu_exception_name(exception_type), access_type,
-			kbase_gpu_access_type_name(access_type), source_id,
-			FAULT_SOURCE_ID_CORE_TYPE_GET(source_id),
-			FAULT_SOURCE_ID_CORE_INDEX_GET(source_id),
-			fault_source_id_internal_requester_get(kbdev, source_id),
-			fault_source_id_core_type_description_get(kbdev, source_id),
-			FAULT_SOURCE_ID_CORE_INDEX_GET(source_id),
-			fault_source_id_internal_requester_get_str(kbdev, source_id, access_type),
-			kctx->pid);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"GPU bus fault in AS%u at PA %pK\n"
-			"PA_VALID: %s\n"
-			"raw fault status: 0x%X\n"
-			"exception type 0x%X: %s\n"
-			"access type 0x%X: %s\n"
-			"source id 0x%X (type:idx:IR 0x%X:0x%X:0x%X): %s %u, %s\n"
-			"pid: %d\n",
-			as_no, (void *)fault_addr, addr_valid, status, exception_type,
-			kbase_gpu_exception_name(exception_type), access_type,
-			kbase_gpu_access_type_name(access_type), source_id,
-			FAULT_SOURCE_ID_CORE_TYPE_GET(source_id),
-			FAULT_SOURCE_ID_CORE_INDEX_GET(source_id),
-			fault_source_id_internal_requester_get(kbdev, source_id),
-			fault_source_id_core_type_description_get(kbdev, source_id),
-			FAULT_SOURCE_ID_CORE_INDEX_GET(source_id),
 			fault_source_id_internal_requester_get_str(kbdev, source_id, access_type),
 			kctx->pid);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
@@ -725,7 +651,7 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx, struct kbase_as
 		unsigned int as_no = as->number;
 
 		/* terminal fault, print info about the fault */
-		if (kbdev->gpu_props.gpu_id.product_model <= GPU_ID_MODEL_MAKE(13, 0)) {
+		if (kbdev->gpu_props.gpu_id.product_model < GPU_ID_MODEL_MAKE(14, 0)) {
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
 			dev_err(kbdev->dev,
 				"Unhandled Page fault (p-mode %d) in AS%u at VA 0x%016llX\n"
@@ -766,53 +692,6 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx, struct kbase_as
 				FAULT_SOURCE_ID_UTLB_ID_GET(source_id),
 				fault_source_id_internal_requester_get(kbdev, source_id),
 				fault_source_id_core_type_description_get(kbdev, source_id),
-				fault_source_id_internal_requester_get_str(kbdev, source_id,
-									   access_type),
-				kctx->pid);
-#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
-		} else {
-#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
-			dev_err(kbdev->dev,
-				"Unhandled Page fault (p-mode %d) in AS%u at VA 0x%016llX\n"
-				"Reason: %s\n"
-				"raw fault status: 0x%X\n"
-				"exception type 0x%X: %s\n"
-				"access type 0x%X: %s\n"
-				"source id 0x%X (type:idx:IR 0x%X:0x%X:0x%X): %s %u, %s\n"
-				"ctx_id: %d_%d, pid: %d\n"
-				"group_leader : %s, comm: %s\n",
-				kbdev->protected_mode, as_no, fault->addr,
-				reason_str,
-				status,
-				exception_type, kbase_gpu_exception_name(exception_type),
-				access_type, kbase_gpu_access_type_name(status),
-				source_id,
-				FAULT_SOURCE_ID_CORE_TYPE_GET(source_id),
-				FAULT_SOURCE_ID_CORE_INDEX_GET(source_id),
-				fault_source_id_internal_requester_get(kbdev, source_id),
-				fault_source_id_core_type_description_get(kbdev, source_id),
-				FAULT_SOURCE_ID_CORE_INDEX_GET(source_id),
-				fault_source_id_internal_requester_get_str(kbdev, source_id,
-									   access_type),
-				kctx->tgid, kctx->id, kctx->pid,
-				kctx->group_leader_comm, kctx->comm);
-#else
-			dev_err(kbdev->dev,
-				"Unhandled Page fault in AS%u at VA 0x%016llX\n"
-				"Reason: %s\n"
-				"raw fault status: 0x%X\n"
-				"exception type 0x%X: %s\n"
-				"access type 0x%X: %s\n"
-				"source id 0x%X (type:idx:IR 0x%X:0x%X:0x%X): %s %u, %s\n"
-				"pid: %d\n",
-				as_no, fault->addr, reason_str, status, exception_type,
-				kbase_gpu_exception_name(exception_type), access_type,
-				kbase_gpu_access_type_name(status), source_id,
-				FAULT_SOURCE_ID_CORE_TYPE_GET(source_id),
-				FAULT_SOURCE_ID_CORE_INDEX_GET(source_id),
-				fault_source_id_internal_requester_get(kbdev, source_id),
-				fault_source_id_core_type_description_get(kbdev, source_id),
-				FAULT_SOURCE_ID_CORE_INDEX_GET(source_id),
 				fault_source_id_internal_requester_get_str(kbdev, source_id,
 									   access_type),
 				kctx->pid);

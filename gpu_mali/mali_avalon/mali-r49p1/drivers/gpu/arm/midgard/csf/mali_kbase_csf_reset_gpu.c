@@ -649,8 +649,8 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
                 kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT);
 
 	/* set the csg suspend timeout back to orignal */
-	kbdev->csf.csg_suspend_timeout_ms =
-                kbase_get_timeout_ms(kbdev, CSF_CSG_SUSPEND_TIMEOUT);
+	//kbdev->csf.csg_suspend_timeout_ms =
+    //            kbase_get_timeout_ms(kbdev, CSF_CSG_SUSPEND_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
 
 	return 0;

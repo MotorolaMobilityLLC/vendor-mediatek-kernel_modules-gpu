@@ -684,7 +684,7 @@ static inline void set_gpu_idle_timer_glb_req(struct kbase_device *const kbdev, 
 			global_iface, GLB_REQ, GLB_REQ_REQ_IDLE_DISABLE, GLB_REQ_IDLE_DISABLE_MASK);
 	}
 
-	kbdev->csf.gpu_idle_timer_enabled = set;
+	atomic_set(&kbdev->csf.scheduler.gpu_idle_timer_enabled, set);
 }
 
 static void enable_gpu_idle_timer(struct kbase_device *const kbdev)
@@ -787,12 +787,6 @@ static void global_init(struct kbase_device *const kbdev, u64 core_mask)
 	set_shader_poweroff_timer(kbdev, global_iface);
 
 	set_timeout_global(global_iface, kbase_csf_timeout_get(kbdev));
-
-	/* The GPU idle timer is always enabled for simplicity. Checks will be
-	 * done before scheduling the GPU idle worker to see if it is
-	 * appropriate for the current power policy.
-	 */
-	enable_gpu_idle_timer(kbdev);
 
 	/* Unmask the interrupts */
 	kbase_csf_firmware_global_input(global_iface, GLB_ACK_IRQ_MASK, ack_irq_mask);
@@ -1019,7 +1013,7 @@ u32 kbase_csf_firmware_set_gpu_idle_hysteresis_time(struct kbase_device *kbdev, 
 	kbdev->csf.gpu_idle_dur_count = hysteresis_val;
 	kbdev->csf.gpu_idle_dur_count_no_modifier = no_modifier;
 
-	if (kbdev->csf.gpu_idle_timer_enabled) {
+	if (atomic_read(&kbdev->csf.scheduler.gpu_idle_timer_enabled)) {
 		/* Timer is already enabled. Disable the timer as FW only reads
 		 * the new idle timer value when timer is re-enabled.
 		 */
@@ -1662,3 +1656,16 @@ void kbase_csf_firmware_mcu_shared_mapping_term(struct kbase_device *kbdev,
 	vunmap(csf_mapping->cpu_addr);
 	kfree(csf_mapping->phys);
 }
+
+#ifdef KBASE_PM_RUNTIME
+
+void kbase_csf_firmware_soi_update(struct kbase_device *kbdev)
+{
+}
+
+int kbase_csf_firmware_soi_disable_on_scheduler_suspend(struct kbase_device *kbdev)
+{
+	return 0;
+}
+
+#endif /* KBASE_PM_RUNTIME */
