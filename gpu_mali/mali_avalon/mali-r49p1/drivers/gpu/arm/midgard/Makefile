@@ -250,7 +250,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_FIX_TIMEOUT_WHITELIST := y
         CONFIG_MALI_MTK_TIMEOUT_REDUCE := n
         CONFIG_MALI_MTK_PWR_HINT := n
-        CONFIG_MALI_MTK_POWER_RESET := n
+        CONFIG_MALI_MTK_POWER_RESET := y
     endif ## mt6899 ##
 endif
 
