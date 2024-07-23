@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 #
-# (C) COPYRIGHT 2012-2023 ARM Limited. All rights reserved.
+# (C) COPYRIGHT 2012-2024 ARM Limited. All rights reserved.
 #
 # This program is free software and is provided to you under the terms of the
 # GNU General Public License version 2 as published by the Free Software
@@ -65,6 +65,14 @@ config MALI_NO_MALI
 	  completed the task.
 
 endchoice
+
+config MALI_IS_FPGA
+	bool "Enable build of Mali kernel driver for FPGA"
+	depends on MALI_MIDGARD
+	default n
+	default y if PLATFORM_IS_FPGA
+	help
+	  This is the default HW backend.
 
 
 config MALI_CSF_SUPPORT
@@ -180,7 +188,7 @@ config MALI_CORESTACK
 
 config PAGE_MIGRATION_SUPPORT
 	bool "Compile with page migration support"
-	depends on BACKEND_KERNEL
+	depends on MALI_MIDGARD && MALI_EXPERT
 	default y
 	default n if ANDROID
 	help

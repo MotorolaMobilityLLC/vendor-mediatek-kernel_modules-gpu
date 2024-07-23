@@ -74,6 +74,13 @@ config MALI_NO_MALI_DEFAULT_GPU
 	help
 	  This option sets the default GPU to identify as for No Mali builds.
 
+config MALI_IS_FPGA
+	bool "Enable build of Mali kernel driver for FPGA"
+	depends on MALI_MIDGARD
+	default n
+	help
+	  This is the default HW backend.
+
 menu "Platform specific options"
 source "$(MALI_KCONFIG_EXT_PREFIX)drivers/gpu/arm/midgard/platform/Kconfig"
 endmenu

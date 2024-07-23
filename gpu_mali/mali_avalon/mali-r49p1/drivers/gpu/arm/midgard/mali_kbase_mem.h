@@ -533,7 +533,27 @@ struct kbase_page_metadata {
 		struct {
 			struct kbase_mmu_table *mmut;
 			/* GPU virtual page frame number info is in GPU_PAGE_SIZE units */
-			u64 pgd_vpfn_level;
+			u64 pgd_vpfn_level[GPU_PAGES_PER_CPU_PAGE];
+#if GPU_PAGES_PER_CPU_PAGE > 1
+			/**
+			 * @pgd_link: Link to the &kbase_mmu_table.pgd_pages_list
+			 */
+			struct list_head pgd_link;
+			/**
+			 * @pgd_page: Back pointer to the PGD page that the metadata is
+			 *            associated with
+			 */
+			struct page *pgd_page;
+			/**
+			 * @allocated_sub_pages: Bitmap representing the allocation status
+			 *                       of sub pages in the @pgd_page
+			 */
+			DECLARE_BITMAP(allocated_sub_pages, GPU_PAGES_PER_CPU_PAGE);
+			/**
+			 * @num_allocated_sub_pages: The number of allocated sub pages in @pgd_page
+			 */
+			s8 num_allocated_sub_pages;
+#endif
 		} pt_mapped;
 		struct {
 			struct kbase_device *kbdev;
