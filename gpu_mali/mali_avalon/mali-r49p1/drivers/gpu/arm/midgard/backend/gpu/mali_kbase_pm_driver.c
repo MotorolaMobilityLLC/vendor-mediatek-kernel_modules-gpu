@@ -3949,6 +3949,9 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 	u64 l2_trans = 0, l2_ready = 0;
 	int retry_count = 0;
 #endif /* CONFIG_MALI_MTK_MFG2_BACKDOOR || CONFIG_MALI_MTK_HARD_RESET_WA */
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_RESET)
+	unsigned long irq_flags = 0;
+#endif /* CONFIG_MALI_MTK_POWER_RESET */
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
 
 	KBASE_KTRACE_ADD(kbdev, CORE_GPU_SOFT_RESET, NULL, 0);
@@ -4040,16 +4043,18 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 			"GPU soft reset completed\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
-#if IS_ENABLED(CONFIG_MALI_MTK_POWER_RESET)
+#if IS_ENABLED(CONFIG_MTK_GPUFREQ_V2) && IS_ENABLED(CONFIG_MALI_MTK_POWER_RESET)
+		spin_lock_irqsave(&kbdev->hwaccess_lock, irq_flags);
 		/* power off and on once to reset MFG1 */
 		gpufreq_power_control(GPU_PWR_OFF);
 		gpufreq_power_control(GPU_PWR_ON);
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, irq_flags);
 		dev_info(kbdev->dev, "GPU soft power reset completed");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL,
 			"GPU soft power reset completed\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-#endif /* CONFIG_MALI_MTK_POWER_RESET */
+#endif /* CONFIG_MTK_GPUFREQ_V2 && CONFIG_MALI_MTK_POWER_RESET */
 		return 0;
 	}
 
@@ -4166,16 +4171,18 @@ whitebox_force_hard_reset:
 				"GPU hard reset completed\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
-#if IS_ENABLED(CONFIG_MALI_MTK_POWER_RESET)
+#if IS_ENABLED(CONFIG_MTK_GPUFREQ_V2) && IS_ENABLED(CONFIG_MALI_MTK_POWER_RESET)
+			spin_lock_irqsave(&kbdev->hwaccess_lock, irq_flags);
 			/* power off and on once to reset MFG1 */
 			gpufreq_power_control(GPU_PWR_OFF);
 			gpufreq_power_control(GPU_PWR_ON);
+			spin_unlock_irqrestore(&kbdev->hwaccess_lock, irq_flags);
 			dev_info(kbdev->dev, "GPU hard power reset completed");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL,
 				"GPU hard power reset completed\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-#endif /* CONFIG_MALI_MTK_POWER_RESET */
+#endif /* CONFIG_MTK_GPUFREQ_V2 && CONFIG_MALI_MTK_POWER_RESET */
 			return 0;
 		}
 
