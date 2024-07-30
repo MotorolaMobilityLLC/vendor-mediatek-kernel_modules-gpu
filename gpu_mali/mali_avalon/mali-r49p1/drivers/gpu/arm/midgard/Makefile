@@ -179,7 +179,6 @@ ifeq ($(BUILD_RULE),OOT)
 
         # *** MTK CONFIG ***
         CONFIG_MALI_MTK_BRINGUP := n
-        CONFIG_MALI_MTK_NO_THERMAL := n
         CONFIG_MALI_MTK_LOG_BUFFER := y
         CONFIG_MALI_MTK_DIAGNOSIS_MODE := y
         CONFIG_MALI_MTK_KE_DUMP_FWLOG := y
