@@ -1019,14 +1019,18 @@ static struct page *example_mgm_alloc_page(struct memory_group_manager_device *m
 					p = mtk_fetch_page(data, order, 0);
 			} else if (data->rank_mode == 2) { /* per-page flip */
 				p = mtk_fetch_page(data, order, rank);
+				spin_lock(&data->MGMFree_lst_lk);
 				*pbRank0 = !(*pbRank0);
+				spin_unlock(&data->MGMFree_lst_lk);
 			} else if (data->rank_mode >= 512) { /* per-rank_mode pages flip */
 				p = mtk_fetch_page(data, order, rank);
+				spin_lock(&data->MGMFree_lst_lk);
 				count++;
 				if (count == data->rank_mode) {
 					count = 0;
 					*pbRank0 = !(*pbRank0);
 				}
+				spin_unlock(&data->MGMFree_lst_lk);
 			} else if (data->rank_mode < BYPASS_MODE) { /* production mode */
 				if ((data->nr_rank[o][0] < (data->szSelectTarget >> order)) &&
 					(data->nr_rank[o][1] < (data->szSelectTarget >> order))) {
@@ -1046,16 +1050,20 @@ static struct page *example_mgm_alloc_page(struct memory_group_manager_device *m
 				if (!p) {
 					if (data->nr_rank[o][!rank]) {
 						spin_lock(&data->MGMFree_lst_lk);
-						*pbRank0 = !(*pbRank0);
-						data->count++;
-						dev_warn(data->dev, "OOM switch rank%u->%u (%zu) order=%u nr_rank={%zu,%zu}\n",
-							*pbRank0, !(*pbRank0), data->count, order, data->nr_rank[o][0], data->nr_rank[o][1]);
-						spin_unlock(&data->MGMFree_lst_lk);
+						if (!(*pbRank0) == rank) {
+							*pbRank0 = !(*pbRank0);
+							data->count++;
+							dev_warn(data->dev, "OOM switch rank%u->%u (%zu) order=%u nr_rank={%zu,%zu}\n",
+								*pbRank0, !(*pbRank0), data->count, order, data->nr_rank[o][0], data->nr_rank[o][1]);
+						}
 						rank = (*pbRank0) ? 0 : 1;
+						spin_unlock(&data->MGMFree_lst_lk);
 						p = mtk_fetch_page(data, order, rank);
 					}
 					if (!p) {
 						if (order == SP_ORDER) {
+							dev_warn(data->dev, "OOM alloc from system directly, nr_rank={%zu,%zu}\n",
+								data->nr_rank[o][0], data->nr_rank[o][1]);
 							p = alloc_pages(gfp_mask, order);
 						}
 					}
