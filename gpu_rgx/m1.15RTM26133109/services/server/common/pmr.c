@@ -145,6 +145,29 @@ static struct _PMR_CTX_
 	IMG_BOOL bModuleInitialised;
 } _gsSingletonPMRContext = { 1, 0, {0}, NULL, IMG_FALSE };
 
+typedef struct _PMR_HEADER_
+{
+#if defined(SUPPORT_PMR_DEFERRED_FREE)
+	/* List node used to put the header on the zombie list
+	 * (psDevNode->sPMRZombieList). */
+	DLLIST_NODE sZombieNode;
+#endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
+
+	IMG_BOOL bIsZombiePages;
+} PMR_HEADER;
+
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+/*
+ * A structure describing zombie pages.
+ */
+typedef struct _PMR_ZOMBIE_PAGES_
+{
+	PMR_HEADER sHeader;
+	PMR_IMPL_ZOMBIEPAGES pvFactoryPages;
+	PFN_FREE_ZOMBIE_PAGES_FN pfnFactoryFreeZombies;
+} PMR_ZOMBIE_PAGES;
+#endif
+
 /* A PMR. One per physical allocation. May be "shared".
  *
  * "shared" is ambiguous. We need to be careful with terminology.
@@ -161,11 +184,8 @@ static struct _PMR_CTX_
  */
 struct _PMR_
 {
-#if defined(SUPPORT_PMR_DEFERRED_FREE)
-	/* List node used to put the PMR on the zombie list
-	 * (psDevNode->sPMRZombieList). */
-	DLLIST_NODE sZombieNode;
-#endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
+	/* A Common header structure shared between PMR and PMR-like PMR_ZOMBIE_PAGES object */
+	PMR_HEADER sHeader;
 
 	/* This object is strictly refcounted. References include:
 	 * - mapping
@@ -494,9 +514,10 @@ _PMRCreate(PMR_SIZE_T uiLogicalSize,
 	psPMR->uiInternalFlags = bSparse ? PMR_FLAG_INTERNAL_SPARSE_ALLOC : 0;
 	psPMR->bIsUnpinned = IMG_FALSE;
 	psPMR->szAnnotation[0] = '\0';
+	psPMR->sHeader.bIsZombiePages = IMG_FALSE;
 
 #if defined(SUPPORT_PMR_DEFERRED_FREE)
-	dllist_init(&psPMR->sZombieNode);
+	dllist_init(&psPMR->sHeader.sZombieNode);
 #endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
 
 #if defined(PVRSRV_ENABLE_GPU_MEMORY_INFO)
@@ -646,6 +667,34 @@ _PMRDestroy(PMR *psPMR)
 	OSFreeMem(psPMR);
 }
 
+#if defined(SUPPORT_PMR_DEFERRED_FREE)
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+static IMG_BOOL
+PMR_IsListNodeZombiePages(const DLLIST_NODE *psNode)
+{
+	PMR_HEADER *psPMRHeader = IMG_CONTAINER_OF(psNode, PMR_HEADER, sZombieNode);
+	PVR_ASSERT(psPMRHeader != NULL);
+	return psPMRHeader->bIsZombiePages;
+}
+
+static PMR_ZOMBIE_PAGES*
+PMR_GetZombiePagesFromNode(const DLLIST_NODE *psNode)
+{
+	PMR_HEADER *psPMRHeader = IMG_CONTAINER_OF(psNode, PMR_HEADER, sZombieNode);
+	PVR_ASSERT(psPMRHeader != NULL);
+	return IMG_CONTAINER_OF(psPMRHeader, PMR_ZOMBIE_PAGES, sHeader);
+}
+#endif /* defined(SUPPORT_PMR_PAGES_DEFERRED_FREE) */
+
+static PMR*
+PMR_GetPMRFromNode(const DLLIST_NODE *psNode)
+{
+	PMR_HEADER *psPMRHeader = IMG_CONTAINER_OF(psNode, PMR_HEADER, sZombieNode);
+	PVR_ASSERT(psPMRHeader != NULL);
+	return IMG_CONTAINER_OF(psPMRHeader, PMR, sHeader);
+}
+#endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
+
 static void
 _UnrefAndMaybeDestroy(PMR *psPMR)
 {
@@ -703,7 +752,7 @@ _UnrefAndMaybeDestroy(PMR *psPMR)
 		OSLockAcquire(psDevNode->hPMRZombieListLock);
 
 		BITMASK_SET(psPMR->uiInternalFlags, PMR_FLAG_INTERNAL_IS_ZOMBIE);
-		dllist_add_to_tail(&psDevNode->sPMRZombieList, &psPMR->sZombieNode);
+		dllist_add_to_tail(&psDevNode->sPMRZombieList, &psPMR->sHeader.sZombieNode);
 		psDevNode->uiPMRZombieCount++;
 
 		/* PMR pages are accounted by the driver/process stats. Those stats
@@ -766,6 +815,8 @@ static PVRSRV_ERROR _PmrZombieCleanup(void *pvData)
 {
 	PMR_ZOMBIE_CLEANUP_ITEM *psCleanupItem = pvData;
 	DLLIST_NODE *psNode;
+	IMG_BOOL bNeedRetry = IMG_FALSE;
+	PVRSRV_ERROR eError = PVRSRV_OK;
 
 	if (_CanNotFreeZombies(psCleanupItem))
 	{
@@ -774,9 +825,6 @@ static PVRSRV_ERROR _PmrZombieCleanup(void *pvData)
 
 	do
 	{
-		PMR *psPMR;
-		const PMR_IMPL_FUNCTAB *psFuncTable;
-
 		/* hPMRZombieListLock will prevent removing a node while the list is
 		 * processed. If the lock is already acquired by other process which
 		 * intends to remove an item from the list it'll assure the list
@@ -790,37 +838,66 @@ static PVRSRV_ERROR _PmrZombieCleanup(void *pvData)
 
 		if (psNode != NULL)
 		{
-			psPMR = IMG_CONTAINER_OF(psNode, PMR, sZombieNode);
-			psFuncTable = psPMR->psFuncTab;
-
-			_FactoryLock(psFuncTable);
-			_ZombieListLock(psCleanupItem);
-
-			/* It is possible that the element might have been removed so
-			 * we have to check if the PMR is still a zombie. */
-
-			if (PMR_IsZombie(psPMR))
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+			if (PMR_IsListNodeZombiePages(psNode))
 			{
+				PMR_ZOMBIE_PAGES* psZombiePages = PMR_GetZombiePagesFromNode(psNode);
+				eError = psZombiePages->pfnFactoryFreeZombies(psZombiePages->pvFactoryPages);
+				if (eError != PVRSRV_OK)
+				{
+					PVR_DPF((PVR_DBG_ERROR, "Cannot free zombie pages! Skipping object %p", psZombiePages));
+					bNeedRetry = IMG_TRUE;
+					continue;
+				}
+				_ZombieListLock(psCleanupItem);
 				dllist_remove_node(psNode);
 				psCleanupItem->psDevNode->uiPMRZombieCountInCleanup--;
-				/* Unlock here to avoid locking dependency with the power lock.
-				 * It's okay to do it here since the factory lock is the one
-				 * that needs to be held during PMR destruction. */
 				_ZombieListUnlock(psCleanupItem);
 
-				_PMRDestroy(psPMR);
+				OSFreeMem(psZombiePages);
 			}
 			else
+#endif
 			{
-				_ZombieListUnlock(psCleanupItem);
+				PMR* psPMR = PMR_GetPMRFromNode(psNode);
+				const PMR_IMPL_FUNCTAB *psFuncTable = psPMR->psFuncTab;
+
+				_FactoryLock(psFuncTable);
+				_ZombieListLock(psCleanupItem);
+
+				/* It is possible that the element might have been removed so
+				 * we have to check if the PMR is still a zombie. */
+
+				if (PMR_IsZombie(psPMR))
+				{
+					dllist_remove_node(psNode);
+					psCleanupItem->psDevNode->uiPMRZombieCountInCleanup--;
+					/* Unlock here to avoid locking dependency with the power lock.
+					 * It's okay to do it here since the factory lock is the one
+					 * that needs to be held during PMR destruction. */
+					_ZombieListUnlock(psCleanupItem);
+
+					_PMRDestroy(psPMR);
+				}
+				else
+				{
+					_ZombieListUnlock(psCleanupItem);
+				}
+				_FactoryUnlock(psFuncTable);
 			}
-			_FactoryUnlock(psFuncTable);
 		}
 	} while (psNode != NULL);
 
-	OSFreeMem(psCleanupItem);
+	if (bNeedRetry)
+	{
+		eError = PVRSRV_ERROR_RETRY;
+	}
+	else
+	{
+		OSFreeMem(psCleanupItem);
+	}
 
-	return PVRSRV_OK;
+	return eError;
 }
 
 IMG_BOOL PMRQueueZombiesForCleanup(PPVRSRV_DEVICE_NODE psDevNode)
@@ -890,11 +967,11 @@ PMRDequeueZombieAndRef(PMR *psPMR)
 
 	/* If we got to this point the PMR must be on a list. If it's not
 	 * it should mean a race of some sort. */
-	PVR_ASSERT(!dllist_is_empty(&psPMR->sZombieNode));
+	PVR_ASSERT(!dllist_is_empty(&psPMR->sHeader.sZombieNode));
 
 	/* Revive the PMR (remove it from the zombie list) and therefore
 	 * prevent it's destruction. */
-	dllist_remove_node(&psPMR->sZombieNode);
+	dllist_remove_node(&psPMR->sHeader.sZombieNode);
 	BITMASK_UNSET(psPMR->uiInternalFlags, PMR_FLAG_INTERNAL_IS_ZOMBIE);
 	PhysHeapDeviceNode(psPMR->psPhysHeap)->uiPMRZombieCountInCleanup--;
 
@@ -1064,8 +1141,18 @@ PVRSRV_ERROR
 PMRUnlockSysPhysAddressesNested(PMR *psPMR, IMG_UINT32 ui32NestingLevel)
 {
 	PVRSRV_ERROR eError;
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+	PMR_IMPL_ZOMBIEPAGES pvZombiePages = NULL;
+	PMR_ZOMBIE_PAGES* psPMRZombiePages = NULL;
+#endif
 
 	PVR_ASSERT(psPMR != NULL);
+
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+	/* Speculatively preallocate in order to simplify error handling later */
+	psPMRZombiePages = OSAllocZMem(sizeof(PMR_ZOMBIE_PAGES));
+	PVR_GOTO_IF_NOMEM(psPMRZombiePages, eError, e0);
+#endif
 
 	/* Acquiring the lock here, as well as during the Lock operation ensures
 	 * the lock count hitting zero and the unlocking of the phys addresses is
@@ -1080,7 +1167,13 @@ PMRUnlockSysPhysAddressesNested(PMR *psPMR, IMG_UINT32 ui32NestingLevel)
 		{
 			PVR_ASSERT(psPMR->psFuncTab->pfnLockPhysAddresses != NULL);
 
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+			eError = psPMR->psFuncTab->pfnUnlockPhysAddresses(psPMR->pvFlavourData,
+			                                                  &pvZombiePages);
+#else
 			eError = psPMR->psFuncTab->pfnUnlockPhysAddresses(psPMR->pvFlavourData);
+#endif
+
 			/* must never fail */
 			PVR_ASSERT(eError == PVRSRV_OK);
 		}
@@ -1088,12 +1181,58 @@ PMRUnlockSysPhysAddressesNested(PMR *psPMR, IMG_UINT32 ui32NestingLevel)
 
 	OSLockRelease(psPMR->hLock);
 
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+	if (pvZombiePages != NULL)
+	{
+		PVRSRV_DEV_POWER_STATE ePowerState;
+		PVRSRV_DEVICE_NODE *psDevNode;
+
+		psDevNode = PhysHeapDeviceNode(psPMR->psPhysHeap);
+		eError = PVRSRVGetDevicePowerState(psDevNode, &ePowerState);
+		if (eError != PVRSRV_OK)
+		{
+			/* Treat unknown power state as ON. */
+			ePowerState = PVRSRV_DEV_POWER_STATE_ON;
+		}
+
+		if (ePowerState == PVRSRV_DEV_POWER_STATE_OFF)
+		{
+			/* Free preallocated psPMRZombiePages as these won't be used*/
+			OSFreeMem(psPMRZombiePages);
+
+			eError = psPMR->psFuncTab->pfnFreeZombiePages(pvZombiePages);
+			PVR_LOG_GOTO_IF_ERROR(eError, "Error when trying to free zombies immediately.", e0);
+		}
+		else
+		{
+			PVR_ASSERT(psPMRZombiePages != NULL);
+			psPMRZombiePages->sHeader.bIsZombiePages = IMG_TRUE;
+			psPMRZombiePages->pfnFactoryFreeZombies = psPMR->psFuncTab->pfnFreeZombiePages;
+			psPMRZombiePages->pvFactoryPages = pvZombiePages;
+
+			OSLockAcquire(psDevNode->hPMRZombieListLock);
+			dllist_add_to_tail(&psDevNode->sPMRZombieList, &psPMRZombiePages->sHeader.sZombieNode);
+			psDevNode->uiPMRZombieCount++;
+			OSLockRelease(psDevNode->hPMRZombieListLock);
+		}
+	}
+	else
+	{
+		OSFreeMem(psPMRZombiePages);
+	}
+#endif
+
 	/* We also count the locks as references, so that the PMR is not
 	 * freed while someone is using a physical address.
 	 */
 	_UnrefAndMaybeDestroy(psPMR);
 
 	return PVRSRV_OK;
+
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+e0:
+#endif
+	return eError;
 }
 
 PVRSRV_ERROR
@@ -2521,6 +2660,10 @@ PVRSRV_ERROR PMR_ChangeSparseMemUnlocked(PMR *psPMR,
                                          IMG_UINT32 uiSparseFlags)
 {
 	PVRSRV_ERROR eError;
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+	PMR_IMPL_ZOMBIEPAGES pvZombiePages = NULL;
+	PMR_ZOMBIE_PAGES* psPMRZombiePages = NULL;
+#endif
 
 	if (!PMR_IsSparse(psPMR))
 	{
@@ -2547,12 +2690,24 @@ PVRSRV_ERROR PMR_ChangeSparseMemUnlocked(PMR *psPMR,
 		return PVRSRV_ERROR_NOT_IMPLEMENTED;
 	}
 
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+	if (uiSparseFlags & SPARSE_RESIZE_FREE)
+	{
+		/* Speculatively preallocate in order to simplify error handling later */
+		psPMRZombiePages = OSAllocZMem(sizeof(PMR_ZOMBIE_PAGES));
+		PVR_GOTO_IF_NOMEM(psPMRZombiePages, eError, e0);
+	}
+#endif
+
 	eError = psPMR->psFuncTab->pfnChangeSparseMem(psPMR->pvFlavourData,
 	                                              psPMR,
 	                                              ui32AllocPageCount,
 	                                              pai32AllocIndices,
 	                                              ui32FreePageCount,
 	                                              pai32FreeIndices,
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+	                                              &pvZombiePages,
+#endif
 	                                              uiSparseFlags);
 	if (eError != PVRSRV_OK)
 	{
@@ -2563,8 +2718,50 @@ PVRSRV_ERROR PMR_ChangeSparseMemUnlocked(PMR *psPMR,
 						  OSGetCurrentClientProcessIDKM());
 		}
 #endif
-		goto e0;
+		goto e1;
 	}
+
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+	if (pvZombiePages != NULL)
+	{
+		PVRSRV_DEV_POWER_STATE ePowerState;
+		PVRSRV_DEVICE_NODE *psDevNode;
+
+		psDevNode = PhysHeapDeviceNode(psPMR->psPhysHeap);
+		eError = PVRSRVGetDevicePowerState(psDevNode, &ePowerState);
+		if (eError != PVRSRV_OK)
+		{
+			/* Treat unknown power state as ON. */
+			ePowerState = PVRSRV_DEV_POWER_STATE_ON;
+		}
+
+		if (ePowerState == PVRSRV_DEV_POWER_STATE_OFF)
+		{
+			/* Free preallocated psPMRZombiePages as these won't be used*/
+			OSFreeMem(psPMRZombiePages);
+
+			eError = psPMR->psFuncTab->pfnFreeZombiePages(pvZombiePages);
+			PVR_LOG_GOTO_IF_ERROR(eError, "Error when trying to free zombies immediately.", e0);
+		}
+		else
+		{
+			PVR_ASSERT(psPMRZombiePages != NULL);
+			psPMRZombiePages->sHeader.bIsZombiePages = IMG_TRUE;
+			psPMRZombiePages->pfnFactoryFreeZombies = psPMR->psFuncTab->pfnFreeZombiePages;
+			psPMRZombiePages->pvFactoryPages = pvZombiePages;
+
+			OSLockAcquire(psDevNode->hPMRZombieListLock);
+			dllist_add_to_tail(&psDevNode->sPMRZombieList, &psPMRZombiePages->sHeader.sZombieNode);
+			psDevNode->uiPMRZombieCount++;
+			OSLockRelease(psDevNode->hPMRZombieListLock);
+		}
+	}
+	else
+	{
+		/* Free psPMRZombiePages as change sparse has not produced zombie pages */
+		OSFreeMem(psPMRZombiePages);
+	}
+#endif
 
 #if defined(PDUMP)
 	{
@@ -2594,10 +2791,18 @@ PVRSRV_ERROR PMR_ChangeSparseMemUnlocked(PMR *psPMR,
 
 #endif
 
+
+	return PVRSRV_OK;
+e1:
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+	if (uiSparseFlags & SPARSE_RESIZE_FREE)
+	{
+		OSFreeMem(psPMRZombiePages);
+	}
 e0:
+#endif
 	return eError;
 }
-
 
 PVRSRV_ERROR PMR_ChangeSparseMemCPUMap(PMR *psPMR,
                                        IMG_UINT64 sCpuVAddrBase,
@@ -4162,11 +4367,37 @@ PMRFreeZombies(PPVRSRV_DEVICE_NODE psDeviceNode)
 
 	dllist_foreach_node(&sZombieList, psThis, psNext)
 	{
-		PMR *psPMR = IMG_CONTAINER_OF(psThis, PMR, sZombieNode);
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+		if (PMR_IsListNodeZombiePages(psThis))
+		{
+			PVRSRV_ERROR eError;
+			PMR_ZOMBIE_PAGES* psZombiePages = PMR_GetZombiePagesFromNode(psThis);
 
-		dllist_remove_node(&psPMR->sZombieNode);
+			eError = psZombiePages->pfnFactoryFreeZombies(psZombiePages->pvFactoryPages);
+			if (eError != PVRSRV_OK)
+			{
+				/* In case of failure to free zombie pages, remove it from
+				 * the sZombieList and add back to the original list. */
+				OSLockAcquire(psDeviceNode->hPMRZombieListLock);
+				dllist_remove_node(psThis);
+				dllist_add_to_tail(&psDeviceNode->sPMRZombieList, psThis);
+				psDeviceNode->uiPMRZombieCount++;
+				OSLockRelease(psDeviceNode->hPMRZombieListLock);
 
-		_PMRDestroy(psPMR);
+				PVR_DPF((PVR_DBG_ERROR, "Cannot free zombie pages!"));
+				continue;
+			}
+
+			dllist_remove_node(psThis);
+			OSFreeMem(psZombiePages);
+		}
+		else
+#endif
+		{
+			PMR *psPMR = PMR_GetPMRFromNode(psThis);
+			dllist_remove_node(psThis);
+			_PMRDestroy(psPMR);
+		}
 
 		uiZombieCount--;
 	}
@@ -4186,10 +4417,19 @@ PMRDumpZombies(PPVRSRV_DEVICE_NODE psDeviceNode)
 
 	dllist_foreach_node(&psDeviceNode->sPMRZombieList, psThis, psNext)
 	{
-		PMR *psPMR = IMG_CONTAINER_OF(psThis, PMR, sZombieNode);
-
-		PVR_DPF((PVR_DBG_ERROR, "PMR = %px, Flavour = %s, Annotation: %s",
-		        psPMR, PMR_GetTypeStr(psPMR), PMR_GetAnnotation(psPMR)));
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+		if (PMR_IsListNodeZombiePages(psThis))
+		{
+			PMR_ZOMBIE_PAGES* psZombiePages = PMR_GetZombiePagesFromNode(psThis);
+			PVR_DPF((PVR_DBG_ERROR, "Zombie Pages = %p", psZombiePages));
+		}
+		else
+#endif
+		{
+			PMR *psPMR = PMR_GetPMRFromNode(psThis);
+			PVR_DPF((PVR_DBG_ERROR, "PMR = %px, Flavour = %s, Annotation: %s",
+			        psPMR, PMR_GetTypeStr(psPMR), PMR_GetAnnotation(psPMR)));
+		}
 	}
 
 	OSLockRelease(psDeviceNode->hPMRZombieListLock);
