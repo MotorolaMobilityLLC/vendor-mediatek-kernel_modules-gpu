@@ -1842,6 +1842,57 @@ DevmemIntChangeSparse(DEVMEMINT_HEAP *psDevmemHeap,
 }
 
 static PVRSRV_ERROR
+DevmemIntChangeSparseValidateParams(PMR *psPMR,
+                                    IMG_UINT32 ui32AllocPageCount,
+                                    IMG_UINT32 ui32FreePageCount,
+                                    IMG_UINT32 ui32LogicalChunkCount,
+                                    SPARSE_MEM_RESIZE_FLAGS uiSparseFlags)
+{
+	/* Ensure a PMR has been mapped to this reservation. */
+	PVR_LOG_RETURN_IF_INVALID_PARAM(uiSparseFlags & SPARSE_RESIZE_BOTH, "uiSparseFlags");
+
+	if (!PMR_IsSparse(psPMR) || PMR_IsMemLayoutFixed(psPMR) ||
+	    PMR_IsCpuMapped(psPMR))
+	{
+		PVR_DPF((PVR_DBG_ERROR,
+		         "%s: PMR cannot be changed because one or more of the following"
+		         " were true: !PMR_IsSparse() = %s, PMR_IsMemLayoutFixed() = %s,"
+		         " PMR_IsCpuMapped() = %s",
+		         __func__,
+		         !PMR_IsSparse(psPMR) ? "true" : "false",
+		         PMR_IsMemLayoutFixed(psPMR) ? "true" : "false",
+		         PMR_IsCpuMapped(psPMR) ? "true" : "false"));
+		return PVRSRV_ERROR_PMR_NOT_PERMITTED;
+	}
+
+	if (PMR_IsGpuMultiMapped(psPMR))
+	{
+		PVR_DPF((PVR_DBG_ERROR,
+		         "%s: PMR cannot be changed because PMR_IsGpuMultiMapped() = true",
+		         __func__));
+		return PVRSRV_ERROR_PMR_NOT_PERMITTED;
+	}
+
+	if (uiSparseFlags & SPARSE_RESIZE_ALLOC)
+	{
+		PVR_LOG_RETURN_IF_INVALID_PARAM(ui32AllocPageCount != 0, "ui32AllocPageCount");
+		PVR_LOG_RETURN_IF_FALSE(ui32AllocPageCount <= ui32LogicalChunkCount,
+		                        "ui32AllocPageCount is invalid",
+		                        PVRSRV_ERROR_PMR_BAD_MAPPINGTABLE_SIZE);
+	}
+
+	if (uiSparseFlags & SPARSE_RESIZE_FREE)
+	{
+		PVR_LOG_RETURN_IF_INVALID_PARAM(ui32FreePageCount != 0, "ui32FreePageCount");
+		PVR_LOG_RETURN_IF_FALSE(ui32FreePageCount <= ui32LogicalChunkCount,
+		                        "ui32FreePageCount is invalid",
+		                        PVRSRV_ERROR_PMR_BAD_MAPPINGTABLE_SIZE);
+	}
+
+	return PVRSRV_OK;
+}
+
+static PVRSRV_ERROR
 DevmemIntValidateSparsePMRIndices(IMG_UINT32 ui32PMRLogicalChunkCount,
                                   IMG_UINT32 *paui32LogicalIndices,
                                   IMG_UINT32 ui32LogicalIndiceCount)
@@ -1913,8 +1964,8 @@ DevmemIntChangeSparse2(DEVMEMINT_HEAP *psDevmemHeap,
 {
 	PVRSRV_ERROR eError = PVRSRV_OK;
 
-	IMG_UINT32 uiLog2PMRContiguity;
-	IMG_UINT32 uiLog2HeapContiguity;
+	IMG_UINT32 ui32Log2PMRContiguity;
+	IMG_UINT32 ui32Log2HeapContiguity;
 	IMG_UINT32 uiOrderDiff;
 	PVRSRV_MEMALLOCFLAGS_T uiFlags;
 
@@ -1926,13 +1977,14 @@ DevmemIntChangeSparse2(DEVMEMINT_HEAP *psDevmemHeap,
 	IMG_UINT64 ui64PMRLogicalSize;
 	IMG_UINT32 ui32LogicalChunkCount;
 
+	OSLockAcquire(psReservation->hLock);
+
+	uiFlags = psReservation->uiFlags;
+
+	PVR_LOG_GOTO_IF_INVALID_PARAM(psReservation->psMappedPMR != NULL, eError, InvalidPMRErr);
+
 	PVR_UNREFERENCED_PARAMETER(psDevmemHeap);
 	
-	PMR_LogicalSize(psPMR, &ui64PMRLogicalSize);
-	ui32LogicalChunkCount = ui64PMRLogicalSize >> PMR_GetLog2Contiguity(psPMR);
-
-	/* Ensure a PMR has been mapped to this reservation. */
-	PVR_LOG_RETURN_IF_INVALID_PARAM(psReservation->psMappedPMR != NULL, "psReservation");
 
 	{
 		IMG_UINT64 ui64PMRUID;
@@ -1946,74 +1998,37 @@ DevmemIntChangeSparse2(DEVMEMINT_HEAP *psDevmemHeap,
 			PVR_DPF((PVR_DBG_ERROR,
 				"%s: Reservation doesn't represent virtual range associated"
 				" with given mapped PMR", __func__));
-			return PVRSRV_ERROR_INVALID_PARAMS;
+			PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_INVALID_PARAMS, InvalidPMRErr);
 		}
 	}
 
 	psPMR = psReservation->psMappedPMR;
+	PMRLockPMR(psPMR);
 
-	if (!PMR_IsSparse(psPMR))
-	{
-		PVR_DPF((PVR_DBG_ERROR,
-				"%s: Given PMR is not Sparse",
-				__func__));
-		return PVRSRV_ERROR_INVALID_PARAMS;
-	}
+	ui32Log2PMRContiguity = PMR_GetLog2Contiguity(psPMR);
 
-	uiLog2PMRContiguity = PMR_GetLog2Contiguity(psPMR);
-	uiLog2HeapContiguity = psReservation->psDevmemHeap->uiLog2PageSize;
+	PMR_LogicalSize(psPMR, &ui64PMRLogicalSize);
+	ui32LogicalChunkCount = ui64PMRLogicalSize >> ui32Log2PMRContiguity;
 
-	/* This is check is made in DevmemIntMapPMR - no need to do it again in release. */
-	PVR_ASSERT(uiLog2HeapContiguity <= uiLog2PMRContiguity);
+	ui32Log2HeapContiguity = psReservation->psDevmemHeap->uiLog2PageSize;
 
-	if (uiSparseFlags & SPARSE_RESIZE_ALLOC)
-	{
-		PVR_LOG_RETURN_IF_INVALID_PARAM(ui32AllocPageCount != 0, "ui32AllocPageCount");
-		PVR_LOG_RETURN_IF_FALSE(ui32AllocPageCount <= ui32LogicalChunkCount,
-		                        "ui32AllocPageCount is invalid",
-		                        PVRSRV_ERROR_PMR_BAD_MAPPINGTABLE_SIZE);
-	}
+	eError = DevmemIntChangeSparseValidateParams(psPMR,
+	                                             ui32AllocPageCount,
+	                                             ui32FreePageCount,
+	                                             ui32LogicalChunkCount,
+	                                             uiSparseFlags);
+	PVR_LOG_GOTO_IF_ERROR(eError, "DevmemIntChangeSparseValidateParams", e0);
 
-	if (uiSparseFlags & SPARSE_RESIZE_FREE)
-	{
-		PVR_LOG_RETURN_IF_INVALID_PARAM(ui32FreePageCount != 0, "ui32FreePageCount");
-		PVR_LOG_RETURN_IF_FALSE(ui32FreePageCount <= ui32LogicalChunkCount,
-		                        "ui32FreePageCount is invalid",
-		                        PVRSRV_ERROR_PMR_BAD_MAPPINGTABLE_SIZE);
-	}
-
-	if (PMR_IsMemLayoutFixed(psPMR) || PMR_IsCpuMapped(psPMR))
-	{
-		PVR_DPF((PVR_DBG_ERROR,
-				"%s: This PMR layout cannot be changed - PMR_IsMemLayoutFixed()=%c, _PMR_IsMapped()=%c",
-				__func__,
-				PMR_IsMemLayoutFixed(psPMR) ? 'Y' : 'n',
-				PMR_IsCpuMapped(psPMR) ? 'Y' : 'n'));
-		return PVRSRV_ERROR_PMR_NOT_PERMITTED;
-	}
-
-	uiFlags = psReservation->uiFlags;
 	eError = DevmemValidateFlags(psPMR, uiFlags);
 	PVR_LOG_GOTO_IF_ERROR(eError, "DevmemValidateFlags", e0);
+
+	/* This is check is made in DevmemIntMapPMR - no need to do it again in release. */
+	PVR_ASSERT(ui32Log2HeapContiguity <= ui32Log2PMRContiguity);
 
 	pai32MapIndices = pai32AllocIndices;
 	pai32UnmapIndices = pai32FreeIndices;
 	uiMapPageCount = ui32AllocPageCount;
 	uiUnmapPageCount = ui32FreePageCount;
-
-	OSLockAcquire(psReservation->hLock);
-
-	PMRLockPMR(psPMR);
-
-	if (PMR_IsGpuMultiMapped(psPMR))
-	{
-		PVR_DPF((PVR_DBG_ERROR,
-		         "%s: PMR cannot be changed because PMR_IsGpuMultiMapped() = true",
-		         __func__));
-		PVR_GOTO_WITH_ERROR(eError,
-		                    PVRSRV_ERROR_PMR_NOT_PERMITTED,
-		                    e0);
-	}
 
 	/*
 	 * The order of steps in which this request is done is given below. The order of
@@ -2052,7 +2067,7 @@ DevmemIntChangeSparse2(DEVMEMINT_HEAP *psDevmemHeap,
 			PVR_LOG_GOTO_IF_ERROR(eError, "DevmemIntValidateSparsePMRIndices", e0);
 		}
 
-		uiOrderDiff = uiLog2PMRContiguity - uiLog2HeapContiguity;
+		uiOrderDiff = ui32Log2PMRContiguity - ui32Log2HeapContiguity;
 
 		/* Special case:
 		 * Adjust indices if we map into a heap that uses smaller page sizes
@@ -2151,7 +2166,7 @@ DevmemIntChangeSparse2(DEVMEMINT_HEAP *psDevmemHeap,
 			                        psReservation->sBase,
 			                        uiUnmapPageCount,
 			                        pai32UnmapIndices,
-			                        uiLog2HeapContiguity);
+			                        ui32Log2HeapContiguity);
 			PVR_LOG_GOTO_IF_ERROR(eError, "MMU_UnmapPages", e1);
 
 			for (i = 0; i < uiUnmapPageCount; i++)
@@ -2195,7 +2210,7 @@ DevmemIntChangeSparse2(DEVMEMINT_HEAP *psDevmemHeap,
 			                       0,
 			                       uiMapPageCount,
 			                       pai32MapIndices,
-			                       uiLog2HeapContiguity);
+			                      ui32Log2HeapContiguity);
 			if (PVRSRV_OK != eError)
 			{
 				PVR_DPF((PVR_DBG_MESSAGE,
@@ -2253,6 +2268,7 @@ e1:
 	}
 e0:
 	PMRUnlockPMR(psPMR);
+InvalidPMRErr:
 	OSLockRelease(psReservation->hLock);
 	return eError;
 }
