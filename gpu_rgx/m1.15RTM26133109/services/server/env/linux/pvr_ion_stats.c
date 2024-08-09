@@ -587,4 +587,31 @@ void PVRSRVIonZombifyMemAllocRecord(const struct dma_buf *psDmaBuf)
 out:
 	OSLockRelease(psState->hBuffersLock);
 }
+
+void PVRSRVIonReviveMemAllocRecord(const struct dma_buf *psDmaBuf)
+{
+	PVR_ION_STATS_STATE *psState = &gPvrIonStatsState;
+	PVR_ION_STATS_BUF *psBuf;
+
+	if (!psDmaBuf) {
+		PVR_DPF((PVR_DBG_ERROR, "Invalid dma buffer"));
+		return;
+	}
+
+	/* We're only interested in ION buffers */
+	if (isIonBuf(psDmaBuf) == IMG_FALSE)
+		return;
+
+	OSLockAcquire(psState->hBuffersLock);
+	psBuf = GetBuf(&psState->buffers, (uintptr_t)psDmaBuf);
+	if (!psBuf) {
+		PVR_DPF((PVR_DBG_ERROR, "Failed to find dma buffer"));
+		goto out;
+	}
+
+	psBuf->bZombie = IMG_FALSE;
+
+out:
+	OSLockRelease(psState->hBuffersLock);
+}
 #endif
