@@ -59,6 +59,7 @@ void PVRSRVIonRemoveMemAllocRecord(struct dma_buf *psDmaBuf);
 
 #if defined(SUPPORT_PMR_DEFERRED_FREE)
 void PVRSRVIonZombifyMemAllocRecord(const struct dma_buf *psDmaBuf);
+void PVRSRVIonReviveMemAllocRecord(const struct dma_buf *psDmaBuf);
 #endif
 #else
 static INLINE PVRSRV_ERROR PVRSRVIonStatsInitialise(void)
@@ -82,6 +83,10 @@ static INLINE void PVRSRVIonRemoveMemAllocRecord(struct dma_buf *psDmaBuf)
 
 #if defined(SUPPORT_PMR_DEFERRED_FREE)
 static INLINE void PVRSRVIonZombifyMemAllocRecord(const struct dma_buf *psDmaBuf)
+{
+	PVR_UNREFERENCED_PARAMETER(psDmaBuf);
+}
+static INLINE void PVRSRVIonReviveMemAllocRecord(const struct dma_buf *psDmaBuf)
 {
 	PVR_UNREFERENCED_PARAMETER(psDmaBuf);
 }
