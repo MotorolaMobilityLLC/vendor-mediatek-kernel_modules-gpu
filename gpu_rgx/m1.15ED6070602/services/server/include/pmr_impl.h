@@ -79,18 +79,24 @@ typedef struct _PMR_MAPPING_TABLE_ PMR_MAPPING_TABLE;
  */
 typedef void *PMR_MMAP_DATA;
 
+#define PMR_IMPL_TYPES \
+	X(NONE), \
+	X(OSMEM), \
+	X(LMA), \
+	X(DMABUF), \
+	X(EXTMEM), \
+	X(DC), \
+	X(TDFWMEM), \
+	X(TDSECBUF), \
+	X(LAST)
+
 /*! PMR factory type.
  */
 typedef enum _PMR_IMPL_TYPE_
 {
-	PMR_TYPE_NONE = 0,
-	PMR_TYPE_OSMEM,
-	PMR_TYPE_LMA,
-	PMR_TYPE_DMABUF,
-	PMR_TYPE_EXTMEM,
-	PMR_TYPE_DC,
-	PMR_TYPE_TDFWMEM,
-	PMR_TYPE_TDSECBUF
+#define X(type) PMR_TYPE_##type
+	PMR_IMPL_TYPES
+#undef X
 } PMR_IMPL_TYPE;
 
 /*************************************************************************/ /*!
@@ -488,6 +494,27 @@ typedef void (*PFN_ACQUIRE_PMR_FACTORY_LOCK_FN)(void);
 */ /**************************************************************************/
 typedef void (*PFN_RELEASE_PMR_FACTORY_LOCK_FN)(void);
 
+#ifdef SUPPORT_PMR_DEFERRED_FREE
+/*************************************************************************/ /*!
+@Brief          Callback function type PFN_ZOMBIFY_FN
+
+@Description    Called to perform factory actions necessary when PMR becomes
+                a zombie PMR.
+
+                This function should at least adjust the driver/process memory
+                stats to reflect the amount of memory is occupied by the zombie
+                PMRs and at the same time subtract the memory from the main
+                memory stat the pages are accounted under.
+
+   Implementation of this callback is required when SUPPORT_PMR_DEFERRED_FREE=1.
+
+@Return         PVRSRV_OK if the operation was successful, an error code
+                otherwise.
+*/ /**************************************************************************/
+typedef PVRSRV_ERROR (*PFN_ZOMBIFY_FN)(PMR_IMPL_PRIVDATA pvPriv,
+                                       PMR *psPMR);
+#endif
+
 /*! PMR factory callback table.
  */
 struct _PMR_IMPL_FUNCTAB_ {
@@ -544,6 +571,11 @@ struct _PMR_IMPL_FUNCTAB_ {
 
     /*! Callback function pointer, see ::PFN_RELEASE_PMR_FACTORY_LOCK_FN */
     PFN_RELEASE_PMR_FACTORY_LOCK_FN pfnReleasePMRFactoryLock;
+
+#ifdef SUPPORT_PMR_DEFERRED_FREE
+    /*! Callback function pointer, see ::PFN_ZOMBIFY_FN */
+    PFN_ZOMBIFY_FN pfnZombify;
+#endif
 };
 
 /*! PMR factory callback table.
