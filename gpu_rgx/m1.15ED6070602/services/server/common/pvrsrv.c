@@ -2083,13 +2083,6 @@ PVRSRV_ERROR PVRSRVCommonDeviceCreate(void *pvOSDevice,
 	}
 #endif
 
-	/* Initialise the paravirtualised connection */
-	if (!PVRSRV_VZ_MODE_IS(NATIVE))
-	{
-		PvzConnectionInit(psDevConfig);
-		PVR_GOTO_IF_ERROR(eError, ErrorSysDevDeInit);
-	}
-
 	/* Next update value will be 0xFFFFFFF7 since sync prim starts with 0xFFFFFFF6.
 	 * Has to be set before call to PMRInitDevice(). */
 	psDeviceNode->ui32NextMMUInvalidateUpdate = 0xFFFFFFF7U;
@@ -2099,7 +2092,7 @@ PVRSRV_ERROR PVRSRVCommonDeviceCreate(void *pvOSDevice,
 	eError = PVRSRVRegisterDbgTable(psDeviceNode,
 									g_aui32DebugOrderTable,
 									ARRAY_SIZE(g_aui32DebugOrderTable));
-	PVR_GOTO_IF_ERROR(eError, ErrorPvzConnectionDeInit);
+	PVR_GOTO_IF_ERROR(eError, ErrorSysDevDeInit);
 
 	eError = PVRSRVPowerLockInit(psDeviceNode);
 	PVR_GOTO_IF_ERROR(eError, ErrorUnregisterDbgTable);
@@ -2214,6 +2207,13 @@ PVRSRV_ERROR PVRSRVCommonDeviceCreate(void *pvOSDevice,
 	List_PVRSRV_DEVICE_NODE_InsertTail(&psPVRSRVData->psDeviceNodeList,
 									   psDeviceNode);
 
+	/* Initialise the paravirtualised connection */
+	if (!PVRSRV_VZ_MODE_IS(NATIVE))
+	{
+		PvzConnectionInit(psDevConfig);
+		PVR_GOTO_IF_ERROR(eError, ErrorDecrementDeviceCount);
+	}
+
 	*ppsDeviceNode = psDeviceNode;
 
 #if defined(PVRSRV_ENABLE_PROCESS_STATS) && !defined(PVRSRV_DEBUG_LINUX_MEMORY_STATS)
@@ -2267,12 +2267,6 @@ ErrorPowerLockDeInit:
 	PVRSRVPowerLockDeInit(psDeviceNode);
 ErrorUnregisterDbgTable:
 	PVRSRVUnregisterDbgTable(psDeviceNode);
-ErrorPvzConnectionDeInit:
-	psDevConfig->psDevNode = NULL;
-	if (!PVRSRV_VZ_MODE_IS(NATIVE))
-	{
-		PvzConnectionDeInit();
-	}
 ErrorSysDevDeInit:
 	SysDevDeInit(psDevConfig);
 ErrorDeregisterStats:
