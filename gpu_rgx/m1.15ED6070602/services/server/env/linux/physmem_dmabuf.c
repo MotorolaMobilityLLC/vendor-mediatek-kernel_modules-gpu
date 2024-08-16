@@ -415,9 +415,17 @@ static PVRSRV_ERROR PMRLockPhysAddressesDmaBuf(PMR_IMPL_PRIVDATA pvPriv)
 	return PVRSRV_OK;
 }
 
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+static PVRSRV_ERROR PMRUnlockPhysAddressesDmaBuf(PMR_IMPL_PRIVDATA pvPriv,
+                                                 PMR_IMPL_ZOMBIEPAGES *ppvZombiePages)
+#else
 static PVRSRV_ERROR PMRUnlockPhysAddressesDmaBuf(PMR_IMPL_PRIVDATA pvPriv)
+#endif
 {
 	PVR_UNREFERENCED_PARAMETER(pvPriv);
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+	*ppvZombiePages = NULL;
+#endif
 	return PVRSRV_OK;
 }
 

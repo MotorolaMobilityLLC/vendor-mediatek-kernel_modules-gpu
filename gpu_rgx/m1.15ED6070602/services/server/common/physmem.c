@@ -349,6 +349,16 @@ PVRSRV_ERROR PhysMemValidateParams(IMG_UINT32 ui32NumPhysChunks,
 		return PVRSRV_ERROR_INVALID_PARAMS;
 	}
 
+	/* Sparse allocations must be backed immediately as the requested
+	 * pui32MappingTable is not retained in any structure if not immediately
+	 * actioned on allocation.
+	 */
+	if (PVRSRV_CHECK_ON_DEMAND(uiFlags) && bIsSparse)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Invalid to specify ON_DEMAND for a sparse allocation: 0x%" IMG_UINT64_FMTSPECX, __func__, uiFlags));
+		return PVRSRV_ERROR_INVALID_FLAGS;
+	}
+
 	/* Protect against invalid page sizes */
 	switch (uiLog2AllocPageSize)
 	{
