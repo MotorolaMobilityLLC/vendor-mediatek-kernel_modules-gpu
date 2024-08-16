@@ -1006,13 +1006,21 @@ PMRLockSysPhysAddressesLocalMem(PMR_IMPL_PRIVDATA pvPriv)
 	return PVRSRV_OK;
 }
 
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+static PVRSRV_ERROR
+PMRUnlockSysPhysAddressesLocalMem(PMR_IMPL_PRIVDATA pvPriv,
+                                  PMR_IMPL_ZOMBIEPAGES *ppvZombiePages)
+#else
 static PVRSRV_ERROR
 PMRUnlockSysPhysAddressesLocalMem(PMR_IMPL_PRIVDATA pvPriv)
+#endif
 {
 	PVRSRV_ERROR eError = PVRSRV_OK;
-	PMR_LMALLOCARRAY_DATA *psLMAllocArrayData;
+	PMR_LMALLOCARRAY_DATA *psLMAllocArrayData = pvPriv;
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
 
-	psLMAllocArrayData = pvPriv;
+	*ppvZombiePages = NULL;
+#endif
 
 	if (psLMAllocArrayData->bOnDemand)
 	{
@@ -1370,6 +1378,9 @@ PMRChangeSparseMemLocalMem(PMR_IMPL_PRIVDATA pPriv,
                            IMG_UINT32 *pai32AllocIndices,
                            IMG_UINT32 ui32FreePageCount,
                            IMG_UINT32 *pai32FreeIndices,
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+                           PMR_IMPL_ZOMBIEPAGES *ppvZombiePages,
+#endif
                            IMG_UINT32 uiFlags)
 {
 	PVRSRV_ERROR eError = PVRSRV_ERROR_INVALID_PARAMS;
@@ -1393,6 +1404,9 @@ PMRChangeSparseMemLocalMem(PMR_IMPL_PRIVDATA pPriv,
 	IMG_DEV_PHYADDR *psPageArray = psPMRPageArrayData->pasDevPAddr;
 	PMR_MAPPING_TABLE *psPMRMapTable = PMR_GetMappingTable(psPMR);
 
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+	*ppvZombiePages = NULL;
+#endif
 	/* The incoming request is classified into two operations independent of
 	 * each other: alloc & free pages.
 	 * These operations can be combined with two mapping operations as well
@@ -1669,6 +1683,9 @@ static PMR_IMPL_FUNCTAB _sPMRLMAFuncTab = {
 	&PMRChangeSparseMemLocalMem,
 	/* pfnChangeSparseMemCPUMap */
 	&PMRChangeSparseMemCPUMapLocalMem,
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+	NULL,
+#endif
 	/* pfnMMap */
 	NULL,
 	/* pfnFinalize */
