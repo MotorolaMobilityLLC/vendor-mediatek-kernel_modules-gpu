@@ -2600,6 +2600,7 @@ PVRSRV_ERROR MMU_InitDevice(struct _PVRSRV_DEVICE_NODE_ *psDevNode)
 #ifdef PDUMP
 	psDevNode->sDummyPage.hPdumpPg = NULL;
 	psDevNode->sDevZeroPage.hPdumpPg = NULL;
+#endif /* PDUMP */
 
 	eError = _MMU_GetBackingPage(psDevNode,
 	                             &psDevNode->sDummyPage,
@@ -2614,17 +2615,14 @@ PVRSRV_ERROR MMU_InitDevice(struct _PVRSRV_DEVICE_NODE_ *psDevNode)
 	                             DEV_ZERO_PAGE,
 	                             IMG_TRUE);
 	PVR_LOG_GOTO_IF_ERROR(eError, "_MMU_GetBackingPage.Zero", ErrFreeDummyPage);
-#endif /* PDUMP */
 
 	return PVRSRV_OK;
 
-#ifdef PDUMP
 ErrFreeDummyPage:
 	_MMU_FreeBackingPage(psDevNode, &psDevNode->sDummyPage, DUMMY_PAGE);
 ErrFreeZeroPageLock:
 	OSLockDestroy(psDevNode->sDevZeroPage.psPgLock);
 	psDevNode->sDevZeroPage.psPgLock = NULL;
-#endif /* PDUMP */
 ErrFreeDummyPageLock:
 	OSLockDestroy(psDevNode->sDummyPage.psPgLock);
 	psDevNode->sDummyPage.psPgLock = NULL;
@@ -3231,6 +3229,10 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 		}
 	}
 
+#if defined(SUPPORT_PMR_DEFERRED_FREE)
+	PMRMarkForDeferFree(psPMR);
+#endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
+
 	OSLockAcquire(psMMUContext->hLock);
 
 	for (uiLoop = 0; uiLoop < ui32MapPageCount; uiLoop++)
@@ -3676,7 +3678,7 @@ MMU_UnmapPages(MMU_CONTEXT *psMMUContext,
 PVRSRV_ERROR
 MMU_MapPMRFast (MMU_CONTEXT *psMMUContext,
                 IMG_DEV_VIRTADDR sDevVAddrBase,
-                const PMR *psPMR,
+                PMR *psPMR,
                 IMG_DEVMEM_SIZE_T uiSizeBytes,
                 PVRSRV_MEMALLOCFLAGS_T uiMappingFlags,
                 IMG_UINT32 uiLog2HeapPageSize)
@@ -3779,6 +3781,10 @@ MMU_MapPMRFast (MMU_CONTEXT *psMMUContext,
 	                         psDevPAddr,
 	                         pbValid);
 	PVR_GOTO_IF_ERROR(eError, put_mmu_context);
+
+#if defined(SUPPORT_PMR_DEFERRED_FREE)
+	PMRMarkForDeferFree(psPMR);
+#endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
 
 	OSLockAcquire(psMMUContext->hLock);
 

@@ -1233,14 +1233,6 @@ DevmemXIntMapPages(DEVMEMXINT_RESERVATION *psRsrv,
 
 		if (psRsrv->ppsPMR[i] != NULL)
 		{
-#if defined(SUPPORT_PMR_DEFERRED_FREE)
-			/* If PMR is allocated on demand the backing memory is freed by
-			 * pfnUnlockPhysAddresses(). */
-			if (!PVRSRV_CHECK_ON_DEMAND(PMR_Flags(psRsrv->ppsPMR[i])))
-			{
-				PMRMarkForDeferFree(psRsrv->ppsPMR[i]);
-			}
-#endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
 			PMRUnrefPMR2(psRsrv->ppsPMR[i]);
 		}
 
@@ -1286,14 +1278,6 @@ DevmemXIntUnmapPages(DEVMEMXINT_RESERVATION *psRsrv,
 	{
 		if (psRsrv->ppsPMR[i] != NULL)
 		{
-#if defined(SUPPORT_PMR_DEFERRED_FREE)
-			/* If PMR is allocated on demand the backing memory is freed by
-			 * pfnUnlockPhysAddresses(). */
-			if (!PVRSRV_CHECK_ON_DEMAND(PMR_Flags(psRsrv->ppsPMR[i])))
-			{
-				PMRMarkForDeferFree(psRsrv->ppsPMR[i]);
-			}
-#endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
 			PMRUnrefPMR2(psRsrv->ppsPMR[i]);
 			psRsrv->ppsPMR[i] = NULL;
 		}
@@ -1583,16 +1567,6 @@ DevmemIntUnmapPMR2(DEVMEMINT_RESERVATION2 *psReservation)
 		                          psDevmemHeap->uiLog2PageSize);
 		PVR_LOG_GOTO_IF_ERROR(eError, "MMU_UnmapPMRFast", ErrUnlock);
 	}
-
-
-#if defined(SUPPORT_PMR_DEFERRED_FREE)
-	/* If PMR is allocated on demand the backing memory is freed by
-	 * pfnUnlockPhysAddresses(). */
-	if (!PVRSRV_CHECK_ON_DEMAND(PMR_Flags(psReservation->psMappedPMR)))
-	{
-		PMRMarkForDeferFree(psReservation->psMappedPMR);
-	}
-#endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
 
 	PMRGpuResCountDecr(psReservation->psMappedPMR);
 

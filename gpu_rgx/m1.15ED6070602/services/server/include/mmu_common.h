@@ -497,7 +497,7 @@ MMU_UnmapPages(MMU_CONTEXT *psMMUContext,
 PVRSRV_ERROR
 MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
                IMG_DEV_VIRTADDR sDevVAddr,
-               const PMR *psPMR,
+               PMR *psPMR,
                IMG_DEVMEM_SIZE_T uiSizeBytes,
                PVRSRV_MEMALLOCFLAGS_T uiMappingFlags,
                IMG_UINT32 uiLog2PageSize);

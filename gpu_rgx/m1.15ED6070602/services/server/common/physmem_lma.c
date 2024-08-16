@@ -798,6 +798,7 @@ _FreeLMPageArray(PMR_LMALLOCARRAY_DATA *psPageArrayData)
 	return PVRSRV_OK;
 }
 
+
 static PVRSRV_ERROR
 _FreeLMPages(PMR_LMALLOCARRAY_DATA *psPageArrayData,
              IMG_UINT32 *pui32FreeIndices,
@@ -878,6 +879,75 @@ _FreeLMPages(PMR_LMALLOCARRAY_DATA *psPageArrayData,
 
 	return PVRSRV_OK;
 }
+
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+static PVRSRV_ERROR PMRFreeZombiePagesLocalMem(PMR_IMPL_ZOMBIEPAGES pvPriv)
+{
+	PVRSRV_ERROR eError;
+	PMR_LMALLOCARRAY_DATA *psZombiePageArray = pvPriv;
+
+	eError = _FreeLMPages(psZombiePageArray, NULL, 0);
+	PVR_GOTO_IF_ERROR(eError, e0);
+
+	_FreeLMPageArray(psZombiePageArray);
+	return PVRSRV_OK;
+e0:
+	return eError;
+}
+
+/* Allocates a new PMR_LMALLOCARRAY_DATA object and fills it with
+ * pages to be extracted from psSrcPageArrayData.
+ */
+static PVRSRV_ERROR
+_ExtractPages(PMR_LMALLOCARRAY_DATA *psSrcPageArrayData,
+			  IMG_UINT32 *pai32ExtractIndices,
+			  IMG_UINT32 ui32ExtractPageCount,
+			  PMR_LMALLOCARRAY_DATA **psOutPageArrayData)
+{
+	PVRSRV_ERROR eError;
+	PMR_LMALLOCARRAY_DATA* psDstPageArrayData;
+	IMG_UINT32 i;
+
+	/* Alloc PMR_LMALLOCARRAY_DATA for the extracted pages */
+	eError = _AllocLMPageArray((IMG_UINT64)ui32ExtractPageCount << psSrcPageArrayData->uiLog2AllocSize,
+	                           ui32ExtractPageCount,
+	                           ui32ExtractPageCount,
+	                           NULL,
+	                           psSrcPageArrayData->uiLog2AllocSize,
+	                           psSrcPageArrayData->bZeroOnAlloc,
+	                           psSrcPageArrayData->bPoisonOnAlloc,
+	                           psSrcPageArrayData->bPoisonOnFree,
+	                           IMG_FALSE,
+	                           psSrcPageArrayData->bOnDemand,
+	                           psSrcPageArrayData->psPhysHeap,
+	                           psSrcPageArrayData->uiAllocFlags,
+	                           psSrcPageArrayData->uiPid,
+	                           &psDstPageArrayData,
+	                           psSrcPageArrayData->psConnection);
+	PVR_LOG_GOTO_IF_ERROR(eError, "_AllocLMPageArray", alloc_error);
+
+	psDstPageArrayData->psArena = psSrcPageArrayData->psArena;
+
+	for (i=0; i<ui32ExtractPageCount; i++)
+	{
+		IMG_UINT32 ui32SrcIdx = pai32ExtractIndices[i];
+		if (psSrcPageArrayData->pasDevPAddr[ui32SrcIdx].uiAddr != INVALID_PAGE_ADDR)
+		{
+			psDstPageArrayData->pasDevPAddr[i].uiAddr = psSrcPageArrayData->pasDevPAddr[ui32SrcIdx].uiAddr;
+			psDstPageArrayData->iNumPagesAllocated++;
+
+			psSrcPageArrayData->pasDevPAddr[ui32SrcIdx].uiAddr = INVALID_PAGE_ADDR;
+			psSrcPageArrayData->iNumPagesAllocated--;
+		}
+	}
+
+	*psOutPageArrayData = psDstPageArrayData;
+
+	return PVRSRV_OK;
+alloc_error:
+	return eError;
+}
+#endif /* defined(SUPPORT_PMR_PAGES_DEFERRED_FREE) */
 
 /*
  *
@@ -1575,8 +1645,22 @@ PMRChangeSparseMemLocalMem(PMR_IMPL_PRIVDATA pPriv,
 		/*Free the additional free pages */
 		if (0 != ui32AdtnlFreePages)
 		{
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+			PMR_LMALLOCARRAY_DATA *psExtractedPagesPageArray = NULL;
+
+			eError = _ExtractPages(psPMRPageArrayData, &pai32FreeIndices[ui32Loop], ui32AdtnlFreePages, &psExtractedPagesPageArray);
+			PVR_LOG_GOTO_IF_ERROR(eError, "_ExtractPages", e0);
+
+			/* Zombify pages to get proper stats */
+			eError = PMRZombifyLocalMem(psExtractedPagesPageArray, NULL);
+			PVR_LOG_IF_ERROR(eError, "PMRZombifyLocalMem");
+
+			*ppvZombiePages = psExtractedPagesPageArray;
+#else
+			eError = _FreeLMPages(psPMRPageArrayData, &pai32FreeIndices[ui32Loop], ui32AdtnlFreePages);
+			PVR_LOG_GOTO_IF_ERROR(eError, "_FreeLMPages", e0);
+#endif /* SUPPORT_PMR_PAGES_DEFERRED_FREE */
 			ui32Index = ui32Loop;
-			_FreeLMPages(psPMRPageArrayData, &pai32FreeIndices[ui32Loop], ui32AdtnlFreePages);
 			ui32Loop = 0;
 
 			while (ui32Loop++ < ui32AdtnlFreePages)
@@ -1684,7 +1768,8 @@ static PMR_IMPL_FUNCTAB _sPMRLMAFuncTab = {
 	/* pfnChangeSparseMemCPUMap */
 	&PMRChangeSparseMemCPUMapLocalMem,
 #if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
-	NULL,
+	/* pfnFreeZombiePages */
+	&PMRFreeZombiePagesLocalMem,
 #endif
 	/* pfnMMap */
 	NULL,
