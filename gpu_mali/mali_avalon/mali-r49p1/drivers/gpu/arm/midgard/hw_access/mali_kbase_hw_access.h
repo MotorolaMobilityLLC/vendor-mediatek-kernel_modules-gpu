@@ -221,7 +221,7 @@ void kbase_regmap_term(struct kbase_device *kbdev);
  */
 #define kbase_reg_poll32_timeout(kbdev, reg_enum, val, cond, delay_us, timeout_us,  \
 				 delay_before_read)                                 \
-	read_poll_timeout_atomic(kbase_reg_read32, val, cond, delay_us, timeout_us, \
+	mali_read_poll_timeout_atomic(kbase_reg_read32, val, cond, delay_us, timeout_us, \
 				 delay_before_read, kbdev, reg_enum)
 
 /**
@@ -238,6 +238,6 @@ void kbase_regmap_term(struct kbase_device *kbdev);
  */
 #define kbase_reg_poll64_timeout(kbdev, reg_enum, val, cond, delay_us, timeout_us,  \
 				 delay_before_read)                                 \
-	read_poll_timeout_atomic(kbase_reg_read64, val, cond, delay_us, timeout_us, \
+	mali_read_poll_timeout_atomic(kbase_reg_read64, val, cond, delay_us, timeout_us, \
 				 delay_before_read, kbdev, reg_enum)
 #endif /* _MALI_KBASE_HW_ACCESS_H_ */

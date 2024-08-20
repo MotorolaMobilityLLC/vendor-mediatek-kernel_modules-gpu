@@ -299,29 +299,36 @@ static inline long kbase_pin_user_pages_remote(struct task_struct *tsk, struct m
 #define kbase_totalram_pages() totalram_pages()
 #endif /* KERNEL_VERSION(5, 0, 0) > LINUX_VERSION_CODE */
 
-#ifndef read_poll_timeout_atomic
-#define read_poll_timeout_atomic(op, val, cond, delay_us, timeout_us, delay_before_read, args...) \
-	({                                                                                        \
-		const u64 __timeout_us = (timeout_us);                                            \
-		s64 __left_ns = __timeout_us * NSEC_PER_USEC;                                     \
-		const unsigned long __delay_us = (delay_us);                                      \
-		const u64 __delay_ns = __delay_us * NSEC_PER_USEC;                                \
-		if (delay_before_read && __delay_us)                                              \
-			udelay(__delay_us);                                                       \
-		if (__timeout_us)                                                                 \
-			__left_ns -= __delay_ns;                                                  \
-		do {                                                                              \
-			(val) = op(args);                                                         \
-			if (__timeout_us) {                                                       \
-				if (__delay_us) {                                                 \
-					udelay(__delay_us);                                       \
-					__left_ns -= __delay_ns;                                  \
-				}                                                                 \
-				__left_ns--;                                                      \
-			}                                                                         \
-		} while (!(cond) && (!__timeout_us || (__left_ns > 0)));                          \
-		(cond) ? 0 : -ETIMEDOUT;                                                          \
+/* For kernel versions from 6.5 onward, the read_poll_timeout_atomic() implementation does not
+ * suit our usecase where we have a delay_us of zero. This causes the timeout to take allot longer
+ * than expected. mali_read_poll_timeout_atomic() is the previous kernel implementation with the
+ * desired timekeeping.
+ */
+#define mali_read_poll_timeout_atomic(op, val, cond, delay_us, timeout_us, delay_before_read, \
+				      args...)                                                \
+	({                                                                                    \
+		u64 __timeout_us = (timeout_us);                                              \
+		unsigned long __delay_us = (delay_us);                                        \
+		ktime_t __timeout = ktime_add_us(ktime_get(), __timeout_us);                  \
+		if (delay_before_read && __delay_us)                                          \
+			udelay(__delay_us);                                                   \
+		for (;;) {                                                                    \
+			(val) = op(args);                                                     \
+			if (cond)                                                             \
+				break;                                                        \
+			if (__timeout_us && ktime_compare(ktime_get(), __timeout) > 0) {      \
+				(val) = op(args);                                             \
+				break;                                                        \
+			}                                                                     \
+			if (__delay_us)                                                       \
+				udelay(__delay_us);                                           \
+		}                                                                             \
+		(cond) ? 0 : -ETIMEDOUT;                                                      \
 	})
+#ifndef read_poll_timeout_atomic
+#define read_poll_timeout_atomic(op, val, cond, delay_us, timeout_us, delay_before_read, ...) \
+	mali_read_poll_timeout_atomic(op, val, cond, delay_us, timeout_us, delay_before_read, \
+				      __VA_ARGS__)
 #endif
 
 #if (KERNEL_VERSION(4, 11, 0) > LINUX_VERSION_CODE)
