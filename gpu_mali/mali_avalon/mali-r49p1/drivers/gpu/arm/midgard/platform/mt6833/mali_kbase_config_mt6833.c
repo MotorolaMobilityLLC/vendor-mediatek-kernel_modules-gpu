@@ -244,6 +244,7 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 
     mutex_lock(&g_mfg_lock);
     ret = pm_callback_power_on_nolock(kbdev);
+    mtk_notify_gpu_power_change(1);
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
     MTK_LTR_gpu_pmu_resume();
 #endif
@@ -255,6 +256,7 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 static void pm_callback_power_off(struct kbase_device *kbdev)
 {
     mutex_lock(&g_mfg_lock);
+    mtk_notify_gpu_power_change(0);
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
     MTK_LTR_gpu_pmu_suspend();
 #endif
