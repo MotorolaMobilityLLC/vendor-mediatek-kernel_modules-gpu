@@ -79,7 +79,7 @@
 #include <ged_dvfs.h>
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY || CONFIG_MALI_MTK_WHITEBOX_MCU */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP) || IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP) || IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
@@ -1738,10 +1738,9 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 					if (ged_gpu_apo_support())
 						ged_get_active_time();
-#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)
+
 					mtk_common_ged_dvfs_write_sysram_last_commit_dual();
-#endif /* CONFIG_MALI_MTK_GPU_DVFS_ASYNC */
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 					kbase_pm_invoke(kbdev, KBASE_PM_CORE_L2, l2_present,
 							ACTION_PWRON);
 				}
@@ -1945,9 +1944,9 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 					gpufreq_set_mfgsys_config(CONFIG_MFG2_BEFORE_OFF,
 						CONFIG_VAL_IGNORE);
 #endif /* CONFIG_MTK_GPUFREQ_V2 && CONFIG_MALI_MTK_MFG2_BACKDOOR */
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 					mtk_common_ged_dvfs_write_sysram_last_commit_dual();
-#endif /* CONFIG_MALI_MTK_GPU_DVFS_ASYNC */
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 						kbase_pm_invoke(kbdev, KBASE_PM_CORE_L2, l2_present,
 								ACTION_PWROFF);
 				} else
