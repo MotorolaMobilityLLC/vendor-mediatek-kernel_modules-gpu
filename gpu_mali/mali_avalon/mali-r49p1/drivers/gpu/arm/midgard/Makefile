@@ -27,6 +27,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MIDGARD_DVFS := y
         CONFIG_MALI_DEVFREQ := y
         # *** MTK CONFIG ***
+        CONFIG_MALI_MTK_MGMM := y
         CONFIG_MALI_MTK_BRINGUP := n
         CONFIG_MALI_MTK_MEMTRACK :=y
         CONFIG_MALI_MTK_DEVFREQ_GOVERNOR := y
@@ -46,6 +47,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MIDGARD_DVFS := y
         CONFIG_MALI_DEVFREQ := y
         # *** MTK CONFIG ***
+        CONFIG_MALI_MTK_MGMM := y
         CONFIG_MALI_MTK_BRINGUP := n
         CONFIG_MALI_MTK_MEMTRACK :=y
         CONFIG_MALI_MTK_DEVFREQ_GOVERNOR := y
