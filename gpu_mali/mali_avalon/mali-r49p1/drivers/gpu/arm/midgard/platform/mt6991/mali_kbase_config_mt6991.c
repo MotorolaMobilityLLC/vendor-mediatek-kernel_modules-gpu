@@ -317,6 +317,12 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 		mutex_lock(&g_mfg_lock);
 		mtk_notify_gpu_power_change(0);
 		pm_callback_power_off_nolock(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+		if (kbdev->ptp_update_in_progress) {
+			gpufreq_set_mfgsys_config(CONFIG_PTP3, DATA_UPDATE);
+			kbdev->ptp_update_in_progress = false;
+		}
+#endif
 		mutex_unlock(&g_mfg_lock);
 		/* Stage-1 Vcore-off-allow, ghpm off
 	 	* Kbase prevent repeat trigger ghpm off
