@@ -494,7 +494,7 @@ ccflags-y += -I$(KO_CODE_PATH)/include
 subdir-ccflags-y += -I$(KO_CODE_PATH)/include
 
 # Driver version string which is returned to userspace via an ioctl
-MALI_RELEASE_NAME ?= '"r49p1-02dev0"'
+MALI_RELEASE_NAME ?= '"r49p1-03bet0"'
 # Set up defaults if not defined by build system
 ifeq ($(CONFIG_MALI_DEBUG), y)
     MALI_UNIT_TEST = 1
