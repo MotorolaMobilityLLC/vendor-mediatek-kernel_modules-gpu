@@ -152,6 +152,15 @@
  */
 #define BASE_MAX_NR_CLOCKS_REGULATORS (2)
 
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
+/* Define Force sync value for ACP debug use */
+#define FORCE_SYNC_NONE 0
+#define FORCE_SYNC_CMD  1
+#define FORCE_SYNC_DTS  2
+#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
+
+
 /* Forward declarations */
 struct kbase_context;
 struct kbase_device;
@@ -1145,6 +1154,10 @@ enum mmu_dbg_log_config {
  * @pcm_prioritized_process_nb: Notifier block for the Priority Control Manager
  *                              driver, this is used to be informed of the
  *                              changes in the list of prioritized processes.
+ * @acp_dbg_force_sync:     Define ACP debug mode.
+ *                          0:ACP trans can hit CPU cache
+ *                          1:ACP trans miss CPU cahce except for CSF interface (CMD enable)
+ *                          2:ACP trans miss CPU cache (DTS enable)
  */
 struct kbase_device {
 	u32 hw_quirks_sc;
@@ -1507,6 +1520,10 @@ struct kbase_device {
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_RESET_DEBUG)
 	u32 reset_exception_mask;
 #endif /* CONFIG_MALI_MTK_GPU_RESET_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
+	u32 acp_dbg_force_sync;
+#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
 };
 
 /**
