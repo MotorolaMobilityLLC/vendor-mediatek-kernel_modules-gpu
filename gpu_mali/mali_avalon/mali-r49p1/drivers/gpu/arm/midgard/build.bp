@@ -59,9 +59,6 @@ bob_defaults {
     mali_dma_buf_legacy_compat: {
         kbuild_options: ["CONFIG_MALI_DMA_BUF_LEGACY_COMPAT=y"],
     },
-    page_migration_support: {
-        kbuild_options: ["CONFIG_PAGE_MIGRATION_SUPPORT=y"],
-    },
     large_page_support: {
         kbuild_options: ["CONFIG_LARGE_PAGE_SUPPORT=y"],
     },

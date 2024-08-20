@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2015-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2015-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -107,7 +107,7 @@ static bool set_pool_new_page_metadata(struct kbase_mem_pool *pool, struct page 
 	 * Only update page status and add the page to the memory pool if
 	 * it is not isolated.
 	 */
-	if (!IS_ENABLED(CONFIG_PAGE_MIGRATION_SUPPORT))
+	if (!kbase_is_page_migration_enabled())
 		not_movable = true;
 	else {
 		spin_lock(&page_md->migrate_lock);
