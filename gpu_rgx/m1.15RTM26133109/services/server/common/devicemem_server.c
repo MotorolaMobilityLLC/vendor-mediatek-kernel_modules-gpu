@@ -1173,6 +1173,13 @@ DevmemValidateFlags(PMR *psPMR, PVRSRV_MEMALLOCFLAGS_T uiMapFlags)
 		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_INVALID_FLAGS, ErrorReturnError);
 	}
 
+	if ((uiMapFlags & PVRSRV_MEMALLOCFLAG_DEVICE_FLAGS_MASK) != 
+	    (uiPMRFlags & PVRSRV_MEMALLOCFLAG_DEVICE_FLAGS_MASK))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: PMR's device specific flags don't match mapping flags.", __func__));
+		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_INVALID_FLAGS, ErrorReturnError);
+	}
+
 ErrorReturnError:
 	return eError;
 }
