@@ -2717,8 +2717,8 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		/* GPU has been reset */
 		hrtimer_cancel(&rtdata.timer);
 		destroy_hrtimer_on_stack(&rtdata.timer);
-		dev_info(kbdev->dev, "GPU soft reset completed");
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		dev_info(kbdev->dev,"GPU soft reset completed");
 		ged_log_buf_print2(
 			kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
 			"GPU soft reset completed\n");
