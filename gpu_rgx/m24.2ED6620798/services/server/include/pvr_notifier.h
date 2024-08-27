@@ -45,7 +45,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "img_types.h"
 #include "pvr_debug.h"
-
+#if defined(MTK_FULL_PORTING)
+#include "mtk_pp.h"
+#endif
 
 /*************************************************************************/ /*!
 Command Complete Notifier Interface
@@ -322,5 +324,10 @@ PVRSRVDebugRequest(struct _PVRSRV_DEVICE_NODE_ *psDevNode,
                    IMG_UINT32 ui32VerbLevel,
                    DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
                    void *pvDumpDebugFile);
+
+#if defined(MTK_FULL_PORTING)
+IMG_BOOL MTK_PVRSRVDebugRequestGetSilence(void);
+void MTK_PVRSRVDebugRequestSetSilence(IMG_BOOL bEnable);
+#endif
 
 #endif /* !defined(PVR_NOTIFIER_H) */
