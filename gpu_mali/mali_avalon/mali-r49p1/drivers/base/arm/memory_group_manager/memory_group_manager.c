@@ -1053,7 +1053,7 @@ static struct page *example_mgm_alloc_page(struct memory_group_manager_device *m
 						if (!(*pbRank0) == rank) {
 							*pbRank0 = !(*pbRank0);
 							data->count++;
-							dev_warn(data->dev, "OOM switch rank%u->%u (%zu) order=%u nr_rank={%zu,%zu}\n",
+							dev_info(data->dev, "switch rank%u->%u (%zu) order=%u nr_rank={%zu,%zu}\n",
 								*pbRank0, !(*pbRank0), data->count, order, data->nr_rank[o][0], data->nr_rank[o][1]);
 						}
 						rank = (*pbRank0) ? 0 : 1;
@@ -1062,7 +1062,7 @@ static struct page *example_mgm_alloc_page(struct memory_group_manager_device *m
 					}
 					if (!p) {
 						if (order == SP_ORDER) {
-							dev_warn(data->dev, "OOM alloc from system directly, nr_rank={%zu,%zu}\n",
+							dev_warn(data->dev, "alloc from system directly, nr_rank={%zu,%zu}\n",
 								data->nr_rank[o][0], data->nr_rank[o][1]);
 							p = alloc_pages(gfp_mask, order);
 						}
