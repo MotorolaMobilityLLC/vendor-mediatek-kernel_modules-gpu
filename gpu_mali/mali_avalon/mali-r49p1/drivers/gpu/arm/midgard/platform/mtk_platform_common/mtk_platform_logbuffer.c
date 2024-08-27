@@ -16,10 +16,15 @@
 #include <backend/gpu/mali_kbase_pm_internal.h>
 #include <platform/mtk_platform_common.h>
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#include <linux/string.h>
 
 static phys_addr_t reserved_mem_phys;
 static phys_addr_t reserved_mem_virt;
 static phys_addr_t reserved_mem_size;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+bool logbuffer_deferred_enable;
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 
 #if IS_ENABLED(CONFIG_PROC_FS)
 static int mtk_logbuffer_regular_show(struct seq_file *m, void *v)
@@ -77,6 +82,85 @@ int mtk_logbuffer_procfs_init(struct kbase_device *kbdev, struct proc_dir_entry 
 
 	return 0;
 }
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+static int mtk_logbuffer_deferred_enable_show(struct seq_file *m, void *v)
+{
+	seq_printf(m, "logbuffer_deferred_enable = %d\n", logbuffer_deferred_enable);
+
+	return 0;
+}
+
+static int mtk_logbuffer_deferred_enable_open(struct inode *in, struct file *file)
+{
+	struct kbase_device *kbdev = in->i_private;
+	file->private_data = kbdev;
+
+	if (file->f_mode & FMODE_WRITE)
+		return 0;
+
+	return single_open(file, mtk_logbuffer_deferred_enable_show, in->i_private);
+}
+
+static int mtk_logbuffer_deferred_enable_release(struct inode *in, struct file *file)
+{
+	if (!(file->f_mode & FMODE_WRITE)) {
+		struct seq_file *m = (struct seq_file *)file->private_data;
+
+		if (m)
+			seq_release(in, file);
+	}
+
+	return 0;
+}
+
+static ssize_t mtk_logbuffer_deferred_enable_write(struct file *file, const char __user *ubuf,
+			size_t count, loff_t *ppos)
+{
+	struct kbase_device *kbdev = (struct kbase_device *)file->private_data;
+	int ret = 0;
+    int temp = 0;
+    CSTD_UNUSED(ppos);
+
+	ret = kstrtoint_from_user(ubuf, count, 0, &temp);
+	if (ret)
+		return ret;
+
+	if (temp == 1)
+		logbuffer_deferred_enable = true;
+	else
+		logbuffer_deferred_enable = false;
+
+	return count;
+}
+
+static const struct file_operations mtk_logbuffer_deferred_enable_fops = {
+	.open    = mtk_logbuffer_deferred_enable_open,
+	.release = mtk_logbuffer_deferred_enable_release,
+	.read    = seq_read,
+	.write   = mtk_logbuffer_deferred_enable_write,
+	.llseek  = seq_lseek
+};
+
+int mtk_logbuffer_deferred_enable_debugfs_init(struct kbase_device *kbdev)
+{
+	if (IS_ERR_OR_NULL(kbdev))
+		return -1;
+
+	logbuffer_deferred_enable = true;
+	debugfs_create_file("logbuffer_deferred_enable", 0444,
+		kbdev->mali_debugfs_directory, kbdev,
+		&mtk_logbuffer_deferred_enable_fops);
+	return 0;
+}
+#else /* CONFIG_DEBUG_FS */
+int mtk_logbuffer_deferred_enable_debugfs_init(struct kbase_device *kbdev)
+{
+	return 0;
+}
+#endif /* CONFIG_DEBUG_FS */
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 
 int mtk_logbuffer_procfs_term(struct kbase_device *kbdev, struct proc_dir_entry *parent)
 {
@@ -144,6 +228,54 @@ void mtk_logbuffer_clear(struct mtk_logbuffer_info *logbuf)
 	logbuf->head = logbuf->tail = 0;
 	spin_unlock_irqrestore(&logbuf->access_lock, flags);
 }
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+void mtk_logbuffer_dump_to_dev_and_clear(struct kbase_device *const kbdev, uint32_t logType)
+{
+	unsigned long flags;
+	char *temp_entries = NULL;
+	struct mtk_logbuffer_info *logbuf;
+
+	if (logType & MTK_LOGBUFFER_TYPE_DEFERRED)
+		logbuf = &kbdev->logbuf_deferred;
+	else
+		return;
+
+	if (!logbuf->entries)
+		return;
+
+	/* Allocate and init temp memory for copy from logbuffer */
+	temp_entries = kcalloc(1, logbuf->size, GFP_KERNEL);
+	if (temp_entries == NULL) {
+		dev_info(kbdev->dev, "null temp log memory, bypass dump");
+		return;
+	}
+	memset(temp_entries, 0x0, logbuf->size);
+
+	spin_lock_irqsave(&logbuf->access_lock, flags);
+	/* Copy the entries from the logbuffer to temp memory */
+	memcpy(temp_entries, logbuf->entries, logbuf->size);
+
+	/* Clear the logbuffer */
+	memset(logbuf->entries, 0x0, logbuf->size);
+	logbuf->head = logbuf->tail = 0;
+	spin_unlock_irqrestore(&logbuf->access_lock, flags);
+
+	/* Dump temp memory to kernel log */
+	dev_info(kbdev->dev, "Start deferred dump\n");
+	char *line = NULL;
+	while ((line = strsep(&temp_entries, "\n")) != NULL) {
+		if (*line == '\0') {
+			continue;
+		}
+		dev_info(kbdev->dev, "%s", line);
+	}
+	dev_info(kbdev->dev, "End deferred dump\n");
+
+	/* Free the temp memory */
+	kfree(temp_entries);
+}
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 
 static void __mtk_logbuffer_print(struct mtk_logbuffer_info *logbuf, uint8_t* buffer)
 {
@@ -258,6 +390,15 @@ void mtk_logbuffer_type_print(struct kbase_device *const kbdev, uint32_t logType
 
 		if (logType & MTK_LOGBUFFER_TYPE_EXCEPTION)
 			__mtk_logbuffer_print(&kbdev->logbuf_exception, buffer);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+		if (logType & MTK_LOGBUFFER_TYPE_DEFERRED) {
+			if (logbuffer_deferred_enable)
+				__mtk_logbuffer_print(&kbdev->logbuf_deferred, buffer);
+			else
+				dev_info(kbdev->dev, "%s", buffer);
+		}
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 	}
 }
 
@@ -409,6 +550,19 @@ int mtk_logbuffer_init(struct kbase_device *kbdev)
 	                            "logbuf_exception"           /* name */);
 	rmem_remaining_size -= logbuf_size;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+	/* Create a non-circular buffer for deferred logs */
+	logbuf_size = 1024 * 512;
+	mtk_logbuffer_init_internal(kbdev,
+	                            &kbdev->logbuf_deferred      /* logbuf */,
+	                            NULL                         /* rmem_virt */,
+	                            (size_t)0                    /* rmem_size */,
+	                            0                            /* offset */,
+	                            (size_t)logbuf_size          /* size */,
+	                            false                        /* is_circular */,
+	                            "logbuf_deferred"            /* name */);
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
+
 	return 0;
 }
 
@@ -420,8 +574,16 @@ int mtk_logbuffer_term(struct kbase_device *kbdev)
 	/* Destroy a circular buffer for regular logs */
 	mtk_logbuffer_term_internal(kbdev, &kbdev->logbuf_regular);
 
+	/* Destroy a circular buffer for critical logs */
+	mtk_logbuffer_term_internal(kbdev, &kbdev->logbuf_critical);
+
 	/* Destroy a non-circular buffer for exception logs */
 	mtk_logbuffer_term_internal(kbdev, &kbdev->logbuf_exception);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+	/* Destroy a non-circular buffer for deferred logs */
+	mtk_logbuffer_term_internal(kbdev, &kbdev->logbuf_deferred);
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 
 	if (reserved_mem_virt)
 		iounmap((void __iomem *)reserved_mem_virt);

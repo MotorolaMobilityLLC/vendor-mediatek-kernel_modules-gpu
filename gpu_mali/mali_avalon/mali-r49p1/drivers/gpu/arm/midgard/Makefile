@@ -253,6 +253,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_PWR_HINT := n
         CONFIG_MALI_MTK_POWER_RESET := y
         CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG := y
+        CONFIG_MALI_MTK_DEFERRED_LOGGING := y
     endif ## mt6899 ##
 endif
 
@@ -428,6 +429,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_POWER_RESET := y
         CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG := y
         CONFIG_MALI_MTK_API_SYNC_UPDATE := y
+        CONFIG_MALI_MTK_DEFERRED_LOGGING := y
     endif ## mt6991 ##
 endif
 

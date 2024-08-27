@@ -215,6 +215,10 @@ static void kbase_csf_reset_end_hw_access(struct kbase_device *kbdev, int err_du
 	spin_lock_irqsave(&kbdev->hwaccess_lock, hwaccess_lock_flags);
 	kbase_csf_scheduler_spin_lock(kbdev, &scheduler_spin_lock_flags);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+	kbdev->is_reset_triggered_by_fence_timeout = false;
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
+
 	if (!err_during_reset) {
 		atomic_set(&kbdev->csf.reset.state, KBASE_CSF_RESET_GPU_NOT_PENDING);
 	} else {
@@ -302,6 +306,30 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+	if (kbdev->is_reset_triggered_by_fence_timeout) {
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
+			"\tMCU desired = %d\n",
+			kbase_pm_is_mcu_desired(kbdev));
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
+			"\tMCU sw state = %d(%s)\n",
+			kbdev->pm.backend.mcu_state,
+			kbase_mcu_state_to_string(kbdev->pm.backend.mcu_state));
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
+			"\tL2 sw state = %d(%s)\n",
+			kbdev->pm.backend.l2_state,
+			kbase_l2_core_state_to_string(kbdev->pm.backend.l2_state));
+	} else {
+		dev_err(kbdev->dev, "\tMCU desired = %d\n",
+				kbase_pm_is_mcu_desired(kbdev));
+		dev_err(kbdev->dev, "\tMCU sw state = %d(%s)\n",
+				kbdev->pm.backend.mcu_state,
+				kbase_mcu_state_to_string(kbdev->pm.backend.mcu_state));
+		dev_err(kbdev->dev, "\tL2 sw state = %d(%s)\n",
+				kbdev->pm.backend.l2_state,
+				kbase_l2_core_state_to_string(kbdev->pm.backend.l2_state));
+	}
+#else /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 	dev_err(kbdev->dev, "\tMCU desired = %d\n",
 			kbase_pm_is_mcu_desired(kbdev));
 	dev_err(kbdev->dev, "\tMCU sw state = %d(%s)\n",
@@ -310,7 +338,13 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 	dev_err(kbdev->dev, "\tL2 sw state = %d(%s)\n",
 			kbdev->pm.backend.l2_state,
 			kbase_l2_core_state_to_string(kbdev->pm.backend.l2_state));
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+	if (kbdev->is_reset_triggered_by_fence_timeout) {
+		goto deferred_dump;
+	} else {
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 	dev_err(kbdev->dev, "Register state:");
 	dev_err(kbdev->dev, "  GPU_IRQ_RAWSTAT=0x%08x  GPU_STATUS=0x%08x MCU_STATUS=0x%08x",
 		kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_RAWSTAT)),
@@ -353,8 +387,48 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 	dev_err(kbdev->dev, "\tglb_req %x glb_ack %x glb_db_req %x glb_db_ack %x\n",
 			glb_req, glb_ack, glb_db_req, glb_db_ack);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+	}
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+deferred_dump:
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+	if (kbdev->is_reset_triggered_by_fence_timeout) {
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
+			"Register state:\n");
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
+			"  GPU_IRQ_RAWSTAT=0x%08x  GPU_STATUS=0x%08x MCU_STATUS=0x%08x\n",
+			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_RAWSTAT)),
+			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_STATUS)),
+			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_STATUS)));
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
+			"  JOB_IRQ_RAWSTAT=0x%08x  MMU_IRQ_RAWSTAT=0x%08x  GPU_FAULTSTATUS=0x%08x\n",
+			kbase_reg_read32(kbdev, JOB_CONTROL_ENUM(JOB_IRQ_RAWSTAT)),
+			kbase_reg_read32(kbdev, MMU_CONTROL_ENUM(IRQ_RAWSTAT)),
+			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_FAULTSTATUS)));
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
+			"  GPU_IRQ_MASK=0x%08x  JOB_IRQ_MASK=0x%08x  MMU_IRQ_MASK=0x%08x\n",
+			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK)),
+			kbase_reg_read32(kbdev, JOB_CONTROL_ENUM(JOB_IRQ_MASK)),
+			kbase_reg_read32(kbdev, MMU_CONTROL_ENUM(IRQ_MASK)));
+		if (kbdev->gpu_props.gpu_id.arch_id < GPU_ID_ARCH_MAKE(14, 10, 0)) {
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
+				"  PWR_OVERRIDE0=0x%08x  PWR_OVERRIDE1=0x%08x\n",
+				kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(PWR_OVERRIDE0)),
+				kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(PWR_OVERRIDE1)));
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
+				"  SHADER_CONFIG=0x%08x  L2_MMU_CONFIG=0x%08x  TILER_CONFIG=0x%08x\n",
+				kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(SHADER_CONFIG)),
+				kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(L2_MMU_CONFIG)),
+				kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(TILER_CONFIG)));
+		}
+	}
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL,
@@ -446,7 +520,15 @@ static enum kbasep_soft_reset_status kbase_csf_reset_gpu_once(struct kbase_devic
 	kbdev->irq_reset_flush = false;
 
 	if (!silent) {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+		if (kbdev->is_reset_triggered_by_fence_timeout)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
+				"Resetting GPU (allowing up to %d ms)\n", RESET_TIMEOUT);
+		else
+			dev_err(kbdev->dev, "Resetting GPU (allowing up to %d ms)", RESET_TIMEOUT);
+#else /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 		dev_err(kbdev->dev, "Resetting GPU (allowing up to %d ms)", RESET_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"Resetting GPU (allowing up to %d ms)\n", RESET_TIMEOUT);
@@ -633,7 +715,15 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 	kbase_hwcnt_context_enable(kbdev->hwcnt_gpu_ctx);
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 	if (!silent) {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+		if (kbdev->is_reset_triggered_by_fence_timeout)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
+				"Reset complete\n");
+		else
+			dev_err(kbdev->dev, "Reset complete");
+#else /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 		dev_err(kbdev->dev, "Reset complete");
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
 		ged_mali_event_notify_gpu_reset_done();
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
@@ -885,7 +975,15 @@ void kbase_reset_gpu(struct kbase_device *kbdev)
 		return;
 
 	atomic_set(&kbdev->csf.reset.state, KBASE_CSF_RESET_GPU_COMMITTED);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+	if (kbdev->is_reset_triggered_by_fence_timeout)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
+			"Preparing to soft-reset GPU\n");
+	else
+		dev_err(kbdev->dev, "Preparing to soft-reset GPU\n");
+#else /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 	dev_err(kbdev->dev, "Preparing to soft-reset GPU\n");
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 		"Preparing to soft-reset GPU\n");
