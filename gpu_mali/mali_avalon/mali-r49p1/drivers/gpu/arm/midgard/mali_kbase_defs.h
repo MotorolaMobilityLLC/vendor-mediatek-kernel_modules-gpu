@@ -160,6 +160,10 @@
 #define FORCE_SYNC_DTS  2
 #endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+#define API_SYNC_FLAG_RESET 6
+#define API_SYNC_FLAG_SET 7
+#endif
 
 /* Forward declarations */
 struct kbase_context;
@@ -1281,6 +1285,8 @@ struct kbase_device {
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
 	bool ptp_update_in_progress;
+	int temp_api_sync_flag;
+	int final_api_sync_flag;
 #endif
 
 	bool cache_clean_in_progress;
