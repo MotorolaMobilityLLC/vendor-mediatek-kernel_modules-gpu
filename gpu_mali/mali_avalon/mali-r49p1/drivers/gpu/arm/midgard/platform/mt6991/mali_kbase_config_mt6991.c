@@ -66,6 +66,11 @@ static int gIsDsuRequested = 0;
 spinlock_t g_dsu_request_lock;
 #endif /* CONFIG_MALI_MTK_ACP_DSU_REQ */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+
 DEFINE_MUTEX(g_mfg_lock);
 
 enum gpu_dvfs_status_step {
@@ -670,7 +675,11 @@ void mtk_platform_cpu_cache_request(struct kbase_device *kbdev, int request, enu
 		}
 		else if (is_ace_lite)
 		{
-			KBASE_PLATFORM_LOGE("%s Duplicated request to DSU power on, unexpected ref count %d \n", __func__, gIsDsuRequested);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"%s Duplicated request to DSU power on, unexpected ref count %d \n",
+				__func__, gIsDsuRequested);
+#endif
 			BUG_ON(1);
 		}
 	}
@@ -689,12 +698,20 @@ void mtk_platform_cpu_cache_request(struct kbase_device *kbdev, int request, enu
 		}
 		else if (is_ace_lite)
 		{
-			KBASE_PLATFORM_LOGE("%s Duplicated request to DSU power off, unexpected ref count: %d , l2 state: %s\n", __func__, gIsDsuRequested, kbase_l2_core_state_to_string(l2_state));
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"%s Duplicated request to DSU power off, unexpected ref count: %d , l2 state: %s\n",
+				__func__, gIsDsuRequested, kbase_l2_core_state_to_string(l2_state));
+#endif
 		}
 	}
 	else
 	{
-		KBASE_PLATFORM_LOGE("%s Unsupported request %d , l2 state: %s \n",	__func__, request, kbase_l2_core_state_to_string(l2_state));
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			 mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"%s Unsupported request %d , l2 state: %s \n",
+				__func__, request, kbase_l2_core_state_to_string(l2_state));
+#endif
 		BUG_ON(1);
 	}
 	spin_unlock_irqrestore(&g_dsu_request_lock, flags);
