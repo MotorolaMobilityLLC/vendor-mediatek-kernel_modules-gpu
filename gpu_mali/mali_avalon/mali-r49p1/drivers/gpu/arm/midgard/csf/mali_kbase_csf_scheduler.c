@@ -5375,7 +5375,7 @@ static void gpu_idle_worker(struct work_struct *work)
 		kbdev->dev->power.autosuspend_delay = (int)ged_get_apo_autosuspend_delay_ms();
 #endif
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
-	if (kbdev->ptp_update_in_progress == true)
+	if (kbdev->api_sync_update_in_progress == true)
 		kbdev->dev->power.autosuspend_delay = 0;
 	else
 		kbdev->dev->power.autosuspend_delay = (int)ged_get_apo_autosuspend_delay_ms();
@@ -7323,17 +7323,112 @@ static void wait_for_mcu_sleep_after_idle_stress_test(struct kbase_device *kbdev
 #endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+static enum hrtimer_restart api_sync_timer_callback(struct hrtimer *timer)
+{
+	struct kbase_device *kbdev =
+		container_of(timer, struct kbase_device, api_sync_timer);
+
+	if (kbdev->final_api_sync_flag == API_SYNC_FLAG_SET)
+		kbdev->api_sync_force_reset = true;
+
+	return HRTIMER_NORESTART;
+}
+
+static int refine_api_sync_flag(struct kbase_device *kbdev)
+{
+	int orig_api_sync_flag = get_api_sync_flag();
+	int temp_api_sync_trace = 0;
+	int temp_api_sync_level = API_SYNC_LEVEL_0;
+
+	if ((orig_api_sync_flag & 0xFFFF0000) == API_SYNC_FLAG_RESET) {
+		kbdev->api_sync_level = API_SYNC_LEVEL_0;
+		kbdev->api_sync_timeout_ms = API_SYNC_DEFAULT_TIMEOUT_MS;
+
+		return API_SYNC_FLAG_RESET;
+	} else if ((orig_api_sync_flag & 0xFFFF0000) == API_SYNC_FLAG_SET) {
+		temp_api_sync_trace = (orig_api_sync_flag & 0x0000FF00) >> 8;
+
+		/* Upddate api_sync_timeout_ms */
+		if (temp_api_sync_trace == API_SYNC_TRACE_FF)
+			kbdev->api_sync_timeout_ms = API_SYNC_MAXIMUM_TIMEOUT_MS;
+		else if (temp_api_sync_trace == API_SYNC_TRACE_2)
+			kbdev->api_sync_timeout_ms = API_SYNC_MINIMUM_TIMEOUT_MS;
+		else if (temp_api_sync_trace == API_SYNC_TRACE_A)
+			kbdev->api_sync_timeout_ms = API_SYNC_DEFAULT_TIMEOUT_MS;
+		else
+			kbdev->api_sync_timeout_ms = API_SYNC_DEFAULT_TIMEOUT_MS;
+
+		temp_api_sync_level = orig_api_sync_flag & 0xFF;
+
+		/* Upddate api_sync_level */
+		if (temp_api_sync_level == API_SYNC_LEVEL_1)
+			kbdev->api_sync_level = API_SYNC_LEVEL_1;
+		else if (temp_api_sync_level == API_SYNC_LEVEL_2)
+			kbdev->api_sync_level = API_SYNC_LEVEL_2;
+		else
+			kbdev->api_sync_level = API_SYNC_LEVEL_0;
+
+		return API_SYNC_FLAG_SET;
+	}
+
+	return orig_api_sync_flag;
+}
+
+static void api_sync_change_pm_policy(struct kbase_device *kbdev)
+{
+	const struct kbase_pm_policy *cur_policy = kbase_pm_get_policy(kbdev);
+
+	if (kbdev->api_sync_update_in_progress == true &&
+		cur_policy == &kbase_pm_always_on_policy_ops) {
+		/* Leave "always_on" */
+		kbase_pm_set_policy(kbdev, &kbase_pm_coarse_demand_policy_ops);
+		kbdev->api_sync_restore_always_on = true;
+		return;
+	} else if (kbdev->api_sync_restore_always_on == true &&
+		cur_policy == &kbase_pm_coarse_demand_policy_ops) {
+		/* Return "always_on" */
+		kbase_pm_set_policy(kbdev, &kbase_pm_always_on_policy_ops);
+		kbdev->api_sync_restore_always_on = false;
+	}
+}
+
 static void update_api_sync_flag(struct kbase_device *kbdev)
 {
-	int temp_api_sync_flag = 0;
+	int temp_api_sync_flag = refine_api_sync_flag(kbdev);
 
-	temp_api_sync_flag = get_api_sync_flag();
+	if (kbdev->api_sync_update_in_progress == false) {
+		if (kbdev->api_sync_force_reset == true) {
+			if (kbdev->final_api_sync_flag == API_SYNC_FLAG_RESET &&
+				temp_api_sync_flag == API_SYNC_FLAG_SET) {
+				api_sync_change_pm_policy(kbdev);
+				/* Force to skip after force-reset when App still not re-launch */
+				return;
+			} else if ((kbdev->final_api_sync_flag & temp_api_sync_flag) == API_SYNC_FLAG_RESET) {
+				api_sync_change_pm_policy(kbdev);
+				kbdev->api_sync_force_reset = false;
+			}
+		}
 
-	if (((kbdev->final_api_sync_flag == API_SYNC_FLAG_RESET && temp_api_sync_flag == API_SYNC_FLAG_SET) ||
-		(kbdev->final_api_sync_flag == API_SYNC_FLAG_SET && temp_api_sync_flag == API_SYNC_FLAG_RESET)) &&
-		kbdev->final_api_sync_flag != temp_api_sync_flag) {
-		kbdev->temp_api_sync_flag = temp_api_sync_flag;
-		kbdev->ptp_update_in_progress = true;
+		if (kbdev->final_api_sync_flag == API_SYNC_FLAG_SET &&
+			kbdev->api_sync_force_reset == true) {
+			/* Force to reset flow, need to update timeout & level value  */
+			kbdev->api_sync_level = API_SYNC_LEVEL_0;
+			kbdev->api_sync_timeout_ms = API_SYNC_DEFAULT_TIMEOUT_MS;
+
+			kbdev->temp_api_sync_flag = API_SYNC_FLAG_RESET;
+			kbdev->api_sync_update_in_progress = true;
+			api_sync_change_pm_policy(kbdev);
+		} else if ((kbdev->final_api_sync_flag == API_SYNC_FLAG_RESET &&
+			temp_api_sync_flag == API_SYNC_FLAG_SET) ||
+			(kbdev->final_api_sync_flag == API_SYNC_FLAG_SET &&
+			temp_api_sync_flag == API_SYNC_FLAG_RESET)) {
+			kbdev->temp_api_sync_flag = temp_api_sync_flag;
+			kbdev->api_sync_update_in_progress = true;
+			api_sync_change_pm_policy(kbdev);
+		} else if (((kbdev->final_api_sync_flag & temp_api_sync_flag) == API_SYNC_FLAG_RESET) ||
+			((kbdev->final_api_sync_flag & temp_api_sync_flag) == API_SYNC_FLAG_SET)) {
+			api_sync_change_pm_policy(kbdev);
+		}
 	}
 }
 #endif
@@ -7373,7 +7468,7 @@ static int kbase_csf_scheduler_kthread(void *data)
 		update_api_sync_flag(kbdev);
 
 		if ((ged_gpu_power_stress_test_enable() == 1) ||
-			(kbdev->ptp_update_in_progress == true)) {
+			(kbdev->api_sync_update_in_progress == true)) {
 #else
 		if (ged_gpu_power_stress_test_enable() == 1) {
 #endif
@@ -7601,6 +7696,19 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 #else
 	INIT_WORK(&scheduler->gpu_idle_work, gpu_idle_worker);
 #endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+	kbdev->api_sync_update_in_progress = false;
+	kbdev->temp_api_sync_flag = API_SYNC_FLAG_RESET;
+	kbdev->final_api_sync_flag = API_SYNC_FLAG_RESET;
+	kbdev->api_sync_level = API_SYNC_LEVEL_0;
+	kbdev->api_sync_force_reset = false;
+	kbdev->api_sync_restore_always_on = false;
+	kbdev->api_sync_timeout_ms = API_SYNC_DEFAULT_TIMEOUT_MS;
+
+	hrtimer_init(&kbdev->api_sync_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	kbdev->api_sync_timer.function = api_sync_timer_callback;
+#endif
 
 	return kbase_csf_tiler_heap_reclaim_mgr_init(kbdev);
 }

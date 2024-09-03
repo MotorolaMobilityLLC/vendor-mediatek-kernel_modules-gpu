@@ -75,6 +75,10 @@
 #include <linux/clk.h>
 #include <linux/regulator/consumer.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+#include <linux/hrtimer.h>
+#endif
+
 #if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
 #include "platform/mtk_platform_utils.h"
 #endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
@@ -161,8 +165,17 @@
 #endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
-#define API_SYNC_FLAG_RESET 6
-#define API_SYNC_FLAG_SET 7
+#define API_SYNC_FLAG_RESET 0x00060000
+#define API_SYNC_FLAG_SET   0x00070000
+#define API_SYNC_TRACE_FF 0xFF
+#define API_SYNC_TRACE_2  0x2
+#define API_SYNC_TRACE_A  0xA
+#define API_SYNC_LEVEL_0 0
+#define API_SYNC_LEVEL_1 3
+#define API_SYNC_LEVEL_2 6
+#define API_SYNC_DEFAULT_TIMEOUT_MS 360000
+#define API_SYNC_MINIMUM_TIMEOUT_MS 120000
+#define API_SYNC_MAXIMUM_TIMEOUT_MS 900000
 #endif
 
 /* Forward declarations */
@@ -1284,9 +1297,14 @@ struct kbase_device {
 	struct kbase_backend_time backend_time;
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
-	bool ptp_update_in_progress;
+	bool api_sync_update_in_progress;
 	int temp_api_sync_flag;
 	int final_api_sync_flag;
+	int api_sync_level;
+	bool api_sync_force_reset;
+	bool api_sync_restore_always_on;
+	unsigned int api_sync_timeout_ms;
+	struct hrtimer api_sync_timer;
 #endif
 
 	bool cache_clean_in_progress;

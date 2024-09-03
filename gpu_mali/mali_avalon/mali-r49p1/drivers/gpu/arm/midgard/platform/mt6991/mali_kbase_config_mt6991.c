@@ -293,6 +293,11 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 	struct arm_smccc_res res;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+	unsigned int temp_api_sync_level = DATA_LEVEL_0;
+	ktime_t expiry_time;
+#endif
+
 	dev_dbg(kbdev->dev, "%s\n", __func__);
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
@@ -323,10 +328,30 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 		mtk_notify_gpu_power_change(0);
 		pm_callback_power_off_nolock(kbdev);
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
-		if (kbdev->ptp_update_in_progress) {
-			gpufreq_set_mfgsys_config(CONFIG_PTP3, DATA_UPDATE);
-			kbdev->ptp_update_in_progress = false;
+		if (kbdev->api_sync_update_in_progress) {
+			if (kbdev->api_sync_level == API_SYNC_LEVEL_1)
+				temp_api_sync_level = DATA_LEVEL_1;
+			else if (kbdev->api_sync_level == API_SYNC_LEVEL_2)
+				temp_api_sync_level = DATA_LEVEL_2;
+			else
+				temp_api_sync_level = DATA_LEVEL_0;
+
+			gpufreq_set_mfgsys_config(CONFIG_PTP3, temp_api_sync_level);
+
+			kbdev->api_sync_update_in_progress = false;
 			kbdev->final_api_sync_flag = kbdev->temp_api_sync_flag;
+
+			if (kbdev->final_api_sync_flag == API_SYNC_FLAG_RESET) {
+				hrtimer_cancel(&kbdev->api_sync_timer);
+			} else if (kbdev->final_api_sync_flag == API_SYNC_FLAG_SET) {
+				if (!hrtimer_active(&kbdev->api_sync_timer)) {
+					expiry_time = HR_TIMER_DELAY_MSEC(
+						kbdev->api_sync_timeout_ms);
+					hrtimer_start(&kbdev->api_sync_timer,
+						expiry_time,
+						HRTIMER_MODE_REL);
+				}
+			}
 		}
 #endif
 		mutex_unlock(&g_mfg_lock);
