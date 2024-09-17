@@ -581,7 +581,6 @@ int kbase_hwcnt_jm_dump_get(struct kbase_hwcnt_dump_buffer *dst, u64 *src,
 			/* Shift each core mask right by 1 */
 			core_mask >>= 1;
 			debug_core_mask >>= 1;
-			max_core_mask >>= 1;
 			shader_present >>= 1;
 		}
 	}

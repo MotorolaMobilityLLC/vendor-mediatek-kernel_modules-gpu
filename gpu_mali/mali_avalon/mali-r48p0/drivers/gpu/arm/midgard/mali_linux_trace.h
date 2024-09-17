@@ -480,7 +480,11 @@ TRACE_EVENT(mali_mem_alloc,
 		__entry->pid = pid;
 		__entry->size = size;
 		__entry->gpu_addr = gpu_addr;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0))
 		__assign_str(category, category);
+#else
+		__assign_str(category);
+#endif
 	),
 	TP_printk("gpu_id=%u pid=%u size=%llu gpu_addr=%llu usage=%s",
 		__entry->gpu_id,
@@ -505,7 +509,11 @@ TRACE_EVENT(mali_mem_free,
 		__entry->pid = pid;
 		__entry->size = size;
 		__entry->gpu_addr = gpu_addr;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0))
 		__assign_str(category, category);
+#else
+		__assign_str(category);
+#endif
 	),
 	TP_printk("gpu_id=%u pid=%u size=%llu gpu_addr=%llu usage=%s",
 		__entry->gpu_id,
@@ -532,7 +540,11 @@ TRACE_EVENT(mali_mem_update,
 		__entry->size_a = size_a;
 		__entry->size_b = size_b;
 		__entry->gpu_addr = gpu_addr;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0))
 		__assign_str(category, category);
+#else
+		__assign_str(category);
+#endif
 	),
 	TP_printk("gpu_id=%u pid=%u size_a=%llu size_b=%llu gpu_addr=%llu usage=%s",
 		__entry->gpu_id,
@@ -636,9 +648,17 @@ TRACE_EVENT(mali_kthread_event,
 		__string(function, function)
 	),
 	TP_fast_assign(
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0))
 		__assign_str(event, event);
+#else
+		__assign_str(event);
+#endif
 		__entry->work = work;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0))
 		__assign_str(function, function);
+#else
+		__assign_str(function);
+#endif
 	),
 	TP_printk("%s: work struct=%p function=%s timestamp=%llu", __get_str(event), __entry->work, __get_str(function), ktime_get_raw_ns())
 );

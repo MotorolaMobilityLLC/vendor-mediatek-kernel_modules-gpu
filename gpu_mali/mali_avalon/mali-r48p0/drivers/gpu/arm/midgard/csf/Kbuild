@@ -60,10 +60,12 @@ endif
 
 mali_kbase-$(CONFIG_DEBUG_FS) += csf/mali_kbase_debug_csf_fault.o
 
+KO_CODE_PATH := $(if $(filter /%,$(src)),,$(srctree)/)$(src)
+
 ifeq ($(KBUILD_EXTMOD),)
 # in-tree
-    -include $(srctree)/$(src)/csf/ipa_control/Kbuild
+    -include $(KO_CODE_PATH)/csf/ipa_control/Kbuild
 else
 # out-of-tree
-    include $(srctree)/$(src)/csf/ipa_control/Kbuild
+    include $(KO_CODE_PATH)/csf/ipa_control/Kbuild
 endif

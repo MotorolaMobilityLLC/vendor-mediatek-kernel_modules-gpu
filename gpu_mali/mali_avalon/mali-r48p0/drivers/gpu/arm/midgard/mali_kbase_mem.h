@@ -43,6 +43,7 @@
 #include <linux/version_compat_defs.h>
 #include <linux/sched/mm.h>
 #include <linux/kref.h>
+#include <linux/vmalloc.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
 #include <slbc_ops.h>
