@@ -7337,7 +7337,7 @@ static enum hrtimer_restart api_sync_timer_callback(struct hrtimer *timer)
 static int refine_api_sync_flag(struct kbase_device *kbdev)
 {
 	int orig_api_sync_flag = get_api_sync_flag();
-	int temp_api_sync_trace = 0;
+	int temp_api_sync_timeout_min = 0;
 	int temp_api_sync_level = API_SYNC_LEVEL_0;
 
 	if ((orig_api_sync_flag & 0xFFFF0000) == API_SYNC_FLAG_RESET) {
@@ -7346,15 +7346,11 @@ static int refine_api_sync_flag(struct kbase_device *kbdev)
 
 		return API_SYNC_FLAG_RESET;
 	} else if ((orig_api_sync_flag & 0xFFFF0000) == API_SYNC_FLAG_SET) {
-		temp_api_sync_trace = (orig_api_sync_flag & 0x0000FF00) >> 8;
+		temp_api_sync_timeout_min = (orig_api_sync_flag & 0x0000FF00) >> 8;
 
 		/* Upddate api_sync_timeout_ms */
-		if (temp_api_sync_trace == API_SYNC_TRACE_FF)
-			kbdev->api_sync_timeout_ms = API_SYNC_MAXIMUM_TIMEOUT_MS;
-		else if (temp_api_sync_trace == API_SYNC_TRACE_2)
-			kbdev->api_sync_timeout_ms = API_SYNC_MINIMUM_TIMEOUT_MS;
-		else if (temp_api_sync_trace == API_SYNC_TRACE_A)
-			kbdev->api_sync_timeout_ms = API_SYNC_DEFAULT_TIMEOUT_MS;
+		if (temp_api_sync_timeout_min <= API_SYNC_MAXIMUM_TIMEOUT_MIN)
+			kbdev->api_sync_timeout_ms = temp_api_sync_timeout_min * 60000;
 		else
 			kbdev->api_sync_timeout_ms = API_SYNC_DEFAULT_TIMEOUT_MS;
 
