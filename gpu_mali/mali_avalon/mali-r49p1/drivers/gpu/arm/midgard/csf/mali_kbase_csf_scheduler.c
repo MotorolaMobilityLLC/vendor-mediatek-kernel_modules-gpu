@@ -7349,10 +7349,7 @@ static int refine_api_sync_flag(struct kbase_device *kbdev)
 		temp_api_sync_timeout_min = (orig_api_sync_flag & 0x0000FF00) >> 8;
 
 		/* Upddate api_sync_timeout_ms */
-		if (temp_api_sync_timeout_min <= API_SYNC_MAXIMUM_TIMEOUT_MIN)
-			kbdev->api_sync_timeout_ms = temp_api_sync_timeout_min * 60000;
-		else
-			kbdev->api_sync_timeout_ms = API_SYNC_DEFAULT_TIMEOUT_MS;
+		kbdev->api_sync_timeout_ms = temp_api_sync_timeout_min * 60000;
 
 		temp_api_sync_level = orig_api_sync_flag & 0xFF;
 
