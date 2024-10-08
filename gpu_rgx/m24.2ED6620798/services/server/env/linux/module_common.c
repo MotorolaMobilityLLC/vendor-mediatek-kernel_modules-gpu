@@ -471,6 +471,11 @@ int PVRSRVDeviceResume(struct drm_device *psDev)
 	struct pvr_drm_private *psDevPriv = psDev->dev_private;
 	PVRSRV_DEVICE_NODE *psDeviceNode = psDevPriv->dev_node;
 
+	if (psDeviceNode->eDevState == PVRSRV_DEVICE_STATE_CREATED) {
+		PVR_DPF((PVR_DBG_ERROR, "%s: Device not initialised", __func__));
+		return -EINVAL;
+	}
+
 	if (PVRSRVSetDeviceSystemPowerState(psDeviceNode,
 										PVRSRV_SYS_POWER_STATE_ON,
 										PVRSRV_POWER_FLAGS_OSPM_RESUME_REQ) != PVRSRV_OK)
