@@ -2244,6 +2244,8 @@ static void halt_csg_slot(struct kbase_queue_group *group, bool suspend)
 		dev_dbg(kbdev->dev, "Halting(suspend=%d) group %d of context %d_%d on slot %d",
 			suspend, group->handle, group->kctx->tgid, group->kctx->id, slot);
 
+		group->idle_on_stop = (group->run_state == KBASE_CSF_GROUP_IDLE);
+
 		spin_lock_irqsave(&kbdev->csf.scheduler.interrupt_lock, flags);
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
 		if (mtk_common_whitebox_missing_doorbell_enable())
@@ -3512,6 +3514,26 @@ static int scheduler_group_schedule(struct kbase_queue_group *group)
 		new_val = atomic_inc_return(&kbdev->csf.scheduler.non_idle_offslot_grps);
 		KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_NONIDLE_OFFSLOT_GRP_INC, group,
 					 (u64)new_val);
+	} else if (unlikely((group->run_state == KBASE_CSF_GROUP_SUSPENDED) &&
+			    (group->idle_on_stop))) {
+		/* This is a rare case where a previously idle group that was suspended by either
+		 * the LRU optimisation (see evict_lru_or_blocked_csg()) or otherwise preemption
+		 * became active again before the suspension completed. That would cause the group
+		 * to transition to SUSPENDED state rather than SUSPENDED_ON_IDLE/WAIT_SYNC states.
+		 *
+		 * In this state, the group would only be serviced in the next scheduling tick,
+		 * causing stalls. If this happens, we force an in-cycle scheduling tock to ensure
+		 * that new work gets handled in time if appropriate.
+		 */
+		/* If scheduler is not suspended and the given group's
+		 * static priority (reflected by the scan_seq_num) is inside
+		 * the current tick slot-range, schedule an async tock.
+		 */
+		if (scheduler->state != SCHED_SUSPENDED) {
+			if (group->scan_seq_num < scheduler->num_csg_slots_for_tick)
+				schedule_in_cycle(group, true);
+		}
+		group->idle_on_stop = false;
 	}
 
 	/* Since a group has become active now, check if GPU needs to be
