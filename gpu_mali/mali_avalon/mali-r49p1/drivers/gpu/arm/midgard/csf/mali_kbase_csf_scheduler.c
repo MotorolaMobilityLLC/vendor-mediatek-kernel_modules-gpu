@@ -7338,7 +7338,7 @@ static int refine_api_sync_flag(struct kbase_device *kbdev)
 {
 	int orig_api_sync_flag = get_api_sync_flag();
 	int temp_api_sync_timeout_min = 0;
-	int temp_api_sync_level = API_SYNC_LEVEL_0;
+	int temp_orig_level = 0;
 
 	if ((orig_api_sync_flag & 0xFFFF0000) == API_SYNC_FLAG_RESET) {
 		kbdev->api_sync_level = API_SYNC_LEVEL_0;
@@ -7351,17 +7351,21 @@ static int refine_api_sync_flag(struct kbase_device *kbdev)
 		/* Upddate api_sync_timeout_ms */
 		kbdev->api_sync_timeout_ms = temp_api_sync_timeout_min * 60000;
 
-		temp_api_sync_level = orig_api_sync_flag & 0xFF;
+		temp_orig_level = orig_api_sync_flag & 0xFF;
 
 		/* Upddate api_sync_level */
-		if (temp_api_sync_level == API_SYNC_LEVEL_1)
+		if (temp_orig_level == API_SYNC_LEVEL_1)
 			kbdev->api_sync_level = API_SYNC_LEVEL_1;
-		else if (temp_api_sync_level == API_SYNC_LEVEL_2)
+		else if (temp_orig_level == API_SYNC_LEVEL_2)
 			kbdev->api_sync_level = API_SYNC_LEVEL_2;
 		else
 			kbdev->api_sync_level = API_SYNC_LEVEL_0;
 
 		return API_SYNC_FLAG_SET;
+	} else if ((orig_api_sync_flag & 0xFF000000) == API_SYNC_FLAG_DEBUG) {
+		kbdev->api_sync_debug_level = orig_api_sync_flag;
+
+		return API_SYNC_FLAG_DEBUG;
 	}
 
 	return orig_api_sync_flag;
@@ -7378,6 +7382,7 @@ static void api_sync_change_pm_policy(struct kbase_device *kbdev)
 		kbdev->api_sync_restore_always_on = true;
 		return;
 	} else if (kbdev->api_sync_restore_always_on == true &&
+		kbdev->api_sync_update_in_progress == false &&
 		cur_policy == &kbase_pm_coarse_demand_policy_ops) {
 		/* Return "always_on" */
 		kbase_pm_set_policy(kbdev, &kbase_pm_always_on_policy_ops);
@@ -7404,7 +7409,7 @@ static void update_api_sync_flag(struct kbase_device *kbdev)
 
 		if (kbdev->final_api_sync_flag == API_SYNC_FLAG_SET &&
 			kbdev->api_sync_force_reset == true) {
-			/* Force to reset flow, need to update timeout & level value  */
+			/* Force to reset flow, need to update timeout & level value */
 			kbdev->api_sync_level = API_SYNC_LEVEL_0;
 			kbdev->api_sync_timeout_ms = API_SYNC_DEFAULT_TIMEOUT_MS;
 
@@ -7412,14 +7417,17 @@ static void update_api_sync_flag(struct kbase_device *kbdev)
 			kbdev->api_sync_update_in_progress = true;
 			api_sync_change_pm_policy(kbdev);
 		} else if ((kbdev->final_api_sync_flag == API_SYNC_FLAG_RESET &&
-			temp_api_sync_flag == API_SYNC_FLAG_SET) ||
-			(kbdev->final_api_sync_flag == API_SYNC_FLAG_SET &&
+			(temp_api_sync_flag == API_SYNC_FLAG_SET ||
+			temp_api_sync_flag == API_SYNC_FLAG_DEBUG)) ||
+			((kbdev->final_api_sync_flag == API_SYNC_FLAG_SET ||
+			kbdev->final_api_sync_flag == API_SYNC_FLAG_DEBUG) &&
 			temp_api_sync_flag == API_SYNC_FLAG_RESET)) {
 			kbdev->temp_api_sync_flag = temp_api_sync_flag;
 			kbdev->api_sync_update_in_progress = true;
 			api_sync_change_pm_policy(kbdev);
 		} else if (((kbdev->final_api_sync_flag & temp_api_sync_flag) == API_SYNC_FLAG_RESET) ||
-			((kbdev->final_api_sync_flag & temp_api_sync_flag) == API_SYNC_FLAG_SET)) {
+			((kbdev->final_api_sync_flag & temp_api_sync_flag) == API_SYNC_FLAG_SET) ||
+			((kbdev->final_api_sync_flag & temp_api_sync_flag) == API_SYNC_FLAG_DEBUG)) {
 			api_sync_change_pm_policy(kbdev);
 		}
 	}
@@ -7701,6 +7709,7 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 
 	hrtimer_init(&kbdev->api_sync_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	kbdev->api_sync_timer.function = api_sync_timer_callback;
+	kbdev->api_sync_debug_level = API_SYNC_FLAG_DEBUG_INIT;
 #endif
 
 	return kbase_csf_tiler_heap_reclaim_mgr_init(kbdev);
