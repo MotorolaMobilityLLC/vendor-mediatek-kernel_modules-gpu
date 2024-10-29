@@ -615,6 +615,32 @@ IMG_PID OSGetCurrentClientProcessIDKM(void);
 IMG_CHAR *OSGetCurrentClientProcessNameKM(void);
 
 /*************************************************************************/ /*!
+@Function       OSAcquireCurrentPPIDResourceRefKM
+@Description    Returns a unique process identifier for the current client
+                parent process (thread group) and takes a reference on it
+                (if required) to prevent it being freed/re-allocated.
+                This value may then be used as a unique reference to the
+                process rather than using the PID value which might be
+                reallocated to represent a further process on process
+                destruction.
+                Note that the value to be returned is an address relating to
+                the parent process (thread group) and not to just one thread.
+                It is the caller's responsibility to ensure the reference is
+                subsequently dropped (by calling OSReleasePPIDResourceRefKM())
+                to allow it to be freed when no longer required.
+@Return         Address of a kernel resource allocated for the current client
+                parent process (thread group)
+*****************************************************************************/
+uintptr_t OSAcquireCurrentPPIDResourceRefKM(void);
+
+/*************************************************************************/ /*!
+@Function       OSReleasePPIDResourceRefKM
+@Description    Drops a reference on the unique process identifier provided.
+@Return         None
+*****************************************************************************/
+void OSReleasePPIDResourceRefKM(uintptr_t psPPIDResource);
+
+/*************************************************************************/ /*!
 @Function       OSGetCurrentClientThreadIDKM
 @Description    Returns ID for current client thread
                 For some operating systems, this may simply be the current
