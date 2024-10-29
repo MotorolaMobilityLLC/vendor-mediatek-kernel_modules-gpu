@@ -3037,7 +3037,7 @@ _ExtractAllPages(PMR_OSPAGEARRAY_DATA *psSrcPageArrayData,
 				 PMR_OSPAGEARRAY_DATA **psOutPageArrayData)
 {
 	PVRSRV_ERROR eError;
-	IMG_UINT32 i, uiOrder;
+	IMG_UINT32 i;
 	PMR_OSPAGEARRAY_DATA* psDstPageArrayData;
 	IMG_UINT32 uiPagesCopied = 0;
 
@@ -3057,53 +3057,40 @@ _ExtractAllPages(PMR_OSPAGEARRAY_DATA *psSrcPageArrayData,
 		return eError;
 	}
 
-	uiOrder = psSrcPageArrayData->uiLog2AllocPageSize - PAGE_SHIFT;
-
 	/* Transfer from src pagearray to dst pagearray */
 	/* Iterate through all pages in psSrcPageArrayData but stop once
 	 * we have copied psSrcPageArrayData->iNumOSPagesAllocated pages to
 	 * psDstPageArrayData.
 	 */
+
 	for (i = 0; ((i < psSrcPageArrayData->uiTotalNumOSPages) &&
 	             (uiPagesCopied < psSrcPageArrayData->iNumOSPagesAllocated)); i++)
 	{
 		if (psSrcPageArrayData->pagearray[i] != NULL)
 		{
+			psDstPageArrayData->pagearray[uiPagesCopied] =
+			        psSrcPageArrayData->pagearray[i];
 
-			psDstPageArrayData->pagearray[uiPagesCopied] = psSrcPageArrayData->pagearray[i];
 			psSrcPageArrayData->pagearray[i] = NULL;
+
+			if (BIT_ISSET(psSrcPageArrayData->ui32AllocFlags, FLAG_IS_CMA) &&
+			    (psSrcPageArrayData->dmaphysarray[i] != (dma_addr_t)0 ||
+			     psSrcPageArrayData->dmavirtarray[i] != NULL))
+			{
+				psDstPageArrayData->dmaphysarray[uiPagesCopied] =
+				    psSrcPageArrayData->dmaphysarray[i];
+				psDstPageArrayData->dmavirtarray[uiPagesCopied] =
+				    psSrcPageArrayData->dmavirtarray[i];
+
+				psSrcPageArrayData->dmaphysarray[i] = (dma_addr_t)0;
+				psSrcPageArrayData->dmavirtarray[i] = NULL;
+			}
 			uiPagesCopied++;
 		}
 	}
 
-	/* Reset uiPagesCopied */
-	uiPagesCopied = 0;
-
-	/* Do the same for dmaphysarray and dmavirtarray if allocated with CMA */
-	if (BIT_ISSET(psSrcPageArrayData->ui32AllocFlags, FLAG_IS_CMA))
-	{
-		/* Iterate through all pages in psSrcPageArrayData but stop once
-		 * we have copied psSrcPageArrayData->iNumOSPagesAllocated pages to
-		 * psDstPageArrayData.
-		 */
-		for (i = 0; ((i < psSrcPageArrayData->uiTotalNumOSPages) &&
-		             (uiPagesCopied < psSrcPageArrayData->iNumOSPagesAllocated)); i++)
-		{
-			if (psSrcPageArrayData->dmaphysarray[i] != (dma_addr_t)0 ||
-			    psSrcPageArrayData->dmavirtarray[i] != NULL)
-			{
-				psDstPageArrayData->dmaphysarray[uiPagesCopied] = psSrcPageArrayData->dmaphysarray[i];
-				psDstPageArrayData->dmavirtarray[uiPagesCopied] = psSrcPageArrayData->dmavirtarray[i];
-
-				psSrcPageArrayData->dmaphysarray[i] = (dma_addr_t)0;
-				psSrcPageArrayData->dmavirtarray[i] = NULL;
-				uiPagesCopied++;
-			}
-		}
-	}
-
 	/* Update page counts */
-	psDstPageArrayData->iNumOSPagesAllocated = psSrcPageArrayData->iNumOSPagesAllocated << uiOrder;
+	psDstPageArrayData->iNumOSPagesAllocated = psSrcPageArrayData->iNumOSPagesAllocated;
 	psSrcPageArrayData->iNumOSPagesAllocated = 0;
 
 	*psOutPageArrayData = psDstPageArrayData;
