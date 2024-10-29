@@ -57,6 +57,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 /* PID associated with Connection currently being purged by Cleanup thread */
 static IMG_PID gCurrentPurgeConnectionPid;
 
+static inline IMG_BOOL IsRetryError(PVRSRV_ERROR eError)
+{
+	return eError == PVRSRV_ERROR_RETRY || eError == PVRSRV_ERROR_KERNEL_CCB_FULL;
+}
+
 static PVRSRV_ERROR ConnectionDataDestroy(CONNECTION_DATA *psConnection)
 {
 	PVRSRV_ERROR eError;
@@ -94,41 +99,9 @@ static PVRSRV_ERROR ConnectionDataDestroy(CONNECTION_DATA *psConnection)
 
 	if (psProcessHandleBase != NULL)
 	{
-		/* acquire the lock now to ensure unref and removal from the
-		 * hash table is atomic.
-		 * if the refcount becomes zero then the lock needs to be held
-		 * until the entry is removed from the hash table.
-		 */
-		OSLockAcquire(psPVRSRVData->hProcessHandleBase_Lock);
-
-		/* In case the refcount becomes 0 we can remove the process handle base */
-		if (OSAtomicDecrement(&psProcessHandleBase->iRefCount) == 0)
-		{
-			uintptr_t uiHashValue;
-
-			uiHashValue = HASH_Remove(psPVRSRVData->psProcessHandleBase_Table, psConnection->pid);
-			OSLockRelease(psPVRSRVData->hProcessHandleBase_Lock);
-
-			if (!uiHashValue)
-			{
-				PVR_DPF((PVR_DBG_ERROR,
-						"%s: Failed to remove handle base from hash table.",
-						__func__));
-				return PVRSRV_ERROR_UNABLE_TO_REMOVE_HASH_VALUE;
-			}
-
-			eError = PVRSRVFreeKernelHandles(psProcessHandleBase->psHandleBase);
-			PVR_LOG_RETURN_IF_ERROR(eError, "PVRSRVFreeKernelHandles");
-
-			eError = PVRSRVFreeHandleBase(psProcessHandleBase->psHandleBase, ui64MaxBridgeTime);
-			PVR_LOG_RETURN_IF_ERROR(eError, "PVRSRVFreeHandleBase:1");
-
-			OSFreeMem(psProcessHandleBase);
-		}
-		else
-		{
-			OSLockRelease(psPVRSRVData->hProcessHandleBase_Lock);
-		}
+		eError = PVRSRVReleaseProcessHandleBase(psProcessHandleBase,
+	                                            ui64MaxBridgeTime);
+		PVR_LOG_RETURN_IF_ERROR(eError, "PVRSRVReleaseProcessHandleBase");
 
 		psConnection->psProcessHandleBase = NULL;
 	}
@@ -213,7 +186,6 @@ PVRSRV_ERROR PVRSRVCommonConnectionConnect(void **ppvPrivData, void *pvOSData)
 	CONNECTION_DATA *psConnection;
 	PVRSRV_ERROR eError;
 	PROCESS_HANDLE_BASE *psProcessHandleBase;
-	PVRSRV_DATA *psPVRSRVData = PVRSRVGetPVRSRVData();
 
 	/* Allocate connection data area, no stats since process not registered yet */
 	psConnection = OSAllocZMemNoStats(sizeof(*psConnection));
@@ -267,43 +239,9 @@ PVRSRV_ERROR PVRSRVCommonConnectionConnect(void **ppvPrivData, void *pvOSData)
 	                               PVRSRV_HANDLE_BASE_TYPE_CONNECTION);
 	PVR_LOG_GOTO_IF_ERROR(eError, "PVRSRVAllocHandleBase", failure);
 
-	/* Try to get process handle base if it already exists */
-	OSLockAcquire(psPVRSRVData->hProcessHandleBase_Lock);
-	psProcessHandleBase = (PROCESS_HANDLE_BASE*) HASH_Retrieve(PVRSRVGetPVRSRVData()->psProcessHandleBase_Table,
-	                                                           psConnection->pid);
-
-	/* In case there is none we are going to allocate one */
-	if (psProcessHandleBase == NULL)
-	{
-		psProcessHandleBase = OSAllocZMem(sizeof(PROCESS_HANDLE_BASE));
-		PVR_LOG_GOTO_IF_NOMEM(psProcessHandleBase, eError, failureLock);
-
-		OSAtomicWrite(&psProcessHandleBase->iRefCount, 0);
-
-		/* Allocate handle base for this process */
-		eError = PVRSRVAllocHandleBase(&psProcessHandleBase->psHandleBase,
-		                               PVRSRV_HANDLE_BASE_TYPE_PROCESS);
-		if (eError != PVRSRV_OK)
-		{
-			PVR_LOG_ERROR(eError, "PVRSRVAllocHandleBase");
-			OSFreeMem(psProcessHandleBase);
-			goto failureLock;
-		}
-
-		/* Insert the handle base into the global hash table */
-		if (!HASH_Insert(PVRSRVGetPVRSRVData()->psProcessHandleBase_Table,
-		                 psConnection->pid,
-		                 (uintptr_t) psProcessHandleBase))
-		{
-			PVRSRVFreeHandleBase(psProcessHandleBase->psHandleBase, 0);
-
-			OSFreeMem(psProcessHandleBase);
-			PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_UNABLE_TO_INSERT_HASH_VALUE, failureLock);
-		}
-	}
-	OSAtomicIncrement(&psProcessHandleBase->iRefCount);
-
-	OSLockRelease(psPVRSRVData->hProcessHandleBase_Lock);
+	/* get process handle base for the current process (if it doesn't exist it will be allocated) */
+	eError = PVRSRVAcquireProcessHandleBase(&psProcessHandleBase);
+	PVR_LOG_GOTO_IF_ERROR(eError, "PVRSRVAcquireProcessHandleBase", failure);
 
 	/* hConnectionsLock now resides in PVRSRV_DEVICE_NODE */
 	{
@@ -320,8 +258,6 @@ PVRSRV_ERROR PVRSRVCommonConnectionConnect(void **ppvPrivData, void *pvOSData)
 
 	return PVRSRV_OK;
 
-failureLock:
-	OSLockRelease(psPVRSRVData->hProcessHandleBase_Lock);
 failure:
 	ConnectionDataDestroy(psConnection);
 
@@ -338,13 +274,10 @@ static PVRSRV_ERROR _CleanupThreadPurgeConnectionData(void *pvConnectionData)
 	eErrorConnection = ConnectionDataDestroy(psConnectionData);
 	if (eErrorConnection != PVRSRV_OK)
 	{
-		if (eErrorConnection == PVRSRV_ERROR_RETRY)
+		if (IsRetryError(eErrorConnection))
 		{
-			PVR_DPF((PVR_DBG_MESSAGE,
-				 "%s: Failed to purge connection data %p "
-				 "(deferring destruction)",
-				 __func__,
-				 psConnectionData));
+			PVR_DPF((PVR_DBG_MESSAGE, "%s: Failed to purge connection data %p "
+			        "(deferring destruction)", __func__, psConnectionData));
 		}
 	}
 	else

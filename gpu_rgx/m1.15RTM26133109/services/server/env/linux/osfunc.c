@@ -70,6 +70,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0))
 #include <linux/pfn_t.h>
 #include <linux/pfn.h>
+#include <linux/pid.h>
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)) */
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0))
 #include <linux/sched/clock.h>
@@ -715,6 +716,22 @@ IMG_PID OSGetCurrentClientProcessIDKM(void)
 IMG_CHAR *OSGetCurrentClientProcessNameKM(void)
 {
 	return OSGetCurrentProcessName();
+}
+
+uintptr_t OSAcquireCurrentPPIDResourceRefKM(void)
+{
+	struct pid *psPPIDResource = find_pid_ns(OSGetCurrentClientProcessIDKM(), &init_pid_ns);
+
+	PVR_ASSERT(psPPIDResource != NULL);
+	/* Take ref on pPid */
+	get_pid(psPPIDResource);
+	return (uintptr_t)psPPIDResource;
+}
+
+void OSReleasePPIDResourceRefKM(uintptr_t psPPIDResource)
+{
+	/* Drop ref on uiProc */
+	put_pid((struct pid*)psPPIDResource);
 }
 
 uintptr_t OSGetCurrentClientThreadIDKM(void)
