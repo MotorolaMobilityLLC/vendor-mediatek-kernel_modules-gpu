@@ -75,6 +75,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "rgxlayer_impl.h"
 #include "rgxfwimageutils.h"
 #include "rgxfwutils.h"
+#include "rgxpower.h"
 
 #include "rgx_hwperf.h"
 #include "rgx_bvnc_defs_km.h"
@@ -1699,6 +1700,10 @@ PVRSRV_ERROR RGXInit(PVRSRV_DEVICE_NODE *psDeviceNode)
 		goto cleanup;
 	}
 
+	RGXInitGpuUtilStats(psDeviceNode, &psDevInfo->sGpuUtilStats);
+#if defined(SUPPORT_LINUX_DVFS)
+	RGXInitGpuUtilStats(psDeviceNode, &psDevInfo->sDVFSGpuUtilStats);
+#endif
 
 	eError = PVRSRV_OK;
 

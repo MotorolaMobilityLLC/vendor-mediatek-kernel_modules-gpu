@@ -597,6 +597,9 @@ static_assert(RGXFW_THREAD_NUM <= MAX_THREAD_NUM,
 #define RGXFWIF_PHR_MODE_OFF			(0UL)
 #define RGXFWIF_PHR_MODE_RD_RESET		(1UL)
 
+/* Firmware SysData Flags */
+#define RGXFWIF_SYSDATA_FLAG_BLOCKED_GPU_WORK	(IMG_UINT32_C(0x1) << 0U)	/*!< GPU has pending workloads that are blocked */
+
 typedef IMG_UINT32 RGXFWIF_HWR_STATEFLAGS;
 
 typedef IMG_UINT32 RGXFWIF_HWR_RECOVERYFLAGS;
@@ -645,6 +648,10 @@ typedef struct
 	IMG_UINT32                 ui32FwSysDataFlags;                      /*!< Compatibility and other flags */
 	IMG_UINT32                 ui32McConfig;                            /*!< Identify whether MC config is P-P or P-S */
 	IMG_UINT32                 ui32MemFaultCheck;                       /*!< Device mem fault check on PCI systems */
+	IMG_UINT32 RGXFW_ALIGN     aaui32DmActiveTimeTicks[RGXFWIF_GPU_UTIL_DM_MAX][RGXFW_MAX_NUM_OSIDS]; /*!< Shared copy of the accumulated timer ticks DMs spent in active state on behalf of each DriverID */
+	IMG_UINT64                 ui64GpuActiveTimeNS;                     /*!< Shared copy of the accumulated time in nanoseconds the GPU spent in Active state */
+	IMG_UINT64                 ui64FwStatsTimestampNS;                  /*!< Timestamp in estimated host time when the Firmware saved the utilisation data */
+	IMG_BOOL                   bGpuActive;                              /*!< Indicator specifying if the GPU was active during the Firmware's last utilisation check */
 } UNCACHED_ALIGN RGXFWIF_SYSDATA;
 
 #if defined(SUPPORT_OPEN_SOURCE_DRIVER)

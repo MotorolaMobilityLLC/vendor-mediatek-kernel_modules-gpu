@@ -118,7 +118,6 @@ typedef struct _IMG_DVFS_DEVICE_
 	struct dev_pm_opp		*psOPP;
 	struct devfreq			*psDevFreq;
 	PVR_DVFS_STATE		eState;
-	IMG_HANDLE			hGpuUtilUserDVFS;
 #if defined(SUPPORT_PVR_DVFS_GOVERNOR)
 	IMG_DVFS_GOVERNOR_CFG data;
 	IMG_BOOL			bGovernorReady;

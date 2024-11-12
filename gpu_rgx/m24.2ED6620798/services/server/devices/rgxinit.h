@@ -199,43 +199,6 @@ PVRSRV_ERROR DevDeInitRGX(PVRSRV_DEVICE_NODE *psDeviceNode);
 
 void RGX_WaitForInterruptsTimeout(PVRSRV_RGXDEV_INFO *psDevInfo);
 
-/*!
-*******************************************************************************
-
- @Function     SORgxGpuUtilStatsRegister
-
- @Description  SO Interface function called from the OS layer implementation.
-               Initialise data used to compute GPU utilisation statistics
-               for a particular user (identified by the handle passed as
-               argument). This function must be called only once for each
-               different user/handle.
-
- @Input        phGpuUtilUser - Pointer to handle used to identify a user of
-                               RGXGetGpuUtilStats
-
- @Return       PVRSRV_ERROR
-
-******************************************************************************/
-PVRSRV_ERROR SORgxGpuUtilStatsRegister(IMG_HANDLE *phGpuUtilUser);
-
-
-/*!
-*******************************************************************************
-
- @Function     SORgxGpuUtilStatsUnregister
-
- @Description  SO Interface function called from the OS layer implementation.
-               Free data previously used to compute GPU utilisation statistics
-               for a particular user (identified by the handle passed as
-               argument).
-
- @Input        hGpuUtilUser - Handle used to identify a user of
-                              RGXGetGpuUtilStats
-
- @Return       PVRSRV_ERROR
-
-******************************************************************************/
-PVRSRV_ERROR SORgxGpuUtilStatsUnregister(IMG_HANDLE hGpuUtilUser);
 #endif /* !defined(NO_HARDWARE) */
 
 #if defined(RGX_FEATURE_AXI_ACE_BIT_MASK)

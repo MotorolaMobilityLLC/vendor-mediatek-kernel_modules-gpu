@@ -293,4 +293,36 @@ PVRSRV_ERROR RGXForcedIdleRequest(PPVRSRV_DEVICE_NODE psDeviceNode,
 PVRSRV_ERROR RGXCancelForcedIdleRequest(PPVRSRV_DEVICE_NODE psDeviceNode);
 
 
+/*!
+******************************************************************************
+
+ @Function	RGXGetGpuUtilStats
+
+ @Description Obtain GPU utilisation statistics based on shared Fw data
+
+ @Input    psDeviceNode   : RGX Device Node
+ @Input    bDetailedStats : Request per-DM/per-VM statistics or
+                            overall gpu activity data
+ @Output   psReturnStats  : Collected GPU usage statistics
+
+ @Return   PVRSRV_ERROR
+
+******************************************************************************/
+PVRSRV_ERROR RGXGetGpuUtilStats(PVRSRV_DEVICE_NODE *psDeviceNode,
+								IMG_BOOL bDetailedStats,
+								RGXFWIF_GPU_UTIL_STATS *psReturnStats);
+
+/*!
+******************************************************************************
+
+ @Function	RGXInitGpuUtilStats
+
+ @Description Initialise structure holding GPU utilisation statistics
+
+ @Input    psDeviceNode   : RGX Device Node
+ @Output   psGpuUtilStats : Utilisation statistics structure to init
+
+******************************************************************************/
+void RGXInitGpuUtilStats(PVRSRV_DEVICE_NODE *psDeviceNode,
+						 RGXFWIF_GPU_UTIL_STATS	*psGpuUtilStats);
 #endif /* RGXPOWER_H */
