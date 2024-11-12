@@ -142,7 +142,6 @@ endif
 
 ifeq ($(BUILD_RULE),OOT)
     ifeq ($(MTK_PLATFORM_VERSION),mt6771)
-        $(info zf kernel 6771)
         MTK_GPU_VERSION := $(LOCAL_MTK_GPU_VERSION)
         MTK_PLATFORM := $(MTK_PLATFORM_VERSION)
         CONFIG_MALI_REAL_HW := y
@@ -151,7 +150,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_DEVFREQ := y
         # *** MTK CONFIG ***
         CONFIG_MALI_MTK_BRINGUP := n
-        CONFIG_MALI_MTK_MEMTRACK :=n
+        CONFIG_MALI_MTK_MEMTRACK :=y
         CONFIG_MALI_MTK_DEVFREQ_GOVERNOR := y
         CONFIG_MALI_MTK_DEVFREQ_THERMAL := y
         CONFIG_MALI_MTK_PROC_FS := y
