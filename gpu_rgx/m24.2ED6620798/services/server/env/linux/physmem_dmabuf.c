@@ -2250,25 +2250,30 @@ PhysmemImportSparseDmaBuf(CONNECTION_DATA *psConnection,
 			PMRRefPMR(psPMR);
 		}
 
+		/* If an existing PMR is found, the table wasn't created by this func
+		 * call, so the error path can be safely ignored allowing for
+		 * the factory lock can be dropped. */
+		PVR_ASSERT(bHashTableCreated == IMG_FALSE);
+		dma_buf_put(psDmaBuf);
+		PMRFactoryUnlock();
+
 #if defined(SUPPORT_PMR_DEVICE_IMPORT_DEFERRED_FREE) || defined(PVRSRV_ENABLE_XD_MEM)
 		/* The device import can only be registered on an alive & healthy PMR
 		 * therefore we wait for the potential zombie to be dequeued first. */
 		eError = PMR_RegisterDeviceImport(psPMR, psDevNode);
 		if (eError != PVRSRV_OK)
 		{
-			PMRUnrefPMR(psPMR);
+			/* The factory lock might be taken in PMRUnrefPMR. */
+			(void) PMRUnrefPMR(psPMR);
 			PVR_DPF((PVR_DBG_ERROR, "%s: Failed to register PMR with device: %u",
 			        __func__, psDevNode->sDevId.ui32InternalID));
-			PVR_GOTO_WITH_ERROR(eError, eError, errUnlockAndDMAPut);
+			goto errReturn;
 		}
 #endif /* defined(SUPPORT_PMR_DEVICE_IMPORT_DEFERRED_FREE) || defined(PVRSRV_ENABLE_XD_MEM) */
 
 		*ppsPMRPtr = psPMR;
 		*puiSize = PMR_LogicalSize(psPMR);
 		*puiAlign = PAGE_SIZE;
-
-		PMRFactoryUnlock();
-		dma_buf_put(psDmaBuf);
 
 		/* We expect a PMR to be immutable at this point.
 		 * But its explicitly set here to cover a corner case
