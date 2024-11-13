@@ -947,6 +947,63 @@ _ExtractPages(PMR_LMALLOCARRAY_DATA *psSrcPageArrayData,
 alloc_error:
 	return eError;
 }
+
+/* Extracts all allocated pages referenced psSrcPageArrayData
+ * Allocates a new PMR_OSPAGEARRAY_DATA object and fills it with the extracted
+ * pages information.
+ */
+static PVRSRV_ERROR
+_ExtractAllPages(PMR_LMALLOCARRAY_DATA *psSrcPageArrayData,
+				 PMR_LMALLOCARRAY_DATA **psOutPageArrayData)
+{
+	PVRSRV_ERROR eError;
+	PMR_LMALLOCARRAY_DATA* psDstPageArrayData;
+	IMG_UINT32 ui32IdxSrc, ui32IdxDst;
+
+	/* Alloc PMR_LMALLOCARRAY_DATA for the extracted pages.
+	 *
+	 * We're passing IMG_TRUE in bContig parameter because _ExtractAllPages()
+	 * is only ever called for contiguous PMRs (`NO_OSPAGES_ON_ALLOC` pages are
+	 * not allowed to be sparse which is enforced by PhysMemValidateParams()). */
+	eError = _AllocLMPageArray((IMG_UINT64)psSrcPageArrayData->iNumPagesAllocated << psSrcPageArrayData->uiLog2AllocSize,
+	                           psSrcPageArrayData->iNumPagesAllocated,
+	                           psSrcPageArrayData->uiTotalNumPages,
+	                           NULL,
+	                           psSrcPageArrayData->uiLog2AllocSize,
+	                           psSrcPageArrayData->bZeroOnAlloc,
+	                           psSrcPageArrayData->bPoisonOnAlloc,
+	                           psSrcPageArrayData->bPoisonOnFree,
+	                           IMG_TRUE,
+	                           psSrcPageArrayData->bOnDemand,
+	                           psSrcPageArrayData->psPhysHeap,
+	                           psSrcPageArrayData->uiAllocFlags,
+	                           psSrcPageArrayData->uiPid,
+	                           &psDstPageArrayData,
+	                           psSrcPageArrayData->psConnection);
+	PVR_LOG_RETURN_IF_ERROR_VA(eError, "_AllocLMPageArray failed in %s", __func__);
+
+	psDstPageArrayData->psArena = psSrcPageArrayData->psArena;
+
+	/* Now do the transfer */
+	ui32IdxDst=0;
+	for (ui32IdxSrc=0; ((ui32IdxDst<psSrcPageArrayData->iNumPagesAllocated) &&
+	                    (psDstPageArrayData->iNumPagesAllocated<psSrcPageArrayData->iNumPagesAllocated)); ui32IdxSrc++)
+	{
+		if (psSrcPageArrayData->pasDevPAddr[ui32IdxSrc].uiAddr != INVALID_PAGE_ADDR)
+		{
+			psDstPageArrayData->pasDevPAddr[ui32IdxDst++].uiAddr = psSrcPageArrayData->pasDevPAddr[ui32IdxSrc].uiAddr;
+			psSrcPageArrayData->pasDevPAddr[ui32IdxSrc].uiAddr = INVALID_PAGE_ADDR;
+			psDstPageArrayData->iNumPagesAllocated++;
+		}
+	}
+
+	/* Update src page count */
+	psSrcPageArrayData->iNumPagesAllocated = 0;
+
+	*psOutPageArrayData = psDstPageArrayData;
+
+	return PVRSRV_OK;
+}
 #endif /* defined(SUPPORT_PMR_PAGES_DEFERRED_FREE) */
 
 /*
@@ -1088,17 +1145,33 @@ PMRUnlockSysPhysAddressesLocalMem(PMR_IMPL_PRIVDATA pvPriv)
 	PVRSRV_ERROR eError = PVRSRV_OK;
 	PMR_LMALLOCARRAY_DATA *psLMAllocArrayData = pvPriv;
 #if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+	PMR_LMALLOCARRAY_DATA *psExtractedPagesPageArray = NULL;
 
 	*ppvZombiePages = NULL;
 #endif
 
 	if (psLMAllocArrayData->bOnDemand)
 	{
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+		eError = _ExtractAllPages(psLMAllocArrayData,
+		                          &psExtractedPagesPageArray);
+		PVR_LOG_GOTO_IF_ERROR(eError, "_ExtractAllPages", e0);
+
+		/* Zombify pages to get proper stats */
+		eError = PMRZombifyLocalMem(psExtractedPagesPageArray, NULL);
+		PVR_WARN_IF_ERROR(eError, "PMRZombifyLocalMem");
+
+		*ppvZombiePages = psExtractedPagesPageArray;
+#else
 		/* Free Memory for deferred allocation */
 		eError = _FreeLMPages(psLMAllocArrayData, NULL, 0);
 		PVR_RETURN_IF_ERROR(eError);
+#endif
 	}
 
+#if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
+e0:
+#endif
 	PVR_ASSERT(eError == PVRSRV_OK);
 	return eError;
 }
