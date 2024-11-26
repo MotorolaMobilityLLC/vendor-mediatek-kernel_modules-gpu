@@ -1124,6 +1124,7 @@ struct kbase_csf_scheduler {
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 	unsigned int apo_support;
 	struct hrtimer apo_idle_timer;
+	bool keep_apo_timer;
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 	atomic_t pending_tick_work;
 	atomic_t pending_tock_work;

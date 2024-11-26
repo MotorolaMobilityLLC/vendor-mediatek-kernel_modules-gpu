@@ -578,6 +578,9 @@ static enum hrtimer_restart tick_timer_callback(struct hrtimer *timer)
 	struct kbase_device *kbdev =
 		container_of(timer, struct kbase_device, csf.scheduler.tick_timer);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+	kbdev->csf.scheduler.keep_apo_timer = true;
+#endif
 	kbase_csf_scheduler_invoke_tick(kbdev);
 
 	return HRTIMER_NORESTART;
@@ -7139,6 +7142,7 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 	scheduler->apo_support = ged_gpu_apo_support();
 	hrtimer_init(&scheduler->apo_idle_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	scheduler->apo_idle_timer.function = apo_idle_timer_callback;
+	scheduler->keep_apo_timer = false;
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 
 	kbase_csf_tiler_heap_reclaim_mgr_init(kbdev);
@@ -7222,6 +7226,9 @@ static void scheduler_enable_tick_timer_nolock(struct kbase_device *kbdev)
 		(scheduler->state != SCHED_SLEEPING));
 
 	if (scheduler->total_runnable_grps > 0) {
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+		kbdev->csf.scheduler.keep_apo_timer = true;
+#endif
 		kbase_csf_scheduler_invoke_tick(kbdev);
 		dev_dbg(kbdev->dev, "Re-enabling the scheduler timer\n");
 	} else if (scheduler->state != SCHED_SUSPENDED) {
