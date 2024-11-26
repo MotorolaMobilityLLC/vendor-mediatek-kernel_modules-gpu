@@ -444,13 +444,14 @@ void PVRGpuTraceInitIfEnabled(PVRSRV_DEVICE_NODE *psDeviceNode)
 			bEnable = IMG_TRUE;
 		}
 #endif
-
+#if defined(DEBUG) || !defined(ANDROID)
 		if (bEnable)
 		{
 			/* this enables FTrace globally (if not enabled nothing will appear
 			 * in the FTrace buffer) */
 			tracing_on();
 		}
+#endif
 	}
 }
 
@@ -1360,14 +1361,14 @@ static PVRSRV_ERROR _GpuTraceSetEnabledCallback(
 			        pszOperation));
 		}
 #endif
-
+#if defined(DEBUG) || !defined(ANDROID)
 		if (value)
 		{
 			/* this enables FTrace globally (if not enabled nothing will appear
 			 * in the FTrace buffer) */
 			tracing_on();
 		}
-
+#endif
 		/*  The HWPerf supplier is activated here,
 		    The FTrace consumer is activated above,
 		    The consumer should be active before the supplier    */
