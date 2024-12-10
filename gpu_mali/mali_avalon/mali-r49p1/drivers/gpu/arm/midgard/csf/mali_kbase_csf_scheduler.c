@@ -5396,7 +5396,7 @@ static void gpu_idle_worker(struct work_struct *work)
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
-	if (ged_gpu_apo_support() == APO_2_0_NORMAL_SUPPORT)
+	if ((ged_gpu_apo_support() == APO_2_0_NORMAL_SUPPORT) || (ged_get_apo_autosuspend_delay_ctrl()))
 		kbdev->dev->power.autosuspend_delay = (int)ged_get_apo_autosuspend_delay_ms();
 #endif
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
