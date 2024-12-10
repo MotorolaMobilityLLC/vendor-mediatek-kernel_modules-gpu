@@ -925,7 +925,6 @@ typedef enum
 	RGXFWIF_KCCB_CMD_COUNTER_DUMP						= 211U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Controls counter dumping in the FW */
 	RGXFWIF_KCCB_CMD_VZ_DRV_TIME_SLICE					= 213U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Changes the GPU time slice for a particular driver. It can only be serviced for the Host DDK */
 	RGXFWIF_KCCB_CMD_VZ_DRV_TIME_SLICE_INTERVAL			= 214U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Changes the GPU time slice interval for all drivers. It can only be serviced for the Host DDK */
-	RGXFWIF_KCCB_CMD_EXPORT_DETAILED_UTIL_STATS			= 215U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Ask the FW to export the accumulated per-DM/per-VM GPU usage statistics data to shared memory */
 
 	/* HWPerf commands */
 	RGXFWIF_KCCB_CMD_HWPERF_UPDATE_CONFIG				= 300U | RGX_CMD_MAGIC_DWORD_SHIFTED, /*!< Configure HWPerf events (to be generated) and HWPerf buffer address (if required) */
@@ -1558,7 +1557,7 @@ typedef struct
 	PRGXFWIF_TBIBUF         sTBIBuf; /*!< Tbi log buffer */
 #endif
 
-	PRGXFWIF_GPU_UTIL_FW    sGpuUtilFWCtl; /*!< Timing correlation data */
+	PRGXFWIF_GPU_UTIL_FW    sGpuUtilFWCtl; /*!< GPU utilization buffer */
 	PRGXFWIF_REG_CFG        sRegCfg; /*!< Firmware register user configuration */
 	PRGXFWIF_HWPERF_CTL     sHWPerfCtl; /*!< HWPerf counter block configuration.*/
 
@@ -1699,8 +1698,33 @@ typedef struct
 
 /*!
  ******************************************************************************
- * Timer correlation
+ * GPU Utilisation
  *****************************************************************************/
+
+/* See rgx_common.h for a list of GPU states */
+#define RGXFWIF_GPU_UTIL_TIME_MASK       (IMG_UINT64_C(0xFFFFFFFFFFFFFFFF) & ~RGXFWIF_GPU_UTIL_STATE_MASK)
+#define RGXFWIF_GPU_UTIL_TIME_MASK32     (IMG_UINT32_C(0xFFFFFFFF) & ~RGXFWIF_GPU_UTIL_STATE_MASK32)
+
+#define RGXFWIF_GPU_UTIL_GET_TIME(word)    ((word) & RGXFWIF_GPU_UTIL_TIME_MASK)
+#define RGXFWIF_GPU_UTIL_GET_STATE(word)   ((word) & RGXFWIF_GPU_UTIL_STATE_MASK)
+#define RGXFWIF_GPU_UTIL_GET_TIME32(word)  ((IMG_UINT32)(word) & RGXFWIF_GPU_UTIL_TIME_MASK32)
+#define RGXFWIF_GPU_UTIL_GET_STATE32(word) ((IMG_UINT32)(word) & RGXFWIF_GPU_UTIL_STATE_MASK32)
+
+/* The OS timestamps computed by the FW are approximations of the real time,
+ * which means they could be slightly behind or ahead the real timer on the Host.
+ * In some cases we can perform subtractions between FW approximated
+ * timestamps and real OS timestamps, so we need a form of protection against
+ * negative results if for instance the FW one is a bit ahead of time.
+ */
+#define RGXFWIF_GPU_UTIL_GET_PERIOD(newtime,oldtime) \
+	(((newtime) > (oldtime)) ? ((newtime) - (oldtime)) : 0U)
+
+#define RGXFWIF_GPU_UTIL_MAKE_WORD(time,state) \
+	(RGXFWIF_GPU_UTIL_GET_TIME(time) | RGXFWIF_GPU_UTIL_GET_STATE(state))
+
+#define RGXFWIF_GPU_UTIL_MAKE_WORD32(time,state) \
+	(RGXFWIF_GPU_UTIL_GET_TIME32(time) | RGXFWIF_GPU_UTIL_GET_STATE32(state))
+
 
 /* The timer correlation array must be big enough to ensure old entries won't be
  * overwritten before all the HWPerf events linked to those entries are processed
@@ -1719,6 +1743,26 @@ typedef struct
 static_assert((RGXFWIF_TIME_CORR_ARRAY_SIZE & (RGXFWIF_TIME_CORR_ARRAY_SIZE - 1U)) == 0U,
 			  "RGXFWIF_TIME_CORR_ARRAY_SIZE must be a power of two");
 
+/* The time is stored in DM state time-stamps, and as a result in DMs states counters, in "approximately microseconds",
+ * dividing the time originally obtained in nanoseconds by 2^10 for the sake of reducing coremem usage */
+#define RGXFWIF_DM_OS_TIMESTAMP_SHIFT    10U
+
+typedef struct
+{
+	/* Last GPU DM per-OS states + OS time of the last state update */
+	IMG_UINT32 RGXFW_ALIGN aui32DMOSLastWord[RGXFWIF_GPU_UTIL_DM_MAX];
+	/* DMs time-stamps are cached in coremem - to reduce coremem usage we allocate 32 bits for each of them
+	 * and save their values divided by 2^10, so they wrap around in ~73 mins, consequently
+	 * we keep the count of the wrapping around instances */
+	IMG_UINT32 RGXFW_ALIGN aui32DMOSLastWordWrap[RGXFWIF_GPU_UTIL_DM_MAX];
+	/* Counters for the amount of time the GPU DMs were active or inactive(idle or blocked) */
+	IMG_UINT32 RGXFW_ALIGN aaui32DMOSStatsCounters[RGXFWIF_GPU_UTIL_DM_MAX][RGXFWIF_GPU_UTIL_REDUCED_STATES_NUM];
+	/* DMs Counters are cached in coremem - to reduce coremem usage we allocate 32 bits for each of them
+	 * and save their values divided by 2^10, so they wrap around in ~73 mins, consequently
+	 * we keep the count of the wrapping around instances */
+	IMG_UINT32 RGXFW_ALIGN aaui32DMOSCountersWrap[RGXFWIF_GPU_UTIL_DM_MAX][RGXFWIF_GPU_UTIL_REDUCED_STATES_NUM];
+} RGXFWIF_GPU_STATS;
+
 typedef struct
 {
 	RGXFWIF_TIME_CORR      sTimeCorr[RGXFWIF_TIME_CORR_ARRAY_SIZE];
@@ -1727,8 +1771,14 @@ typedef struct
 	/* Compatibility and other flags */
 	IMG_UINT32             ui32GpuUtilFlags;
 
+	/* Last GPU state + OS time of the last state update */
+	IMG_UINT64 RGXFW_ALIGN ui64GpuLastWord;
+	/* Counters for the amount of time the GPU was active/idle/blocked */
+	IMG_UINT64 RGXFW_ALIGN aui64GpuStatsCounters[RGXFWIF_GPU_UTIL_STATE_NUM];
 	/* Device off period timestamp offset */
 	IMG_INT64 RGXFW_ALIGN i64DeviceTimestampOffset;
+	/* Stats per OSID/DriverID */
+	RGXFWIF_GPU_STATS sStats[RGXFW_MAX_NUM_OSIDS];
 } UNCACHED_ALIGN RGXFWIF_GPU_UTIL_FW;
 
 #if defined(SUPPORT_OPEN_SOURCE_DRIVER)
@@ -1820,17 +1870,9 @@ static_assert((RGX_FW_HEAP_OSID_ASSIGNMENT == RGX_FW_HEAP_USES_FIRMWARE_OSID),
 
 
 #else
-
 #define FOREACH_SUPPORTED_DRIVER(did)              for ((did)=RGXFW_HOST_DRIVER_ID; (did) <= RGXFW_HOST_DRIVER_ID; (did)++)
 
-#if defined(__KERNEL__)
-/* Driver implementation */
-#define FOREACH_ACTIVE_DRIVER(devinfo, did)        FOREACH_SUPPORTED_DRIVER(did)
-#else
-/* Firmware implementation */
 #define FOREACH_ACTIVE_DRIVER(did)                 FOREACH_SUPPORTED_DRIVER(did)
-#endif
-
 #define END_FOREACH_ACTIVE_DRIVER
 
 #endif /* (RGX_NUM_DRIVERS_SUPPORTED > 1) */

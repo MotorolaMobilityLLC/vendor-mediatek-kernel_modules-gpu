@@ -655,6 +655,7 @@ static void *_DebugStatusDINext(OSDI_IMPL_ENTRY *psEntry,
 
 		if (psDevInfo && psDevInfo->pfnGetGpuUtilStats)
 		{
+			PVRSRV_DEVICE_DEBUG_INFO *psDebugInfo = &psDeviceNode->sDebugInfo;
 			PVRSRV_DEVICE_HEALTH_STATUS eHealthStatus = OSAtomicRead(&psDeviceNode->eHealthStatus);
 
 			if (eHealthStatus == PVRSRV_DEVICE_HEALTH_STATUS_OK)
@@ -664,8 +665,13 @@ static void *_DebugStatusDINext(OSDI_IMPL_ENTRY *psEntry,
 				static IMG_BOOL bFirstTime = IMG_TRUE;
 #endif
 
-				eError = psDevInfo->pfnGetGpuUtilStats(psDeviceNode, IMG_TRUE,
+				OSLockAcquire(psDevInfo->hGpuUtilStatsLock);
+
+				eError = psDevInfo->pfnGetGpuUtilStats(psDeviceNode,
+													   psDebugInfo->hGpuUtilUserDebugFS,
 													   &psDevInfo->sGpuUtilStats);
+
+				OSLockRelease(psDevInfo->hGpuUtilStatsLock);
 
 				if (eError != PVRSRV_OK)
 				{
@@ -840,13 +846,14 @@ static int _DebugStatusDIShow(OSDI_IMPL_ENTRY *psEntry, void *pvData)
 				{
 					PVRSRV_RGXDEV_INFO *psDevInfo = psDeviceNode->pvDevice;
 					RGXFWIF_GPU_UTIL_STATS *psGpuUtilStats = &psDevInfo->sGpuUtilStats;
-					OS_SPINLOCK_FLAGS uiFlags;
 
-					OSSpinLockAcquire(psGpuUtilStats->hSpinlock, uiFlags);
+					OSLockAcquire(psDevInfo->hGpuUtilStatsLock);
 
-					if (psGpuUtilStats->bBasicStatsValid)
+					if ((IMG_UINT32)psGpuUtilStats->ui64GpuStatCumulative)
 					{
 						const IMG_CHAR *apszDmNames[RGXFWIF_DM_MAX] = {"GP", "TDM", "GEOM", "3D", "CDM", "RAY", "GEOM2", "GEOM3", "GEOM4"};
+						IMG_UINT64 util;
+						IMG_UINT32 rem;
 						IMG_UINT32 ui32DriverID;
 						RGXFWIF_DM eDM;
 						IMG_INT    iDM_Util = 0;
@@ -856,34 +863,42 @@ static int _DebugStatusDIShow(OSDI_IMPL_ENTRY *psEntry, void *pvData)
 							apszDmNames[RGXFWIF_DM_TDM] = "2D";
 						}
 
-						DIPrintf(psEntry, "GPU Utilisation: %u%%\n", psGpuUtilStats->ui32GpuUsage);
+						util = 100 * psGpuUtilStats->ui64GpuStatActive;
+						util = OSDivide64(util, (IMG_UINT32)psGpuUtilStats->ui64GpuStatCumulative, &rem);
 
-						if (psGpuUtilStats->bDetailedStatsValid)
+						DIPrintf(psEntry, "GPU Utilisation: %u%%\n", (IMG_UINT32)util);
+
+						DIPrintf(psEntry, "DM Utilisation:");
+
+						FOREACH_SUPPORTED_DRIVER(ui32DriverID)
 						{
-							DIPrintf(psEntry, "DM Utilisation:");
+							DIPrintf(psEntry, "  VM%u", ui32DriverID);
+						}
+
+						DIPrintf(psEntry, "\n");
+
+						for (eDM = RGXFWIF_DM_TDM; eDM < psDevInfo->sDevFeatureCfg.ui32MAXDMCount; eDM++,iDM_Util++)
+						{
+							DIPrintf(psEntry, "        %5s: ", apszDmNames[eDM]);
 
 							FOREACH_SUPPORTED_DRIVER(ui32DriverID)
 							{
-								DIPrintf(psEntry, "  VM%u", ui32DriverID);
-							}
+								IMG_UINT32 uiDivisor = (IMG_UINT32)psGpuUtilStats->aaui64DMOSStatCumulative[iDM_Util][ui32DriverID];
 
-							DIPrintf(psEntry, "\n");
-
-							for (eDM = RGXFWIF_DM_TDM; eDM < psDevInfo->sDevFeatureCfg.ui32MAXDMCount; eDM++,iDM_Util++)
-							{
-								DIPrintf(psEntry, "        %5s: ", apszDmNames[eDM]);
-
-								FOREACH_SUPPORTED_DRIVER(ui32DriverID)
+								if (uiDivisor == 0U)
 								{
-									DIPrintf(psEntry, "%3u%% ", psGpuUtilStats->aaui32DriverDmUsage[eDM-1][ui32DriverID]);
+									DIPrintf(psEntry, "   - ");
+									continue;
 								}
 
-								DIPrintf(psEntry, "\n");
+								util = 100 * psGpuUtilStats->aaui64DMOSStatActive[iDM_Util][ui32DriverID];
+								util = OSDivide64(util, uiDivisor, &rem);
+
+								DIPrintf(psEntry, "%3u%% ", (IMG_UINT32)util);
 							}
-						}
-						else
-						{
-							DIPrintf(psEntry, "DM Utilisation: -");
+
+
+							DIPrintf(psEntry, "\n");
 						}
 					}
 					else
@@ -891,7 +906,7 @@ static int _DebugStatusDIShow(OSDI_IMPL_ENTRY *psEntry, void *pvData)
 						DIPrintf(psEntry, "GPU Utilisation: -\n");
 					}
 
-					OSSpinLockRelease(psGpuUtilStats->hSpinlock, uiFlags);
+					OSLockRelease(psDevInfo->hGpuUtilStatsLock);
 
 				}
 			}
@@ -1642,6 +1657,11 @@ PVRSRV_ERROR DebugCommonInitDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 	eError = DICreateGroup(pszDeviceId, NULL, &psDebugInfo->psGroup);
 	PVR_GOTO_IF_ERROR(eError, return_error_);
 
+#if defined(SUPPORT_RGX) && !defined(NO_HARDWARE)
+	eError = SORgxGpuUtilStatsRegister(&psDebugInfo->hGpuUtilUserDebugFS);
+	PVR_GOTO_IF_ERROR(eError, return_error_);
+#endif
+
 	{
 		DI_ITERATOR_CB sIterator = {.pfnShow = _DebugDumpDebugDIShow};
 		eError = DICreateEntry("debug_dump", psDebugInfo->psGroup, &sIterator,
@@ -1945,6 +1965,14 @@ void DebugCommonDeInitDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 		DIDestroyEntry(psDebugInfo->psDumpDebugEntry);
 		psDebugInfo->psDumpDebugEntry = NULL;
 	}
+
+#if defined(SUPPORT_RGX) && !defined(NO_HARDWARE)
+	if (psDebugInfo->hGpuUtilUserDebugFS != NULL)
+	{
+		SORgxGpuUtilStatsUnregister(psDebugInfo->hGpuUtilUserDebugFS);
+		psDebugInfo->hGpuUtilUserDebugFS = NULL;
+	}
+#endif /* defined(SUPPORT_RGX) && !defined(NO_HARDWARE) */
 
 	if (psDebugInfo->psGroup != NULL)
 	{

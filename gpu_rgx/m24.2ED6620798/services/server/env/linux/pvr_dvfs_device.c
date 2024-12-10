@@ -63,6 +63,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "rgxdevice.h"
 #include "rgxinit.h"
+#include "sofunc_rgx.h"
 
 #include "syscommon.h"
 
@@ -204,6 +205,7 @@ static int devfreq_get_dev_status(struct device *dev, struct devfreq_dev_status 
 	IMG_DVFS_DEVICE         *psDVFSDevice = NULL;
 	RGX_DATA                *psRGXData = NULL;
 	RGX_TIMING_INFORMATION  *psRGXTimingInfo = NULL;
+	RGXFWIF_GPU_UTIL_STATS  *psGpuUtilStats = NULL;
 	PVRSRV_ERROR             eError;
 #if defined(CONFIG_PM_DEVFREQ_EVENT) && defined(SUPPORT_PVR_DVFS_GOVERNOR)
 	struct pvr_profiling_dev_status *pvr_stat = stat->private_data;
@@ -237,15 +239,27 @@ static int devfreq_get_dev_status(struct device *dev, struct devfreq_dev_status 
 		return 0;
 	}
 
-	eError = psDevInfo->pfnGetGpuUtilStats(psDeviceNode, IMG_FALSE,
-						&psDevInfo->sDVFSGpuUtilStats);
-	if ((eError != PVRSRV_OK) || (!psDevInfo->sDVFSGpuUtilStats.bBasicStatsValid))
+	psGpuUtilStats = kzalloc(sizeof(*psGpuUtilStats), GFP_KERNEL);
+
+	if (!psGpuUtilStats)
 	{
+		return -ENOMEM;
+	}
+
+	eError = psDevInfo->pfnGetGpuUtilStats(psDeviceNode,
+						psDVFSDevice->hGpuUtilUserDVFS,
+						psGpuUtilStats);
+
+	if (eError != PVRSRV_OK)
+	{
+		kfree(psGpuUtilStats);
 		return -EAGAIN;
 	}
 
-	stat->busy_time = psDevInfo->sDVFSGpuUtilStats.ui64GpuActivePeriodNS;
-	stat->total_time = psDevInfo->sDVFSGpuUtilStats.ui64MeasurementPeriodNS;
+	stat->busy_time = psGpuUtilStats->ui64GpuStatActive;
+	stat->total_time = psGpuUtilStats->ui64GpuStatCumulative;
+
+	kfree(psGpuUtilStats);
 
 #if defined(CONFIG_PM_DEVFREQ_EVENT) && defined(SUPPORT_PVR_DVFS_GOVERNOR)
 	err = pvr_get_dev_status_get_events(psDVFSDevice->psProfilingDevice, pvr_stat);
@@ -1018,6 +1032,13 @@ PVRSRV_ERROR InitDVFS(PPVRSRV_DEVICE_NODE psDeviceNode)
 	}
 #endif
 
+	eError = SORgxGpuUtilStatsRegister(&psDVFSDevice->hGpuUtilUserDVFS);
+	if (eError != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "Failed to register to the GPU utilisation stats, %d", eError));
+		return eError;
+	}
+
 	err = dev_pm_opp_of_add_table(psDev);
 	if (err == 0)
 	{
@@ -1316,6 +1337,8 @@ void DeinitDVFS(PPVRSRV_DEVICE_NODE psDeviceNode)
 	 */
 	dev_pm_opp_remove_table(psDev);
 
+	SORgxGpuUtilStatsUnregister(psDVFSDevice->hGpuUtilUserDVFS);
+	psDVFSDevice->hGpuUtilUserDVFS = NULL;
 	psDVFSDevice->eState = PVR_DVFS_STATE_NONE;
 }
 

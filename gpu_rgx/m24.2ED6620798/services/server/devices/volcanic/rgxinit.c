@@ -675,6 +675,359 @@ static void RGX_MISRHandler_CheckFWActivePowerState(void *psDevice)
 
 }
 
+/* Shorter defines to keep the code a bit shorter */
+#define GPU_IDLE       RGXFWIF_GPU_UTIL_STATE_IDLE
+#define GPU_ACTIVE     RGXFWIF_GPU_UTIL_STATE_ACTIVE
+#define GPU_BLOCKED    RGXFWIF_GPU_UTIL_STATE_BLOCKED
+#define GPU_INACTIVE   RGXFWIF_GPU_UTIL_STATE_INACTIVE
+#define MAX_ITERATIONS 64
+#define MAX_DIFF_TIME_NS (300000ULL)
+#define MAX_DIFF_DM_TIME_NS (MAX_DIFF_TIME_NS >> RGXFWIF_DM_OS_TIMESTAMP_SHIFT)
+
+static PVRSRV_ERROR RGXGetGpuUtilStats(PVRSRV_DEVICE_NODE *psDeviceNode,
+                                       IMG_HANDLE hGpuUtilUser,
+                                       RGXFWIF_GPU_UTIL_STATS *psReturnStats)
+{
+	PVRSRV_RGXDEV_INFO *psDevInfo = psDeviceNode->pvDevice;
+	RGXFWIF_GPU_STATS sStats;
+	RGXFWIF_GPU_UTIL_STATS *psAggregateStats;
+	IMG_UINT64 (*paaui64DMOSTmpCounters)[RGX_NUM_DRIVERS_SUPPORTED][RGXFWIF_GPU_UTIL_REDUCED_STATES_NUM];
+	IMG_UINT64 (*paui64DMOSTmpLastWord)[RGX_NUM_DRIVERS_SUPPORTED];
+	IMG_UINT64 (*paui64DMOSTmpLastState)[RGX_NUM_DRIVERS_SUPPORTED];
+	IMG_UINT64 (*paui64DMOSTmpLastPeriod)[RGX_NUM_DRIVERS_SUPPORTED];
+	IMG_UINT64 (*paui64DMOSTmpLastTime)[RGX_NUM_DRIVERS_SUPPORTED];
+	IMG_UINT64 ui64TimeNow;
+	IMG_UINT64 ui64TimeNowShifted;
+	IMG_UINT32 ui32Attempts;
+	IMG_UINT32 ui32Remainder;
+	IMG_UINT32 ui32DriverID;
+	IMG_UINT32 ui32MaxDMCount;
+	RGXFWIF_DM eDM;
+#if defined(MTK_MINI_PORTING)
+	unsigned long uLockFlags;
+#endif /* MTK_MINI_PORTING */
+	/***** (1) Initialise return stats *****/
+
+	psReturnStats->bValid = IMG_FALSE;
+
+	if (hGpuUtilUser == NULL)
+	{
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+	psAggregateStats = hGpuUtilUser;
+
+	/* decrease by 1 to account for excluding GP DM from the statics */;
+	ui32MaxDMCount =  psDevInfo->sDevFeatureCfg.ui32MAXDMCount-1;
+
+	/* Reset temporary counters used in the attempts loop */
+	paaui64DMOSTmpCounters  = &psAggregateStats->sTempGpuStats.aaaui64DMOSTmpCounters[0];
+	paui64DMOSTmpLastWord   = &psAggregateStats->sTempGpuStats.aaui64DMOSTmpLastWord[0];
+	paui64DMOSTmpLastState  = &psAggregateStats->sTempGpuStats.aaui64DMOSTmpLastState[0];
+	paui64DMOSTmpLastPeriod = &psAggregateStats->sTempGpuStats.aaui64DMOSTmpLastPeriod[0];
+	paui64DMOSTmpLastTime   = &psAggregateStats->sTempGpuStats.aaui64DMOSTmpLastTime[0];
+
+	RGXFwSharedMemCacheOpPtr(psDevInfo->psRGXFWIfGpuUtilFW, INVALIDATE);
+
+	/* Try to acquire GPU utilisation counters and repeat if the FW is in the middle of an update */
+	for (ui32Attempts = 0; ui32Attempts < 4; ui32Attempts++)
+	{
+		IMG_UINT64 aui64GpuTmpCounters[RGXFWIF_GPU_UTIL_STATE_NUM] = {0};
+		IMG_UINT64 ui64GpuLastPeriod = 0, ui64GpuLastWord = 0, ui64GpuLastState = 0, ui64GpuLastTime = 0;
+
+		/***** (2) Get latest data from shared area *****/
+
+		FOREACH_SUPPORTED_DRIVER(ui32DriverID)
+		{
+			IMG_UINT64 aui64StatsCountersNew[RGXFWIF_GPU_UTIL_STATE_NUM];
+			IMG_UINT64 ui64GpuLastWordNew;
+			RGXFWIF_GPU_STATS sStatsNew;
+			IMG_UINT32 i = 0;
+
+			ui64GpuLastWord = 0;
+			ui64GpuLastState = 0;
+
+#if defined(MTK_MINI_PORTING)
+			spin_lock_irqsave(&psDevInfo->sGPUUtilLock, uLockFlags);
+#else
+			OSLockAcquire(psDevInfo->hGPUUtilLock);
+#endif /* MTK_MINI_PORTING */
+
+			/* Copy data from device memory */
+			memcpy(&sStatsNew, &psDevInfo->psRGXFWIfGpuUtilFW->sStats[ui32DriverID], sizeof(sStats));
+			memcpy(&ui64GpuLastWordNew, &psDevInfo->psRGXFWIfGpuUtilFW->ui64GpuLastWord, sizeof(ui64GpuLastWord));
+			memcpy(aui64StatsCountersNew, psDevInfo->psRGXFWIfGpuUtilFW->aui64GpuStatsCounters, sizeof(aui64StatsCountersNew));
+
+			/*
+			 * First attempt at detecting if the FW is in the middle of an update.
+			 * This should also help if the FW is in the middle of a 64 bit variable update.
+			 * This loop must be fast. Faster than FW updates the stats.
+			 */
+			for (i = 0; i < MAX_ITERATIONS; i++)
+			{
+				IMG_UINT32 j,k;
+				IMG_BOOL bRetry = IMG_FALSE;
+
+				if (i > 0)
+				{
+					/* On retry keep previous data */
+					ui64GpuLastWordNew = ui64GpuLastWord;
+					memcpy(aui64StatsCountersNew, aui64GpuTmpCounters, sizeof(aui64StatsCountersNew));
+					memcpy(&sStatsNew, &sStats, sizeof(sStatsNew));
+				}
+
+				/* Copy data from device memory */
+				memcpy(&sStats, &psDevInfo->psRGXFWIfGpuUtilFW->sStats[ui32DriverID], sizeof(sStats));
+				memcpy(&ui64GpuLastWord, &psDevInfo->psRGXFWIfGpuUtilFW->ui64GpuLastWord, sizeof(ui64GpuLastWord));
+				memcpy(aui64GpuTmpCounters, psDevInfo->psRGXFWIfGpuUtilFW->aui64GpuStatsCounters, sizeof(aui64GpuTmpCounters));
+
+				/* Check for abnormal time difference between reads */
+				if (RGXFWIF_GPU_UTIL_GET_TIME(ui64GpuLastWord) - RGXFWIF_GPU_UTIL_GET_TIME(ui64GpuLastWordNew) > MAX_DIFF_TIME_NS)
+				{
+					bRetry = IMG_TRUE;
+					continue;
+				}
+
+				for (j = 0; j < RGXFWIF_GPU_UTIL_STATE_NUM; j++)
+				{
+					/* Check for abnormal time difference between reads */
+					if (aui64GpuTmpCounters[j] - aui64StatsCountersNew[j] > MAX_DIFF_TIME_NS)
+					{
+						bRetry = IMG_TRUE;
+						break;
+					}
+				}
+
+				if (bRetry)
+				{
+					continue;
+				}
+
+				/* Check for DM counters wrapped or
+				   abnormal time difference between reads.
+				   The DM time is shifted by RGXFWIF_DM_OS_TIMESTAMP_SHIFT */
+				for (j = 0; j < RGXFWIF_GPU_UTIL_DM_MAX; j++)
+				{
+					if (sStats.aui32DMOSLastWordWrap[j] != sStatsNew.aui32DMOSLastWordWrap[j] ||
+						RGXFWIF_GPU_UTIL_GET_TIME32(sStats.aui32DMOSLastWord[j]) - RGXFWIF_GPU_UTIL_GET_TIME32(sStatsNew.aui32DMOSLastWord[j]) > MAX_DIFF_DM_TIME_NS)
+					{
+						bRetry = IMG_TRUE;
+						break;
+					}
+
+					for (k = 0; k < RGXFWIF_GPU_UTIL_REDUCED_STATES_NUM; k++)
+					{
+						if (sStats.aaui32DMOSCountersWrap[j][k] != sStatsNew.aaui32DMOSCountersWrap[j][k] ||
+							sStats.aaui32DMOSStatsCounters[j][k] - sStatsNew.aaui32DMOSStatsCounters[j][k] > MAX_DIFF_DM_TIME_NS)
+						{
+							bRetry = IMG_TRUE;
+							break;
+						}
+
+					}
+
+					if (bRetry)
+					{
+						break;
+					}
+				}
+
+				if (!bRetry)
+				{
+					/* Stats are good*/
+					break;
+				}
+			}
+
+#if defined(MTK_MINI_PORTING)
+		spin_unlock_irqrestore(&psDevInfo->sGPUUtilLock, uLockFlags);
+#else
+			OSLockRelease(psDevInfo->hGPUUtilLock);
+#endif /* MTK_MINI_PORTING */
+			ui64GpuLastState = RGXFWIF_GPU_UTIL_GET_STATE(ui64GpuLastWord);
+
+			if (i == MAX_ITERATIONS)
+			{
+				PVR_DPF((PVR_DBG_WARNING,
+						 "RGXGetGpuUtilStats could not get reliable data after trying %u times", i));
+
+				return PVRSRV_ERROR_TIMEOUT;
+			}
+
+			for (eDM = 0; eDM < ui32MaxDMCount; eDM++)
+			{
+				paui64DMOSTmpLastWord[eDM][ui32DriverID]  =
+					((IMG_UINT64)sStats.aui32DMOSLastWordWrap[eDM] << 32) + sStats.aui32DMOSLastWord[eDM];
+				paui64DMOSTmpLastState[eDM][ui32DriverID] = RGXFWIF_GPU_UTIL_GET_STATE(paui64DMOSTmpLastWord[eDM][ui32DriverID]);
+				if (paui64DMOSTmpLastState[eDM][ui32DriverID] != GPU_ACTIVE)
+				{
+					paui64DMOSTmpLastState[eDM][ui32DriverID] = GPU_INACTIVE;
+				}
+				paaui64DMOSTmpCounters[eDM][ui32DriverID][GPU_INACTIVE] = (IMG_UINT64)sStats.aaui32DMOSStatsCounters[eDM][GPU_INACTIVE] +
+					((IMG_UINT64)sStats.aaui32DMOSCountersWrap[eDM][GPU_INACTIVE] << 32);
+				paaui64DMOSTmpCounters[eDM][ui32DriverID][GPU_ACTIVE]  = (IMG_UINT64)sStats.aaui32DMOSStatsCounters[eDM][GPU_ACTIVE] +
+					((IMG_UINT64)sStats.aaui32DMOSCountersWrap[eDM][GPU_ACTIVE] << 32);
+			}
+
+		} /* FOREACH_SUPPORTED_DRIVER(ui32DriverID) */
+
+
+		/***** (3) Compute return stats *****/
+
+		/* Update temp counters to account for the time since the last update to the shared ones */
+		OSMemoryBarrier(NULL); /* Ensure the current time is read after the loop above */
+		ui64TimeNow    = RGXFWIF_GPU_UTIL_GET_TIME(RGXTimeCorrGetClockns64(psDeviceNode));
+
+		ui64GpuLastTime   = RGXFWIF_GPU_UTIL_GET_TIME(ui64GpuLastWord);
+		ui64GpuLastPeriod = RGXFWIF_GPU_UTIL_GET_PERIOD(ui64TimeNow, ui64GpuLastTime);
+		aui64GpuTmpCounters[ui64GpuLastState] += ui64GpuLastPeriod;
+
+		/* Get statistics for a user since its last request */
+		psReturnStats->ui64GpuStatIdle = RGXFWIF_GPU_UTIL_GET_PERIOD(aui64GpuTmpCounters[GPU_IDLE],
+		                                                             psAggregateStats->ui64GpuStatIdle);
+		psReturnStats->ui64GpuStatActive = RGXFWIF_GPU_UTIL_GET_PERIOD(aui64GpuTmpCounters[GPU_ACTIVE],
+		                                                               psAggregateStats->ui64GpuStatActive);
+		psReturnStats->ui64GpuStatBlocked = RGXFWIF_GPU_UTIL_GET_PERIOD(aui64GpuTmpCounters[GPU_BLOCKED],
+		                                                                psAggregateStats->ui64GpuStatBlocked);
+		psReturnStats->ui64GpuStatCumulative = psReturnStats->ui64GpuStatIdle +
+		                                       psReturnStats->ui64GpuStatActive +
+		                                       psReturnStats->ui64GpuStatBlocked;
+
+		/* convert time into the same units as used by fw */
+		ui64TimeNowShifted  = ui64TimeNow >> RGXFWIF_DM_OS_TIMESTAMP_SHIFT;
+		for (eDM = 0; eDM < ui32MaxDMCount; eDM++)
+		{
+			FOREACH_SUPPORTED_DRIVER(ui32DriverID)
+			{
+				paui64DMOSTmpLastTime[eDM][ui32DriverID]   = RGXFWIF_GPU_UTIL_GET_TIME(paui64DMOSTmpLastWord[eDM][ui32DriverID]);
+				paui64DMOSTmpLastPeriod[eDM][ui32DriverID] = RGXFWIF_GPU_UTIL_GET_PERIOD(ui64TimeNowShifted , paui64DMOSTmpLastTime[eDM][ui32DriverID]);
+				paaui64DMOSTmpCounters[eDM][ui32DriverID][paui64DMOSTmpLastState[eDM][ui32DriverID]] += paui64DMOSTmpLastPeriod[eDM][ui32DriverID];
+				/* Get statistics for a user since its last request */
+				psReturnStats->aaui64DMOSStatInactive[eDM][ui32DriverID] = RGXFWIF_GPU_UTIL_GET_PERIOD(paaui64DMOSTmpCounters[eDM][ui32DriverID][GPU_INACTIVE],
+				                                                             psAggregateStats->aaui64DMOSStatInactive[eDM][ui32DriverID]);
+				psReturnStats->aaui64DMOSStatActive[eDM][ui32DriverID] = RGXFWIF_GPU_UTIL_GET_PERIOD(paaui64DMOSTmpCounters[eDM][ui32DriverID][GPU_ACTIVE],
+				                                                               psAggregateStats->aaui64DMOSStatActive[eDM][ui32DriverID]);
+				psReturnStats->aaui64DMOSStatCumulative[eDM][ui32DriverID] = psReturnStats->aaui64DMOSStatInactive[eDM][ui32DriverID] +
+				                                       psReturnStats->aaui64DMOSStatActive[eDM][ui32DriverID];
+			}
+		}
+
+		if (psAggregateStats->ui64TimeStamp != 0)
+		{
+			IMG_UINT64 ui64TimeSinceLastCall = ui64TimeNow - psAggregateStats->ui64TimeStamp;
+			/* We expect to return at least 75% of the time since the last call in GPU stats */
+			IMG_UINT64 ui64MinReturnedStats = ui64TimeSinceLastCall - (ui64TimeSinceLastCall / 4);
+
+			/*
+			 * If the returned stats are substantially lower than the time since
+			 * the last call, then the Host might have read a partial update from the FW.
+			 * If this happens, try sampling the shared counters again.
+			 */
+			if (psReturnStats->ui64GpuStatCumulative < ui64MinReturnedStats)
+			{
+				PVR_DPF((PVR_DBG_MESSAGE,
+				         "%s: Return stats (%" IMG_UINT64_FMTSPEC ") too low "
+				         "(call period %" IMG_UINT64_FMTSPEC ")",
+				         __func__, psReturnStats->ui64GpuStatCumulative, ui64TimeSinceLastCall));
+				PVR_DPF((PVR_DBG_MESSAGE, "%s: Attempt #%u has failed, trying again",
+				         __func__, ui32Attempts));
+				continue;
+			}
+		}
+
+		break;
+	}
+
+	/***** (4) Update aggregate stats for the current user *****/
+
+	psAggregateStats->ui64GpuStatIdle    += psReturnStats->ui64GpuStatIdle;
+	psAggregateStats->ui64GpuStatActive  += psReturnStats->ui64GpuStatActive;
+	psAggregateStats->ui64GpuStatBlocked += psReturnStats->ui64GpuStatBlocked;
+	psAggregateStats->ui64TimeStamp       = ui64TimeNow;
+
+	for (eDM = 0; eDM < ui32MaxDMCount; eDM++)
+	{
+		FOREACH_SUPPORTED_DRIVER(ui32DriverID)
+		{
+			psAggregateStats->aaui64DMOSStatInactive[eDM][ui32DriverID]    += psReturnStats->aaui64DMOSStatInactive[eDM][ui32DriverID];
+			psAggregateStats->aaui64DMOSStatActive[eDM][ui32DriverID]  += psReturnStats->aaui64DMOSStatActive[eDM][ui32DriverID];
+		}
+	}
+
+	/***** (5) Convert return stats to microseconds *****/
+
+	psReturnStats->ui64GpuStatIdle       = OSDivide64(psReturnStats->ui64GpuStatIdle, 1000, &ui32Remainder);
+	psReturnStats->ui64GpuStatActive     = OSDivide64(psReturnStats->ui64GpuStatActive, 1000, &ui32Remainder);
+	psReturnStats->ui64GpuStatBlocked    = OSDivide64(psReturnStats->ui64GpuStatBlocked, 1000, &ui32Remainder);
+	psReturnStats->ui64GpuStatCumulative = OSDivide64(psReturnStats->ui64GpuStatCumulative, 1000, &ui32Remainder);
+
+	/* Check that the return stats make sense */
+	if (psReturnStats->ui64GpuStatCumulative == 0)
+	{
+		/* We can enter here only if allocating the temporary stats
+		 * buffers failed, or all the RGXFWIF_GPU_UTIL_GET_PERIOD
+		 * returned 0. The latter could happen if the GPU frequency value
+		 * is not well calibrated and the FW is updating the GPU state
+		 * while the Host is reading it.
+		 * When such an event happens frequently, timers or the aggregate
+		 * stats might not be accurate...
+		 */
+#if defined(VIRTUAL_PLATFORM)
+		/* To avoid spamming the console logging system on emulated devices,
+		 * we special-case so that we will only produce a single message per
+		 * driver invocation. This should reduce the time spent logging
+		 * information which is not relevant for very slow timers found in
+		 * VP device configurations
+		 */
+		static IMG_BOOL bFirstTime = IMG_TRUE;
+
+		if (bFirstTime)
+		{
+			bFirstTime = IMG_FALSE;
+#endif
+		PVR_DPF((PVR_DBG_WARNING, "RGXGetGpuUtilStats could not get reliable data."));
+#if defined(VIRTUAL_PLATFORM)
+		}
+#endif	/* defined(VIRTUAL_PLATFORM) */
+		return PVRSRV_ERROR_RESOURCE_UNAVAILABLE;
+	}
+
+	psReturnStats->bValid = IMG_TRUE;
+
+	return PVRSRV_OK;
+}
+
+PVRSRV_ERROR SORgxGpuUtilStatsRegister(IMG_HANDLE *phGpuUtilUser)
+{
+	RGXFWIF_GPU_UTIL_STATS *psAggregateStats;
+
+	/* NoStats used since this may be called outside of the register/de-register
+	 * process calls which track memory use. */
+	psAggregateStats = OSAllocZMemNoStats(sizeof(RGXFWIF_GPU_UTIL_STATS));
+	if (psAggregateStats == NULL)
+	{
+		return PVRSRV_ERROR_OUT_OF_MEMORY;
+	}
+
+	*phGpuUtilUser = psAggregateStats;
+
+	return PVRSRV_OK;
+}
+
+PVRSRV_ERROR SORgxGpuUtilStatsUnregister(IMG_HANDLE hGpuUtilUser)
+{
+	RGXFWIF_GPU_UTIL_STATS *psAggregateStats;
+
+	if (hGpuUtilUser == NULL)
+	{
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+
+	psAggregateStats = hGpuUtilUser;
+	OSFreeMemNoStats(psAggregateStats);
+
+	return PVRSRV_OK;
+}
+
 /*
 	RGX MISR Handler
 */
@@ -1338,6 +1691,7 @@ PVRSRV_ERROR RGXInitDevPart2(PVRSRV_DEVICE_NODE	*psDeviceNode,
 	}
 #endif
 
+	/* Setup GPU utilisation stats update callback */
 #if defined(MTK_MINI_PORTING)
 	spin_lock_init(&psDevInfo->sGPUUtilLock);
 #else
@@ -1345,7 +1699,6 @@ PVRSRV_ERROR RGXInitDevPart2(PVRSRV_DEVICE_NODE	*psDeviceNode,
 	PVR_LOG_GOTO_IF_ERROR(eError, "OSLockCreate(GPUUtilLock)", ErrorExit);
 #endif /* MTK_MINI_PORTING */	
 #if !defined(NO_HARDWARE)
-	/* Setup GPU utilisation stats update callback */
 	psDevInfo->pfnGetGpuUtilStats = RGXGetGpuUtilStats;
 #endif
 
@@ -3387,10 +3740,7 @@ PVRSRV_ERROR DevDeInitRGX(PVRSRV_DEVICE_NODE *psDeviceNode)
 	eError = HTBDeInit();
 	PVR_LOG_IF_ERROR(eError, "HTBDeInit");
 
-#if defined(SUPPORT_LINUX_DVFS)
-	OSSpinLockDestroy(psDevInfo->sDVFSGpuUtilStats.hSpinlock);
-#endif
-	OSSpinLockDestroy(psDevInfo->sGpuUtilStats.hSpinlock);
+	OSLockDestroy(psDevInfo->hGpuUtilStatsLock);
 
 	/* destroy the stalled CCB locks */
 	OSLockDestroy(psDevInfo->hCCBRecoveryLock);
@@ -4857,21 +5207,12 @@ PVRSRV_ERROR RGXRegisterDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 		goto e12;
 	}
 
-	eError = OSSpinLockCreate(&psDevInfo->sGpuUtilStats.hSpinlock);
+	eError = OSLockCreate(&psDevInfo->hGpuUtilStatsLock);
 	if (eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to create GPU stats lock", __func__));
 		goto e13;
 	}
-
-#if defined(SUPPORT_LINUX_DVFS)
-	eError = OSSpinLockCreate(&psDevInfo->sDVFSGpuUtilStats.hSpinlock);
-	if (eError != PVRSRV_OK)
-	{
-		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to create PDVFS GPU stats lock", __func__));
-		goto e14;
-	}
-#endif
 
 	dllist_init(&psDevInfo->sMemoryContextList);
 
@@ -4908,7 +5249,7 @@ PVRSRV_ERROR RGXRegisterDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 		         "%s: Failed to create RGX register mapping",
 		         __func__));
 		eError = PVRSRV_ERROR_BAD_MAPPING;
-		goto e15;
+		goto e14;
 	}
 #endif /* !NO_HARDWARE */
 
@@ -4920,7 +5261,7 @@ PVRSRV_ERROR RGXRegisterDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 		PVR_DPF((PVR_DBG_ERROR,
 		         "%s: Unsupported HW device detected by driver",
 		         __func__));
-		goto e16;
+		goto e15;
 	}
 
 #if defined(RGX_FEATURE_HOST_SECURITY_VERSION_MAX_VALUE_IDX)
@@ -4947,7 +5288,7 @@ PVRSRV_ERROR RGXRegisterDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 			PVR_DPF((PVR_DBG_ERROR,
 			         "PVRSRVRGXInitDevPart2KM: Failed to create RGX secure register mapping"));
 			eError = PVRSRV_ERROR_BAD_MAPPING;
-			goto e16;
+			goto e15;
 		}
 
 		/*
@@ -4973,7 +5314,7 @@ PVRSRV_ERROR RGXRegisterDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 
 	eError = RGXGetNon4KHeapPageShift(&psDevInfo->sLayerParams,
 									 &psDeviceNode->ui32Non4KPageSizeLog2);
-	PVR_LOG_GOTO_IF_ERROR(eError, "RGXGetNon4KHeapPageSize", e17);
+	PVR_LOG_GOTO_IF_ERROR(eError, "RGXGetNon4KHeapPageSize", e16);
 
 	/* Configure MMU specific stuff */
 	RGXMMUInit_Register(psDeviceNode);
@@ -4981,11 +5322,11 @@ PVRSRV_ERROR RGXRegisterDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 	eError = RGXInitHeaps(psDevInfo, psDevMemoryInfo);
 	if (eError != PVRSRV_OK)
 	{
-		goto e17;
+		goto e16;
 	}
 
 	eError = RGXHWPerfInit(psDevInfo);
-	PVR_LOG_GOTO_IF_ERROR(eError, "RGXHWPerfInit", e17);
+	PVR_LOG_GOTO_IF_ERROR(eError, "RGXHWPerfInit", e16);
 
 	eError = RGXHWPerfHostInit(psDeviceNode->pvDevice, ui32HWPerfHostBufSizeKB);
 	PVR_LOG_GOTO_IF_ERROR(eError, "RGXHWPerfHostInit", ErrorDeInitHWPerfFw);
@@ -4993,7 +5334,7 @@ PVRSRV_ERROR RGXRegisterDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 
 	/* Register callback for dumping debug info */
 	eError = RGXDebugInit(psDevInfo);
-	PVR_LOG_GOTO_IF_ERROR(eError, "RGXDebugInit", e18);
+	PVR_LOG_GOTO_IF_ERROR(eError, "RGXDebugInit", e17);
 
 #if defined(RGX_FEATURE_MIPS_BIT_MASK)
 	/* Register callback for fw mmu init */
@@ -5026,11 +5367,11 @@ ErrorDeInitDeviceDepBridge:
 	RGXUnregisterBridges(psDevInfo);
 #endif
 
-e18:
+e17:
 	RGXHWPerfHostDeInit(psDevInfo);
 ErrorDeInitHWPerfFw:
 	RGXHWPerfDeinit(psDevInfo);
-e17:
+e16:
 #if !defined(NO_HARDWARE)
 #if defined(RGX_FEATURE_HOST_SECURITY_VERSION_MAX_VALUE_IDX)
 	if (psDevInfo->pvSecureRegsBaseKM != NULL)
@@ -5047,20 +5388,16 @@ e17:
 	}
 #endif
 #endif /* !NO_HARDWARE */
-e16:
+e15:
 #if !defined(NO_HARDWARE)
 	if (psDevInfo->pvRegsBaseKM != NULL)
 	{
 		OSUnMapPhysToLin((void __force *) psDevInfo->pvRegsBaseKM,
 		                 psDevInfo->ui32RegSize);
 	}
-e15:
-#endif /* !NO_HARDWARE */
-#if defined(SUPPORT_LINUX_DVFS)
-	OSSpinLockDestroy(psDevInfo->sDVFSGpuUtilStats.hSpinlock);
 e14:
-#endif
-	OSSpinLockDestroy(psDevInfo->sGpuUtilStats.hSpinlock);
+#endif /* !NO_HARDWARE */
+	OSLockDestroy(psDevInfo->hGpuUtilStatsLock);
 e13:
 	OSLockDestroy(psDevInfo->hCCBRecoveryLock);
 e12:

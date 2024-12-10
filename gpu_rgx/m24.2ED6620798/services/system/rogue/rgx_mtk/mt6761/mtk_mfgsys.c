@@ -671,25 +671,43 @@ static void MTKCalGpuLoading(unsigned int *pui32Loading,
 			return;
 
 		psDevInfo->pfnGetGpuUtilStats(psDevInfo->psDeviceNode,
-				IMG_FALSE, &psDevInfo->sGpuUtilStats);
+		g_RGXutilUser, &sGpuUtilStats);
 
-		if (psDevInfo->sGpuUtilStats.bBasicStatsValid) {
+		if (sGpuUtilStats.bValid) {
+/*
+ *			PVR_DPF((PVR_DBG_ERROR, "Loading: A(%d), I(%d), B(%d)",
+ *				sGpuUtilStats.ui64GpuStatActiveHigh,
+ *				sGpuUtilStats.ui64GpuStatIdle,
+ *				sGpuUtilStats.ui64GpuStatBlocked));
+ */
 #if defined(__arm64__) || defined(__aarch64__)
-			*pui32Loading = psDevInfo->sGpuUtilStats.ui32GpuUsage;
-			*pui32Block = 0; /* Blocked time included in Idle */
-			*pui32Idle = 100 - *pui32Loading;
+			*pui32Loading =
+				(100*(sGpuUtilStats.ui64GpuStatActive)) /
+				sGpuUtilStats.ui64GpuStatCumulative;
+			*pui32Block =
+				(100*(sGpuUtilStats.ui64GpuStatBlocked)) /
+				sGpuUtilStats.ui64GpuStatCumulative;
+			*pui32Idle =
+				(100*(sGpuUtilStats.ui64GpuStatIdle)) /
+				sGpuUtilStats.ui64GpuStatCumulative;
 #else
-			*pui32Loading = psDevInfo->sGpuUtilStats.ui32GpuUsage;
-			*pui32Block = 0; /* Blocked time included in Idle */
-			*pui32Idle = (unsigned long) (100 - *pui32Loading);
+			*pui32Loading =
+			(unsigned long)(100*
+			(sGpuUtilStats.ui64GpuStatActive)) /
+			(unsigned long)sGpuUtilStats.ui64GpuStatCumulative;
+
+			*pui32Block =
+			(unsigned long)(100*
+			(sGpuUtilStats.ui64GpuStatBlocked)) /
+			(unsigned long)sGpuUtilStats.ui64GpuStatCumulative;
+
+			*pui32Idle =
+			(unsigned long)(100*
+			(sGpuUtilStats.ui64GpuStatIdle)) /
+			(unsigned long)sGpuUtilStats.ui64GpuStatCumulative;
 #endif
 			util_ex->util_active = *pui32Loading;
-			util_ex->delta_time = psDevInfo->sGpuUtilStats.ui64MeasurementPeriodNS;
-
-#if 0
-			PVR_DPF((PVR_DBG_ERROR, "Loading: A(%d), I(%d), B(%d)",
-						*pui32Loading, *pui32Idle, *pui32Block));
-#endif
+			util_ex->delta_time = sGpuUtilStats.ui64GpuStatCumulative * 1000; //unit:ns
 		}
 	}
 }
@@ -1315,6 +1333,11 @@ int MTKRGXDeviceInit(PVRSRV_DEVICE_CONFIG *psDevConfig)
 		PVR_DPF((PVR_DBG_ERROR,
 		"psDevConfig = 0x%p, g_pvRegsKM = 0x%p",
 		psDevConfig, g_pvRegsKM));
+
+	/* 1.5+DDK support multiple user to query GPU utilization */
+	/* Need Init here */
+	if (g_RGXutilUser == NULL)
+		SORgxGpuUtilStatsRegister(&g_RGXutilUser);
 
 	/* set bit mask to 34-bit to pass "dma_capable" check */
 	dma_set_mask(psDevConfig->pvOSDevice, DMA_BIT_MASK(34));

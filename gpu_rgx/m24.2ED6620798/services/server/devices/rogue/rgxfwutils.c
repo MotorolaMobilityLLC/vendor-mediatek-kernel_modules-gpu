@@ -2446,12 +2446,27 @@ static PVRSRV_ERROR RGXSetupFwSysData(PVRSRV_DEVICE_NODE       *psDeviceNode,
 		psDevInfo->psRGXFWIfFwSysData->ui32ConfigFlagsExt = ui32ConfigFlagsExt & RGXFWIF_INICFG_EXT_ALL;
 
 		/* Initialise GPU utilisation buffer */
-		memset(psDevInfo->psRGXFWIfFwSysData->aaui32DmActiveTimeTicks, 0,
-				sizeof(psDevInfo->psRGXFWIfFwSysData->aaui32DmActiveTimeTicks));
-		RGXFwSharedMemCacheOpPtr(psDevInfo->psRGXFWIfFwSysData->aaui32DmActiveTimeTicks, FLUSH);
+		{
+			IMG_UINT64 ui64LastWord = RGXFWIF_GPU_UTIL_MAKE_WORD(OSClockns64(), RGXFWIF_GPU_UTIL_STATE_IDLE);
+			RGXFWIF_DM eDM;
+			IMG_UINT64 ui64LastWordTimeShifted =
+			        RGXFWIF_GPU_UTIL_MAKE_WORD(OSClockns64() >> RGXFWIF_DM_OS_TIMESTAMP_SHIFT, RGXFWIF_GPU_UTIL_STATE_IDLE);
+			IMG_UINT32 ui32DriverID;
 
-		psDevInfo->psRGXFWIfFwSysData->ui64GpuActiveTimeNS = 0;
-		RGXFwSharedMemCacheOpPtr(psDevInfo->psRGXFWIfFwSysData->ui64GpuActiveTimeNS, FLUSH);
+			psDevInfo->psRGXFWIfGpuUtilFW->ui64GpuLastWord = ui64LastWord;
+
+			FOREACH_SUPPORTED_DRIVER(ui32DriverID)
+			{
+				RGXFWIF_GPU_STATS *psStats = &psDevInfo->psRGXFWIfGpuUtilFW->sStats[ui32DriverID];
+
+				for (eDM = 0; eDM < RGXFWIF_GPU_UTIL_DM_MAX; eDM++)
+				{
+					psStats->aui32DMOSLastWord[eDM] = (IMG_UINT32)(ui64LastWordTimeShifted & IMG_UINT32_MAX);
+					psStats->aui32DMOSLastWordWrap[eDM] = (IMG_UINT32)(ui64LastWordTimeShifted >> 32);
+				}
+			}
+			RGXFwSharedMemCacheOpPtr(psDevInfo->psRGXFWIfGpuUtilFW, FLUSH);
+		}
 
 		/* init HWPERF data */
 		psDevInfo->psRGXFWIfFwSysData->sHWPerfCtrl.ui32HWPerfRIdx = 0;
@@ -3343,7 +3358,6 @@ static IMG_UINT32 RGXGetCmdMemCopySize(RGXFWIF_KCCB_CMD_TYPE eCmdType)
 		case RGXFWIF_KCCB_CMD_PHR_CFG:
 		case RGXFWIF_KCCB_CMD_HEALTH_CHECK:
 		case RGXFWIF_KCCB_CMD_STATEFLAGS_CTRL:
-		case RGXFWIF_KCCB_CMD_EXPORT_DETAILED_UTIL_STATS:
 		{
 			/* No command specific data */
 			return offsetof(RGXFWIF_KCCB_CMD, uCmdData);
@@ -3924,13 +3938,13 @@ static void RGX_MISRHandler_ScheduleProcessQueues(void *pvData)
 	{
 		if ((eError == PVRSRV_OK) && (ePowerState == PVRSRV_DEV_POWER_STATE_OFF))
 		{
-			RGXFWIF_SYSDATA *psFwSysData = psDevInfo->psRGXFWIfFwSysData;
+			RGXFWIF_GPU_UTIL_FW    *psUtilFW = psDevInfo->psRGXFWIfGpuUtilFW;
 			IMG_BOOL               bGPUHasWorkWaiting;
 
 			/* Check whether it's worth waking up the GPU */
-			RGXFwSharedMemCacheOpValue(psFwSysData->ui32FwSysDataFlags, INVALIDATE);
-			bGPUHasWorkWaiting = BITMASK_HAS(psFwSysData->ui32FwSysDataFlags,
-											 RGXFWIF_SYSDATA_FLAG_BLOCKED_GPU_WORK);
+			RGXFwSharedMemCacheOpValue(psUtilFW->ui64GpuLastWord, INVALIDATE);
+			bGPUHasWorkWaiting =
+			    (RGXFWIF_GPU_UTIL_GET_STATE(psUtilFW->ui64GpuLastWord) == RGXFWIF_GPU_UTIL_STATE_BLOCKED);
 
 			if (!bGPUHasWorkWaiting)
 			{

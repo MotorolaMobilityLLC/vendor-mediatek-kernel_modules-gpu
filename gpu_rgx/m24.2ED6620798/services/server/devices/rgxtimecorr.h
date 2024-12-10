@@ -145,7 +145,7 @@ static inline IMG_UINT64 RGXTimeCorrDeltaOSNsToDeltaCR(PVRSRV_DEVICE_NODE *psDev
 
 	if (psTimeCorr->ui64CRDeltaToOSDeltaKNs == 0)
 	{
-		PVR_DPF((PVR_DBG_WARNING, "%s: ui64CRDeltaToOSDeltaKNs is 0", __func__));
+		PVR_DPF((PVR_DBG_ERROR, "%s: ui64CRDeltaToOSDeltaKNs is 0", __func__));
 		return 0;
 	}
 

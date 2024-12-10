@@ -234,6 +234,7 @@ typedef struct _PVRSRV_DEVICE_DEBUG_INFO_
 	IMG_UINT64 ui64RiscvDmi;
 #endif
 	DI_ENTRY *psDevMemEntry;
+	IMG_HANDLE hGpuUtilUserDebugFS;
 #endif /* SUPPORT_RGX */
 #ifdef SUPPORT_POWER_SAMPLING_VIA_DEBUGFS
 	DI_ENTRY *psPowerDataEntry;
