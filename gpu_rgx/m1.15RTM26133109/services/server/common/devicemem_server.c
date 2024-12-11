@@ -621,7 +621,7 @@ DevmemIntCtxCreate(CONNECTION_DATA *psConnection,
 
 	if (psDeviceNode->pfnRegisterMemoryContext)
 	{
-		eError = psDeviceNode->pfnRegisterMemoryContext(psDeviceNode, psDevmemCtx->psMMUContext, &hPrivDataInt);
+		eError = psDeviceNode->pfnRegisterMemoryContext(psDeviceNode, psDevmemCtx->psMMUContext, psDevmemCtx, &hPrivDataInt);
 		PVR_LOG_GOTO_IF_ERROR(eError, "pfnRegisterMemoryContext", fail_register);
 	}
 
@@ -655,6 +655,16 @@ fail_mmucontext:
 fail_alloc:
 	PVR_ASSERT(eError != PVRSRV_OK);
 	return eError;
+}
+
+PVRSRV_ERROR DevmemIntCtxRef(DEVMEMINT_CTX *psDevmemCtx)
+{
+	return DevmemIntCtxAcquire(psDevmemCtx) ? PVRSRV_OK : PVRSRV_ERROR_REFCOUNT_OVERFLOW;
+}
+
+void DevmemIntCtxUnref(DEVMEMINT_CTX *psDevmemCtx)
+{
+	DevmemIntCtxRelease(psDevmemCtx);
 }
 
 /*************************************************************************/ /*!

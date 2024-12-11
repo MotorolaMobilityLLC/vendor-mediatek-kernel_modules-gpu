@@ -1240,6 +1240,26 @@ static MMU_DEVICEATTRIBS *RGXDevMMUAttributes(PVRSRV_DEVICE_NODE *psDeviceNode,
 }
 
 /*
+	RGXDevSnoopMode
+*/
+static PVRSRV_DEVICE_SNOOP_MODE RGXDevSnoopMode(PVRSRV_DEVICE_NODE *psDeviceNode)
+{
+	PVRSRV_RGXDEV_INFO *psDevInfo;
+
+	PVR_ASSERT(psDeviceNode != NULL);
+	PVR_ASSERT(psDeviceNode->pvDevice != NULL);
+
+	psDevInfo = (PVRSRV_RGXDEV_INFO *) psDeviceNode->pvDevice;
+
+	if (RGX_IS_FEATURE_SUPPORTED(psDevInfo, AXI_ACELITE))
+	{
+		return PVRSRV_DEVICE_SNOOP_CPU_ONLY;
+	}
+
+	return PVRSRV_DEVICE_SNOOP_NONE;
+}
+
+/*
  * RGXInitDevPart2
  */
 PVRSRV_ERROR RGXInitDevPart2(PVRSRV_DEVICE_NODE	*psDeviceNode,
@@ -4577,6 +4597,7 @@ PVRSRV_ERROR RGXRegisterDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 
 	psDeviceNode->pfnValidateOrTweakPhysAddrs = NULL;
 
+	psDeviceNode->pfnGetDeviceSnoopMode = RGXDevSnoopMode;
 	psDeviceNode->pfnMMUCacheInvalidate = RGXMMUCacheInvalidate;
 
 	psDeviceNode->pfnMMUCacheInvalidateKick = RGXMMUCacheInvalidateKick;

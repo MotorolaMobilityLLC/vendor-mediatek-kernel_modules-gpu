@@ -964,7 +964,19 @@ PVRSRV_ERROR FWCommonContextAllocate(CONNECTION_DATA *psConnection,
 	}
 
 	psServerCommonContext->psDevInfo = psDevInfo;
-	psServerCommonContext->psServerMMUContext = psServerMMUContext;
+
+	if (psServerMMUContext != NULL)
+	{
+		eError = RGXServerMMUContextRef(psServerMMUContext);
+		PVR_LOG_GOTO_IF_ERROR(eError, "RGXServerMMUContextRef", fail_contextalloc);
+
+		psServerCommonContext->psServerMMUContext = psServerMMUContext;
+	}
+	else
+	{
+		psServerCommonContext->psServerMMUContext = NULL;
+	}
+
 
 	if (psAllocatedMemDesc)
 	{
@@ -1242,6 +1254,12 @@ void FWCommonContextFree(RGX_SERVER_COMMON_CONTEXT *psServerCommonContext)
 						psServerCommonContext->psFWCommonContextMemDesc);
 		psServerCommonContext->psFWCommonContextMemDesc = NULL;
 	}
+
+	if (psServerCommonContext->psServerMMUContext != NULL)
+	{
+		RGXServerMMUContextUnref(psServerCommonContext->psServerMMUContext);
+	}
+
 	/* Free the hosts representation of the common context */
 	OSFreeMem(psServerCommonContext);
 }

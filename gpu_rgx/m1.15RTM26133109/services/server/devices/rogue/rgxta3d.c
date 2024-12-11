@@ -1566,11 +1566,10 @@ static void RGXDestroyHWRTData_aux(RGX_KM_HW_RT_DATASET *psKMHWRTDataSet)
 }
 
 /* Create set of HWRTData(s) and bind it with a shared FW HWRTDataCommon */
-PVRSRV_ERROR RGXCreateHWRTDataSet(CONNECTION_DATA      *psConnection,
+PVRSRV_ERROR RGXCreateHWRTDataSet2(CONNECTION_DATA      *psConnection,
 		PVRSRV_DEVICE_NODE	*psDeviceNode,
 		IMG_DEV_VIRTADDR	psVHeapTableDevVAddr,
-		IMG_DEV_VIRTADDR		psPMMListDevVAddr_0,
-		IMG_DEV_VIRTADDR		psPMMListDevVAddr_1,
+		DEVMEMINT_RESERVATION2*	psPMMListsReservation,
 		RGX_FREELIST			*apsFreeLists[RGXFW_MAX_FREELISTS],
 		IMG_UINT32           ui32ScreenPixelMax,
 		IMG_UINT64           ui64MultiSampleCtl,
@@ -1601,12 +1600,36 @@ PVRSRV_ERROR RGXCreateHWRTDataSet(CONNECTION_DATA      *psConnection,
 		RGX_KM_HW_RT_DATASET **ppsKMHWRTDataSet_1)
 {
 	PVRSRV_ERROR eError;
+	IMG_UINT32 ui32GlobalFLMaxPages, ui32LocalFLMaxPages;
+	IMG_DEVMEM_SIZE_T ui64MListSize;
+
 	PVRSRV_RGXDEV_INFO		*psDevInfo = psDeviceNode->pvDevice;
 
 	RGX_HWRTDATA_COMMON_COOKIE	*psHWRTDataCommonCookie;
 	RGXFWIF_HWRTDATA_COMMON		*psHWRTDataCommon;
 	DEVMEM_MEMDESC				*psHWRTDataCommonFwMemDesc;
 	RGXFWIF_DEV_VIRTADDR		sHWRTDataCommonFwAddr;
+	PMR* psMListsPMR = NULL;
+	IMG_DEV_VIRTADDR sMListsDevVAddr;
+
+	/* Check if freelists have correct sizes */
+	eError = ValidateFreeListSizes(apsFreeLists,
+	                               &ui32LocalFLMaxPages,
+	                               &ui32GlobalFLMaxPages);
+	PVR_LOG_RETURN_IF_ERROR(eError, "Invalid freelist sizes");
+
+	ui64MListSize = RGXCalcMListSize(psDeviceNode,
+	    ui32LocalFLMaxPages * RGX_BIF_PM_PHYSICAL_PAGE_SIZE,
+	    ui32GlobalFLMaxPages * RGX_BIF_PM_PHYSICAL_PAGE_SIZE);
+
+#define RGXMKIF_NUM_RTDATAS (2U)
+	eError = AcquireValidateRefCriticalBuffer(psDeviceNode,
+	                                          psPMMListsReservation,
+	                                          ui64MListSize * RGXMKIF_NUM_RTDATAS,
+	                                          &psMListsPMR,
+	                                          &sMListsDevVAddr);
+	PVR_LOG_RETURN_IF_ERROR(eError, "Failed to obtain or validate MLIST buffer");
+
 
 	/* Prepare KM cleanup object for HWRTDataCommon FW object */
 	psHWRTDataCommonCookie = OSAllocZMem(sizeof(*psHWRTDataCommonCookie));
@@ -1650,6 +1673,8 @@ PVRSRV_ERROR RGXCreateHWRTDataSet(CONNECTION_DATA      *psConnection,
 	psHWRTDataCommonCookie->psHWRTDataCommonFwMemDesc = psHWRTDataCommonFwMemDesc;
 	psHWRTDataCommonCookie->sHWRTDataCommonFwAddr = sHWRTDataCommonFwAddr;
 
+	psHWRTDataCommonCookie->psPMMListsReservation = psPMMListsReservation;
+
 	/* Here we are creating a set of HWRTData(s)
 	   the number of elements in the set equals RGXMKIF_NUM_RTDATAS.
 	*/
@@ -1658,7 +1683,7 @@ PVRSRV_ERROR RGXCreateHWRTDataSet(CONNECTION_DATA      *psConnection,
 		psConnection,
 		psDeviceNode,
 		psVHeapTableDevVAddr,
-		psPMMListDevVAddr_0,
+		sMListsDevVAddr,
 		apsFreeLists,
 		ui32ScreenPixelMax,
 		ui64MultiSampleCtl,
@@ -1696,11 +1721,13 @@ PVRSRV_ERROR RGXCreateHWRTDataSet(CONNECTION_DATA      *psConnection,
 	}
 	psHWRTDataCommonCookie->ui32RefCount += 1;
 
+	sMListsDevVAddr.uiAddr += ui64MListSize;
+
 	eError = RGXCreateHWRTData_aux(
 		psConnection,
 		psDeviceNode,
 		psVHeapTableDevVAddr,
-		psPMMListDevVAddr_1,
+		sMListsDevVAddr,
 		apsFreeLists,
 		ui32ScreenPixelMax,
 		ui64MultiSampleCtl,
@@ -1751,8 +1778,81 @@ err_HWRTDataCommonFwAddr:
 err_HWRTDataCommonAlloc:
 	OSFreeMem(psHWRTDataCommonCookie);
 err_HWRTDataCommonCookieAlloc:
+	UnrefAndReleaseCriticalBuffer(psPMMListsReservation);
 
 	return eError;
+}
+
+/* Create set of HWRTData(s) and bind it with a shared FW HWRTDataCommon */
+PVRSRV_ERROR RGXCreateHWRTDataSet(CONNECTION_DATA      *psConnection,
+		PVRSRV_DEVICE_NODE	*psDeviceNode,
+		IMG_DEV_VIRTADDR	psVHeapTableDevVAddr,
+		IMG_DEV_VIRTADDR		psPMMListDevVAddr_0,
+		IMG_DEV_VIRTADDR		psPMMListDevVAddr_1,
+		RGX_FREELIST			*apsFreeLists[RGXFW_MAX_FREELISTS],
+		IMG_UINT32           ui32ScreenPixelMax,
+		IMG_UINT64           ui64MultiSampleCtl,
+		IMG_UINT64           ui64FlippedMultiSampleCtl,
+		IMG_UINT32           ui32TPCStride,
+		IMG_DEV_VIRTADDR		sTailPtrsDevVAddr,
+		IMG_UINT32           ui32TPCSize,
+		IMG_UINT32           ui32TEScreen,
+		IMG_UINT32           ui32TEAA,
+		IMG_UINT32           ui32TEMTILE1,
+		IMG_UINT32           ui32TEMTILE2,
+		IMG_UINT32           ui32MTileStride,
+		IMG_UINT32                 ui32ISPMergeLowerX,
+		IMG_UINT32                 ui32ISPMergeLowerY,
+		IMG_UINT32                 ui32ISPMergeUpperX,
+		IMG_UINT32                 ui32ISPMergeUpperY,
+		IMG_UINT32                 ui32ISPMergeScaleX,
+		IMG_UINT32                 ui32ISPMergeScaleY,
+		IMG_DEV_VIRTADDR	sMacrotileArrayDevVAddr_0,
+		IMG_DEV_VIRTADDR	sMacrotileArrayDevVAddr_1,
+		IMG_DEV_VIRTADDR	sRgnHeaderDevVAddr_0,
+		IMG_DEV_VIRTADDR	sRgnHeaderDevVAddr_1,
+		IMG_DEV_VIRTADDR	sRTCDevVAddr,
+		IMG_UINT64			uiRgnHeaderSize,
+		IMG_UINT32			ui32ISPMtileSize,
+		IMG_UINT16			ui16MaxRTs,
+		RGX_KM_HW_RT_DATASET **ppsKMHWRTDataSet_0,
+		RGX_KM_HW_RT_DATASET **ppsKMHWRTDataSet_1)
+{
+	PVR_UNREFERENCED_PARAMETER(*psConnection);
+	PVR_UNREFERENCED_PARAMETER(*psDeviceNode);
+	PVR_UNREFERENCED_PARAMETER(psVHeapTableDevVAddr);
+	PVR_UNREFERENCED_PARAMETER(psPMMListDevVAddr_0);
+	PVR_UNREFERENCED_PARAMETER(psPMMListDevVAddr_1);
+	PVR_UNREFERENCED_PARAMETER(*apsFreeLists[RGXFW_MAX_FREELISTS]);
+	PVR_UNREFERENCED_PARAMETER(ui32ScreenPixelMax);
+	PVR_UNREFERENCED_PARAMETER(ui64MultiSampleCtl);
+	PVR_UNREFERENCED_PARAMETER(ui64FlippedMultiSampleCtl);
+	PVR_UNREFERENCED_PARAMETER(ui32TPCStride);
+	PVR_UNREFERENCED_PARAMETER(sTailPtrsDevVAddr);
+	PVR_UNREFERENCED_PARAMETER(ui32TPCSize);
+	PVR_UNREFERENCED_PARAMETER(ui32TEScreen);
+	PVR_UNREFERENCED_PARAMETER(ui32TEAA);
+	PVR_UNREFERENCED_PARAMETER(ui32TEMTILE1);
+	PVR_UNREFERENCED_PARAMETER(ui32TEMTILE2);
+	PVR_UNREFERENCED_PARAMETER(ui32MTileStride);
+	PVR_UNREFERENCED_PARAMETER(ui32ISPMergeLowerX);
+	PVR_UNREFERENCED_PARAMETER(ui32ISPMergeLowerY);
+	PVR_UNREFERENCED_PARAMETER(ui32ISPMergeUpperX);
+	PVR_UNREFERENCED_PARAMETER(ui32ISPMergeUpperY);
+	PVR_UNREFERENCED_PARAMETER(ui32ISPMergeScaleX);
+	PVR_UNREFERENCED_PARAMETER(ui32ISPMergeScaleY);
+	PVR_UNREFERENCED_PARAMETER(sMacrotileArrayDevVAddr_0);
+	PVR_UNREFERENCED_PARAMETER(sMacrotileArrayDevVAddr_1);
+	PVR_UNREFERENCED_PARAMETER(sRgnHeaderDevVAddr_0);
+	PVR_UNREFERENCED_PARAMETER(sRgnHeaderDevVAddr_1);
+	PVR_UNREFERENCED_PARAMETER(sRTCDevVAddr);
+	PVR_UNREFERENCED_PARAMETER(uiRgnHeaderSize);
+	PVR_UNREFERENCED_PARAMETER(ui32ISPMtileSize);
+	PVR_UNREFERENCED_PARAMETER(ui16MaxRTs);
+	PVR_UNREFERENCED_PARAMETER(**ppsKMHWRTDataSet_0);
+	PVR_UNREFERENCED_PARAMETER(**ppsKMHWRTDataSet_1);
+
+	return PVRSRV_ERROR_NOT_IMPLEMENTED;
 }
 
 /* Destroy a single instance of HWRTData.
@@ -1816,6 +1916,8 @@ PVRSRV_ERROR RGXDestroyHWRTDataSet(RGX_KM_HW_RT_DATASET *psKMHWRTDataSet)
 
 		DevmemFwUnmapAndFree(psDevNode->pvDevice,
 		                     psCommonCookie->psHWRTDataCommonFwMemDesc);
+
+		UnrefAndReleaseCriticalBuffer(psCommonCookie->psPMMListsReservation);
 		OSFreeMem(psCommonCookie);
 	}
 
@@ -1873,47 +1975,12 @@ PVRSRV_ERROR RGXCreateFreeList2(CONNECTION_DATA			*psConnection,
 	IMG_DEV_VIRTADDR   sFreeListDevVAddr;
 	PMR*               psFreeListPMR = NULL;
 
-	/* Obtain reference to reservation object */
-	if (!DevmemIntReservationAcquire(psFreeListReservation))
-	{
-		PVR_DPF((PVR_DBG_ERROR,
-		        "%s: Failed to acquire reservation for freelist buffer",
-		        __func__));
-		eError = PVRSRV_ERROR_REFCOUNT_OVERFLOW;
-		goto ErrorReservationAcquire;
-	}
-
-	eError = DevmemIntGetReservationData(psFreeListReservation, &psFreeListPMR, &sFreeListDevVAddr);
-	if (eError != PVRSRV_OK)
-	{
-		PVR_DPF((PVR_DBG_ERROR,
-		        "%s: Error from DevmemIntGetReservationData: %s",
-		        __func__, PVRSRVGetErrorString(eError)));
-
-		goto ErrorAllocHost;
-	}
-
-	/* Check if client properly allocated PMMETA_PROTECT */
-	if ((PMR_Flags(psFreeListPMR) & PVRSRV_MEMALLOCFLAG_DEVICE_FLAG(PMMETA_PROTECT)) == 0)
-	{
-		PVR_DPF((PVR_DBG_ERROR,
-		        "%s: Freelist PMR must have PMMETA_PROTECT set",
-		        __func__));
-		eError = PVRSRV_ERROR_INVALID_FLAGS;
-		goto ErrorAllocHost;
-	}
-
-	if (PMR_IsSparse(psFreeListPMR))
-	{
-		PVR_DPF((PVR_DBG_ERROR,
-		        "%s: Free list PMR cannot be sparse!",
-		        __func__));
-		eError = PVRSRV_ERROR_INVALID_PARAMS;
-		goto ErrorAllocHost;
-	}
-
-	/* Ref the PMR to prevent resource being destroyed before use */
-	PMRRefPMR(psFreeListPMR);
+	eError = AcquireValidateRefCriticalBuffer(psDeviceNode,
+	                                          psFreeListReservation,
+	                                          0, /* Size is checked later after calculating initial grow size */
+	                                          &psFreeListPMR,
+	                                          &sFreeListDevVAddr);
+	PVR_LOG_RETURN_IF_ERROR(eError,  "Validation failed for Freelist reservation");
 
 	if (OSGetPageShift() > RGX_BIF_PM_PHYSICAL_PAGE_ALIGNSHIFT)
 	{
@@ -2135,10 +2202,8 @@ FWFreeListAlloc:
 	OSFreeMem(psFreeList);
 
 ErrorAllocHost:
-	DevmemIntReservationRelease(psFreeListReservation);
+	UnrefAndReleaseCriticalBuffer(psFreeListReservation);
 
-ErrorReservationAcquire:
-	PVR_ASSERT(eError != PVRSRV_OK);
 	return eError;
 }
 
@@ -2224,9 +2289,7 @@ PVRSRV_ERROR RGXDestroyFreeList(RGX_FREELIST *psFreeList)
 	PVR_ASSERT(dllist_is_empty(&psFreeList->sMemoryBlockInitHead));
 	PVR_ASSERT(psFreeList->ui32CurrentFLPages == 0);
 
-	/* Remove reference from the PMR and reservation resources */
-	PMRUnrefPMR(psFreeList->psFreeListPMR);
-	DevmemIntReservationRelease(psFreeList->psFreeListReservation);
+	UnrefAndReleaseCriticalBuffer(psFreeList->psFreeListReservation);
 
 	/* free Freelist */
 	OSFreeMem(psFreeList);
