@@ -98,7 +98,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #if defined(SUPPORT_PMR_DEFERRED_FREE)
 #define PMR_FLAG_INTERNAL_DEFER_FREE       (1 << 2)
 #define PMR_FLAG_INTERNAL_IS_ZOMBIE        (1 << 3)
+#endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
+#define PMR_FLAG_INTERNAL_IS_EXCLUSIVE     (1 << 4)
 
+#if defined(SUPPORT_PMR_DEFERRED_FREE)
 /* Indicates PMR should be destroyed immediately and not deferred. */
 #define PMR_NO_ZOMBIE_FENCE IMG_UINT64_MAX
 #endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
@@ -615,6 +618,22 @@ static INLINE IMG_BOOL _IntFlagIsSet(const PMR *psPMR, const IMG_UINT32 uiValue)
 	OSSpinLockRelease(psPMR->hInternalFlagsLock, uiLockingFlags);
 
 	return bIsSet;
+}
+
+static INLINE IMG_BOOL _IntFlagSetIfNotSet(PMR *psPMR, const IMG_UINT32 uiValue)
+{
+	OS_SPINLOCK_FLAGS uiLockingFlags;
+	IMG_BOOL bIsSet;
+
+	OSSpinLockAcquire(psPMR->hInternalFlagsLock, uiLockingFlags);
+	bIsSet = BITMASK_HAS(psPMR->uiInternalFlags, uiValue);
+	if (!bIsSet)
+	{
+		BITMASK_SET(psPMR->uiInternalFlags, uiValue);
+	}
+	OSSpinLockRelease(psPMR->hInternalFlagsLock, uiLockingFlags);
+
+	return !bIsSet;
 }
 
 static INLINE void
@@ -2391,6 +2410,27 @@ PMR_IsZombie(const PMR *psPMR)
 }
 #endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
 
+/* Exclusive flag tracks if the PMR is supporting or is used by another bridge resource */
+
+/* Function to set the exclusive use flag.
+   Returns IMG_FALSE if flag couldn't be set because it is already set.
+   IMG_TRUE otherwise. */
+IMG_BOOL
+PMR_SetExclusiveUse(PMR *psPMR, IMG_BOOL bFlag)
+{
+	PVR_ASSERT(psPMR != NULL);
+
+	if (bFlag)
+	{
+		return _IntFlagSetIfNotSet(psPMR, PMR_FLAG_INTERNAL_IS_EXCLUSIVE);
+	}
+	else
+	{
+		_IntFlagClr(psPMR, PMR_FLAG_INTERNAL_IS_EXCLUSIVE);
+		return IMG_TRUE;
+	}
+}
+
 /* Function that alters the mutability property
  * of the PMR
  * Setting it to TRUE makes sure the PMR memory layout
@@ -3891,7 +3931,6 @@ PMRWritePMPageList(/* Target PMR, offset, and length */
 	IMG_DEVMEM_SIZE_T uiWordSize;
 	IMG_UINT32 uiNumPages;
 	IMG_UINT32 uiPageIndex;
-	PMR_FLAGS_T uiFlags = psPageListPMR->uiFlags;
 	PMR_PAGELIST *psPageList;
 #if defined(PDUMP)
 	IMG_CHAR aszTableEntryMemspaceName[PHYSMEM_PDUMP_MEMSPACE_MAX_LENGTH];
@@ -3939,37 +3978,6 @@ PMRWritePMPageList(/* Target PMR, offset, and length */
 	PVR_GOTO_IF_INVALID_PARAM(uiTableOffset + uiTableLength > uiTableOffset, eError, return_error);
 	/* Check we're not being asked to write off the end of the PMR */
 	PVR_GOTO_IF_INVALID_PARAM(uiTableOffset + uiTableLength <= psPageListPMR->uiLogicalSize, eError, return_error);
-
-	/* the PMR into which we are writing must not be user CPU mappable: */
-	if (PVRSRV_CHECK_CPU_READABLE(uiFlags) || PVRSRV_CHECK_CPU_WRITEABLE(uiFlags))
-	{
-		PVR_DPF((PVR_DBG_ERROR,
-		         "Masked flags = 0x%" PVRSRV_MEMALLOCFLAGS_FMTSPEC,
-		         (PMR_FLAGS_T)(uiFlags & (PVRSRV_MEMALLOCFLAG_CPU_READABLE | PVRSRV_MEMALLOCFLAG_CPU_WRITEABLE))));
-		PVR_DPF((PVR_DBG_ERROR,
-		         "Page list PMR allows CPU mapping (0x%" PVRSRV_MEMALLOCFLAGS_FMTSPEC ")",
-		         uiFlags));
-		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_DEVICEMEM_INVALID_PMR_FLAGS, return_error);
-	}
-
-	/* the PMR into which we are writing must not be user CPU cacheable: */
-	if (PVRSRV_CHECK_CPU_CACHE_INCOHERENT(uiFlags) ||
-		PVRSRV_CHECK_CPU_CACHE_COHERENT(uiFlags) ||
-		PVRSRV_CHECK_CPU_CACHED(uiFlags))
-	{
-		PVR_DPF((PVR_DBG_ERROR,
-		         "Masked flags = 0x%" PVRSRV_MEMALLOCFLAGS_FMTSPEC,
-		         (PMR_FLAGS_T)(uiFlags &  PVRSRV_MEMALLOCFLAG_CPU_CACHE_MODE_MASK)));
-		PVR_DPF((PVR_DBG_ERROR,
-		         "Page list PMR allows CPU caching (0x%" PVRSRV_MEMALLOCFLAGS_FMTSPEC ")",
-		         uiFlags));
-		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_DEVICEMEM_INVALID_PMR_FLAGS, return_error);
-	}
-
-	if (_PMRIsSparse(psPageListPMR))
-	{
-		PVR_LOG_GOTO_WITH_ERROR("psPageListPMR", eError, PVRSRV_ERROR_INVALID_PARAMS, return_error);
-	}
 
 	if (_PMRIsSparse(psReferencePMR))
 	{

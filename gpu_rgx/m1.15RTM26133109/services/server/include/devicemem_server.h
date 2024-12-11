@@ -211,6 +211,20 @@ PVRSRV_ERROR
 DevmemIntCtxDestroy(DEVMEMINT_CTX *psDevmemCtx);
 
 /*
+ * DevmemIntCtxRef()
+ *
+ * Increases the reference count on the given DEVMEMINT_CTX by one.
+ */
+PVRSRV_ERROR DevmemIntCtxRef(DEVMEMINT_CTX *psDevmemCtx);
+
+/*
+ * DevmemIntCtxUnref()
+ *
+ * Decreases the reference count on the given DEVMEMINT_CTX by one.
+ */
+void DevmemIntCtxUnref(DEVMEMINT_CTX *psDevmemCtx);
+
+/*
  * DevmemIntHeapCreate()
  *
  * Creates a new heap in this device memory context.  This will cause a call
@@ -247,6 +261,7 @@ DevmemIntHeapCreate2(DEVMEMINT_CTX *psDevmemCtx,
                     IMG_DEVMEM_SIZE_T uiHeapLength,
                     IMG_UINT32 uiLog2DataPageSize,
                     DEVMEMINT_HEAP **ppsDevmemHeapPtr);
+
 /*
  * DevmemIntHeapDestroy()
  *
