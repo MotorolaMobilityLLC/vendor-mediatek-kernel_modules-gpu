@@ -896,6 +896,10 @@ static bool jd_submit_atom(struct kbase_context *const kctx,
 		}
 	}
 
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+	katom->work_id = atomic_inc_return(&jctx->work_id);
+#endif
+
 	if (queued && !IS_GPU_ATOM(katom))
 		return false;
 
