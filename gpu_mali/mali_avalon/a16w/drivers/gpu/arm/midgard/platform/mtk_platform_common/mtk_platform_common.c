@@ -30,9 +30,9 @@
 #endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
 #endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP) || IS_ENABLED(CONFIG_MALI_MTK_MMAP_LOGGING)
 #include <platform/mtk_platform_common/mtk_platform_debug.h>
-#endif /* CONFIG_MALI_MTK_DEBUG_DUMP*/
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP || CONFIG_MALI_MTK_MMAP_LOGGING */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_PROC_FS)
 #include <linux/proc_fs.h>
@@ -604,6 +604,9 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	mtk_debug_csf_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+#if IS_ENABLED(CONFIG_MALI_MTK_MMAP_LOGGING)
+	mtk_debug_mmap_logging_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_MMAP_LOGGING */
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
 	mtk_whitebox_force_hard_reset_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */

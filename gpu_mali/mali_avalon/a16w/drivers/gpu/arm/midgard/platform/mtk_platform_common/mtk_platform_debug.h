@@ -102,6 +102,11 @@ void mtk_debug_csf_dump_iterator_hwif(struct kbase_device *kbdev);
 void mtk_debug_csf_dump_iterator_hwif_locked(struct kbase_device *kbdev);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MMAP_LOGGING)
+int mtk_debug_mmap_logging_debugfs_init(struct kbase_device *kbdev);
+int mtk_debug_debugfs_mmap_logging_mode(void);
+#endif /* CONFIG_MALI_MTK_MMAP_LOGGING */
+
 /* Dump infra status */
 void mtk_debug_dump_infra_status_init(void);
 void mtk_debug_dump_infra_status_term(void);

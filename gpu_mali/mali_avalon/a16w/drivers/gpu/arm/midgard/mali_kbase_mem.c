@@ -47,6 +47,10 @@
 #include <linux/version_compat_defs.h>
 #include <mali_kbase_mem_flags.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MMAP_LOGGING)
+#include <platform/mtk_platform_common/mtk_platform_debug.h>
+#endif /* CONFIG_MALI_MTK_MMAP_LOGGING */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
 #include <soc/mediatek/emi.h>
 #endif /* CONFIG_MALI_MTK_MGMM */
@@ -482,7 +486,15 @@ int kbase_gpu_mmap(struct kbase_context *kctx, struct kbase_va_region *reg, u64 
 		if (err)
 			goto bad_insert;
 	}
-
+#if IS_ENABLED(CONFIG_MALI_MTK_MMAP_LOGGING)
+	if (mtk_debug_debugfs_mmap_logging_mode())
+	{
+		pr_err("[MTKD] gpu_mmap %zu pages to GPU at VA %llx, PA %llx, flags %llx for ctx %d_%d (as_nr %d)\n",
+			kbase_reg_current_backed_size(reg),
+			reg->start_pfn << PAGE_SHIFT, as_phys_addr_t(kbase_get_gpu_phy_pages(reg)[0]), reg->flags,
+			kctx->tgid, kctx->id, kctx->as_nr);
+	}
+#endif /* CONFIG_MALI_MTK_MMAP_LOGGING */
 	return err;
 
 bad_aliased_insert:
@@ -608,6 +620,15 @@ int kbase_gpu_munmap(struct kbase_context *kctx, struct kbase_va_region *reg)
 	} break;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MMAP_LOGGING)
+	if (mtk_debug_debugfs_mmap_logging_mode())
+	{
+		pr_err("[MTKD] gpu_unmmap %zu pages to GPU at VA %llx, PA %llx, flags %llx for ctx %d_%d (as_nr %d)\n",
+			kbase_reg_current_backed_size(reg),
+			reg->start_pfn << PAGE_SHIFT, as_phys_addr_t(kbase_get_gpu_phy_pages(reg)[0]), reg->flags,
+			kctx->tgid, kctx->id, kctx->as_nr);
+	}
+#endif /* CONFIG_MALI_MTK_MMAP_LOGGING */
 	if (alloc->type != KBASE_MEM_TYPE_ALIAS)
 		kbase_mem_phy_alloc_gpu_unmapped(reg->gpu_alloc);
 
