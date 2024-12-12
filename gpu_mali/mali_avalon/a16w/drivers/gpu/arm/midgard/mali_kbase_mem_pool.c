@@ -484,7 +484,7 @@ static unsigned long kbase_mem_pool_reclaim_count_objects(struct shrinker *s,
 	pool_size = kbase_mem_pool_size(pool);
 	kbase_mem_pool_unlock(pool);
 
-	return pool_size ?: SHRINK_STOP;
+	return pool_size;
 }
 
 static unsigned long kbase_mem_pool_reclaim_scan_objects(struct shrinker *s,
@@ -512,7 +512,7 @@ static unsigned long kbase_mem_pool_reclaim_scan_objects(struct shrinker *s,
 
 	pool_dbg(pool, "reclaim freed %ld pages\n", freed);
 
-	return freed ?: SHRINK_STOP;
+	return freed;
 }
 
 int kbase_mem_pool_init(struct kbase_mem_pool *pool, const struct kbase_mem_pool_config *config,
