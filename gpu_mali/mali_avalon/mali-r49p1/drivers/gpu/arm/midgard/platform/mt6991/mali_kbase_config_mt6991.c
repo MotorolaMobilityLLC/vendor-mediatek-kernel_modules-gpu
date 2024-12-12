@@ -203,16 +203,30 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 {
 	int ret = 1;
 	unsigned long flags;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+	int ret_warn = 0;
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 	dev_dbg(kbdev->dev, "%s %pK\n", __func__, (void *)kbdev->dev->pm_domain);
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+	ret_warn = WARN_ON(kbdev->pm.backend.gpu_powered);
+	if (likely(kbdev->csf.firmware_inited)) {
+		ret_warn |= WARN_ON(!kbdev->pm.active_count);
+		ret_warn |= WARN_ON(kbdev->pm.runtime_active);
+	}
+	if (ret_warn)
+		kbase_pm_debug_status(kbdev);
+#else
 	WARN_ON(kbdev->pm.backend.gpu_powered);
 
 	if (likely(kbdev->csf.firmware_inited)) {
 		WARN_ON(!kbdev->pm.active_count);
 		WARN_ON(kbdev->pm.runtime_active);
 	}
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
+
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
@@ -269,18 +283,30 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
 	int ret = 1;
 #endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
-
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+	int ret_warn = 0;
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 	struct arm_smccc_res res;
 
 	dev_dbg(kbdev->dev, "%s\n", __func__);
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+	ret_warn = WARN_ON(kbdev->pm.backend.gpu_powered);
+	if (likely(kbdev->csf.firmware_inited)) {
+		ret_warn |= WARN_ON(kbase_csf_scheduler_get_nr_active_csgs(kbdev));
+		ret_warn |= WARN_ON(kbdev->pm.backend.mcu_state != KBASE_MCU_OFF);
+	}
+	if (ret_warn)
+		kbase_pm_debug_status(kbdev);
+#else
 	WARN_ON(kbdev->pm.backend.gpu_powered);
 
 	if (likely(kbdev->csf.firmware_inited)) {
 		WARN_ON(kbase_csf_scheduler_get_nr_active_csgs(kbdev));
 		WARN_ON(kbdev->pm.backend.mcu_state != KBASE_MCU_OFF);
 	}
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
@@ -335,19 +361,29 @@ static void pm_callback_runtime_gpu_active(struct kbase_device *kbdev)
 	int target_fps = 0;
 	int temp_autosuspend_delay_ms = 0;
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+	int ret_warn = 0;
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 
 	dev_dbg(kbdev->dev, "%s\n", __func__);
 
 	lockdep_assert_held(&kbdev->pm.lock);
-
-	mtk_common_ged_dvfs_write_sysram_last_commit_top_idx();
-	mtk_common_ged_dvfs_write_sysram_last_commit_dual();
-
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+	ret_warn = WARN_ON(!kbdev->pm.backend.gpu_powered);
+	ret_warn |= WARN_ON(!kbdev->pm.active_count);
+	ret_warn |= WARN_ON(kbdev->pm.runtime_active);
+	if (ret_warn)
+		kbase_pm_debug_status(kbdev);
+#else
 	WARN_ON(!kbdev->pm.backend.gpu_powered);
 	WARN_ON(!kbdev->pm.active_count);
 	WARN_ON(kbdev->pm.runtime_active);
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	mtk_common_ged_dvfs_write_sysram_last_commit_top_idx();
+	mtk_common_ged_dvfs_write_sysram_last_commit_dual();
 
 	if (pm_runtime_status_suspended(kbdev->dev)) {
 		error = pm_runtime_get_sync(kbdev->dev);
@@ -399,10 +435,28 @@ static void pm_callback_runtime_gpu_idle(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 	int temp_autosuspend_delay_ms = 0;
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+	int ret_warn = 0;
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 
 	dev_dbg(kbdev->dev, "%s", __func__);
 
 	lockdep_assert_held(&kbdev->pm.lock);
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+	ret_warn = WARN_ON(!kbdev->pm.backend.gpu_powered);
+	ret_warn |= WARN_ON(kbdev->pm.backend.l2_state != KBASE_L2_OFF);
+	ret_warn |= WARN_ON(kbdev->pm.active_count);
+	ret_warn |= WARN_ON(!kbdev->pm.runtime_active);
+	if (ret_warn)
+		kbase_pm_debug_status(kbdev);
+#else
+	WARN_ON(!kbdev->pm.backend.gpu_powered);
+	WARN_ON(kbdev->pm.backend.l2_state != KBASE_L2_OFF);
+	WARN_ON(kbdev->pm.active_count);
+	WARN_ON(!kbdev->pm.runtime_active);
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	mtk_common_ged_dvfs_write_sysram_last_commit_top_idx();
 	mtk_common_ged_dvfs_write_sysram_last_commit_dual();
@@ -434,14 +488,6 @@ if (ged_gpu_apo_support() == APO_2_0_NORMAL_SUPPORT) {
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	ged_dvfs_gpu_clock_switch_notify(GED_SLEEP);
 #endif
-
-	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-	WARN_ON(!kbdev->pm.backend.gpu_powered);
-	WARN_ON(kbdev->pm.backend.l2_state != KBASE_L2_OFF);
-	WARN_ON(kbdev->pm.active_count);
-	WARN_ON(!kbdev->pm.runtime_active);
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-
 	pm_runtime_mark_last_busy(kbdev->dev);
 	pm_runtime_put_autosuspend(kbdev->dev);
 	kbdev->pm.runtime_active = false;

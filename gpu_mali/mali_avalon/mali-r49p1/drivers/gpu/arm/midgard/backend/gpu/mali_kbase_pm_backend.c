@@ -1254,38 +1254,12 @@ int kbase_pm_handle_runtime_suspend(struct kbase_device *kbdev)
 
 	mcu_state = kbdev->pm.backend.mcu_state;
 	if (unlikely(!kbase_pm_is_mcu_inactive(kbdev, mcu_state))) {
-#if !MALI_USE_CSF
-		dev_err(kbdev->dev, "Desired state :\n");
-		dev_err(kbdev->dev, "\tShader=%016llx\n",
-			kbdev->pm.backend.shaders_desired ? kbdev->pm.backend.shaders_avail : 0);
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+		kbase_pm_debug_status(kbdev);
+		dev_err(kbdev->dev, "MCU SM in unexpected state %d on runtime suspend", mcu_state);
 #else
-		dev_err(kbdev->dev, "\tMCU desired = %d\n", kbase_pm_is_mcu_desired(kbdev));
-		dev_err(kbdev->dev, "\tMCU sw state = %d\n", kbdev->pm.backend.mcu_state);
-#endif
-		dev_err(kbdev->dev, "Current state :\n");
-		dev_err(kbdev->dev, "\tShader=%016llx\n",
-			kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(SHADER_READY)));
-		dev_err(kbdev->dev, "\tTiler =%016llx\n",
-			kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(TILER_READY)));
-		dev_err(kbdev->dev, "\tL2    =%016llx\n",
-			kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(L2_READY)));
-#if MALI_USE_CSF
-		dev_err(kbdev->dev, "\tMCU status = %d\n",
-			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_STATUS)));
-#endif
-		dev_err(kbdev->dev, "Cores transitioning :\n");
-		dev_err(kbdev->dev, "\tShader=%016llx\n",
-			kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(SHADER_PWRTRANS)));
-		dev_err(kbdev->dev, "\tTiler =%016llx\n",
-			kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(TILER_PWRTRANS)));
-		dev_err(kbdev->dev, "\tL2    =%016llx\n",
-			kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(L2_PWRTRANS)));
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_PM_TIMEOUT);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_PM_TIMEOUT);
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_PM_TIMEOUT);
-#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		dev_WARN_ONCE(kbdev->dev, 1, "MCU SM in unexpected state %d on runtime suspend", mcu_state);
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 		ret = -EBUSY;
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 		goto unlock;
