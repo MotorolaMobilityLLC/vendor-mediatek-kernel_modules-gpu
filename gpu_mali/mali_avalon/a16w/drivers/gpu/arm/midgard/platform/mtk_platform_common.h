@@ -92,6 +92,18 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev);
 void mtk_common_csf_debugfs_init(struct kbase_device *kbdev);
 #endif /* CONFIG_MALI_MTK_DEBUG_FS */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
+bool mtk_common_whitebox_force_hard_reset_enable(void);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG)
+bool mtk_common_whitebox_force_terminate_csg_enable(void);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET)
+bool mtk_common_whitebox_directly_hard_reset_enable(void);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET */
+
 int mtk_platform_pm_init(struct kbase_device *kbdev);
 void mtk_platform_pm_term(struct kbase_device *kbdev);
 

@@ -6170,6 +6170,12 @@ void kbase_csf_scheduler_reset(struct kbase_device *kbdev, bool skip_suspension)
 	if (kbase_reset_gpu_is_active(kbdev))
 		kbase_debug_csf_fault_wait_completion(kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG)
+	if (mtk_common_whitebox_force_terminate_csg_enable()) {
+		pr_info("[WHITEBOX_FORCE_TERMINATE_CSG] CSG force terminate is enabled and bypass CSG suspend\n");
+		goto bypasse_csg_suspend;
+	}
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG */
 
 	if (!skip_suspension && scheduler_handle_reset_in_protected_mode(kbdev) &&
 	    !suspend_active_queue_groups_on_reset(kbdev)) {
@@ -6179,6 +6185,10 @@ void kbase_csf_scheduler_reset(struct kbase_device *kbdev, bool skip_suspension)
 		scheduler_inner_reset(kbdev);
 		return;
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG)
+bypasse_csg_suspend:
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG */
 
 	mutex_lock(&kbdev->kctx_list_lock);
 

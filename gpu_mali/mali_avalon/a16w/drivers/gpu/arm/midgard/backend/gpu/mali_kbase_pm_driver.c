@@ -4503,6 +4503,26 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 
 	KBASE_TLSTREAM_JD_GPU_SOFT_RESET(kbdev, kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET)
+	/* Only enabled when whitebox testing */
+	if (mtk_common_whitebox_directly_hard_reset_enable()) {
+		reg_offset = GPU_CONTROL_ENUM(GPU_IRQ_MASK);
+		reg_val = RESET_COMPLETED;
+
+		/* Unmask the reset complete interrupt only */
+		kbase_reg_write32(kbdev, reg_offset, reg_val);
+
+		/* Initialize a structure for tracking the status of the reset */
+		rtdata.kbdev = kbdev;
+		rtdata.timed_out = false;
+
+		/* Create a timer to use as a timeout on the reset */
+		hrtimer_init_on_stack(&rtdata.timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+		rtdata.timer.function = kbasep_reset_timeout;
+		goto whitebox_directly_hard_reset;
+	}
+#endif /* CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET */
+
 	atomic_set(&kbdev->pm.backend.reset_in_progress, 1);
 
 	{
@@ -4536,6 +4556,11 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 	/* Wait for the RESET_COMPLETED interrupt to be raised */
 	kbase_pm_wait_for_reset(kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
+	/* Only enabled when whitebox testing */
+	if (mtk_common_whitebox_force_hard_reset_enable())
+		goto whitebox_force_hard_reset;
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
 
 	if (!rtdata.timed_out) {
 		/* GPU has been reset */
@@ -4600,6 +4625,12 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		return -EINVAL;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET)
+whitebox_directly_hard_reset:
+	if (mtk_common_whitebox_directly_hard_reset_enable())
+		pr_info("[WHITEBOX] directly hard reset enabled, keep going to trigger hard reset");
+#endif /* CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET */
+
 	/* The GPU doesn't seem to be responding to the reset so try a hard
 	 * reset, but only when NOT in arbitration mode.
 	 */
@@ -4608,6 +4639,13 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		dev_err(kbdev->dev,
 			"Failed to soft-reset GPU (timed out after %d ms), now attempting a hard reset\n",
 			RESET_TIMEOUT);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
+whitebox_force_hard_reset:
+		if (mtk_common_whitebox_force_hard_reset_enable())
+			pr_info("[WHITEBOX] forced hard reset enabled, keep going to trigger hard reset");
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
+
 		KBASE_KTRACE_ADD(kbdev, CORE_GPU_HARD_RESET, NULL, 0);
 
 		atomic_set(&kbdev->pm.backend.reset_in_progress, 1);
