@@ -516,7 +516,8 @@ static int session_gpu_start(struct kbase_device *kbdev, struct kbase_ipa_contro
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 		IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY) && \
 		IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_READ_SOC_TIMER)
-		mtk_common_get_system_timer_and_record(kbdev);
+		if (!first_start)
+			mtk_common_get_system_timer_and_record(kbdev);
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY && CONFIG_MALI_MTK_GPU_DVFS_READ_SOC_TIMER*/
 	}
 
