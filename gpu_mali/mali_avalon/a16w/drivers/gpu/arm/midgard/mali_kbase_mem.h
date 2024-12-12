@@ -45,6 +45,10 @@
 #include <linux/sched/mm.h>
 #include <linux/kref.h>
 #include <linux/vmalloc.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+#include <slbc_ops.h>
+#include <linux/memory_group_manager.h>
+#endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
 
 static inline void kbase_process_page_usage_inc(struct kbase_context *kctx, int pages);
 

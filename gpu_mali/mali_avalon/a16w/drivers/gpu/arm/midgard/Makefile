@@ -59,6 +59,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY := y
         CONFIG_MALI_MTK_AUTOSUSPEND_DELAY := y
         CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT := n
+        CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE := y
     endif ## mt6991 ##
 
     ifeq ($(MTK_PLATFORM_VERSION),mt6993)
@@ -93,6 +94,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG := n
         CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG_NO_KLOG := n
         CONFIG_MALI_MTK_MMU_DUMP := n
+        CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE := n
     endif ## mt6993 ##
 endif
 
@@ -225,6 +227,9 @@ ccflags-y += \
     -I$(KO_CODE_PATH)/platform/$(MALI_PLATFORM_DIR) \
     -I$(KO_CODE_PATH)/../../../base \
     -I$(KO_CODE_PATH)/../../../../include
+ifeq ($(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE), y)
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/slbc
+endif
 
 subdir-ccflags-y += $(ccflags-y)
 

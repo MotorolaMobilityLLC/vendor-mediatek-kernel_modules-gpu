@@ -60,6 +60,11 @@ enum lp_alloc_mode {
 #include "mtk_platform_utils.h"
 #endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+#include <mtk_heap.h>
+#include <slbc_ops.h>
+#endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
+
 #ifndef CSTD_UNUSED
 #define CSTD_UNUSED(x) ((void)(x))
 #endif
@@ -1168,6 +1173,11 @@ static int example_mgm_get_import_memory_id(struct memory_group_manager_device *
 					    struct memory_group_manager_import_data *import_data)
 {
 	struct mgm_groups *const data = mgm_dev->data;
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+	int group_id = IMPORTED_MEMORY_ID;
+	struct dma_buf *buf;
+	int gid = 0;
+#endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
 
 	dev_dbg(data->dev, "%s(mgm_dev=%pK, import_data=%pK (type=%d)\n", __func__, (void *)mgm_dev,
 		(void *)import_data, (int)import_data->type);
@@ -1177,6 +1187,14 @@ static int example_mgm_get_import_memory_id(struct memory_group_manager_device *
 
 		WARN_ON(import_data->type != MEMORY_GROUP_MANAGER_IMPORT_TYPE_DMA_BUF);
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+	buf = import_data->u.dma_buf;
+	gid = dma_buf_get_gid(buf);
+	if(gid == slbc_gid_val(ID_GPU)){
+		group_id = GPU_ONLY_PBHA;
+	}
+	return group_id;
+#endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
 
 	return IMPORTED_MEMORY_ID;
 }
@@ -1193,6 +1211,9 @@ static u64 example_mgm_update_gpu_pte(struct memory_group_manager_device *const 
 	if (WARN_ON(group_id >= MEMORY_GROUP_MANAGER_NR_GROUPS))
 		return pte;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+	pte |= ((u64)group_id << PTE_PBHA_SHIFT) & PTE_PBHA_MASK;
+#endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
 	if (pte_flags & BIT(MMA_VIOLATION)) {
 		pr_warn_once("MMA violation! Applying PBHA override workaround to PTE\n");
 		pte |= ((u64)pbha_id << PTE_PBHA_SHIFT) & PTE_PBHA_MASK;

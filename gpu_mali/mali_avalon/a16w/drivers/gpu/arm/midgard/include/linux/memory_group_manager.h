@@ -31,6 +31,11 @@ typedef int vm_fault_t;
 #endif
 
 #define MEMORY_GROUP_MANAGER_NR_GROUPS (16)
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+#define GPU_ONLY_PBHA 6
+#define GPU_TLS_PBHA 9
+#endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
+
 
 #define PTE_PBHA_SHIFT (59)
 #define PTE_PBHA_MASK ((uint64_t)0xf << PTE_PBHA_SHIFT)
