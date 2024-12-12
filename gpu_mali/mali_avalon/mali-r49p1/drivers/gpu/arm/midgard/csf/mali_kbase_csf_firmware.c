@@ -1618,6 +1618,9 @@ EXPORT_SYMBOL(kbase_csf_ring_doorbell);
 static void handle_internal_firmware_fatal(struct kbase_device *const kbdev)
 {
 	int as;
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+	int tgid = 0;
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_NA);
@@ -1653,9 +1656,17 @@ static void handle_internal_firmware_fatal(struct kbase_device *const kbdev)
 			.status = GPU_EXCEPTION_TYPE_SW_FAULT_1,
 		};
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+		tgid = kctx->tgid;
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+
 		kbase_csf_ctx_handle_fault(kctx, &fault);
 		kbase_ctx_sched_release_ctx_lock(kctx);
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+	ged_mali_event_notify_fence_timeout_event(tgid, FENCE_TYPE_DEBUG_FW_INTERNAL_ERROR, 3);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 
 	if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)

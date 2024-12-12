@@ -8,7 +8,8 @@
 
 enum FENCE_TYPE {
     FENCE_TYPE_INTERNAL, // mali driver internal fence ex: glFinish
-    FENCE_TYPE_KCPU_QUEUE // external fence from kcpu queue ex: graphic buffer fence
+    FENCE_TYPE_KCPU_QUEUE, // external fence from kcpu queue ex: graphic buffer fence
+    FENCE_TYPE_DEBUG_FW_INTERNAL_ERROR, // WA for notify oops event through mbrain to track oops issue
 };
 
 enum DEVICE_LOST_TYPE {
