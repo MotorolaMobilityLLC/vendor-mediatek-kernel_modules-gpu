@@ -1408,7 +1408,7 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int memory_group_manager_remove(struct platform_device *pdev)
+static void memory_group_manager_remove(struct platform_device *pdev)
 {
 	struct memory_group_manager_device *mgm_dev = platform_get_drvdata(pdev);
 	struct mgm_groups *mgm_data = mgm_dev->data;
@@ -1423,8 +1423,6 @@ static int memory_group_manager_remove(struct platform_device *pdev)
 	kfree(mgm_dev);
 
 	dev_info(&pdev->dev, "Memory group manager removed successfully\n");
-
-	return 0;
 }
 
 static const struct of_device_id memory_group_manager_dt_ids[] = {
