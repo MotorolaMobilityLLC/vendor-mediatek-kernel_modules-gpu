@@ -71,7 +71,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD := y
 
         # *** MTK CONFIG ***
-        CONFIG_MALI_MTK_BRINGUP := n
+        CONFIG_MALI_MTK_BRINGUP := y
         CONFIG_MALI_MTK_LOG_BUFFER := y
         CONFIG_MALI_MTK_SYSFS := y
         CONFIG_MALI_MTK_PROC_FS := y

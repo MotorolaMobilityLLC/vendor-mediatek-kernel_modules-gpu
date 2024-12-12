@@ -37,6 +37,12 @@ int kbase_backend_gpuprops_get(struct kbase_device *kbdev, struct kbasep_gpuprop
 	regdump->gpu_id = KBASE_REG_READ(kbdev, GPU_CONTROL_ENUM(GPU_ID));
 
 	regdump->shader_present = kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(SHADER_PRESENT));
+
+#if IS_ENABLED(CONFIG_MALI_MTK_BRINGUP)
+	/* FPGA 1 core */
+	regdump->shader_present &= 0x1;
+#endif /* CONFIG_MALI_MTK_BRINGUP  */
+
 	regdump->tiler_present = kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(TILER_PRESENT));
 	regdump->l2_present = kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(L2_PRESENT));
 	if (kbase_reg_is_valid(kbdev, GPU_CONTROL_ENUM(AS_PRESENT)))
@@ -114,6 +120,12 @@ int kbase_backend_gpuprops_get_curr_config(struct kbase_device *kbdev,
 	curr_config_regdump->l2_features = KBASE_REG_READ(kbdev, GPU_CONTROL_ENUM(L2_FEATURES));
 	curr_config_regdump->shader_present =
 		kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(SHADER_PRESENT));
+
+#if IS_ENABLED(CONFIG_MALI_MTK_BRINGUP)
+	/* FPGA 1 core */
+	curr_config_regdump->shader_present &= 0x1;
+#endif /* CONFIG_MALI_MTK_BRINGUP */
+
 	curr_config_regdump->l2_present = kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(L2_PRESENT));
 
 	if (!kbase_io_has_gpu(kbdev))

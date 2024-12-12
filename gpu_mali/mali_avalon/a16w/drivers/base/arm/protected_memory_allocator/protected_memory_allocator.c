@@ -47,6 +47,11 @@
 #include <linux/of_device.h>
 #endif /* CONFIG_MALI_MTK_GPU_IOMMU */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PROTECTED_MEMORY_SUPPORT)
+#include <linux/of_device.h>
+#include <linux/of_platform.h>
+#endif /* CONFIG_MALI_MTK_GPU_PROTECTED_MEMORY_SUPPORT */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP)
 #include <linux/dma-buf.h>
 #include <linux/dma-heap.h>
