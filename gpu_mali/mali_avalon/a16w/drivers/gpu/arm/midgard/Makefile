@@ -88,6 +88,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE := y
         CONFIG_MALI_SCMI_ENABLE := n
         CONFIG_MALI_MTK_ACP_DSU_REQ := y
+        CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG := y
     endif ## mt6991 ##
 
     ifeq ($(MTK_PLATFORM_VERSION),mt6993)
@@ -147,6 +148,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE := n
         CONFIG_MALI_SCMI_ENABLE := n
         CONFIG_MALI_MTK_ACP_DSU_REQ := n
+        CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG := n
     endif ## mt6993 ##
 endif
 

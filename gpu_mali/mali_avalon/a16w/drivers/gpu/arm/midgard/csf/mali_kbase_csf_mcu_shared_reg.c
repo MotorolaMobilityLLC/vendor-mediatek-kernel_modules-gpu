@@ -73,7 +73,11 @@ static unsigned long get_userio_mmu_flags(struct kbase_device *kbdev)
 {
 	unsigned long userio_map_flags;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
+	if (kbdev->system_coherency == COHERENCY_NONE || kbdev->acp_dbg_force_sync)
+#else
 	if (kbdev->system_coherency == COHERENCY_NONE)
+#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
 		userio_map_flags = KBASE_REG_GPU_RD |
 				   KBASE_REG_MEMATTR_INDEX(KBASE_MEMATTR_INDEX_NON_CACHEABLE);
 	else
