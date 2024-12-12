@@ -3192,6 +3192,14 @@ kbase_csf_kcpu_queue_metadata_new(struct kbase_context *kctx, u64 fence_context)
 	n = scnprintf(metadata->timeline_name, MAX_TIMELINE_NAME, "%u-%d_%u-%llu-kcpu",
 		      kctx->kbdev->id, kctx->tgid, kctx->id, fence_context);
 	if (WARN_ON(n >= MAX_TIMELINE_NAME)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG)
+		dev_warn(kctx->kbdev->dev, "%s: Invalid timeline name length : %d exceed limit %ld",
+			__func__, n, MAX_TIMELINE_NAME);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"%s: Invalid timeline name length : %d exceed limit %d", __func__, n, MAX_TIMELINE_NAME);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG */
 		kfree(metadata);
 		metadata = NULL;
 		goto early_ret;
@@ -3220,17 +3228,41 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx, struct kbase_ioctl_kcpu
 
 	idx = find_first_zero_bit(kctx->csf.kcpu_queues.in_use, KBASEP_MAX_KCPU_QUEUES);
 	if (idx >= (int)KBASEP_MAX_KCPU_QUEUES) {
+#if IS_ENABLED(CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG)
+		dev_warn(kctx->kbdev->dev, "%s: Cannot create KCPU queue idx : %d exceed limit %d",
+			__func__, idx, (int)KBASEP_MAX_KCPU_QUEUES);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"%s: Cannot create KCPU queue idx : %d exceed limit %d\n",
+			__func__, idx, (int)KBASEP_MAX_KCPU_QUEUES);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG */
 		ret = -ENOMEM;
 		goto out;
 	}
 
 	if (WARN_ON(kctx->csf.kcpu_queues.array[idx])) {
+#if IS_ENABLED(CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG)
+		dev_warn(kctx->kbdev->dev, "%s: KCPU queue idx %d is not free", __func__, idx);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"%s: KCPU queue idx %d is not free\n", __func__, idx);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG */
 		ret = -EINVAL;
 		goto out;
 	}
 
 	queue = vzalloc(sizeof(*queue));
 	if (!queue) {
+#if IS_ENABLED(CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG)
+		dev_warn(kctx->kbdev->dev, "%s: Allocate kcpu queue (size=%zu) failed.",
+			__func__, sizeof(*queue));
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"%s: Allocate kcpu queue (size=%zu) failed.", __func__, sizeof(*queue));
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG */
 		ret = -ENOMEM;
 		goto out;
 	}
@@ -3255,6 +3287,13 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx, struct kbase_ioctl_kcpu
 	if (IS_ENABLED(CONFIG_SYNC_FILE)) {
 		metadata = kbase_csf_kcpu_queue_metadata_new(kctx, queue->fence_context);
 		if (!metadata) {
+#if IS_ENABLED(CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG)
+			dev_warn(kctx->kbdev->dev, "%s: Allocate metadata (size=%zu) failed", __func__, sizeof(*metadata));
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			     "%s: Allocate metadata (size=%zu) failed", __func__, sizeof(*metadata));
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG */
 			vfree(queue);
 			ret = -ENOMEM;
 			goto out;
