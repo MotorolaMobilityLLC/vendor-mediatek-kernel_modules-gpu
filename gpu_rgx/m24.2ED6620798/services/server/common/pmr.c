@@ -753,7 +753,9 @@ _DeviceImportBitmapGet(const PMR *psPMR)
 
 	return uiDevImportBitmap;
 }
+#endif /* defined(SUPPORT_PMR_DEVICE_IMPORT_DEFERRED_FREE) || defined(PVRSRV_ENABLE_XD_MEM) */
 
+#if defined(PVRSRV_ENABLE_XD_MEM) && !defined(SUPPORT_PMR_DEVICE_IMPORT_DEFERRED_FREE)
 static void
 _DeviceImportBitmapSet(PMR *psPMR, const PPVRSRV_DEVICE_NODE psDevNode)
 {
@@ -763,7 +765,7 @@ _DeviceImportBitmapSet(PMR *psPMR, const PPVRSRV_DEVICE_NODE psDevNode)
 	BITMASK_SET(psPMR->uiDevImportBitmap, IMG_UINT64_C(1) << psDevNode->sDevId.ui32InternalID);
 	OSSpinLockRelease(psPMR->hBitmapLock, uiLockingFlags);
 }
-#endif /* defined(SUPPORT_PMR_DEVICE_IMPORT_DEFERRED_FREE) || defined(PVRSRV_ENABLE_XD_MEM) */
+#endif /* defined(PVRSRV_ENABLE_XD_MEM) && !defined(SUPPORT_PMR_DEVICE_IMPORT_DEFERRED_FREE) */
 
 #if defined(SUPPORT_PMR_DEVICE_IMPORT_DEFERRED_FREE)
 static void
@@ -789,6 +791,24 @@ _DeviceImportBitmapIsSet(const PMR *psPMR, const PPVRSRV_DEVICE_NODE psDevNode)
 
 	return bIsSet;
 }
+
+static IMG_BOOL
+/* Atomically, return if the `psDevNode` is set in the bitmap and then set it. */
+_DeviceImportBitmapFetchAndSet(PMR *psPMR, const PPVRSRV_DEVICE_NODE psDevNode)
+{
+	OS_SPINLOCK_FLAGS uiLockingFlags;
+	IMG_BOOL bIsSet;
+
+	OSSpinLockAcquire(psPMR->hBitmapLock, uiLockingFlags);
+	bIsSet = BITMASK_HAS(psPMR->uiDevImportBitmap,
+	                     IMG_UINT64_C(1) << psDevNode->sDevId.ui32InternalID);
+	BITMASK_SET(psPMR->uiDevImportBitmap,
+	            IMG_UINT64_C(1) << psDevNode->sDevId.ui32InternalID);
+	OSSpinLockRelease(psPMR->hBitmapLock, uiLockingFlags);
+
+	return bIsSet;
+}
+
 #endif /* defined(SUPPORT_PMR_DEVICE_IMPORT_DEFERRED_FREE) */
 
 
@@ -803,8 +823,22 @@ _DeviceImportRegister(PMR *psPMR, PPVRSRV_DEVICE_NODE psDevNode)
 	PVR_ASSERT(psDevNode);
 	PVR_ASSERT(PMR_DeviceNode(psPMR) != psDevNode);
 
+	/* Explicitly reject:
+	 * - PVRSRV_MEMALLOCFLAG_DEFER_PHYS_ALLOC
+	 * - !PMR_FLAG_INTERNAL_NO_LAYOUT_CHANGE
+	 * as XD PMRs don't have support for
+	 * SUPPORT_PMR_PAGES_DEFERRED_FREE. */
+	if (PVRSRV_CHECK_ON_DEMAND(psPMR->uiFlags) ||
+	    !_IntFlagIsSet(psPMR, PMR_FLAG_INTERNAL_NO_LAYOUT_CHANGE))
+	{
+		eError = PVRSRV_ERROR_PMR_NOT_PERMITTED;
+		PVR_LOG_ERROR(eError,
+		              "PVRSRV_CHECK_ON_DEMAND || !PMR_FLAG_INTERNAL_NO_LAYOUT_CHANGE");
+		return eError;
+	}
+
 	/* Check if the device is already imported */
-	if (_DeviceImportBitmapIsSet(psPMR, psDevNode))
+	if (_DeviceImportBitmapFetchAndSet(psPMR, psDevNode))
 	{
 		return PVRSRV_OK;
 	}
@@ -896,10 +930,6 @@ _DeviceImportsEnqueueZombies(PMR *psPMR)
 	return bEnqueued;
 }
 
-/* NOT thread safe.
- * Only called during the destruction of the PMR
- * where locking is not required as there are no
- * other references to the PMR. */
 static void
 _DeviceImportsUnregisterAll(PMR *psPMR)
 {
@@ -5059,9 +5089,12 @@ PMR_RegisterDeviceImport(PMR* psPMR, PPVRSRV_DEVICE_NODE psDevNode)
 #if defined(SUPPORT_PMR_DEVICE_IMPORT_DEFERRED_FREE)
 		PVRSRV_ERROR eError = _DeviceImportRegister(psPMR, psDevNode);
 		PVR_LOG_RETURN_IF_ERROR(eError, "_DeviceImportRegister");
-#endif /* defined(SUPPORT_PMR_DEVICE_IMPORT_DEFERRED_FREE) */
-
+#else
+		/* `_DeviceImportRegister` already sets the bitmap.
+		 * This is still needs to be set without device import zombie support
+		 * for debugging information, i.e. the RI. */
 		_DeviceImportBitmapSet(psPMR, psDevNode);
+#endif /* defined(SUPPORT_PMR_DEVICE_IMPORT_DEFERRED_FREE) */
 	}
 	/* else: We explicitly don't add the PMR's dev node to the list because
 	 *       this bitmask lets us know if the PMR is cross device. It's not
