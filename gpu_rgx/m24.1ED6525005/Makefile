@@ -181,18 +181,14 @@ pvrsrvkm_$(MTK_PLATFORM)-y += \
 	services/shared/common/mem_utils.o \
 	services/shared/common/pvrsrv_error.o
 
-# add pvr_gputrace.o if any of these features are enabled
-ifneq (, $(filter 1,$(PVRSRV_TRACE_ROGUE_EVENTS) $(PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD)))
 pvrsrvkm_$(MTK_PLATFORM)-$(CONFIG_EVENT_TRACING) += services/server/env/linux/pvr_gputrace.o
-endif
+pvrsrvkm_$(MTK_PLATFORM)-y += services/server/env/linux/pvr_gpuwork.o
 
 $(info [GPU_DEBUG] PVRSRV_TRACE_ROGUE_EVENTS = $(PVRSRV_TRACE_ROGUE_EVENTS))
 $(info [GPU_DEBUG] PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD=$(PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD))
 
-ifeq ($(PVRSRV_ANDROID_TRACE_GPU_FREQ),1)
 pvrsrvkm_$(MTK_PLATFORM)-y += \
  services/server/env/linux/pvr_gpufreq.o
-endif
 
 ifeq ($(MTK_PLATFORM),mt6761)
 ifneq ($(filter $(CONFIG_MTK_GPUFREQ_V2),y m),)
