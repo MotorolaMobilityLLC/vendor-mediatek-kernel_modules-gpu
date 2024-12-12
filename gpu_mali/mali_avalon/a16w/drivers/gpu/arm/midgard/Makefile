@@ -81,6 +81,7 @@ ifeq ($(BUILD_RULE),OOT)
 	CONFIG_MALI_MTK_API_SYNC_UPDATE := y
         CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG := y
         CONFIG_MALI_MTK_GPU_RESET_DEBUG := y
+        CONFIG_MALI_SCMI_ENABLE := n
     endif ## mt6991 ##
 
     ifeq ($(MTK_PLATFORM_VERSION),mt6993)
@@ -134,6 +135,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE := n
         CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG := n
         CONFIG_MALI_MTK_GPU_RESET_DEBUG := n
+        CONFIG_MALI_SCMI_ENABLE := n
     endif ## mt6993 ##
 endif
 
