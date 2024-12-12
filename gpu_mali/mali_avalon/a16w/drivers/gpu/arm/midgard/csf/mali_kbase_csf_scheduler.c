@@ -7115,6 +7115,10 @@ static int kbase_csf_scheduler_kthread(void *data)
 #else
 		if (wait_for_completion_interruptible(&scheduler->kthread_signal) != 0)
 			continue;
+
+		reinit_completion(&scheduler->kthread_signal);
+#endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST)
 #if IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
 		update_api_sync_flag(kbdev);
@@ -7123,11 +7127,10 @@ static int kbase_csf_scheduler_kthread(void *data)
 			(kbdev->api_sync_update_in_progress == true)) {
 #else
 		if (ged_gpu_power_stress_test_enable() == 1) {
-#endif
+#endif /* CONFIG_MALI_MTK_API_SYNC_UPDATE */
 			struct kbase_pm_backend_data *backend = &kbdev->pm.backend;
 
 			if(backend->mcu_state == KBASE_MCU_ON){
-#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 				/* Drain pending GPU idle works */
 				atomic_set(&scheduler->gpu_no_longer_idle, false);
 				atomic_inc(&scheduler->pending_gpu_idle_work);
@@ -7141,7 +7144,6 @@ static int kbase_csf_scheduler_kthread(void *data)
 #else
 				gpu_idle_worker(kbdev);
 #endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
-#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 				if (kbdev->csf.scheduler.state == SCHED_SLEEPING)
 				{
 					wait_for_mcu_sleep_after_idle_stress_test(kbdev);
@@ -7151,10 +7153,7 @@ static int kbase_csf_scheduler_kthread(void *data)
 			}
 
 		}
-#endif
-		reinit_completion(&scheduler->kthread_signal);
-#endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
-
+#endif /* CONFIG_MALI_PM_IDLE_STRESS_TEST */
 		/*
 		 * The order in which these requests are handled is based on
 		 * how they would influence each other's decisions. As a
