@@ -45,6 +45,7 @@
 #include <mali_kbase_gpu_metrics.h>
 #include <csf/mali_kbase_csf_trace_buffer.h>
 #endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
+#include <csf/mali_kbase_csf_firmware_log.h>
 #if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
 #include <linux/sched.h>
 #include <uapi/linux/sched/types.h>
@@ -4185,6 +4186,9 @@ static void wait_csg_slots_finish_prio_update(struct kbase_device *kbdev)
 		struct kbase_queue_group *group =
 			kbdev->csf.scheduler.csg_slots[csg_nr].resident_group;
 		enum dumpfault_error_type error_type = DF_CSG_EP_CFG_TIMEOUT;
+
+		//dump fw log here
+		kbase_csf_firmware_log_dump_buffer(kbdev);
 
 		dev_warn(
 			kbdev->dev,
