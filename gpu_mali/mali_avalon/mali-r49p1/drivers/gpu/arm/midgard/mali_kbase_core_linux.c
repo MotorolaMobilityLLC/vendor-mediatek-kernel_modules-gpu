@@ -3474,8 +3474,8 @@ static ssize_t gpuinfo_show(struct device *dev, struct device_attribute *attr, c
 		{ .id = GPU_ID_PRODUCT_TVAX, .name = "Mali-G310" },
 		{ .id = GPU_ID_PRODUCT_LTUX, .name = "Mali-G615" },
 		{ .id = GPU_ID_PRODUCT_LTIX, .name = "Mali-G620" },
-		{ .id = GPU_ID_PRODUCT_TKRX, .name = "Mali-TKRX" },
-		{ .id = GPU_ID_PRODUCT_LKRX, .name = "Mali-LKRX" },
+		{ .id = GPU_ID_PRODUCT_TKRX, .name = "Mali-G725" },
+		{ .id = GPU_ID_PRODUCT_LKRX, .name = "Mali-G625" },
 	};
 	const char *product_name = "(Unknown Mali GPU)";
 	struct kbase_device *kbdev;
@@ -3534,6 +3534,19 @@ static ssize_t gpuinfo_show(struct device *dev, struct device_attribute *attr, c
 			product_name = "Mali-G720-Immortalis";
 		else
 			product_name = (nr_cores >= 6) ? "Mali-G720" : "Mali-G620";
+
+		dev_dbg(kbdev->dev, "GPU ID_Name: %s (ID: 0x%x), nr_cores(%u)\n", product_name,
+			product_id, nr_cores);
+	}
+
+	if (product_model == GPU_ID_PRODUCT_TKRX) {
+		const bool rt_supported = gpu_props->gpu_features.ray_intersection;
+		const u8 nr_cores = gpu_props->num_cores;
+
+		if ((nr_cores >= 10) && rt_supported)
+			product_name = "Mali-G925-Immortalis";
+		else
+			product_name = (nr_cores >= 6) ? "Mali-G725" : "Mali-G625";
 
 		dev_dbg(kbdev->dev, "GPU ID_Name: %s (ID: 0x%x), nr_cores(%u)\n", product_name,
 			product_id, nr_cores);
