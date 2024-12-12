@@ -2174,7 +2174,11 @@ static void kbase_csf_firmware_reload_worker(struct work_struct *work)
 	unsigned long flags;
 	int err;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED_WHEN_RESET, "reloading firmware\n");
+#else /* CONFIG_MALI_MTK_LOG_BUFFER */
 	dev_info(kbdev->dev, "reloading firmware");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_RELOADING(kbdev, kbase_backend_get_cycle_cnt(kbdev));
 
@@ -2210,14 +2214,11 @@ void kbase_csf_firmware_reload(struct kbase_device *kbdev)
 	unsigned long flags;
 	int err;
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
-	if (kbdev->is_reset_triggered_by_fence_timeout)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED, "reloading firmware\n");
-	else
-		dev_info(kbdev->dev, "reloading firmware");
-#else /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED_WHEN_RESET, "reloading firmware\n");
+#else /* CONFIG_MALI_MTK_LOG_BUFFER */
 	dev_info(kbdev->dev, "reloading firmware");
-#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_RELOADING(kbdev, kbase_backend_get_cycle_cnt(kbdev));
 

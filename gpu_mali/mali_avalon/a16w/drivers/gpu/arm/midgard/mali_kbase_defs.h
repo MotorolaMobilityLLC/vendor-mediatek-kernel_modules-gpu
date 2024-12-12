@@ -1482,10 +1482,7 @@ struct kbase_device {
 	struct mtk_logbuffer_info logbuf_regular;
 	struct mtk_logbuffer_info logbuf_critical;
 	struct mtk_logbuffer_info logbuf_exception;
-#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
 	struct mtk_logbuffer_info logbuf_deferred;
-	bool is_reset_triggered_by_fence_timeout;
-#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	struct kbase_mem_migrate mem_migrate;
