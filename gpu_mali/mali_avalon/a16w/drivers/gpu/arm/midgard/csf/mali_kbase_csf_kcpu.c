@@ -2303,6 +2303,19 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 			fence, info.name,
 			fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		if (kctx->kbdev->scheduler_kthread_exec_begin_time > kctx->kbdev->scheduler_kthread_exec_end_time) {
+			s64 blocked_time = ktime_to_ms(ktime_sub(ktime_get(), kctx->kbdev->scheduler_kthread_exec_begin_time));
+			if (blocked_time > 100) {
+				struct kbase_csf_scheduler *scheduler = &(kctx->kbdev)->csf.scheduler;
+				unsigned int state = scheduler->gpuq_kthread->__state;
+				dev_info(kctx->kbdev->dev,
+					"ctx_%d_%d scheduler kthread was blocked (%llu ms), state=0x%x", kctx->tgid, kctx->id, blocked_time, state);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+					"ctx_%d_%d scheduler kthread was blocked (%llu ms), state=0x%x\n", kctx->tgid, kctx->id, blocked_time, state);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+			}
+		}
 	}
 
 	/* 4. Dump the group information when timeout 2s, 3s */

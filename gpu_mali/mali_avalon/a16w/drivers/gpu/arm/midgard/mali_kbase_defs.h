@@ -1522,6 +1522,11 @@ struct kbase_device {
 	struct notifier_block pcm_prioritized_process_nb;
 
 	struct kbase_io *io;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	ktime_t scheduler_kthread_exec_begin_time;
+	ktime_t scheduler_kthread_exec_end_time;
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 };
 
 /**
