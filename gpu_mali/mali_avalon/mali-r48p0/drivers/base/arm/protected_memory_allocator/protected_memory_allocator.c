@@ -941,7 +941,7 @@ static int mtk_protected_memory_allocator_probe(struct platform_device *pdev)
 		"Protected memory allocator probed successfully\n");
 
 	//pma_alloc_test(&epma_dev->pma_dev);
-	if (dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(34))) //TODO DMA_BIT_MASK(kbdev->gpu_props.mmu.pa_bits), dma_set_mask_and_coherent or dma_set_mask
+	if (dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(44))) //TODO DMA_BIT_MASK(kbdev->gpu_props.mmu.pa_bits), dma_set_mask_and_coherent or dma_set_mask
 		return -ENOMEM;
 #else
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP_2MB)
