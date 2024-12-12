@@ -70,6 +70,10 @@
 #include <linux/debugfs.h>
 #include <linux/regulator/consumer.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+#include <linux/hrtimer.h>
+#endif
+
 #if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
 #include "platform/mtk_platform_utils.h"
 #endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
@@ -146,6 +150,24 @@
  */
 #define BASE_MAX_NR_CLOCKS_REGULATORS (2)
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+#define API_SYNC_FLAG_RESET 0x00060000
+#define API_SYNC_FLAG_SET   0x00070000
+#define API_SYNC_FLAG_DEBUG 0x39000000
+#define API_SYNC_FLAG_DEBUG_INIT (API_SYNC_FLAG_DEBUG | 0x00030000)
+
+#define API_SYNC_LEVEL_0 0
+#define API_SYNC_LEVEL_1 3
+#define API_SYNC_LEVEL_2 6
+
+#define API_SYNC_DEFAULT_TIMEOUT_MS 360000
+#define API_SYNC_MAXIMUM_TIMEOUT_MIN 0xFF
+
+struct api_sync_target_level {
+	int orig_level;
+	int mapping_level;
+};
+#endif
 /* Forward declarations */
 struct kbase_context;
 struct kbase_device;
@@ -1258,6 +1280,18 @@ struct kbase_device {
 	u64 lowest_gpu_freq_khz;
 
 	struct kbase_backend_time backend_time;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+	bool api_sync_update_in_progress;
+	int temp_api_sync_flag;
+	int final_api_sync_flag;
+	int api_sync_level;
+	bool api_sync_force_reset;
+	bool api_sync_restore_always_on;
+	unsigned int api_sync_timeout_ms;
+	struct hrtimer api_sync_timer;
+	int api_sync_debug_level;
+#endif
 
 	bool cache_clean_in_progress;
 	u32 cache_clean_queued;
