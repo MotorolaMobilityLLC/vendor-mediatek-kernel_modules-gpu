@@ -829,7 +829,7 @@ static int get_gpueb_gpr_val_v1(struct platform_device *pdev, uint32_t gpr_id, u
 
 	gpueb_base = devm_ioremap(&pdev->dev, res->start, resource_size(res));
 	if (unlikely(!gpueb_base)) {
-		dev_err(&pdev->dev, "fail to ioremap gpueb_base: 0x%llx", res->start);
+		dev_err(&pdev->dev, "fail to ioremap gpueb_base: 0x%llx", (unsigned long long)res->start);
 		return -ENODEV;
 	}
 	GPR_target = GPR(gpueb_base + gpr_offset, gpr_id);
@@ -868,7 +868,7 @@ static int get_gpueb_gpr_val_v2(uint32_t gpr_id, uint64_t *p_GPR_target_64)
 	}
 	gpueb_gpr_base = devm_ioremap(gpueb_dev, res->start, resource_size(res));
 	if (unlikely(!gpueb_gpr_base)) {
-		pr_err("fail to ioremap gpueb_gpr_base: 0x%llx", res->start);
+		pr_err("fail to ioremap gpueb_gpr_base: 0x%llx", (unsigned long long)res->start);
 		return -ENODEV;
 	}
 	GPR_target = GPR(gpueb_gpr_base, gpr_id);
@@ -990,7 +990,7 @@ static int mtk_protected_memory_allocator_probe(struct platform_device *pdev)
 
 	dev_info(&pdev->dev,
 		"addr=0x%llx, size=%zu pages, gmpu_table_size=+%u\n",
-		rmem_base, rmem_size, gmpu_table_size);
+		(unsigned long long)rmem_base, rmem_size, gmpu_table_size);
 
 	of_node_put(np);
 	epma_dev = devm_kzalloc(&pdev->dev, sizeof(*epma_dev), GFP_KERNEL);
