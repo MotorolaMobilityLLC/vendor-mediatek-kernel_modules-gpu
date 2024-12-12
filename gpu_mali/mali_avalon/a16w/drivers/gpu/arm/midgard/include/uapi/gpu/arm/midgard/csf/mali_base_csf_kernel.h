@@ -123,7 +123,10 @@ enum base_kcpu_command_type {
 	BASE_KCPU_COMMAND_TYPE_JIT_ALLOC,
 	BASE_KCPU_COMMAND_TYPE_JIT_FREE,
 	BASE_KCPU_COMMAND_TYPE_GROUP_SUSPEND,
-	BASE_KCPU_COMMAND_TYPE_ERROR_BARRIER
+	BASE_KCPU_COMMAND_TYPE_ERROR_BARRIER,
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	BASE_KCPU_COMMAND_TYPE_COUNT
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 };
 
 /**
@@ -527,6 +530,23 @@ enum base_csf_notification_type {
 	BASE_CSF_NOTIFICATION_COUNT
 };
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+/**
+ * enum mtk_base_csf_notification_dump_cmd - Dump command
+ *
+ * @MTK_BASE_CSF_CPU_QUEUE_DUMP:                 Dump CPU Queues
+ * @MTK_BASE_CSF_CPU_QUEUE_DUMP_RAW:             Dump raw CPU Queues
+ * @MTK_BASE_CSF_CPU_QUEUE_DUMP_COUNT:           The number of dump command
+ *
+ * This type is used for &struct_base_csf_notification.payload.dump.cmd.
+ */
+enum mtk_base_csf_notification_dump_cmd {
+	MTK_BASE_CSF_CPU_QUEUE_DUMP = 0,
+	MTK_BASE_CSF_CPU_QUEUE_DUMP_RAW,
+	MTK_BASE_CSF_CPU_QUEUE_DUMP_COUNT
+};
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
 /**
  * struct base_csf_notification - Event or error notification
  *
@@ -550,7 +570,11 @@ struct base_csf_notification {
 			__u8 padding[7];
 			struct base_gpu_queue_group_error error;
 		} csg_error;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		struct {
+			__u8 cmd;
+		} dump;
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		__u8 align[56];
 	} payload;
 };

@@ -39,6 +39,11 @@ struct kbasep_printer;
 /* Dumping request is issued to Userspace */
 #define BASE_CSF_CPU_QUEUE_DUMP_ISSUED 2
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY) || IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
+/* Dumping request is done and buffer is valid */
+#define BASE_CSF_CPU_QUEUE_DUMP_DONE 3
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY || CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT */
+
 /**
  * kbase_csf_cpu_queue_init() - Initialise cpu queue handling per context cpu queue(s)
  *

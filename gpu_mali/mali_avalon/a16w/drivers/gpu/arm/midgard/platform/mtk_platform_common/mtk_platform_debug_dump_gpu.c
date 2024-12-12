@@ -979,6 +979,11 @@ static bool sb_source_supported(u32 glb_version)
 #define WAITING "Waiting"
 #define NOT_WAITING "Not waiting"
 
+/* REFERENCE FROM progress_counters_supported() in midgard/scf/mali_kbase_csf_csg.c */
+static bool progress_counters_supported(u32 glb_version)
+{
+	return !(GLB_VERSION_MAJOR_GET(glb_version) >= 4);
+}
 /* REFERENCE FROM kbasep_csf_csg_active_dump_cs_status_wait() in midgard/scf/mali_kbase_csf_csg.c */
 static void mtk_debug_csf_csg_active_dump_cs_status_wait(pid_t tgid, u32 id,
                               struct kbase_context *kctx, u32 glb_version,
@@ -990,13 +995,15 @@ static void mtk_debug_csf_csg_active_dump_cs_status_wait(pid_t tgid, u32 id,
     if (CS_STATUS_WAIT_SB_MASK_GET(wait_status) ||
         CS_STATUS_WAIT_PROGRESS_WAIT_GET(wait_status) ||
         CS_STATUS_WAIT_PROTM_PEND_GET(wait_status) || active_qump) {
-        mtk_log_critical_exception(kctx->kbdev, true,
-            "[%d_%d] SB_MASK: %d, PROGRESS_WAIT: %s, PROTM_PEND: %s",
-            tgid, id,
-            CS_STATUS_WAIT_SB_MASK_GET(wait_status),
-            CS_STATUS_WAIT_PROGRESS_WAIT_GET(wait_status) ? WAITING : NOT_WAITING,
-            CS_STATUS_WAIT_PROTM_PEND_GET(wait_status) ? WAITING : NOT_WAITING);
 
+	if (progress_counters_supported(glb_version)) {
+            mtk_log_critical_exception(kctx->kbdev, true,
+                "[%d_%d] SB_MASK: %d, PROGRESS_WAIT: %s, PROTM_PEND: %s",
+                tgid, id,
+                CS_STATUS_WAIT_SB_MASK_GET(wait_status),
+                CS_STATUS_WAIT_PROGRESS_WAIT_GET(wait_status) ? WAITING : NOT_WAITING,
+                CS_STATUS_WAIT_PROTM_PEND_GET(wait_status) ? WAITING : NOT_WAITING);
+        }
         if (sb_source_supported(glb_version)) {
             //kbasep_print(kbpr, "SB_SOURCE: %d\n", CS_STATUS_WAIT_SB_SOURCE_GET(wait_status));
             mtk_log_critical_exception(kctx->kbdev, true,
@@ -1103,12 +1110,18 @@ static void mtk_debug_csf_csg_active_dump_cs_status_cmd_ptr(pid_t tgid, u32 id,
 /* REFERENCE FROM kbasep_csf_csg_active_dump_cs_trace() in midgard/scf/mali_kbase_csf_csg.c */
 static void mtk_debug_csf_csg_active_dump_cs_trace(pid_t tgid, u32 id,
                                                    struct kbase_context *kctx,
-                                                   struct kbase_csf_cmd_stream_info const *const stream)
+                                                   u32 group_id, u32 stream_id)
 {
-    u32 val = kbase_csf_firmware_cs_input_read(stream, CS_INSTR_BUFFER_BASE_LO);
-    u64 addr = ((u64)kbase_csf_firmware_cs_input_read(stream, CS_INSTR_BUFFER_BASE_HI) << 32) |
-           val;
-    val = kbase_csf_firmware_cs_input_read(stream, CS_INSTR_BUFFER_SIZE);
+    u32 val;
+    u64 addr;
+    val = kbase_csf_fw_io_stream_input_read(&kctx->kbdev->csf.fw_io, group_id, stream_id,
+						CS_INSTR_BUFFER_BASE_LO);
+    addr = ((u64)kbase_csf_fw_io_stream_input_read(&kctx->kbdev->csf.fw_io, group_id, stream_id,
+						CS_INSTR_BUFFER_BASE_HI)
+            << 32) |
+            val;
+    val = kbase_csf_fw_io_stream_input_read(&kctx->kbdev->csf.fw_io, group_id, stream_id,
+						CS_INSTR_BUFFER_SIZE);
 
     mtk_log_critical_exception(kctx->kbdev, true,
         "[%d_%d] CS_TRACE_BUF_ADDR: 0x%16llx, SIZE: %u",
@@ -1117,10 +1130,12 @@ static void mtk_debug_csf_csg_active_dump_cs_trace(pid_t tgid, u32 id,
         val);
 
     /* Write offset variable address (pointer) */
-    val = kbase_csf_firmware_cs_input_read(stream, CS_INSTR_BUFFER_OFFSET_POINTER_LO);
-    addr = ((u64)kbase_csf_firmware_cs_input_read(stream, CS_INSTR_BUFFER_OFFSET_POINTER_HI)
-        << 32) |
-           val;
+    val = kbase_csf_fw_io_stream_input_read(&kctx->kbdev->csf.fw_io, group_id, stream_id,
+						CS_INSTR_BUFFER_OFFSET_POINTER_LO);
+    addr = ((u64)kbase_csf_fw_io_stream_input_read(&kctx->kbdev->csf.fw_io, group_id, stream_id,
+						CS_INSTR_BUFFER_OFFSET_POINTER_HI)
+            << 32) |
+            val;
 
     mtk_log_critical_exception(kctx->kbdev, true,
         "[%d_%d] CS_TRACE_BUF_OFFSET_PTR: 0x%16llx",
@@ -1128,7 +1143,8 @@ static void mtk_debug_csf_csg_active_dump_cs_trace(pid_t tgid, u32 id,
         addr);
 
     /* EVENT_SIZE and EVENT_STATEs */
-    val = kbase_csf_firmware_cs_input_read(stream, CS_INSTR_CONFIG);
+    val = kbase_csf_fw_io_stream_input_read(&kctx->kbdev->csf.fw_io, group_id, stream_id,
+						CS_INSTR_CONFIG);
 
     mtk_log_critical_exception(kctx->kbdev, true,
         "[%d_%d] TRACE_EVENT_SIZE: 0x%x, TRACE_EVENT_STAES 0x%x",
@@ -1298,20 +1314,26 @@ static void mtk_debug_csf_csg_active_dump_queue(pid_t tgid, u32 id,
         }
         //mtk_debug_csf_csg_active_dump_cs_status_cmd_ptr(tgid, id, queue, queue->saved_cmd_ptr);
     } else {
-        struct kbase_device const *const kbdev = queue->group->kctx->kbdev;
-        struct kbase_csf_cmd_stream_group_info const *const ginfo =
-            &kbdev->csf.global_iface.groups[queue->group->csg_nr];
-        struct kbase_csf_cmd_stream_info const *const stream =
-            &ginfo->streams[queue->csi_index];
+        struct kbase_device *kbdev = queue->group->kctx->kbdev;
+        u32 group_id = queue->group->csg_nr;
+        u32 stream_id = queue->csi_index;
         u32 req_res;
-
-        if (!stream) {
-            mtk_log_critical_exception(queue->kctx->kbdev, true, "[%d_%d] stream is NULL!", tgid, id);
+/*  MTK: kbasep_csf_fw_io_stream_pages is UNDEFINED in the files
+        struct kbase_csf_fw_io *fw_io = &kbdev->csf.fw_io;
+        struct kbasep_csf_fw_io_stream_pages *stream_pages =
+                fw_io->pages.groups_pages[group_id].streams_pages[stream_id];
+        if (!stream_pages) {
+            mtk_log_critical_exception(queue->kctx->kbdev, true, "[%d_%d] stream_pages is NULL!", tgid, id);
             return;
         }
-        cmd_ptr = kbase_csf_firmware_cs_output(stream, CS_STATUS_CMD_PTR_LO);
-        cmd_ptr |= (u64)kbase_csf_firmware_cs_output(stream, CS_STATUS_CMD_PTR_HI) << 32;
-        req_res = kbase_csf_firmware_cs_output(stream, CS_STATUS_REQ_RESOURCE);
+*/
+        cmd_ptr = kbase_csf_fw_io_stream_read(&kbdev->csf.fw_io, group_id, stream_id,
+						      CS_STATUS_CMD_PTR_LO);
+        cmd_ptr |= (u64)kbase_csf_fw_io_stream_read(&kbdev->csf.fw_io, group_id, stream_id,
+							    CS_STATUS_CMD_PTR_HI)
+			           << 32;
+        req_res = kbase_csf_fw_io_stream_read(&kbdev->csf.fw_io, group_id, stream_id,
+						      CS_STATUS_REQ_RESOURCE);
 
         mtk_log_critical_exception(queue->kctx->kbdev, true,
             "[%d_%d] CMD_PTR: 0x%llx",
@@ -1329,21 +1351,31 @@ static void mtk_debug_csf_csg_active_dump_queue(pid_t tgid, u32 id,
             "[%d_%d] REQ_RESOURCE [TILER]: %d",
             tgid, id,
             CS_STATUS_REQ_RESOURCE_TILER_RESOURCES_GET(req_res));
+        if (kbdev->gpu_props.gpu_id.product_model >= GPU_ID_MODEL_MAKE(14, 0))
+                mtk_log_critical_exception(queue->kctx->kbdev, true,
+                "[%d_%d] REQ_RESOURCE [NEURAL]: %d",
+                tgid, id,
+	              CS_STATUS_REQ_RESOURCE_NEURAL_RESOURCES_GET(req_res));
         mtk_log_critical_exception(queue->kctx->kbdev, true,
             "[%d_%d] REQ_RESOURCE [IDVS]: %d",
             tgid, id,
             CS_STATUS_REQ_RESOURCE_IDVS_RESOURCES_GET(req_res));
 
-        wait_status = kbase_csf_firmware_cs_output(stream, CS_STATUS_WAIT);
-        wait_sync_value = kbase_csf_firmware_cs_output(stream, CS_STATUS_WAIT_SYNC_VALUE);
-        wait_sync_pointer =
-            kbase_csf_firmware_cs_output(stream, CS_STATUS_WAIT_SYNC_POINTER_LO);
+        wait_status = kbase_csf_fw_io_stream_read(&kbdev->csf.fw_io, group_id, stream_id,
+							  CS_STATUS_WAIT);
+        wait_sync_value = kbase_csf_fw_io_stream_read(&kbdev->csf.fw_io, group_id,
+				        stream_id, CS_STATUS_WAIT_SYNC_VALUE);
+        wait_sync_pointer = kbase_csf_fw_io_stream_read(
+                &kbdev->csf.fw_io, group_id, stream_id, CS_STATUS_WAIT_SYNC_POINTER_LO);
         wait_sync_pointer |=
-            (u64)kbase_csf_firmware_cs_output(stream, CS_STATUS_WAIT_SYNC_POINTER_HI)
-            << 32;
+                (u64)kbase_csf_fw_io_stream_read(&kbdev->csf.fw_io, group_id, stream_id,
+				        CS_STATUS_WAIT_SYNC_POINTER_HI)
+                << 32;
 
-        sb_status = kbase_csf_firmware_cs_output(stream, CS_STATUS_SCOREBOARDS);
-        blocked_reason = kbase_csf_firmware_cs_output(stream, CS_STATUS_BLOCKED_REASON);
+        sb_status = kbase_csf_fw_io_stream_read(&kbdev->csf.fw_io, group_id, stream_id,
+                CS_STATUS_SCOREBOARDS);
+        blocked_reason = kbase_csf_fw_io_stream_read(&kbdev->csf.fw_io, group_id, stream_id,
+                CS_STATUS_BLOCKED_REASON);
 
         evt = (u64 *)kbase_phy_alloc_mapping_get(queue->kctx, wait_sync_pointer, &mapping);
         if (evt) {
@@ -1361,9 +1393,10 @@ static void mtk_debug_csf_csg_active_dump_queue(pid_t tgid, u32 id,
 
         /* Dealing with cs_trace */
         if (kbase_csf_scheduler_queue_has_trace(queue))
-            mtk_debug_csf_csg_active_dump_cs_trace(tgid, id, queue->kctx, stream);
+            mtk_debug_csf_csg_active_dump_cs_trace(tgid, id, queue->kctx, group_id, stream_id);
         else
             mtk_log_critical_exception(queue->kctx->kbdev, true, "[%d_%d] NO CS_TRACE", tgid, id);
+        //mtk_debug_csf_csg_active_dump_cs_status_cmd_ptr(tgid, id, queue, cmd_ptr);
     }
 }
 
@@ -1378,31 +1411,49 @@ void mtk_debug_csf_csg_active_dump_group(struct kbase_queue_group *const group,
         u32 ep_c, ep_r;
         char exclusive;
         char idle = 'N';
-        struct kbase_csf_cmd_stream_group_info const *const ginfo =
-            &kbdev->csf.global_iface.groups[group->csg_nr];
         u8 slot_priority = kbdev->csf.scheduler.csg_slots[group->csg_nr].priority;
 
-        ep_c = kbase_csf_firmware_csg_output(ginfo, CSG_STATUS_EP_CURRENT);
-        ep_r = kbase_csf_firmware_csg_output(ginfo, CSG_STATUS_EP_REQ);
+        ep_c = kbase_csf_fw_io_group_read(&kbdev->csf.fw_io, group->csg_nr,
+						  CSG_STATUS_EP_CURRENT);
+        ep_r = kbase_csf_fw_io_group_read(&kbdev->csf.fw_io, group->csg_nr,
+						  CSG_STATUS_EP_REQ);
 
         if (CSG_STATUS_EP_REQ_EXCLUSIVE_COMPUTE_GET(ep_r))
             exclusive = 'C';
         else if (CSG_STATUS_EP_REQ_EXCLUSIVE_FRAGMENT_GET(ep_r))
             exclusive = 'F';
+        else if ((kbdev->gpu_props.gpu_id.arch_id >= GPU_ID_ARCH_MAKE(14, 0, 0)) &&
+                CSG_STATUS_EP_REQ_EXCLUSIVE_NEURAL_GET(ep_r))
+            exclusive = 'N';
         else
             exclusive = '0';
 
-        if (kbase_csf_firmware_csg_output(ginfo, CSG_STATUS_STATE) &
+        if (kbase_csf_fw_io_group_read(&kbdev->csf.fw_io, group->csg_nr, CSG_STATUS_STATE) &
             CSG_STATUS_STATE_IDLE_MASK)
             idle = 'Y';
 
-        mtk_log_critical_exception(kbdev, true,
-            "[%d_%d] GroupID, CSG NR, CSG Prio, Run State, Priority, C_EP(Alloc/Req), F_EP(Alloc/Req), T_EP(Alloc/Req), Exclusive, Idle",
-            group->kctx->tgid,
-            group->kctx->id);
-        mtk_log_critical_exception(kbdev, true,
-            "[%d_%d] %7d, %6d, %8d, %9d, %8d, %11d/%3d, %11d/%3d, %11d/%3d, %9c, %4c",
-            group->kctx->tgid,
+/* MTK: csg_slots_status_updated is global variable
+        if (!test_bit(group->csg_nr, csg_slots_status_updated)) {
+            mtk_log_critical_exception(kbdev, true,
+                "[%d_%d] *** Warn: Timed out for STATUS_UPDATE on slot %d",
+                group->kctx->tgid,
+                group->kctx->id,
+                group->csg_nr);
+                mtk_log_critical_exception(kbdev, true,
+                "[%d_%d] *** The following group-record is likely stale",
+                group->kctx->tgid,
+                group->kctx->id);
+        }
+*/
+        if (kbdev->gpu_props.gpu_id.product_model >= GPU_ID_MODEL_MAKE(14, 0)) {
+            mtk_log_critical_exception(kbdev, true,
+                "[%d_%d] GroupID, CSG NR, CSG Prio, Run State, Priority, C_EP(Alloc/Req), F_EP(Alloc/Req), T_EP(Alloc/Req), N_EP(Alloc/Req), Exclusive, Idle",
+                group->kctx->tgid,
+                group->kctx->id);
+            mtk_log_critical_exception(kbdev, true,
+                "[%d_%d] %7d, %6d, %8d, %9d, %8d, %11d/%3d, %11d/%3d, %11d/%3d, %11d/%3d"
+                " %4d, %2d, %9c, %4c",
+                group->kctx->tgid,
             group->kctx->id,
             group->handle,
             group->csg_nr,
@@ -1415,7 +1466,27 @@ void mtk_debug_csf_csg_active_dump_group(struct kbase_queue_group *const group,
             CSG_STATUS_EP_REQ_FRAGMENT_EP_GET(ep_r),
             CSG_STATUS_EP_CURRENT_TILER_EP_GET(ep_c),
             CSG_STATUS_EP_REQ_TILER_EP_GET(ep_r),
-            exclusive, idle);
+				    CSG_STATUS_EP_CURRENT_NEURAL_EP_GET(ep_c),
+				    CSG_STATUS_EP_REQ_NEURAL_EP_GET(ep_r), group->comp_pri_threshold,
+				    group->comp_pri_ratio, exclusive, idle);
+        } else {
+		        mtk_log_critical_exception(kbdev, true,
+				        "[%d_%d] GroupID, CSG NR, CSG Prio, Run State, Priority, C_EP(Alloc/Req),"
+				        " F_EP(Alloc/Req), T_EP(Alloc/Req), Exclusive, Idle",
+                group->kctx->tgid,
+                group->kctx->id);
+            mtk_log_critical_exception(kbdev, true,
+				        "[%d_%d] %7d, %6d, %8d, %9d, %8d, %11d/%3d, %11d/%3d, %11d/%3d, %9c, %4c",
+                group->kctx->tgid,
+                group->kctx->id,
+				    group->handle, group->csg_nr, slot_priority, group->run_state,
+				    group->priority, CSG_STATUS_EP_CURRENT_COMPUTE_EP_GET(ep_c),
+				    CSG_STATUS_EP_REQ_COMPUTE_EP_GET(ep_r),
+				    CSG_STATUS_EP_CURRENT_FRAGMENT_EP_GET(ep_c),
+				    CSG_STATUS_EP_REQ_FRAGMENT_EP_GET(ep_r),
+				    CSG_STATUS_EP_CURRENT_TILER_EP_GET(ep_c),
+				    CSG_STATUS_EP_REQ_TILER_EP_GET(ep_r), exclusive, idle);
+        }
     } else {
         mtk_log_critical_exception(kbdev, true,
             "[%d_%d] GroupID, CSG NR, Run State, Priority",

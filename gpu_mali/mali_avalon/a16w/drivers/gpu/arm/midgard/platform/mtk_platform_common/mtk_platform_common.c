@@ -22,6 +22,10 @@
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG) || IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+#include <platform/mtk_platform_common/mtk_platform_debug.h>
+#endif /* CONFIG_MALI_MTK_DEBUG || CONFIG_MALI_MTK_DEBUG_DUMP*/
+
 #if IS_ENABLED(CONFIG_MALI_MTK_PROC_FS)
 #include <linux/proc_fs.h>
 
@@ -312,6 +316,9 @@ void mtk_common_csf_debugfs_init(struct kbase_device *kbdev)
 {
 	if (IS_ERR_OR_NULL(kbdev))
 		return;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	mtk_debug_csf_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 }
 #endif /* CONFIG_MALI_CSF_SUPPORT */
 #endif /* CONFIG_MALI_MTK_DEBUG_FS */

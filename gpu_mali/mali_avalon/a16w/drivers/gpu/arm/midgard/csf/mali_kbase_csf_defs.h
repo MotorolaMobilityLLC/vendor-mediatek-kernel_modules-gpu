@@ -758,6 +758,12 @@ struct kbase_csf_cpu_queue_context {
 	size_t buffer_size;
 	atomic_t dump_req_status;
 	struct completion dump_cmp;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	u8 dump_cmd;
+#if IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
+	struct mutex lock;
+#endif /* CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT */
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 };
 
 /**
