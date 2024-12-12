@@ -466,6 +466,64 @@ TRACE_EVENT(mali_jit_trim, TP_PROTO(size_t freed_pages), TP_ARGS(freed_pages),
 	    TP_fast_assign(__entry->freed_pages = freed_pages;),
 	    TP_printk("freed_pages=%zu", __entry->freed_pages));
 
+
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_TRACE_DEBUG)
+#ifndef __TRACE_MALI_GET_VSRTING__
+#define __TRACE_MALI_GET_VSRTING__
+static inline const char *__format_trace_str(char type, int pid, const char *name, int value, char *buf)
+{
+	int ret;
+	switch (type)
+	{
+	case 'B':
+		ret = snprintf(buf, 256, "B|%d|%s", pid, name);
+		break;
+	case 'E':
+		ret = snprintf(buf, 256, "E|%d", pid);
+		break;
+
+	default:
+		ret = snprintf(buf, 256, "%c|%d|%s|%d", type, pid, name, value);
+		break;
+	}
+	return (ret > 0) ? buf : "";
+}
+#endif /* __TRACE_MALI_GET_VSRTING__ */
+
+TRACE_EVENT(tracing_mark_write,
+	TP_PROTO(char type, int pid, const char *name, int value),
+	TP_ARGS(type, pid, name, value),
+	TP_STRUCT__entry(
+		__field(char, type)
+		__field(int, pid)
+		__string(name, name)
+		__field(int, value)
+		__string(buf, name)
+	),
+	TP_fast_assign(
+		__entry->type = type;
+		__entry->pid = pid;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0))
+		__assign_str(name, name);
+#else
+		__assign_str(name);
+#endif
+		__entry->value = value;
+	),
+	TP_printk("%s", __format_trace_str(__entry->type, __entry->pid, __get_str(name), __entry->value, __get_str(buf)))
+);
+
+#define MALI_TRACE_BEGIN(name) trace_tracing_mark_write('B', current->tgid, name, 0)
+#define MALI_TRACE_END() trace_tracing_mark_write('E', current->tgid, "", 0)
+#define MALI_TRACE_VALUE(name, value) trace_tracing_mark_write('C', current->tgid, name, value)
+#define MALI_TRACE_VALUE_TARGET(name, value, pid) trace_tracing_mark_write('C', pid, name, value)
+#else
+#define MALI_TRACE_BEGIN(...)
+#define MALI_TRACE_END()
+#define MALI_TRACE_VALUE(...)
+#define MALI_TRACE_VALUE_TARGET(...)
+#endif /* CONFIG_MALI_MTK_KBASE_TRACE_DEBUG */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
 TRACE_EVENT(tracing_mark_write_tl,
 	TP_PROTO(const char *fmt, va_list *va),
