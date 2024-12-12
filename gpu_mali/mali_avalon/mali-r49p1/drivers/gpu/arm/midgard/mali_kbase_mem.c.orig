@@ -42,6 +42,7 @@
 #include <mali_kbase_native_mgm.h>
 #include <mali_kbase_mem_pool_group.h>
 #include <mmu/mali_kbase_mmu.h>
+#include <mali_kbase_config_defaults.h>
 #include <mali_kbase_trace_gpu_mem.h>
 #include <linux/version_compat_defs.h>
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
@@ -274,12 +275,15 @@ KBASE_EXPORT_TEST_API(kbase_is_large_pages_enabled);
 int kbase_mem_init(struct kbase_device *kbdev)
 {
 	int err = 0;
+	struct kbasep_mem_device *memdev;
 	char va_region_slab_name[VA_REGION_SLAB_NAME_SIZE];
 #if IS_ENABLED(CONFIG_OF)
 	struct device_node *mgm_node = NULL;
 #endif
 
 	KBASE_DEBUG_ASSERT(kbdev);
+
+	memdev = &kbdev->memdev;
 
 	kbasep_mem_page_size_init(kbdev);
 
@@ -302,6 +306,12 @@ int kbase_mem_init(struct kbase_device *kbdev)
 	kbdev->process_root = RB_ROOT;
 	kbdev->dma_buf_root = RB_ROOT;
 	mutex_init(&kbdev->dma_buf_lock);
+
+#ifdef IR_THRESHOLD
+	atomic_set(&memdev->ir_threshold, IR_THRESHOLD);
+#else
+	atomic_set(&memdev->ir_threshold, DEFAULT_IR_THRESHOLD);
+#endif
 
 	kbdev->mgm_dev = &kbase_native_mgm_dev;
 
@@ -2335,12 +2345,10 @@ out_term:
 }
 KBASE_EXPORT_TEST_API(kbase_alloc_phy_pages);
 
-void kbase_set_phy_alloc_page_status(struct kbase_context *kctx, struct kbase_mem_phy_alloc *alloc,
+void kbase_set_phy_alloc_page_status(struct kbase_mem_phy_alloc *alloc,
 				     enum kbase_page_status status)
 {
 	u32 i = 0;
-
-	lockdep_assert_held(&kctx->reg_lock);
 
 	for (; i < alloc->nents; i++) {
 		struct tagged_addr phys = alloc->pages[i];
@@ -2601,7 +2609,7 @@ KBASE_EXPORT_TEST_API(kbase_gpu_vm_lock);
 void kbase_gpu_vm_lock_with_pmode_sync(struct kbase_context *kctx)
 {
 #if MALI_USE_CSF
-	down_read(&kctx->kbdev->csf.mmu_sync_sem);
+	down_read(&kctx->kbdev->csf.pmode_sync_sem);
 #endif
 	kbase_gpu_vm_lock(kctx);
 }
@@ -2617,7 +2625,7 @@ void kbase_gpu_vm_unlock_with_pmode_sync(struct kbase_context *kctx)
 {
 	kbase_gpu_vm_unlock(kctx);
 #if MALI_USE_CSF
-	up_read(&kctx->kbdev->csf.mmu_sync_sem);
+	up_read(&kctx->kbdev->csf.pmode_sync_sem);
 #endif
 }
 
@@ -3573,8 +3581,7 @@ struct kbase_va_region *kbase_jit_allocate(struct kbase_context *kctx,
 			if (kbase_is_page_migration_enabled()) {
 				kbase_gpu_vm_lock(kctx);
 				mutex_lock(&kctx->jit_evict_lock);
-				kbase_set_phy_alloc_page_status(kctx, reg->gpu_alloc,
-								ALLOCATED_MAPPED);
+				kbase_set_phy_alloc_page_status(reg->gpu_alloc, ALLOCATED_MAPPED);
 				mutex_unlock(&kctx->jit_evict_lock);
 				kbase_gpu_vm_unlock(kctx);
 			}
@@ -3728,18 +3735,9 @@ void kbase_jit_free(struct kbase_context *kctx, struct kbase_va_region *reg)
 	kbase_mem_evictable_mark_reclaim(reg->gpu_alloc);
 
 	kbase_gpu_vm_lock(kctx);
-
 	reg->flags |= KBASE_REG_DONT_NEED;
 	reg->flags &= ~KBASE_REG_ACTIVE_JIT_ALLOC;
 	kbase_mem_shrink_cpu_mapping(kctx, reg, 0, reg->gpu_alloc->nents);
-
-	/* Inactive JIT regions should be freed by the shrinker and not impacted
-	 * by page migration. Once freed, they will enter into the page migration
-	 * state machine via the mempools.
-	 */
-	if (kbase_is_page_migration_enabled())
-		kbase_set_phy_alloc_page_status(kctx, reg->gpu_alloc, NOT_MOVABLE);
-
 	kbase_gpu_vm_unlock(kctx);
 
 	/*

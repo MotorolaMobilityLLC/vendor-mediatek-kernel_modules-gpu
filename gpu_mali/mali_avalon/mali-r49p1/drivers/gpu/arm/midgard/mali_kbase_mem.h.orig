@@ -567,7 +567,6 @@ enum kbase_jit_report_flags { KBASE_JIT_REPORT_ON_ALLOC_OR_FREE = (1u << 0) };
 /**
  * kbase_set_phy_alloc_page_status - Set the page migration status of the underlying
  *                                   physical allocation.
- * @kctx:   Pointer to Kbase context.
  * @alloc:  the physical allocation containing the pages whose metadata is going
  *          to be modified
  * @status: the status the pages should end up in
@@ -576,7 +575,7 @@ enum kbase_jit_report_flags { KBASE_JIT_REPORT_ON_ALLOC_OR_FREE = (1u << 0) };
  * proper states are set. Instead, it is only used when we change the allocation
  * to NOT_MOVABLE or from NOT_MOVABLE to ALLOCATED_MAPPED
  */
-void kbase_set_phy_alloc_page_status(struct kbase_context *kctx, struct kbase_mem_phy_alloc *alloc,
+void kbase_set_phy_alloc_page_status(struct kbase_mem_phy_alloc *alloc,
 				     enum kbase_page_status status);
 
 static inline void kbase_mem_phy_alloc_gpu_mapped(struct kbase_mem_phy_alloc *alloc)
@@ -678,6 +677,9 @@ static inline struct kbase_mem_phy_alloc *kbase_mem_phy_alloc_put(struct kbase_m
  * @nr_pages:        The size of the region in pages.
  * @initial_commit:  Initial commit, for aligning the start address and
  *                   correctly growing KBASE_REG_TILER_ALIGN_TOP regions.
+ * @threshold_pages: If non-zero and the amount of memory committed to a region
+ *                   that can grow on page fault exceeds this number of pages
+ *                   then the driver switches to incremental rendering.
  * @flags:           Flags
  * @extension:    Number of pages allocated on page fault.
  * @cpu_alloc: The physical memory we mmap to the CPU when mapping this region.
@@ -714,6 +716,7 @@ struct kbase_va_region {
 	void *user_data;
 	size_t nr_pages;
 	size_t initial_commit;
+	size_t threshold_pages;
 	unsigned long flags;
 	size_t extension;
 	struct kbase_mem_phy_alloc *cpu_alloc;

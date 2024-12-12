@@ -2466,7 +2466,7 @@ int kbase_csf_firmware_early_init(struct kbase_device *kbdev)
 
 	kbdev->csf.glb_init_request_pending = true;
 
-	init_rwsem(&kbdev->csf.mmu_sync_sem);
+	init_rwsem(&kbdev->csf.pmode_sync_sem);
 	mutex_init(&kbdev->csf.reg_lock);
 	kbase_csf_pending_gpuq_kick_queues_init(kbdev);
 

@@ -148,7 +148,6 @@ bob_defaults {
         // is an umbrella feature that would be open for inappropriate use
         // (catch-all for experimental CS code without separating it into
         // different features).
-        "MALI_INCREMENTAL_RENDERING_JM={{.incremental_rendering_jm}}",
         "MALI_BASE_CSF_PERFORMANCE_TESTS={{.base_csf_performance_tests}}",
     ],
 }

@@ -373,9 +373,14 @@ static inline int kbase_as_has_page_fault(struct kbase_as *as, struct kbase_faul
  *
  * @used_pages:   Tracks usage of OS shared memory. Updated when OS memory is
  *                allocated/freed.
+ * @ir_threshold: Fraction of the maximum size of an allocation that grows
+ *                on GPU page fault that can be used before the driver
+ *                switches to incremental rendering, in 1/256ths.
+ *                0 means disabled.
  */
 struct kbasep_mem_device {
 	atomic_t used_pages;
+	atomic_t ir_threshold;
 };
 
 struct kbase_clk_rate_listener;
@@ -653,13 +658,6 @@ struct kbase_mmu_mode {
 struct kbase_mmu_mode const *kbase_mmu_mode_get_aarch64(void);
 
 #define DEVNAME_SIZE 16
-
-#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
-struct job_status_qos {
-	phys_addr_t phyaddr;
-	size_t size;
-};
-#endif /* CONFIG_MALI_MTK_GPU_BM_JM */
 
 /**
  * enum kbase_devfreq_work_type - The type of work to perform in the devfreq
@@ -1424,10 +1422,6 @@ struct kbase_device {
 
 	struct notifier_block oom_notifier_block;
 
-#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
-	struct job_status_qos job_status_addr;
-	struct v1_data* v1;
-#endif /* CONFIG_MALI_MTK_GPU_BM_JM */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	struct mtk_logbuffer_info logbuf_regular;
 	struct mtk_logbuffer_info logbuf_critical;

@@ -164,10 +164,12 @@
  * - Re-allow child process to do supported file operations (like mmap, ioctl
  *   read, poll) on the file descriptor of mali device that was inherited
  *   from the parent process.
+ * 11.46:
+ * - Remove renderpass_id from base_jd_atom_v2 to deprecate support for JM Incremental Rendering
  */
 
 #define BASE_UK_VERSION_MAJOR 11
-#define BASE_UK_VERSION_MINOR 45
+#define BASE_UK_VERSION_MINOR 46
 
 /**
  * struct kbase_ioctl_version_check - Check version compatibility between

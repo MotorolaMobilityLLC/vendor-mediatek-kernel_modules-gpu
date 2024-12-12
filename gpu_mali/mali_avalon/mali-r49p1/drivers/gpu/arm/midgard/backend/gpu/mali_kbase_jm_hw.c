@@ -98,82 +98,6 @@ static u64 kbase_job_write_affinity(struct kbase_device *kbdev, base_jd_core_req
 	return affinity;
 }
 
-/**
- * select_job_chain() - Select which job chain to submit to the GPU
- * @katom: Pointer to the atom about to be submitted to the GPU
- *
- * Selects one of the fragment job chains attached to the special atom at the
- * end of a renderpass, or returns the address of the single job chain attached
- * to any other type of atom.
- *
- * Which job chain is selected depends upon whether the tiling phase of the
- * renderpass completed normally or was soft-stopped because it used too
- * much memory. It also depends upon whether one of the fragment job chains
- * has already been run as part of the same renderpass.
- *
- * Return: GPU virtual address of the selected job chain
- */
-static u64 select_job_chain(struct kbase_jd_atom *katom)
-{
-	struct kbase_context *const kctx = katom->kctx;
-	u64 jc = katom->jc;
-	struct kbase_jd_renderpass *rp;
-
-	lockdep_assert_held(&kctx->kbdev->hwaccess_lock);
-
-	if (!(katom->core_req & BASE_JD_REQ_END_RENDERPASS))
-		return jc;
-
-	compiletime_assert((1ull << (sizeof(katom->renderpass_id) * 8)) <=
-				   ARRAY_SIZE(kctx->jctx.renderpasses),
-			   "Should check invalid access to renderpasses");
-
-	rp = &kctx->jctx.renderpasses[katom->renderpass_id];
-	/* We can read a subset of renderpass state without holding
-	 * higher-level locks (but not end_katom, for example).
-	 * If the end-of-renderpass atom is running with as-yet indeterminate
-	 * OOM state then assume that the start atom was not soft-stopped.
-	 */
-	switch (rp->state) {
-	case KBASE_JD_RP_OOM:
-		/* Tiling ran out of memory.
-		 * Start of incremental rendering, used once.
-		 */
-		jc = katom->jc_fragment.norm_read_forced_write;
-		break;
-	case KBASE_JD_RP_START:
-	case KBASE_JD_RP_PEND_OOM:
-		/* Tiling completed successfully first time.
-		 * Single-iteration rendering, used once.
-		 */
-		jc = katom->jc_fragment.norm_read_norm_write;
-		break;
-	case KBASE_JD_RP_RETRY_OOM:
-		/* Tiling ran out of memory again.
-		 * Continuation of incremental rendering, used as
-		 * many times as required.
-		 */
-		jc = katom->jc_fragment.forced_read_forced_write;
-		break;
-	case KBASE_JD_RP_RETRY:
-	case KBASE_JD_RP_RETRY_PEND_OOM:
-		/* Tiling completed successfully this time.
-		 * End of incremental rendering, used once.
-		 */
-		jc = katom->jc_fragment.forced_read_norm_write;
-		break;
-	default:
-		WARN_ON(1);
-		break;
-	}
-
-	dev_dbg(kctx->kbdev->dev, "Selected job chain 0x%llx for end atom %pK in state %d\n", jc,
-		(void *)katom, (int)rp->state);
-
-	katom->jc = jc;
-	return jc;
-}
-
 static inline bool kbasep_jm_wait_js_free(struct kbase_device *kbdev, unsigned int js,
 					  struct kbase_context *kctx)
 {
@@ -196,7 +120,7 @@ int kbase_job_hw_submit(struct kbase_device *kbdev, struct kbase_jd_atom *katom,
 {
 	struct kbase_context *kctx;
 	u32 cfg;
-	u64 const jc_head = select_job_chain(katom);
+	u64 jc_head = katom->jc;
 	u64 affinity;
 	struct slot_rb *ptr_slot_rb = &kbdev->hwaccess.backend.slot_rb[js];
 
@@ -253,8 +177,7 @@ int kbase_job_hw_submit(struct kbase_device *kbdev, struct kbase_jd_atom *katom,
 
 	cfg |= JS_CONFIG_THREAD_PRI(8);
 
-	if ((katom->atom_flags & KBASE_KATOM_FLAG_PROTECTED) ||
-	    (katom->core_req & BASE_JD_REQ_END_RENDERPASS))
+	if (katom->atom_flags & KBASE_KATOM_FLAG_PROTECTED)
 		cfg |= JS_CONFIG_DISABLE_DESCRIPTOR_WR_BK;
 
 	if (!ptr_slot_rb->job_chain_flag) {
@@ -738,66 +661,6 @@ void kbase_job_slot_ctx_priority_check_locked(struct kbase_context *kctx,
 			stop_sent = true;
 		}
 	}
-}
-
-static int softstop_start_rp_nolock(struct kbase_context *kctx, struct kbase_va_region *reg)
-{
-	struct kbase_device *const kbdev = kctx->kbdev;
-	struct kbase_jd_atom *katom;
-	struct kbase_jd_renderpass *rp;
-
-	lockdep_assert_held(&kbdev->hwaccess_lock);
-
-	katom = kbase_gpu_inspect(kbdev, 1, 0);
-
-	if (!katom) {
-		dev_dbg(kctx->kbdev->dev, "No atom on job slot\n");
-		return -ESRCH;
-	}
-
-	if (!(katom->core_req & BASE_JD_REQ_START_RENDERPASS)) {
-		dev_dbg(kctx->kbdev->dev, "Atom %pK on job slot is not start RP\n", (void *)katom);
-		return -EPERM;
-	}
-
-	compiletime_assert((1ull << (sizeof(katom->renderpass_id) * 8)) <=
-				   ARRAY_SIZE(kctx->jctx.renderpasses),
-			   "Should check invalid access to renderpasses");
-
-	rp = &kctx->jctx.renderpasses[katom->renderpass_id];
-	if (WARN_ON(rp->state != KBASE_JD_RP_START && rp->state != KBASE_JD_RP_RETRY))
-		return -EINVAL;
-
-	dev_dbg(kctx->kbdev->dev, "OOM in state %d with region %pK\n", (int)rp->state, (void *)reg);
-
-	if (WARN_ON(katom != rp->start_katom))
-		return -EINVAL;
-
-	dev_dbg(kctx->kbdev->dev, "Adding region %pK to list %pK\n", (void *)reg,
-		(void *)&rp->oom_reg_list);
-	list_move_tail(&reg->link, &rp->oom_reg_list);
-	dev_dbg(kctx->kbdev->dev, "Added region to list\n");
-
-	rp->state = (rp->state == KBASE_JD_RP_START ? KBASE_JD_RP_PEND_OOM :
-							    KBASE_JD_RP_RETRY_PEND_OOM);
-
-	kbase_job_slot_softstop(kbdev, 1, katom);
-
-	return 0;
-}
-
-int kbase_job_slot_softstop_start_rp(struct kbase_context *const kctx,
-				     struct kbase_va_region *const reg)
-{
-	struct kbase_device *const kbdev = kctx->kbdev;
-	int err;
-	unsigned long flags;
-
-	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-	err = softstop_start_rp_nolock(kctx, reg);
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-
-	return err;
 }
 
 void kbase_jm_wait_for_zero_jobs(struct kbase_context *kctx)
