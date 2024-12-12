@@ -232,7 +232,6 @@ static int kbase_gpuprops_get_props(struct kbase_device *kbdev)
 {
 	struct kbase_gpu_props *gpu_props;
 	struct kbasep_gpuprops_regdump *regdump;
-
 	int i, err;
 #if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
 	u64 force_shader_present = 0;
@@ -740,8 +739,11 @@ static void kbase_populate_user_data(struct kbase_device *kbdev, struct gpu_prop
 	data->l2_props.log2_cache_size = KBASE_UBFX64(regdump->l2_features, 16U, 8);
 	data->coherency_info.coherency = regdump->mem_features;
 
-	data->tiler_props.bin_size_bytes = 1U << KBASE_UBFX64(regdump->tiler_features, 0U, 6);
-	data->tiler_props.max_active_levels = KBASE_UBFX32(regdump->tiler_features, 8U, 4);
+	{
+		data->tiler_props.bin_size_bytes = 1U
+						   << KBASE_UBFX64(regdump->tiler_features, 0U, 6);
+		data->tiler_props.max_active_levels = KBASE_UBFX32(regdump->tiler_features, 8U, 4);
+	}
 
 	if (regdump->thread_max_workgroup_size == 0)
 		data->thread_props.max_workgroup_size = THREAD_MWS_DEFAULT;
@@ -790,7 +792,6 @@ static void kbase_populate_user_data(struct kbase_device *kbdev, struct gpu_prop
 		data->raw_props.js_features[i] = regdump->js_features[i];
 
 	data->raw_props.tiler_features = regdump->tiler_features;
-
 	data->raw_props.thread_max_threads = regdump->thread_max_threads;
 	data->raw_props.thread_max_workgroup_size = regdump->thread_max_workgroup_size;
 	data->raw_props.thread_max_barrier_size = regdump->thread_max_barrier_size;

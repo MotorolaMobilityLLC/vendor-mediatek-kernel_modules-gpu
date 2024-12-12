@@ -199,7 +199,7 @@ static bool kbasep_csf_db_valid_test_csi_extract_event(struct kbase_device *kbde
 		if (kbase_csf_scheduler_group_get_slot(group) >= 0) {
 			int i;
 
-			for (i = 0 ; i < MAX_SUPPORTED_STREAMS_PER_GROUP ; i++) {
+			for (i = 0 ; i < BASEP_GPU_QUEUE_PER_QUEUE_GROUP_MAX ; i++) {
 				struct kbase_queue *queue = group->bound_queues[i];
 
 				if (queue) {

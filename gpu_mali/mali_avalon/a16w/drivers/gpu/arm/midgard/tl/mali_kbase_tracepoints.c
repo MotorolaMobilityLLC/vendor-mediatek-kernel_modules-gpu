@@ -90,13 +90,12 @@ enum tl_msg_id_obj {
 	KBASE_TL_KBASE_GPUCMDQUEUE_KICK,
 	KBASE_TL_KBASE_DEVICE_PROGRAM_CSG,
 	KBASE_TL_KBASE_DEVICE_DEPROGRAM_CSG,
+	KBASE_TL_KBASE_DEVICE_PROTM_ENTER_CSG,
 	KBASE_TL_KBASE_DEVICE_HALTING_CSG,
 	KBASE_TL_KBASE_DEVICE_SUSPEND_CSG,
 	KBASE_TL_KBASE_DEVICE_CSG_IDLE,
 	KBASE_TL_KBASE_NEW_CTX,
 	KBASE_TL_KBASE_DEL_CTX,
-	KBASE_TL_KBASE_CTX_ASSIGN_AS,
-	KBASE_TL_KBASE_CTX_UNASSIGN_AS,
 	KBASE_TL_KBASE_NEW_KCPUQUEUE,
 	KBASE_TL_KBASE_DEL_KCPUQUEUE,
 	KBASE_TL_KBASE_KCPUQUEUE_ENQUEUE_FENCE_SIGNAL,
@@ -143,17 +142,14 @@ enum tl_msg_id_obj {
 	KBASE_TL_KBASE_KCPUQUEUE_EXECUTE_ERROR_BARRIER,
 	KBASE_TL_KBASE_KCPUQUEUE_EXECUTE_GROUP_SUSPEND_START,
 	KBASE_TL_KBASE_KCPUQUEUE_EXECUTE_GROUP_SUSPEND_END,
-	KBASE_TL_KBASE_CSFFW_FW_RELOADING,
-	KBASE_TL_KBASE_CSFFW_FW_ENABLING,
-	KBASE_TL_KBASE_CSFFW_FW_REQUEST_SLEEP,
-	KBASE_TL_KBASE_CSFFW_FW_REQUEST_WAKEUP,
-	KBASE_TL_KBASE_CSFFW_FW_REQUEST_HALT,
+	KBASE_TL_KBASE_DEVICE_L2_CORE_STATE,
+	KBASE_TL_KBASE_DEVICE_MCU_STATE,
+	KBASE_TL_KBASE_DEVICE_SHADER_CORE_STATE,
 	KBASE_TL_KBASE_CSFFW_FW_DISABLING,
 	KBASE_TL_KBASE_CSFFW_FW_OFF,
 	KBASE_TL_KBASE_CSFFW_TLSTREAM_OVERFLOW,
 	KBASE_OBJ_MSG_COUNT,
 };
-
 
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
 enum kbase_csffw_tl_fw_state {
@@ -408,6 +404,10 @@ static const char *csffw_tl_fw_state_strings[] = {
 		"CSG is deprogrammed from a slot", \
 		"@II", \
 		"kbase_device_id,kbase_device_csg_slot_index") \
+	TRACEPOINT_DESC(KBASE_TL_KBASE_DEVICE_PROTM_ENTER_CSG, \
+		"CSG slot is entering protected mode", \
+		"@II", \
+		"kbase_device_id,kbase_device_csg_slot_index") \
 	TRACEPOINT_DESC(KBASE_TL_KBASE_DEVICE_HALTING_CSG, \
 		"CSG is halting", \
 		"@III", \
@@ -426,14 +426,6 @@ static const char *csffw_tl_fw_state_strings[] = {
 		"kernel_ctx_id,kbase_device_id") \
 	TRACEPOINT_DESC(KBASE_TL_KBASE_DEL_CTX, \
 		"Delete KBase Context", \
-		"@I", \
-		"kernel_ctx_id") \
-	TRACEPOINT_DESC(KBASE_TL_KBASE_CTX_ASSIGN_AS, \
-		"Address Space is assigned to a KBase context", \
-		"@II", \
-		"kernel_ctx_id,kbase_device_as_index") \
-	TRACEPOINT_DESC(KBASE_TL_KBASE_CTX_UNASSIGN_AS, \
-		"Address Space is unassigned from a KBase context", \
 		"@I", \
 		"kernel_ctx_id") \
 	TRACEPOINT_DESC(KBASE_TL_KBASE_NEW_KCPUQUEUE, \
@@ -620,26 +612,18 @@ static const char *csffw_tl_fw_state_strings[] = {
 		"KCPU Queue ends a group suspend", \
 		"@pI", \
 		"kcpu_queue,execute_error") \
-	TRACEPOINT_DESC(KBASE_TL_KBASE_CSFFW_FW_RELOADING, \
-		"CSF FW is being reloaded", \
-		"@L", \
-		"csffw_cycle") \
-	TRACEPOINT_DESC(KBASE_TL_KBASE_CSFFW_FW_ENABLING, \
-		"CSF FW is being enabled", \
-		"@L", \
-		"csffw_cycle") \
-	TRACEPOINT_DESC(KBASE_TL_KBASE_CSFFW_FW_REQUEST_SLEEP, \
-		"CSF FW sleep is requested", \
-		"@L", \
-		"csffw_cycle") \
-	TRACEPOINT_DESC(KBASE_TL_KBASE_CSFFW_FW_REQUEST_WAKEUP, \
-		"CSF FW wake up is requested", \
-		"@L", \
-		"csffw_cycle") \
-	TRACEPOINT_DESC(KBASE_TL_KBASE_CSFFW_FW_REQUEST_HALT, \
-		"CSF FW halt is requested", \
-		"@L", \
-		"csffw_cycle") \
+	TRACEPOINT_DESC(KBASE_TL_KBASE_DEVICE_L2_CORE_STATE, \
+		"KBase device updates L2 Core state", \
+		"@IL", \
+		"kbase_device_id,new_state") \
+	TRACEPOINT_DESC(KBASE_TL_KBASE_DEVICE_MCU_STATE, \
+		"KBase device updates MCU state", \
+		"@IL", \
+		"kbase_device_id,new_state") \
+	TRACEPOINT_DESC(KBASE_TL_KBASE_DEVICE_SHADER_CORE_STATE, \
+		"KBase device updates Shader Core state", \
+		"@IL", \
+		"kbase_device_id,new_state") \
 	TRACEPOINT_DESC(KBASE_TL_KBASE_CSFFW_FW_DISABLING, \
 		"CSF FW is being disabled", \
 		"@L", \
@@ -2288,6 +2272,33 @@ void __kbase_tlstream_tl_kbase_device_deprogram_csg(
 	kbase_tlstream_msgbuf_release(stream, acq_flags);
 }
 
+void __kbase_tlstream_tl_kbase_device_protm_enter_csg(
+	struct kbase_tlstream *stream,
+	u32 kbase_device_id,
+	u32 kbase_device_csg_slot_index
+)
+{
+	const u32 msg_id = KBASE_TL_KBASE_DEVICE_PROTM_ENTER_CSG;
+	const size_t msg_size = sizeof(msg_id) + sizeof(u64)
+		+ sizeof(kbase_device_id)
+		+ sizeof(kbase_device_csg_slot_index)
+		;
+	char *buffer;
+	unsigned long acq_flags;
+	size_t pos = 0;
+
+	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
+
+	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
+	pos = kbasep_serialize_timestamp(buffer, pos);
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &kbase_device_id, sizeof(kbase_device_id));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &kbase_device_csg_slot_index, sizeof(kbase_device_csg_slot_index));
+
+	kbase_tlstream_msgbuf_release(stream, acq_flags);
+}
+
 void __kbase_tlstream_tl_kbase_device_halting_csg(
 	struct kbase_tlstream *stream,
 	u32 kbase_device_id,
@@ -2406,56 +2417,6 @@ void __kbase_tlstream_tl_kbase_del_ctx(
 )
 {
 	const u32 msg_id = KBASE_TL_KBASE_DEL_CTX;
-	const size_t msg_size = sizeof(msg_id) + sizeof(u64)
-		+ sizeof(kernel_ctx_id)
-		;
-	char *buffer;
-	unsigned long acq_flags;
-	size_t pos = 0;
-
-	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
-
-	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
-	pos = kbasep_serialize_timestamp(buffer, pos);
-	pos = kbasep_serialize_bytes(buffer,
-		pos, &kernel_ctx_id, sizeof(kernel_ctx_id));
-
-	kbase_tlstream_msgbuf_release(stream, acq_flags);
-}
-
-void __kbase_tlstream_tl_kbase_ctx_assign_as(
-	struct kbase_tlstream *stream,
-	u32 kernel_ctx_id,
-	u32 kbase_device_as_index
-)
-{
-	const u32 msg_id = KBASE_TL_KBASE_CTX_ASSIGN_AS;
-	const size_t msg_size = sizeof(msg_id) + sizeof(u64)
-		+ sizeof(kernel_ctx_id)
-		+ sizeof(kbase_device_as_index)
-		;
-	char *buffer;
-	unsigned long acq_flags;
-	size_t pos = 0;
-
-	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
-
-	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
-	pos = kbasep_serialize_timestamp(buffer, pos);
-	pos = kbasep_serialize_bytes(buffer,
-		pos, &kernel_ctx_id, sizeof(kernel_ctx_id));
-	pos = kbasep_serialize_bytes(buffer,
-		pos, &kbase_device_as_index, sizeof(kbase_device_as_index));
-
-	kbase_tlstream_msgbuf_release(stream, acq_flags);
-}
-
-void __kbase_tlstream_tl_kbase_ctx_unassign_as(
-	struct kbase_tlstream *stream,
-	u32 kernel_ctx_id
-)
-{
-	const u32 msg_id = KBASE_TL_KBASE_CTX_UNASSIGN_AS;
 	const size_t msg_size = sizeof(msg_id) + sizeof(u64)
 		+ sizeof(kernel_ctx_id)
 		;
@@ -3723,14 +3684,16 @@ void __kbase_tlstream_tl_kbase_kcpuqueue_execute_group_suspend_end(
 	kbase_tlstream_msgbuf_release(stream, acq_flags);
 }
 
-void __kbase_tlstream_tl_kbase_csffw_fw_reloading(
+void __kbase_tlstream_tl_kbase_device_l2_core_state(
 	struct kbase_tlstream *stream,
-	u64 csffw_cycle
+	u32 kbase_device_id,
+	u64 new_state
 )
 {
-	const u32 msg_id = KBASE_TL_KBASE_CSFFW_FW_RELOADING;
+	const u32 msg_id = KBASE_TL_KBASE_DEVICE_L2_CORE_STATE;
 	const size_t msg_size = sizeof(msg_id) + sizeof(u64)
-		+ sizeof(csffw_cycle)
+		+ sizeof(kbase_device_id)
+		+ sizeof(new_state)
 		;
 	char *buffer;
 	unsigned long acq_flags;
@@ -3744,111 +3707,63 @@ void __kbase_tlstream_tl_kbase_csffw_fw_reloading(
 	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
 	pos = kbasep_serialize_timestamp(buffer, pos);
 	pos = kbasep_serialize_bytes(buffer,
-		pos, &csffw_cycle, sizeof(csffw_cycle));
+		pos, &kbase_device_id, sizeof(kbase_device_id));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &new_state, sizeof(new_state));
 
 	kbase_tlstream_msgbuf_release(stream, acq_flags);
 }
 
-void __kbase_tlstream_tl_kbase_csffw_fw_enabling(
+void __kbase_tlstream_tl_kbase_device_mcu_state(
 	struct kbase_tlstream *stream,
-	u64 csffw_cycle
+	u32 kbase_device_id,
+	u64 new_state
 )
 {
-	const u32 msg_id = KBASE_TL_KBASE_CSFFW_FW_ENABLING;
+	const u32 msg_id = KBASE_TL_KBASE_DEVICE_MCU_STATE;
 	const size_t msg_size = sizeof(msg_id) + sizeof(u64)
-		+ sizeof(csffw_cycle)
+		+ sizeof(kbase_device_id)
+		+ sizeof(new_state)
 		;
 	char *buffer;
 	unsigned long acq_flags;
 	size_t pos = 0;
-#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
-	kbase_tl_systrace("E|7788|CSFFW State-300|%lld", ktime_get_raw_ns());
-	kbase_tl_systrace("B|7788|CSFFW State-300|%s|%lld", csffw_tl_fw_state_strings[CSFFW_TL_FW_ENABLING], ktime_get_raw_ns());
-#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
+
 	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
 
 	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
 	pos = kbasep_serialize_timestamp(buffer, pos);
 	pos = kbasep_serialize_bytes(buffer,
-		pos, &csffw_cycle, sizeof(csffw_cycle));
+		pos, &kbase_device_id, sizeof(kbase_device_id));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &new_state, sizeof(new_state));
 
 	kbase_tlstream_msgbuf_release(stream, acq_flags);
 }
 
-void __kbase_tlstream_tl_kbase_csffw_fw_request_sleep(
+void __kbase_tlstream_tl_kbase_device_shader_core_state(
 	struct kbase_tlstream *stream,
-	u64 csffw_cycle
+	u32 kbase_device_id,
+	u64 new_state
 )
 {
-	const u32 msg_id = KBASE_TL_KBASE_CSFFW_FW_REQUEST_SLEEP;
+	const u32 msg_id = KBASE_TL_KBASE_DEVICE_SHADER_CORE_STATE;
 	const size_t msg_size = sizeof(msg_id) + sizeof(u64)
-		+ sizeof(csffw_cycle)
+		+ sizeof(kbase_device_id)
+		+ sizeof(new_state)
 		;
 	char *buffer;
 	unsigned long acq_flags;
 	size_t pos = 0;
-#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
-	kbase_tl_systrace("E|7788|CSFFW State-300|%lld", ktime_get_raw_ns());
-	kbase_tl_systrace("B|7788|CSFFW State-300|%s|%lld", csffw_tl_fw_state_strings[CSFFW_TL_FW_REQUEST_SLEEP], ktime_get_raw_ns());
-#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
+
 	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
 
 	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
 	pos = kbasep_serialize_timestamp(buffer, pos);
 	pos = kbasep_serialize_bytes(buffer,
-		pos, &csffw_cycle, sizeof(csffw_cycle));
-
-	kbase_tlstream_msgbuf_release(stream, acq_flags);
-}
-
-void __kbase_tlstream_tl_kbase_csffw_fw_request_wakeup(
-	struct kbase_tlstream *stream,
-	u64 csffw_cycle
-)
-{
-	const u32 msg_id = KBASE_TL_KBASE_CSFFW_FW_REQUEST_WAKEUP;
-	const size_t msg_size = sizeof(msg_id) + sizeof(u64)
-		+ sizeof(csffw_cycle)
-		;
-	char *buffer;
-	unsigned long acq_flags;
-	size_t pos = 0;
-#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
-	kbase_tl_systrace("E|7788|CSFFW State-300|%lld", ktime_get_raw_ns());
-	kbase_tl_systrace("B|7788|CSFFW State-300|%s|%lld", csffw_tl_fw_state_strings[CSFFW_TL_FW_REQUEST_WAKEUP], ktime_get_raw_ns());
-#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
-	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
-
-	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
-	pos = kbasep_serialize_timestamp(buffer, pos);
+		pos, &kbase_device_id, sizeof(kbase_device_id));
 	pos = kbasep_serialize_bytes(buffer,
-		pos, &csffw_cycle, sizeof(csffw_cycle));
-
-	kbase_tlstream_msgbuf_release(stream, acq_flags);
-}
-
-void __kbase_tlstream_tl_kbase_csffw_fw_request_halt(
-	struct kbase_tlstream *stream,
-	u64 csffw_cycle
-)
-{
-	const u32 msg_id = KBASE_TL_KBASE_CSFFW_FW_REQUEST_HALT;
-	const size_t msg_size = sizeof(msg_id) + sizeof(u64)
-		+ sizeof(csffw_cycle)
-		;
-	char *buffer;
-	unsigned long acq_flags;
-	size_t pos = 0;
-#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
-	kbase_tl_systrace("E|7788|CSFFW State-300|%lld", ktime_get_raw_ns());
-	kbase_tl_systrace("B|7788|CSFFW State-300|%s|%lld", csffw_tl_fw_state_strings[CSFFW_TL_FW_REQUEST_HALT], ktime_get_raw_ns());
-#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
-	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
-
-	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
-	pos = kbasep_serialize_timestamp(buffer, pos);
-	pos = kbasep_serialize_bytes(buffer,
-		pos, &csffw_cycle, sizeof(csffw_cycle));
+		pos, &new_state, sizeof(new_state));
 
 	kbase_tlstream_msgbuf_release(stream, acq_flags);
 }

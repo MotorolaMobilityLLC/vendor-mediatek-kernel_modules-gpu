@@ -359,11 +359,7 @@ int kbase_device_misc_init(struct kbase_device *const kbdev)
 
 	kbdev->pm.dvfs_period = DEFAULT_PM_DVFS_PERIOD;
 
-#if MALI_USE_CSF
 	kbdev->reset_timeout_ms = kbase_get_timeout_ms(kbdev, CSF_GPU_RESET_TIMEOUT);
-#else /* MALI_USE_CSF */
-	kbdev->reset_timeout_ms = JM_DEFAULT_RESET_TIMEOUT_MS;
-#endif /* !MALI_USE_CSF */
 
 	kbdev->mmu_mode = kbase_mmu_mode_get_aarch64();
 	mutex_init(&kbdev->kctx_list_lock);
