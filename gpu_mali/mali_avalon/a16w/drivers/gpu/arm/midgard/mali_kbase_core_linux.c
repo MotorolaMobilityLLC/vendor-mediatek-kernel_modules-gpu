@@ -124,6 +124,11 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS) || IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG_FS || CONFIG_MALI_MTK_DEBUG_DUMP */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
 #include <mtk_heap.h>
 #include <slbc_ops.h>
@@ -6716,6 +6721,10 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 #endif
 
 		dev_info(kbdev->dev, "Probed as %s\n", dev_name(kbdev->mdev.this_device));
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Probed as %s\n", dev_name(kbdev->mdev.this_device));
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		if (PAGE_SHIFT != 12)
 			dev_warn(kbdev->dev, "Experimental feature: %s with Page Size of %luKiB",
 				 dev_name(kbdev->mdev.this_device), PAGE_SIZE / 1024);
