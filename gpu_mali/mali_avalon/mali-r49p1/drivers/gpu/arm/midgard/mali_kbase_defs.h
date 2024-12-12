@@ -1466,6 +1466,10 @@ struct kbase_device {
 	struct mtk_logbuffer_info logbuf_regular;
 	struct mtk_logbuffer_info logbuf_critical;
 	struct mtk_logbuffer_info logbuf_exception;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+	struct mtk_logbuffer_info logbuf_deferred;
+	bool is_reset_triggered_by_fence_timeout;
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	struct kbase_mem_migrate mem_migrate;
@@ -2207,6 +2211,12 @@ struct kbase_context {
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
 	char group_leader_comm[TASK_COMM_LEN];
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	uint64_t notification_fd_signal_time;
+	uint64_t notification_data_read_time;
+	uint64_t notification_polling_start_time;
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 };
 
 #ifdef CONFIG_MALI_CINSTR_GWT

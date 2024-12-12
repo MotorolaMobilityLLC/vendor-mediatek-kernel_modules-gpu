@@ -50,6 +50,23 @@ void mtk_debug_csf_dump_cpu_queues(struct kbase_device *kbdev, struct kbase_cont
             kctx->tgid, kctx->id);
 
         if (!wait_for_completion_timeout(&kctx->csf.cpu_queue.dump_cmp, msecs_to_jiffies(3000))) {
+            dev_info(kbdev->dev, "ctx %d_%d mali-event-handler request pending", kctx->tgid, kctx->id);
+            dev_info(kbdev->dev, "ctx %d_%d polling start: %llu, fd signal: %llu, data read: %llu",
+                kctx->tgid, kctx->id, kctx->notification_polling_start_time, kctx->notification_fd_signal_time,
+                kctx->notification_data_read_time);
+            dev_info(kbdev->dev, "ctx %d_%d event_count: %d, error_pending: %d, dump_needed: %d",
+                kctx->tgid, kctx->id, atomic_read(&kctx->event_count), kbase_csf_event_error_pending(kctx),
+                kbase_csf_cpu_queue_dump_needed(kctx));
+
+            mtk_log_critical_exception(kbdev, true, "ctx %d_%d mali-event-handler request pending",
+                kctx->tgid, kctx->id);
+            mtk_log_critical_exception(kbdev, true, "ctx %d_%d polling start: %llu, fd signal: %llu, data read: %llu",
+                kctx->tgid, kctx->id, kctx->notification_polling_start_time, kctx->notification_fd_signal_time,
+                kctx->notification_data_read_time);
+            mtk_log_critical_exception(kbdev, true, "ctx %d_%d event_count: %d, error_pending: %d, dump_needed: %d",
+                kctx->tgid, kctx->id, atomic_read(&kctx->event_count), kbase_csf_event_error_pending(kctx),
+                kbase_csf_cpu_queue_dump_needed(kctx));
+
             mtk_log_critical_exception(kbdev, true,
                 "[%d_%d] Timeout waiting for dump completion",
                 kctx->tgid, kctx->id);

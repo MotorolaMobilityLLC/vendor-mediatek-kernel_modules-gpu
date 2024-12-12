@@ -184,6 +184,11 @@ void kbasep_printer_buffer_flush(struct kbasep_printer *kbpr)
 		mtk_logbuffer_type_print(kbpr->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "%s", buffer);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+		mtk_logbuffer_type_print(kbpr->kbdev, MTK_LOGBUFFER_TYPE_DEFERRED, "%s", buffer);
+		continue;
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
+
 		switch (kbpr->type) {
 		case KBASEP_PRINT_TYPE_DEV_INFO:
 #if IS_ENABLED(CONFIG_MALI_MTK_COMMON)

@@ -29,7 +29,26 @@
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
-
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+#define mtk_log_critical_exception(kbdev, to_dev, fmt, args...) \
+    do { \
+        if (to_dev) \
+            mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED, fmt "\n", ##args); \
+        mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, fmt "\n", ##args); \
+    } while (0)
+#define mtk_log_regular(kbdev, to_dev, fmt, args...) \
+    do { \
+        if (to_dev) \
+            mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED, fmt "\n", ##args); \
+        mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR, fmt "\n", ##args); \
+    } while (0)
+#define mtk_log_exception(kbdev, to_dev, fmt, args...) \
+    do { \
+        if (to_dev) \
+            mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED, fmt "\n", ##args); \
+        mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_EXCEPTION, fmt "\n", ##args); \
+    } while (0)
+#else /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 #define mtk_log_critical_exception(kbdev, to_dev, fmt, args...) \
     do { \
         if (to_dev) \
@@ -48,7 +67,7 @@
             dev_info(kbdev->dev, fmt, ##args); \
         mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_EXCEPTION, fmt "\n", ##args); \
     } while (0)
-
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 #else
 #define mtk_log_critical_exception(kbdev, to_dev, fmt, args...) \
     do { \

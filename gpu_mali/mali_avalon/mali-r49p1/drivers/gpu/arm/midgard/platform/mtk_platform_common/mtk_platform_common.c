@@ -209,11 +209,28 @@ void mtk_common_debug(enum mtk_common_debug_types type, struct kbase_context *kc
 			tmp_state_array[i] = mcu_state_array[tmp_idx];
 			tmp_idx = (tmp_idx + 1) % MAX_STATES_NUM; // Wrap around to 0 when reaching MAX_STATES_NUM
 		}
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+		if (kbdev->is_reset_triggered_by_fence_timeout) {
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
+				"mcu state back trace %hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu\n",
+				tmp_state_array[0], tmp_state_array[1], tmp_state_array[2], tmp_state_array[3],
+				tmp_state_array[4], tmp_state_array[5], tmp_state_array[6], tmp_state_array[7],
+				tmp_state_array[8], tmp_state_array[9], tmp_state_array[10], tmp_state_array[11],
+				tmp_state_array[12], tmp_state_array[13], tmp_state_array[14], tmp_state_array[15]);
+		} else {
+			dev_info(kbdev->dev, "mcu state back trace %hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu\n",
+				tmp_state_array[0], tmp_state_array[1], tmp_state_array[2], tmp_state_array[3],
+				tmp_state_array[4], tmp_state_array[5], tmp_state_array[6], tmp_state_array[7],
+				tmp_state_array[8], tmp_state_array[9], tmp_state_array[10], tmp_state_array[11],
+				tmp_state_array[12], tmp_state_array[13], tmp_state_array[14], tmp_state_array[15]);
+		}
+#else /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 		dev_info(kbdev->dev, "mcu state back trace %hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu\n",
 			tmp_state_array[0], tmp_state_array[1], tmp_state_array[2], tmp_state_array[3],
 			tmp_state_array[4], tmp_state_array[5], tmp_state_array[6], tmp_state_array[7],
 			tmp_state_array[8], tmp_state_array[9], tmp_state_array[10], tmp_state_array[11],
 			tmp_state_array[12], tmp_state_array[13], tmp_state_array[14], tmp_state_array[15]);
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
@@ -228,11 +245,28 @@ void mtk_common_debug(enum mtk_common_debug_types type, struct kbase_context *kc
 			tmp_state_array[i] = l2_state_array[tmp_idx];
 			tmp_idx = (tmp_idx + 1) % MAX_STATES_NUM;  // Increment and wrap around
 		}
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+		if (kbdev->is_reset_triggered_by_fence_timeout) {
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
+				"l2 state back trace %hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu\n",
+				tmp_state_array[0], tmp_state_array[1], tmp_state_array[2], tmp_state_array[3],
+				tmp_state_array[4], tmp_state_array[5], tmp_state_array[6], tmp_state_array[7],
+				tmp_state_array[8], tmp_state_array[9], tmp_state_array[10], tmp_state_array[11],
+				tmp_state_array[12], tmp_state_array[13], tmp_state_array[14], tmp_state_array[15]);
+		} else {
+			dev_info(kbdev->dev, "l2 state back trace %hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu\n",
+				tmp_state_array[0], tmp_state_array[1], tmp_state_array[2], tmp_state_array[3],
+				tmp_state_array[4], tmp_state_array[5], tmp_state_array[6], tmp_state_array[7],
+				tmp_state_array[8], tmp_state_array[9], tmp_state_array[10], tmp_state_array[11],
+				tmp_state_array[12], tmp_state_array[13], tmp_state_array[14], tmp_state_array[15]);
+		}
+#else /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 		dev_info(kbdev->dev, "l2 state back trace %hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu\n",
 			tmp_state_array[0], tmp_state_array[1], tmp_state_array[2], tmp_state_array[3],
 			tmp_state_array[4], tmp_state_array[5], tmp_state_array[6], tmp_state_array[7],
 			tmp_state_array[8], tmp_state_array[9], tmp_state_array[10], tmp_state_array[11],
 			tmp_state_array[12], tmp_state_array[13], tmp_state_array[14], tmp_state_array[15]);
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
@@ -241,10 +275,14 @@ void mtk_common_debug(enum mtk_common_debug_types type, struct kbase_context *kc
 			tmp_state_array[4], tmp_state_array[5], tmp_state_array[6], tmp_state_array[7],
 			tmp_state_array[8], tmp_state_array[9], tmp_state_array[10], tmp_state_array[11],
 			tmp_state_array[12], tmp_state_array[13], tmp_state_array[14], tmp_state_array[15]);
-
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"diagnosis hook = 0x%08llx, mode = %llu, mask = 0x%08llx", hook_point, diagnosis_mode, diagnosis_dump_mask);
+#else /* CONFIG_MALI_MTK_LOG_BUFFER */
 		dev_info(kbdev->dev, "diagnosis hook = 0x%08llx, mode = %llu, mask = 0x%08llx", hook_point, diagnosis_mode, diagnosis_dump_mask);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		if (hook_point & diagnosis_dump_mask) {
 			if (diagnosis_mode == 0) {
 				return; // do nothing if diagnosis mode is not enabled
@@ -680,6 +718,10 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT)
 	mtk_whitebox_memory_footprint_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+	mtk_logbuffer_deferred_enable_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 }
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
