@@ -245,7 +245,7 @@ void mtk_logbuffer_dump_to_dev_and_clear(struct kbase_device *const kbdev, uint3
 		return;
 
 	/* Allocate and init temp memory for copy from logbuffer */
-	temp_entries = kcalloc(1, logbuf->size, GFP_KERNEL);
+	temp_entries = vzalloc(logbuf->size);
 	if (temp_entries == NULL) {
 		dev_info(kbdev->dev, "null temp log memory, bypass dump");
 		return;
@@ -273,7 +273,7 @@ void mtk_logbuffer_dump_to_dev_and_clear(struct kbase_device *const kbdev, uint3
 	dev_info(kbdev->dev, "End deferred dump\n");
 
 	/* Free the temp memory */
-	kfree(temp_entries);
+	vfree(temp_entries);
 }
 #endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 
