@@ -528,6 +528,11 @@ int kbase_device_early_init(struct kbase_device *kbdev)
 {
 	int err;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
+	/* This ghpm mutex lock is initialized before using pm_callback */
+	mutex_init(&kbdev->ghpm_lock);
+#endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
+
 	err = kbase_ktrace_init(kbdev);
 	if (err)
 		return err;
