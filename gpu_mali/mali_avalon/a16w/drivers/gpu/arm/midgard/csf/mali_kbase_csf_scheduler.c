@@ -42,6 +42,10 @@
 #include <mali_kbase_gpu_metrics.h>
 #include <csf/mali_kbase_csf_trace_buffer.h>
 #endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
+#if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
+#include <linux/sched.h>
+#include <uapi/linux/sched/types.h>
+#endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
 
 
@@ -82,6 +86,10 @@
 
 /* Explicitly defining this blocked_reason code as SB_WAIT for clarity */
 #define CS_STATUS_BLOCKED_ON_SB_WAIT CS_STATUS_BLOCKED_REASON_REASON_WAIT
+
+#if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
+#define KTHREAD_WAIT_TIMEOUT MAX_SCHEDULE_TIMEOUT - 1
+#endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
 static int scheduler_group_schedule(struct kbase_queue_group *group);
 static void remove_group_from_idle_wait(struct kbase_queue_group *const group);
@@ -6955,11 +6963,38 @@ static int kbase_csf_scheduler_kthread(void *data)
 {
 	struct kbase_device *const kbdev = data;
 	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
+#if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
+	long ret = 0;
+	unsigned long timeout = KTHREAD_WAIT_TIMEOUT;
+	unsigned long expire = jiffies + timeout;
+#endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
 	while (scheduler->kthread_running) {
+
+#if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
+		ret = wait_for_completion_interruptible_timeout(&scheduler->kthread_signal, timeout);
+		if (ret > 0) {
+			timeout = KTHREAD_WAIT_TIMEOUT;
+			expire = jiffies + timeout;
+		}
+		else if (ret == 0) {
+			pr_info("[%s]: TIMEOUT, continue waiting for completion\n", __func__);
+			timeout = KTHREAD_WAIT_TIMEOUT;
+			expire = jiffies + timeout;
+			continue;
+		}
+		else if ((ret == -ERESTARTSYS) && (time_before(jiffies, expire))) {
+			pr_info("[%s]: INTERRUPTED, continue waiting for completion\n", __func__);
+			timeout = expire - jiffies;
+			continue;
+		}
+
+		reinit_completion(&scheduler->kthread_signal);
+#else
 		if (wait_for_completion_interruptible(&scheduler->kthread_signal) != 0)
 			continue;
 		reinit_completion(&scheduler->kthread_signal);
+#endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
 		/*
 		 * The order in which these requests are handled is based on
@@ -7008,6 +7043,9 @@ int kbase_csf_scheduler_init(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 	u32 num_groups = kbdev->csf.global_iface.group_num;
+#if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
+	struct sched_param param = { .sched_priority = 2 };
+#endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
 	bitmap_zero(scheduler->csg_inuse_bitmap, num_groups);
 	bitmap_zero(scheduler->csg_slots_idle_mask, num_groups);
@@ -7029,6 +7067,9 @@ int kbase_csf_scheduler_init(struct kbase_device *kbdev)
 		dev_err(kbdev->dev, "Failed to spawn the GPU queue submission worker thread");
 		return -ENOMEM;
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
+	sched_setscheduler_nocheck(scheduler->gpuq_kthread, SCHED_FIFO, &param);
+#endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
 #if !IS_ENABLED(CONFIG_MALI_NO_MALI)
