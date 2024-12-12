@@ -82,6 +82,16 @@ int mtk_common_ged_dvfs_update_step_size(int low_step, int med_step, int high_st
 int mtk_common_device_init(struct kbase_device *kbdev);
 void mtk_common_device_term(struct kbase_device *kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SYSFS)
+void mtk_common_sysfs_init(struct kbase_device *kbdev);
+void mtk_common_sysfs_term(struct kbase_device *kbdev);
+#endif /* CONFIG_MALI_MTK_SYSFS */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS)
+void mtk_common_debugfs_init(struct kbase_device *kbdev);
+void mtk_common_csf_debugfs_init(struct kbase_device *kbdev);
+#endif /* CONFIG_MALI_MTK_DEBUG_FS */
+
 int mtk_platform_pm_init(struct kbase_device *kbdev);
 void mtk_platform_pm_term(struct kbase_device *kbdev);
 

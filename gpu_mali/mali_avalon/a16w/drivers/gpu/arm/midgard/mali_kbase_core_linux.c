@@ -121,6 +121,10 @@
 
 #include <mali_kbase_caps.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_DEBUG_FS */
+
 #define KERNEL_SIDE_DDK_VERSION_STRING "K:" MALI_RELEASE_NAME "(GPL)"
 
 /**
@@ -5050,6 +5054,9 @@ static struct dentry *init_debugfs(struct kbase_device *kbdev)
 #endif
 	kbase_dvfs_status_debugfs_init(kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS)
+	mtk_common_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_DEBUG_FS */
 
 	return dentry;
 }
@@ -5804,11 +5811,19 @@ int kbase_sysfs_init(struct kbase_device *kbdev)
 		sysfs_remove_group(&kbdev->dev->kobj, &kbase_attr_group);
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SYSFS)
+	mtk_common_sysfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_SYSFS */
+
 	return err;
 }
 
 void kbase_sysfs_term(struct kbase_device *kbdev)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_SYSFS)
+	mtk_common_sysfs_term(kbdev);
+#endif /* CONFIG_MALI_MTK_SYSFS */
+
 	sysfs_remove_group(&kbdev->dev->kobj, &kbase_mempool_attr_group);
 	sysfs_remove_group(&kbdev->dev->kobj, &kbase_scheduling_attr_group);
 	sysfs_remove_group(&kbdev->dev->kobj, &kbase_attr_group);
