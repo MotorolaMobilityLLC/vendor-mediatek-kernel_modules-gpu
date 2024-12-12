@@ -79,4 +79,8 @@ int kbase_csf_tiler_heap_reclaim_mgr_init(struct kbase_device *kbdev);
  */
 void kbase_csf_tiler_heap_reclaim_mgr_term(struct kbase_device *kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM)
+void mtk_force_reclaim(struct kbase_device *kbdev);
+#endif /* CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM */
+
 #endif

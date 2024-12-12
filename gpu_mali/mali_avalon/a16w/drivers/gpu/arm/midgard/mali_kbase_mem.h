@@ -1536,6 +1536,10 @@ void kbase_mmu_interrupt(struct kbase_device *kbdev, u32 irq_stat);
 void *kbase_mmu_dump(struct kbase_context *kctx, size_t nr_pages);
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MMU_DUMP)
+size_t kbasep_mmu_dump_table_size(struct kbase_device *kbdev, int level, struct kbase_mmu_table *mmu);
+#endif /* CONFIG_MALI_MTK_MMU_DUMP */
+
 /**
  * kbase_sync_now - Perform cache maintenance on a memory region
  *
