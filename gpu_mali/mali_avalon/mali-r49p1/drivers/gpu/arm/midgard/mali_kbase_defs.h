@@ -299,24 +299,33 @@ struct kbase_fault {
 #define MAX_PAGES_FOR_FREE_PGDS ((size_t)9)
 
 /* Maximum number of pointers to free PGDs */
-#define MAX_FREE_PGDS ((PAGE_SIZE / sizeof(struct page *)) * MAX_PAGES_FOR_FREE_PGDS)
+#define MAX_FREE_PGDS ((PAGE_SIZE / sizeof(phys_addr_t)) * MAX_PAGES_FOR_FREE_PGDS)
 
 /**
  * struct kbase_mmu_table  - object representing a set of GPU page tables
- * @mmu_lock:             Lock to serialize the accesses made to multi level GPU
- *                        page tables
- * @pgd:                  Physical address of the page allocated for the top
- *                        level page table of the context, this is used for
- *                        MMU HW programming as the address translation will
- *                        start from the top level page table.
- * @group_id:             A memory group ID to be passed to a platform-specific
- *                        memory group manager.
- *                        Valid range is 0..(MEMORY_GROUP_MANAGER_NR_GROUPS-1).
- * @kctx:                 If this set of MMU tables belongs to a context then
- *                        this is a back-reference to the context, otherwise
- *                        it is NULL.
- * @scratch_mem:          Scratch memory used for MMU operations, which are
- *                        serialized by the @mmu_lock.
+ * @mmu_lock:                Lock to serialize the accesses made to multi level GPU
+ *                           page tables
+ * @pgd:                     Physical address of the page allocated for the top
+ *                           level page table of the context, this is used for
+ *                           MMU HW programming as the address translation will
+ *                           start from the top level page table.
+ * @group_id:                A memory group ID to be passed to a platform-specific
+ *                           memory group manager.
+ *                           Valid range is 0..(MEMORY_GROUP_MANAGER_NR_GROUPS-1).
+ * @kctx:                    If this set of MMU tables belongs to a context then
+ *                           this is a back-reference to the context, otherwise
+ *                           it is NULL.
+ * @scratch_mem:             Scratch memory used for MMU operations, which are
+ *                           serialized by the @mmu_lock.
+ * @pgd_pages_list:          List head to link all 16K/64K pages allocated for the PGDs of mmut.
+ *                           These pages will be used to allocate 4KB PGD pages for
+ *                           the GPU page table.
+ *                           Linked with &kbase_page_metadata.data.pt_mapped.pgd_link.
+ * @last_allocated_pgd_page: Pointer to PGD page from where the last sub page
+ *                           was allocated for mmut.
+ * @last_freed_pgd_page:     Pointer to PGD page to which the last freed 4K sub page
+ *                           was returned for mmut.
+ * @num_free_pgd_sub_pages:  The total number of free 4K PGD pages in the mmut.
  */
 struct kbase_mmu_table {
 	struct mutex mmu_lock;
@@ -334,7 +343,7 @@ struct kbase_mmu_table {
 			 * @levels: Array of PGD pages, large enough to copy one PGD
 			 *          for each level of the MMU table.
 			 */
-			u64 levels[MIDGARD_MMU_BOTTOMLEVEL][PAGE_SIZE / sizeof(u64)];
+			u64 levels[MIDGARD_MMU_BOTTOMLEVEL][GPU_PAGE_SIZE / sizeof(u64)];
 		} teardown_pages;
 		/**
 		 * @free_pgds: Scratch memory used for insertion, update and teardown
@@ -343,11 +352,18 @@ struct kbase_mmu_table {
 		 */
 		struct {
 			/** @pgds: Array of pointers to PGDs to free. */
-			struct page *pgds[MAX_FREE_PGDS];
+			phys_addr_t pgds[MAX_FREE_PGDS];
 			/** @head_index: Index of first free element in the PGDs array. */
 			size_t head_index;
 		} free_pgds;
 	} scratch_mem;
+
+#if GPU_PAGES_PER_CPU_PAGE > 1
+	struct list_head pgd_pages_list;
+	struct page *last_allocated_pgd_page;
+	struct page *last_freed_pgd_page;
+	u32 num_free_pgd_sub_pages;
+#endif
 };
 
 #if MALI_USE_CSF
@@ -1122,7 +1138,8 @@ enum mmu_dbg_log_config {
  *                          KCPU queue. These structures may outlive kbase module
  *                          itself. Therefore, in such a case, a warning should be
  *                          be produced.
- * @va_region_slab:         kmem_cache (slab) for allocated kbase_va_region structures.
+ * @va_region_slab:         kmem_cache (slab) for allocated @kbase_va_region structures.
+ * @page_metadata_slab:     kmem_cache (slab) for allocated @kbase_page_metadata structures.
  * @fence_signal_timeout_enabled: Global flag for whether fence signal timeout tracking
  *                                is enabled.
  * @pcm_prioritized_process_nb: Notifier block for the Priority Control Manager
@@ -1447,6 +1464,7 @@ struct kbase_device {
 	atomic_t live_fence_metadata;
 #endif
 	struct kmem_cache *va_region_slab;
+	struct kmem_cache *page_metadata_slab;
 
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
 	/**

@@ -44,11 +44,7 @@
 
 #else
 
-#if defined(MALI_PAGE_SIZE_AGNOSTIC)
 #define LOCAL_PAGE_SHIFT (__builtin_ctz((unsigned int)sysconf(_SC_PAGESIZE)))
-#else
-#define LOCAL_PAGE_SHIFT 12
-#endif
 
 #define LOCAL_PAGE_LSB ((1ul << LOCAL_PAGE_SHIFT) - 1)
 

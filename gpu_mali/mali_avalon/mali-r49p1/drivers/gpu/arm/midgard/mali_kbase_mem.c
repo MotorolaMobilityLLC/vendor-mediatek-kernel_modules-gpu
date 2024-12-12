@@ -56,6 +56,9 @@ static DEFINE_STATIC_KEY_FALSE(large_pages_static_key);
 #define VA_REGION_SLAB_NAME_PREFIX "va-region-slab-"
 #define VA_REGION_SLAB_NAME_SIZE (DEVNAME_SIZE + sizeof(VA_REGION_SLAB_NAME_PREFIX) + 1)
 
+#define PAGE_METADATA_SLAB_NAME_PREFIX "page-metadata-slab-"
+#define PAGE_METADATA_SLAB_NAME_SIZE (DEVNAME_SIZE + sizeof(PAGE_METADATA_SLAB_NAME_PREFIX) + 1)
+
 #if MALI_JIT_PRESSURE_LIMIT_BASE
 
 /*
@@ -290,6 +293,21 @@ int kbase_mem_init(struct kbase_device *kbdev)
 	}
 
 	kbase_mem_migrate_init(kbdev);
+
+	if ((GPU_PAGES_PER_CPU_PAGE > 1) || kbase_is_page_migration_enabled()) {
+		char page_metadata_slab_name[PAGE_METADATA_SLAB_NAME_SIZE];
+
+		scnprintf(page_metadata_slab_name, PAGE_METADATA_SLAB_NAME_SIZE,
+			  PAGE_METADATA_SLAB_NAME_PREFIX "%s", kbdev->devname);
+		kbdev->page_metadata_slab = kmem_cache_create(
+			page_metadata_slab_name, sizeof(struct kbase_page_metadata), 0, 0, NULL);
+		if (kbdev->page_metadata_slab == NULL) {
+			dev_err(kbdev->dev, "Failed to create page_metadata_slab");
+			err = -ENOMEM;
+			goto page_metadata_slab_fail;
+		}
+	}
+
 	kbase_mem_pool_group_config_set_max_size(&kbdev->mem_pool_defaults,
 						 KBASE_MEM_POOL_MAX_SIZE_KCTX);
 
@@ -348,21 +366,30 @@ int kbase_mem_init(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_MGMM */
 
 		err = kbase_mem_pool_group_init(&kbdev->mem_pools, kbdev, &mem_pool_defaults, NULL);
-	}
-
+		if (likely(!err)) {
 #if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
-	kbdev->jit_reclaim_timeout_ms = JIT_RECLAIM_DEFAULT_TIMEOUT_MS;
+			kbdev->jit_reclaim_timeout_ms = JIT_RECLAIM_DEFAULT_TIMEOUT_MS;
 #endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
-	if (mtk_emicen_get_rk_cnt() == 2) {
-		kbdev->rank_boundary = MTK_EMI_DRAM_OFFSET + mtk_emicen_get_rk_size(0);
-		kbdev->pt_clustering_enable = true;
-	} else {
-		kbdev->rank_boundary = MTK_EMI_DRAM_OFFSET;
-		kbdev->pt_clustering_enable = false;
-	}
+			if (mtk_emicen_get_rk_cnt() == 2) {
+				kbdev->rank_boundary = MTK_EMI_DRAM_OFFSET + mtk_emicen_get_rk_size(0);
+				kbdev->pt_clustering_enable = true;
+			} else {
+				kbdev->rank_boundary = MTK_EMI_DRAM_OFFSET;
+				kbdev->pt_clustering_enable = false;
+			}
 #endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
+			return err;
+		}
+	}
+
+	kmem_cache_destroy(kbdev->page_metadata_slab);
+	kbdev->page_metadata_slab = NULL;
+page_metadata_slab_fail:
+	kbase_mem_migrate_term(kbdev);
+	kmem_cache_destroy(kbdev->va_region_slab);
+	kbdev->va_region_slab = NULL;
 
 	return err;
 }
@@ -389,6 +416,8 @@ void kbase_mem_term(struct kbase_device *kbdev)
 
 	kbase_mem_migrate_term(kbdev);
 
+	kmem_cache_destroy(kbdev->page_metadata_slab);
+	kbdev->page_metadata_slab = NULL;
 	kmem_cache_destroy(kbdev->va_region_slab);
 	kbdev->va_region_slab = NULL;
 
