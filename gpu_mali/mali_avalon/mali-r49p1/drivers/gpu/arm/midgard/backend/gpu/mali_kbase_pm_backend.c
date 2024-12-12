@@ -1272,7 +1272,8 @@ int kbase_pm_handle_runtime_suspend(struct kbase_device *kbdev)
 		kbase_pm_debug_status(kbdev);
 		dev_err(kbdev->dev, "MCU SM in unexpected state %d on runtime suspend", mcu_state);
 #else
-		dev_WARN_ONCE(kbdev->dev, 1, "MCU SM in unexpected state %d on runtime suspend", mcu_state);
+		dev_WARN_ONCE(kbdev->dev, 1, "MCU SM in unexpected state %d on runtime suspend",
+			      mcu_state);
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 		ret = -EBUSY;
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);

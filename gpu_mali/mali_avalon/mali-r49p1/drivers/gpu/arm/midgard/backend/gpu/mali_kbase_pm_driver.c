@@ -161,6 +161,7 @@ bool kbase_pm_is_mcu_desired(struct kbase_device *kbdev)
 	/* Check if policy changing transition needs MCU to be off. */
 	if (unlikely(kbdev->pm.backend.policy_change_clamp_state_to_off))
 		return false;
+
 	/* Check if Scheduler requires MCU to be ON */
 	if (kbdev->pm.backend.mcu_desired)
 		return true;
