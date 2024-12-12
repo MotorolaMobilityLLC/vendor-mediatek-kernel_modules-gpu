@@ -26,6 +26,11 @@
 #include <linux/delay.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+#include <platform/mtk_platform_common.h>
+#include "mali_kbase_csf_db_validation.h"
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
+
 /* Wait time to be used cumulatively for all the CSG slots.
  * Since scheduler lock is held when STATUS_UPDATE request is sent, there won't be
  * any other Host request pending on the FW side and usually FW would be responsive
@@ -631,13 +636,28 @@ void kbase_csf_csg_update_status(struct kbase_device *kbdev)
 		return;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	for_each_set_bit(csg_nr, used_csgs, max_csg_slots) {
+		if (mtk_common_whitebox_missing_doorbell_enable())
+			kbase_csf_db_valid_pend_event(DOORBELL_CSG_STATUS_UPDATE(csg_nr));
+		kbase_csf_fw_io_group_write_mask(&kbdev->csf.fw_io, csg_nr, CSG_REQ,
+						 ~kbase_csf_fw_io_group_read(&kbdev->csf.fw_io,
+									     csg_nr, CSG_ACK),
+						 CSG_REQ_STATUS_UPDATE_MASK);
+	}
+#else
 	for_each_set_bit(csg_nr, used_csgs, max_csg_slots)
 		kbase_csf_fw_io_group_write_mask(&kbdev->csf.fw_io, csg_nr, CSG_REQ,
 						 ~kbase_csf_fw_io_group_read(&kbdev->csf.fw_io,
 									     csg_nr, CSG_ACK),
 						 CSG_REQ_STATUS_UPDATE_MASK);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
 	BUILD_BUG_ON(MAX_SUPPORTED_CSGS > (sizeof(used_csgs[0]) * BITS_PER_BYTE));
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	if (mtk_common_whitebox_missing_doorbell_enable())
+		kbase_csf_db_valid_flush_pending_events();
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 	kbase_csf_ring_csg_slots_doorbell(kbdev, used_csgs[0]);
 	kbase_csf_fw_io_close(&kbdev->csf.fw_io, fw_io_flags);
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);

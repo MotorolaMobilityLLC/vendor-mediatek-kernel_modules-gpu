@@ -49,6 +49,11 @@
 #include <platform/mtk_platform_common/mtk_platform_debug_dump_queue_data.h>
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+#include <platform/mtk_platform_common.h>
+#include <csf/mali_kbase_csf_db_validation.h>
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
+
 #define CS_REQ_EXCEPTION_MASK (CS_REQ_FAULT_MASK | CS_REQ_FATAL_MASK)
 #define CS_ACK_EXCEPTION_MASK (CS_ACK_FAULT_MASK | CS_ACK_FATAL_MASK)
 
@@ -2591,6 +2596,10 @@ static void handle_fault_event(struct kbase_queue *const queue, u32 group_id, co
 	 * to enter into recoverable state.
 	 */
 	if (likely(!kbase_debug_csf_fault_notify(kbdev, queue->kctx, DF_CS_FAULT))) {
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+		if (mtk_common_whitebox_missing_doorbell_enable())
+			kbase_csf_db_valid_push_event(DOORBELL_CSI_FAULT(queue->group->csg_nr,  queue->csi_index));
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 		kbase_csf_fw_io_stream_write_mask(&kbdev->csf.fw_io, group_id, stream_id, CS_REQ,
 						  cs_ack, CS_REQ_FAULT_MASK);
 		kbase_csf_ring_cs_kernel_doorbell(kbdev, queue->csi_index, group_id, true);
@@ -2714,6 +2723,10 @@ static void cs_error_worker(struct work_struct *const data)
 				 * if it hasn't yet done.
 				 */
 				if ((cs_ack & CS_ACK_FAULT_MASK) != (cs_req & CS_REQ_FAULT_MASK)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+					if (mtk_common_whitebox_missing_doorbell_enable())
+						kbase_csf_db_valid_push_event(DOORBELL_CSI_FAULT(slot_num, queue->csi_index));
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 					kbase_csf_fw_io_stream_write_mask(
 						&kbdev->csf.fw_io, slot_num, queue->csi_index,
 						CS_REQ, cs_ack, CS_REQ_FAULT_MASK);

@@ -68,6 +68,9 @@ static struct proc_dir_entry *proc_root;
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT)
 #include <platform/mtk_platform_common/mtk_platform_whitebox_memory_footprint.h>
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT */
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+#include <platform/mtk_platform_common/mtk_platform_whitebox_missing_doorbell.h>
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
 static bool mfg_powered;
 static DEFINE_MUTEX(mfg_pm_lock);
@@ -131,6 +134,14 @@ extern unsigned int mcu_change_count;
 extern unsigned int l2_change_count;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 #endif /* CONFIG_MALI_MTK_DIAGNOSIS_MODE */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+bool mtk_common_whitebox_missing_doorbell_enable(void)
+{
+	return mtk_whitebox_missing_doorbell_enable();
+}
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
+
 void mtk_common_debug(enum mtk_common_debug_types type, struct kbase_context *kctx, u64 hook_point)
 {
 	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
@@ -635,6 +646,10 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT)
 	mtk_whitebox_memory_footprint_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	mtk_whitebox_missing_doorbell_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 }
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
@@ -725,6 +740,9 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	kbdev->scheduler_kthread_exec_begin_time = ktime_get();
 	kbdev->scheduler_kthread_exec_end_time = ktime_get();
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	mtk_whitebox_missing_doorbell_init();
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
 	return 0;
 }

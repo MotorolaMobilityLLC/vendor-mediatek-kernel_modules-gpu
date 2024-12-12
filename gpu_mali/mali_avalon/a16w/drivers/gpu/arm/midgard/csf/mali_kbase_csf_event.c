@@ -21,6 +21,10 @@
 #include <mali_kbase.h>
 #include "mali_kbase_csf_event.h"
 #include <mali_kbase_io.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+#include <platform/mtk_platform_common.h>
+#include <csf/mali_kbase_csf_db_validation.h>
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
 /**
  * struct kbase_csf_event_cb - CSF event callback.
@@ -102,6 +106,10 @@ static void sync_update_notify_gpu(struct kbase_context *kctx)
 
 
 	if (can_notify_gpu) {
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+		if (mtk_common_whitebox_missing_doorbell_enable())
+			kbase_csf_db_valid_push_event(DOORBELL_GLB_SYNC_NOTIFY);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 		kbase_csf_ring_doorbell(kctx->kbdev, CSF_KERNEL_DOORBELL_NR);
 		KBASE_KTRACE_ADD(kctx->kbdev, CSF_SYNC_UPDATE_NOTIFY_GPU_EVENT, kctx, 0u);
 	}

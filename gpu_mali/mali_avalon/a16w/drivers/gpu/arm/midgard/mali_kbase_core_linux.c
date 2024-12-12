@@ -61,6 +61,9 @@
 #include "csf/mali_kbase_csf_csg_debugfs.h"
 #include "csf/mali_kbase_csf_cpu_queue.h"
 #include "csf/mali_kbase_csf_event.h"
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+#include "csf/mali_kbase_csf_db_validation.h"
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 #include "csf/mali_kbase_csf_ne_debugfs.h"
 #endif
 #include "arbiter/mali_kbase_arbiter_pm.h"
@@ -5718,6 +5721,10 @@ static struct dentry *debugfs_ctx_defaults_init(struct kbase_device *const kbdev
 	return dentry;
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+void kbase_csf_db_valid_test_debugfs_init(struct kbase_device *kbdev);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
+
 /**
  * init_debugfs - Create device-wide debugfs directories and files for the Mali driver
  * @kbdev: An instance of the GPU platform device, allocated from the probe method of the driver.
@@ -5869,6 +5876,13 @@ static struct dentry *init_debugfs(struct kbase_device *kbdev)
 	kbase_timeline_io_debugfs_init(kbdev);
 #endif
 	kbase_dvfs_status_debugfs_init(kbdev);
+
+#if MALI_USE_CSF
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	kbase_csf_db_valid_debugfs_init(kbdev);
+	kbase_csf_db_valid_test_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
+#endif /* MALI_USE_CSF */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS)
 	mtk_common_debugfs_init(kbdev);

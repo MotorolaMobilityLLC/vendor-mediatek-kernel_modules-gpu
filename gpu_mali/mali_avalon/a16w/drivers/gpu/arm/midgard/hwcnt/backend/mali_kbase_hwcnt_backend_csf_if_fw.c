@@ -35,6 +35,10 @@
 #include "mali_kbase_hwaccess_time.h"
 #include "backend/gpu/mali_kbase_clk_rate_trace_mgr.h"
 #include <backend/gpu/mali_kbase_model_linux.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+#include <platform/mtk_platform_common.h>
+#include "csf/mali_kbase_csf_db_validation.h"
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
 #include <linux/log2.h>
 #include "mali_kbase_ccswe.h"
@@ -686,6 +690,10 @@ kbasep_hwcnt_backend_csf_if_fw_dump_enable(struct kbase_hwcnt_backend_csf_if_ctx
 					  GLB_ACK_IRQ_MASK_PRFCNT_ENABLE_MASK);
 
 	/* Enable the HWC */
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	if (mtk_common_whitebox_missing_doorbell_enable())
+		kbase_csf_db_valid_push_event(DOORBELL_GLB_PRFCNT_ENABLE);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 	kbase_csf_fw_io_global_write_mask(&kbdev->csf.fw_io, GLB_REQ,
 					  (1 << GLB_REQ_PRFCNT_ENABLE_SHIFT),
 					  GLB_REQ_PRFCNT_ENABLE_MASK);
@@ -709,6 +717,10 @@ static void kbasep_hwcnt_backend_csf_if_fw_dump_disable(struct kbase_hwcnt_backe
 	kbdev = fw_ctx->kbdev;
 
 	/* Disable the HWC */
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	if (mtk_common_whitebox_missing_doorbell_enable())
+		kbase_csf_db_valid_push_event(DOORBELL_GLB_PRFCNT_ENABLE);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 	kbdev->csf.hwcnt.enable_pending = true;
 	kbase_csf_fw_io_open_force(&kbdev->csf.fw_io, &fw_io_flags);
 	kbase_csf_fw_io_global_write_mask(&kbdev->csf.fw_io, GLB_REQ, 0,
@@ -746,6 +758,10 @@ static void kbasep_hwcnt_backend_csf_if_fw_dump_request(struct kbase_hwcnt_backe
 	kbdev = fw_ctx->kbdev;
 
 	/* Trigger dumping */
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+	if (mtk_common_whitebox_missing_doorbell_enable())
+		kbase_csf_db_valid_push_event(DOORBELL_GLB_PRFCNT_SAMPLE);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 	kbdev->csf.hwcnt.request_pending = true;
 	kbase_csf_fw_io_open_force(&kbdev->csf.fw_io, &fw_io_flags);
 	glb_req = kbase_csf_fw_io_global_input_read(&kbdev->csf.fw_io, GLB_REQ);

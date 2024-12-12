@@ -107,4 +107,8 @@ bool mtk_common_whitebox_directly_hard_reset_enable(void);
 int mtk_platform_pm_init(struct kbase_device *kbdev);
 void mtk_platform_pm_term(struct kbase_device *kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+bool mtk_common_whitebox_missing_doorbell_enable(void);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
+
 #endif /* __MTK_PLATFORM_COMMON_H__ */
