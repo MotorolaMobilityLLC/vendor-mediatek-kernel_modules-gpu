@@ -42,6 +42,10 @@
 #include <mali_kbase_gpu_metrics.h>
 #include <csf/mali_kbase_csf_trace_buffer.h>
 #endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) || IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST)
+#include <ged_dvfs.h>
+#include <ged_notify_sw_vsync.h>
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY || CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST*/
 #if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
 #include <linux/sched.h>
 #include <uapi/linux/sched/types.h>
@@ -6760,6 +6764,14 @@ static void check_sync_update_in_sleep_mode(struct kbase_device *kbdev)
 			/* SYNC_UPDATE event shall invalidate GPU idle event */
 			atomic_set(&scheduler->gpu_no_longer_idle, true);
 			scheduler_wakeup(kbdev, true);
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST)
+			if (ged_gpu_power_stress_test_enable()==2){
+				if (kbase_csf_scheduler_wait_mcu_active(kbdev)) {
+					dev_warn(kbdev->dev,
+						"[GPU_IDLE_STRESS_TEST] Wait for MCU active failed");
+				}
+			}
+#endif /* CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST */
 			return;
 		}
 	}
@@ -7018,6 +7030,47 @@ static void handle_pending_queue_kicks(struct kbase_device *kbdev)
 	} while (queue != NULL);
 }
 
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST)
+/**
+ * wait_for_mcu_sleep_after_idle_stress_test() - Wait for MCU sleep request to
+ *                                    complete after idle stress test flow
+ *
+ * @kbdev:    Pointer to the GPU device
+ *
+ */
+static void wait_for_mcu_sleep_after_idle_stress_test(struct kbase_device *kbdev)
+{
+	long timeout = kbase_csf_timeout_in_jiffies(kbase_get_timeout_ms(kbdev, CSF_PM_TIMEOUT));
+	bool can_wait_for_mcu_sleep;
+	unsigned long flags;
+
+	lockdep_assert_held(&kbdev->csf.scheduler.lock);
+	if (WARN_ON_ONCE(kbdev->csf.scheduler.state != SCHED_SLEEPING))
+		return;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	/* If exit from sleep state has already been triggered then there is no need
+	 * to wait, as scheduling is anyways going to be resumed and also MCU would
+	 * have already transitioned to the sleep state.
+	 * Also there is no need to wait if the Scheduler's PM refcount is not zero,
+	 * which implies that MCU needs to be turned on.
+	 */
+	can_wait_for_mcu_sleep = !kbdev->pm.backend.exit_gpu_sleep_mode &&
+				 !kbdev->pm.active_count;
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+	if (!can_wait_for_mcu_sleep)
+		return;
+
+	/* Wait until MCU enters sleep state or there is a pending GPU reset */
+	if (!wait_event_timeout(kbdev->pm.backend.gpu_in_desired_state_wait,
+				kbdev->pm.backend.mcu_state == KBASE_MCU_IN_SLEEP || kbdev->pm.backend.mcu_state == KBASE_MCU_OFF ||
+					!kbase_reset_gpu_is_not_pending(kbdev),
+				timeout))
+		dev_warn(kbdev->dev, "Wait for MCU sleep timed out");
+}
+#endif /* CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST */
+
 static int kbase_csf_scheduler_kthread(void *data)
 {
 	struct kbase_device *const kbdev = data;
@@ -7052,6 +7105,43 @@ static int kbase_csf_scheduler_kthread(void *data)
 #else
 		if (wait_for_completion_interruptible(&scheduler->kthread_signal) != 0)
 			continue;
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST)
+#if IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+		update_api_sync_flag(kbdev);
+
+		if ((ged_gpu_power_stress_test_enable() == 1) ||
+			(kbdev->api_sync_update_in_progress == true)) {
+#else
+		if (ged_gpu_power_stress_test_enable() == 1) {
+#endif
+			struct kbase_pm_backend_data *backend = &kbdev->pm.backend;
+
+			if(backend->mcu_state == KBASE_MCU_ON){
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
+				/* Drain pending GPU idle works */
+				atomic_set(&scheduler->gpu_no_longer_idle, false);
+				atomic_inc(&scheduler->pending_gpu_idle_work);
+				while (atomic_read(&scheduler->pending_gpu_idle_work) > 0)
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+				{
+					MALI_KTHREAD_WORK_START(scheduler, "gpu_idle_worker");
+					gpu_idle_worker(kbdev);
+					MALI_KTHREAD_WORK_END(scheduler, "gpu_idle_worker");
+				}
+#else
+				gpu_idle_worker(kbdev);
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
+				if (kbdev->csf.scheduler.state == SCHED_SLEEPING)
+				{
+					wait_for_mcu_sleep_after_idle_stress_test(kbdev);
+					kbdev->pm.backend.exit_gpu_sleep_mode = true;
+					kbase_csf_scheduler_invoke_tick(kbdev);
+				}
+			}
+
+		}
+#endif
 		reinit_completion(&scheduler->kthread_signal);
 #endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
