@@ -1495,6 +1495,10 @@ struct kbase_device {
 	u32 mmu_dbg_config_value;
 #endif /* CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_RESET_DEBUG)
+	u32 reset_exception_mask;
+#endif /* CONFIG_MALI_MTK_GPU_RESET_DEBUG */
+
 #if MALI_USE_CSF && IS_ENABLED(CONFIG_SYNC_FILE)
 	atomic_t live_fence_metadata;
 #endif
