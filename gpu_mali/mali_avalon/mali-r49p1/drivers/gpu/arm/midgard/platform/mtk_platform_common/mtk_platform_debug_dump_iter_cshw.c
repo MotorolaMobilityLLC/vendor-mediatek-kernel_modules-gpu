@@ -101,7 +101,7 @@ static void dump_iterator_registers(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"Compute  CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x QUEUE_COUNT %x",
+			"Compute  CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x QUEUE_COUNT %x\n",
 			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x0)),
 			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x4)),
 			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x8)),
@@ -112,7 +112,7 @@ static void dump_iterator_registers(struct kbase_device *kbdev)
 			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0xE0)),
 			kbase_reg_read(kbdev, CSHW_IT_COMP_REG(0x20)));
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"Fragment CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x QUEUE_COUNT %x",
+			"Fragment CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x QUEUE_COUNT %x\n",
 			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x0)),
 			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x4)),
 			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x8)),
@@ -123,7 +123,7 @@ static void dump_iterator_registers(struct kbase_device *kbdev)
 			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0xE0)),
 			kbase_reg_read(kbdev, CSHW_IT_FRAG_REG(0x20)));
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"Tiler    CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x QUEUE_COUNT %x",
+			"Tiler    CTRL: %x STATUS: %x JASID: %u IRQ_RAW: %8x IRQ_STATUS: %8x EP_EVT_STATUS: %x BLOCKED_SB_ENTRY: %8x FAULT_STATUS %x QUEUE_COUNT %x\n",
 			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0x0)),
 			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0x4)),
 			kbase_reg_read(kbdev, CSHW_IT_TILER_REG(0x8)),
