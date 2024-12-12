@@ -284,6 +284,13 @@ check_padding_KBASE_IOCTL_SET_LIMITED_CORE_COUNT(struct kbase_ioctl_set_limited_
 	return 0;
 }
 
+/* CONFIG_MALI_MTK_FENCE_DEBUG */
+static inline int
+check_padding_KBASE_IOCTL_INTERNAL_FENCE_WAIT(struct kbase_ioctl_internal_fence_wait *p)
+{
+	return 0;
+}
+
 static inline int
 check_padding_KBASE_IOCTL_KINSTR_PRFCNT_ENUM_INFO(struct kbase_ioctl_kinstr_prfcnt_enum_info *p)
 {

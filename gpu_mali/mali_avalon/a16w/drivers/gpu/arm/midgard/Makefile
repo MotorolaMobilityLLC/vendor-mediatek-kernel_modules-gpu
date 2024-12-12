@@ -36,6 +36,7 @@ ifeq ($(BUILD_RULE),OOT)
         # *** MTK CONFIG ***
         CONFIG_MALI_MTK_BRINGUP := n
         CONFIG_MALI_MTK_LOG_BUFFER := y
+        CONFIG_MALI_MTK_FENCE_DEBUG := y
         CONFIG_MALI_MTK_SYSFS := y
         CONFIG_MALI_MTK_PROC_FS := y
         CONFIG_MALI_MTK_RESET_RELOAD_ON_FW := y
@@ -72,6 +73,7 @@ ifeq ($(BUILD_RULE),OOT)
         # *** MTK CONFIG ***
         CONFIG_MALI_MTK_BRINGUP := n
         CONFIG_MALI_MTK_LOG_BUFFER := y
+        CONFIG_MALI_MTK_FENCE_DEBUG := n
         CONFIG_MALI_MTK_SYSFS := y
         CONFIG_MALI_MTK_PROC_FS := y
         CONFIG_MALI_MTK_RESET_RELOAD_ON_FW := n

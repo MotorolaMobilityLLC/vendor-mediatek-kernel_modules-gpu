@@ -27,7 +27,12 @@
 #include <linux/version_compat_defs.h>
 #include <linux/vmalloc.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+/* Because the ARM dump is reduced to KCPU queue dump only */
+#define KBASEP_PRINTER_BUFFER_MAX_SIZE (1 * PAGE_SIZE)
+#else /* CONFIG_MALI_MTK_FENCE_DEBUG */
 #define KBASEP_PRINTER_BUFFER_MAX_SIZE (2 * PAGE_SIZE)
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 #define KBASEP_PRINT_FORMAT_BUFFER_MAX_SIZE 256
 
