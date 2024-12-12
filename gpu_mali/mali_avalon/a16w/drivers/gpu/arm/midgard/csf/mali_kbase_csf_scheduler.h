@@ -25,6 +25,11 @@
 #include "mali_kbase_csf.h"
 #include "mali_kbase_csf_event.h"
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+#include <ged_dvfs.h>
+#include <backend/gpu/mali_kbase_pm_internal.h>
+bool mcu_in_sleep(struct kbase_device *kbdev);
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 /**
  * kbase_csf_scheduler_queue_start() - Enable the running of GPU command queue
  *                                     on firmware.
@@ -548,6 +553,35 @@ static inline void kbase_csf_scheduler_invoke_tick(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+	if (ged_gpu_apo_support()) {
+		hrtimer_cancel(&scheduler->apo_idle_timer);
+
+		ged_get_predict_active_time();
+	}
+
+	if (ged_get_apo_legacy() == GED_APO_LEGACY_VER2) {
+		/* If Bypass enqueue for next idle: set flag */
+		if (kbdev->csf.scheduler.apo_support &&
+			kbdev->csf.scheduler.state != SCHED_SLEEPING &&
+			ged_gpu_apo_notify()) {
+			if (!mcu_in_sleep(kbdev))
+				kbase_pm_enable_db_mirror_interrupt(kbdev);
+			if (!ged_gpu_predict_apo_notify()) {
+				if (!mcu_in_sleep(kbdev))
+					kbase_pm_disable_db_mirror_interrupt(kbdev);
+				set_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE, &kbdev->pm.backend.gpu_sleep_allowed);
+			} else /* skip */
+				clear_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE, &kbdev->pm.backend.gpu_sleep_allowed);
+		/* Handle enqueue */
+		} else {
+			ged_check_predict_power_autosuspend(); /* for autosuspend_delay setting */
+			set_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE, &kbdev->pm.backend.gpu_sleep_allowed);
+		}
+	}
+
+
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 	KBASE_KTRACE_ADD(kbdev, SCHEDULER_TICK_INVOKE, NULL, 0u);
 	if (atomic_cmpxchg(&scheduler->pending_tick_work, false, true) == false)
 		complete(&scheduler->kthread_signal);

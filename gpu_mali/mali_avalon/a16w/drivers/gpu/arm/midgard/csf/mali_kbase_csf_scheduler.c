@@ -116,7 +116,25 @@ static int suspend_active_groups_on_powerdown(struct kbase_device *kbdev, bool s
 static void schedule_in_cycle(struct kbase_queue_group *group, bool force);
 static bool queue_group_scheduled_locked(struct kbase_queue_group *group);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+static void enqueue_gpu_idle_work(struct kbase_csf_scheduler *const scheduler);
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
+
 #define kctx_as_enabled(kctx) (!kbase_ctx_flag(kctx, KCTX_AS_DISABLED_ON_FAULT))
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+bool mcu_in_sleep(struct kbase_device *kbdev)
+{
+	bool db_notif_disabled = false;
+
+	if (likely(test_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE,
+		&kbdev->pm.backend.gpu_sleep_allowed)))
+		db_notif_disabled =
+			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_CONTROL)) &
+				MCU_CNTRL_DOORBELL_DISABLE_MASK;
+
+	return db_notif_disabled;
+}
+#endif
 
 bool is_gpu_level_suspend_supported(struct kbase_device *const kbdev)
 {
@@ -670,6 +688,21 @@ static enum hrtimer_restart tick_timer_callback(struct hrtimer *timer)
 	return HRTIMER_NORESTART;
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+static enum hrtimer_restart apo_idle_timer_callback(struct hrtimer *timer)
+{
+	struct kbase_device *kbdev =
+		container_of(timer, struct kbase_device, csf.scheduler.apo_idle_timer);
+
+	ged_gpu_apo_reset();
+	ged_gpu_predict_apo_reset();
+
+	enqueue_gpu_idle_work(&kbdev->csf.scheduler);
+
+	return HRTIMER_NORESTART;
+}
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
+
 static void release_doorbell(struct kbase_device *kbdev, int doorbell_nr)
 {
 	WARN_ON(doorbell_nr >= kbdev->csf.num_doorbells);
@@ -833,6 +866,9 @@ void kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 	bool can_suspend_on_idle;
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+	ktime_t expiry_time;
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 	lockdep_assert_held(&scheduler->interrupt_lock);
@@ -854,7 +890,49 @@ void kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev)
 		 * finished. It's queued before to reduce the time it takes till execution
 		 * but it'll eventually be blocked by the scheduler->interrupt_lock.
 		 */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+
+	if (ged_get_apo_legacy() == GED_APO_LEGACY_VER2) {
+		if (mcu_in_sleep(kbdev))
+			enqueue_gpu_idle_work(scheduler);
+		else { /* skip */
+			kbase_pm_enable_db_mirror_interrupt(kbdev); /* keep get timestamp from idle received */
+			if (!hrtimer_active(&scheduler->apo_idle_timer)) {
+					expiry_time = HR_TIMER_DELAY_NSEC(
+						ged_get_apo_wakeup_ns());
+					hrtimer_start(&scheduler->apo_idle_timer,
+						expiry_time,
+						HRTIMER_MODE_REL);
+			}
+		}
+	} else {
+		/* Bypass enqueue */
+		if (kbdev->csf.scheduler.apo_support &&
+			kbdev->csf.scheduler.state != SCHED_SLEEPING &&
+			ged_gpu_apo_notify()) {
+			kbase_pm_enable_db_mirror_interrupt(kbdev);
+			if (!ged_gpu_predict_apo_notify()) {
+				kbase_pm_disable_db_mirror_interrupt(kbdev);
+				enqueue_gpu_idle_work(scheduler);
+			} else {
+				if (!hrtimer_active(&scheduler->apo_idle_timer)) {
+					expiry_time = HR_TIMER_DELAY_NSEC(
+						ged_get_apo_wakeup_ns());
+					hrtimer_start(&scheduler->apo_idle_timer,
+						expiry_time,
+						HRTIMER_MODE_REL);
+				}
+			}
+		/* Handle enqueue */
+		} else {
+			ged_check_predict_power_autosuspend(); // call for autosuspend_delay setting
+			enqueue_gpu_idle_work(scheduler);
+		}
+	}
+#else
 		enqueue_gpu_idle_work(scheduler);
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 	}
 
 	/* The extract offsets are unused in fast GPU idle handling */
