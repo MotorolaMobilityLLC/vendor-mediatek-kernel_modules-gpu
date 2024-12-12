@@ -38,6 +38,10 @@
 #include <mali_kbase_hwaccess_jm.h>
 #endif /* !MALI_USE_CSF */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) || IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MCU)
+#include <ged_dvfs.h>
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY || CONFIG_MALI_MTK_WHITEBOX_MCU */
+
 #include <mali_kbase_reset_gpu.h>
 #include <mali_kbase_ctx_sched.h>
 #include <hwcnt/mali_kbase_hwcnt_context.h>
@@ -1548,6 +1552,19 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			break;
 
 		case KBASE_MCU_ON_HWCNT_DISABLE:
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MCU)
+			if (ged_get_whitebox_power_test_support()) {
+				if (ged_get_whitebox_power_test_case() == 6)
+				{
+					ged_get_whitebox_power_test_case_clear();
+					dev_err(kbdev->dev, "whitebox: 6-->3 (%d)\n",
+							kbase_pm_is_mcu_desired(kbdev));
+					backend->mcu_state = KBASE_MCU_ON_HWCNT_ENABLE;
+
+					break;
+				}
+			}
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MCU */
 			if (kbase_pm_is_mcu_desired(kbdev)) {
 				backend->mcu_state = KBASE_MCU_ON_HWCNT_ENABLE;
 				break;
@@ -1602,6 +1619,19 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 #endif /* IS_ENABLED(CONFIG_MALI_CORESIGHT) */
 
 		case KBASE_MCU_ON_HALT:
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MCU)
+			if (ged_get_whitebox_power_test_support()) {
+				if (ged_get_whitebox_power_test_case() == 7)
+				{
+					ged_get_whitebox_power_test_case_clear();
+					dev_err(kbdev->dev, "whitebox: 7-->3 (%d)\n",
+							kbase_pm_is_mcu_desired(kbdev));
+					backend->mcu_state = KBASE_MCU_ON_HWCNT_ENABLE;
+
+					break;
+				}
+			}
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MCU */
 			if (!kbase_pm_is_mcu_desired(kbdev)) {
 				/* Ensure that the MCU would be active before
 				 * sending the request, in case it has not
@@ -1660,6 +1690,19 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			break;
 #ifdef KBASE_PM_RUNTIME
 		case KBASE_MCU_ON_SLEEP_INITIATE:
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MCU)
+			if (ged_get_whitebox_power_test_support()) {
+				if (ged_get_whitebox_power_test_case() == 20)
+				{
+					ged_get_whitebox_power_test_case_clear();
+					dev_err(kbdev->dev, "whitebox: 20-->3 (%d)\n",
+							kbase_pm_is_mcu_desired(kbdev));
+					backend->mcu_state = KBASE_MCU_ON_HWCNT_ENABLE;
+
+					break;
+				}
+			}
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MCU */
 			if (!kbase_pm_is_mcu_desired(kbdev))
 				handle_sleep_initiate_state(kbdev);
 			else
@@ -1756,8 +1799,12 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			mcu_state_array[mcu_history_idx] = (u8)(backend->mcu_state & 0xFF);
 			mcu_history_idx = (mcu_history_idx + 1) % MAX_STATES_NUM;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MCU)
+			/* WB power transition timeout test case */
+			if (ged_get_whitebox_power_test_support())
+				ged_set_whitebox_power_state_store(prev_state, backend->mcu_state);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MCU */
 		}
-
 	} while (backend->mcu_state != prev_state);
 
 	return 0;
