@@ -284,8 +284,13 @@ static struct kbase_csf_tiler_heap_chunk *alloc_new_chunk(struct kbase_context *
 	}
 
 	/* Allocate GPU memory for the new chunk. */
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	chunk->region =
+		kbase_mem_alloc(kctx, nr_pages, nr_pages, 0, &flags, &chunk->gpu_va, mmu_sync_info, KBASE_MEM_TILER);
+#else
 	chunk->region =
 		kbase_mem_alloc(kctx, nr_pages, nr_pages, 0, &flags, &chunk->gpu_va, mmu_sync_info);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 	if (unlikely(!chunk->region)) {
 		dev_err(kctx->kbdev->dev, "Failed to allocate a tiler heap chunk!\n");

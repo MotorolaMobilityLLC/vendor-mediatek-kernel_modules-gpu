@@ -303,9 +303,15 @@ void kbase_phy_alloc_mapping_put(struct kbase_context *kctx, struct kbase_vmap_s
 	 */
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages, u64 commit_pages,
+					u64 extension, base_mem_alloc_flags *flags, u64 *gpu_va,
+					enum kbase_caller_mmu_sync_info mmu_sync_info, enum kbase_memory_category category)
+#else
 struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages, u64 commit_pages,
 					u64 extension, base_mem_alloc_flags *flags, u64 *gpu_va,
 					enum kbase_caller_mmu_sync_info mmu_sync_info)
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 {
 	struct kbase_va_region *reg;
 	enum kbase_memory_zone zone;
@@ -439,6 +445,9 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 		reg->extension = 0;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	reg->gpu_alloc->category = reg->cpu_alloc->category = ((*flags & BASE_MEM_GROW_ON_GPF) && (KBASE_MEM_JIT != category)) ? KBASE_MEM_GROW : category;
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 	if (kbase_alloc_phy_pages(reg, va_pages, commit_pages) != 0) {
 		dev_warn(dev, "Failed to allocate %lld pages (va_pages=%lld)",
 			 (unsigned long long)commit_pages, (unsigned long long)va_pages);
@@ -914,6 +923,9 @@ void kbase_mem_evictable_mark_reclaim(struct kbase_mem_phy_alloc *alloc)
 
 	KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
 	kbase_trace_gpu_mem_usage_dec(kbdev, kctx, alloc->nents);
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kbase_trace_free_pages(kbdev->id, kctx, alloc->nents, (size_t)alloc->pages, alloc->category);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 }
 
 /**
@@ -936,6 +948,9 @@ static void kbase_mem_evictable_unmark_reclaim(struct kbase_mem_phy_alloc *alloc
 
 	KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
 	kbase_trace_gpu_mem_usage_inc(kbdev, kctx, alloc->nents);
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kbase_trace_alloc_pages(kbdev->id, kctx, alloc->nents, (size_t)alloc->pages, alloc->category);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 }
 
 void kbase_mem_evictable_make(struct kbase_mem_phy_alloc *gpu_alloc)

@@ -357,6 +357,9 @@ struct kbase_mem_phy_alloc {
 	size_t evicted;
 	struct kbase_va_region *reg;
 	enum kbase_memory_type type;
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	enum kbase_memory_category category;
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 	struct kbase_vmap_struct *permanent_map;
 	u8 properties;
 	u8 group_id;
@@ -940,6 +943,9 @@ static inline struct kbase_mem_phy_alloc *kbase_alloc_create(struct kbase_contex
 	}
 	INIT_LIST_HEAD(&alloc->mappings);
 	alloc->type = type;
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	alloc->category = KBASE_MEM_UNKNOWN;
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 	alloc->group_id = group_id;
 
 	if (type == KBASE_MEM_TYPE_IMPORTED_USER_BUF)
@@ -2608,5 +2614,11 @@ static inline base_mem_alloc_flags kbase_mem_group_id_set(int id)
 }
 
 bool kbase_is_large_pages_enabled(void);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+void kbase_trace_alloc_pages(int32_t gpu_id, struct kbase_context *kctx, uint64_t size, uint64_t gpu_addr, enum kbase_memory_category category);
+void kbase_trace_free_pages(int32_t gpu_id, struct kbase_context *kctx, uint64_t size, uint64_t gpu_addr, enum kbase_memory_category category);
+void kbase_trace_update_pages(int32_t gpu_id, struct kbase_context *kctx, uint64_t size_a, uint64_t size_b, uint64_t gpu_addr, enum kbase_memory_category category);
+ #endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 #endif /* _KBASE_MEM_H_ */

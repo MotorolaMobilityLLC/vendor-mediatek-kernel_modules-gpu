@@ -1068,8 +1068,13 @@ static int kbase_api_mem_alloc_ex(struct kbase_context *kctx,
 		flags |= (BASE_MEM_SAME_VA | BASE_MEM_CACHED_CPU | BASE_MEM_COHERENT_SYSTEM);
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	reg = kbase_mem_alloc(kctx, alloc_ex->in.va_pages, alloc_ex->in.commit_pages,
+			      alloc_ex->in.extension, &flags, &gpu_va, mmu_sync_info, KBASE_MEM_API);
+#else
 	reg = kbase_mem_alloc(kctx, alloc_ex->in.va_pages, alloc_ex->in.commit_pages,
 			      alloc_ex->in.extension, &flags, &gpu_va, mmu_sync_info);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 	if (!reg)
 		return -ENOMEM;

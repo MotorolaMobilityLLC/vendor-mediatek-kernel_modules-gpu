@@ -87,6 +87,10 @@ static struct proc_dir_entry *proc_root;
 #include <platform/mtk_platform_common/mtk_platform_memtrack.h>
 #endif /* CONFIG_MALI_MTK_MEMTRACK */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+#include <platform/mtk_platform_common/mtk_platform_debug_memory.h>
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT)
 #include <platform/mtk_platform_common/mtk_platform_whitebox_memory_footprint.h>
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT */
@@ -666,6 +670,10 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
 	mtk_whitebox_missing_doorbell_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	mtk_memory_debug_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 }
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
@@ -715,6 +723,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	mutex_init(&kbdev->mmu_debug_info_lock);
 	kbdev->mmu_debug_info_head = 0;
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kbdev->memory_debug_mode = false;
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT)
 	kbdev->mem_whitebox_debug = false;

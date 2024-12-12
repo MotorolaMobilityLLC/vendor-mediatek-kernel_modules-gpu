@@ -50,9 +50,15 @@ struct kbase_hwc_dma_mapping {
  *
  * Return: 0 on success or error code
  */
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages, u64 commit_pages,
+					u64 extension, base_mem_alloc_flags *flags, u64 *gpu_va,
+					enum kbase_caller_mmu_sync_info mmu_sync_info, enum kbase_memory_category category);
+#else
 struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages, u64 commit_pages,
 					u64 extension, base_mem_alloc_flags *flags, u64 *gpu_va,
 					enum kbase_caller_mmu_sync_info mmu_sync_info);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 /**
  * kbase_mem_query - Query properties of a GPU memory region

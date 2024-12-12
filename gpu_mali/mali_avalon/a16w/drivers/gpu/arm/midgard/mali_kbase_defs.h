@@ -1522,6 +1522,10 @@ struct kbase_device {
 	u32 mmu_dbg_config_value;
 #endif /* CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	int memory_debug_mode;
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT)
 	bool mem_whitebox_debug;
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT */
@@ -1786,6 +1790,24 @@ struct kbase_sub_alloc {
 	struct page *page;
 	DECLARE_BITMAP(sub_pages, NUM_PAGES_IN_2MB_LARGE_PAGE);
 };
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+enum kbase_memory_category {
+	KBASE_MEM_API, // 0
+	KBASE_MEM_GROW, // 1
+	KBASE_MEM_JIT, // 2
+	KBASE_MEM_MMU, // 3
+	KBASE_MEM_TILER, // 4
+	KBASE_MEM_LABEL_COUNT, // 5
+	KBASE_MEM_CONTEXT = KBASE_MEM_LABEL_COUNT, // 5
+	KBASE_MEM_JM, // 6
+	KBASE_MEM_UNKNOWN, // 7
+	KBASE_MEM_COUNT // 8
+};
+
+/** Max length of the process name */
+#define MAX_PROCESS_NAME_LEN        128
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 /**
  * struct kbase_context - Kernel base context
@@ -2110,6 +2132,11 @@ struct kbase_context {
 	atomic_t used_pages;
 	atomic_t nonmapped_pages;
 	atomic_t permanent_mapped_pages;
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	bool target_mem_profiling;
+	char process_name[MAX_PROCESS_NAME_LEN];
+	atomic_t used_pages_categories[KBASE_MEM_LABEL_COUNT];
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 	struct kbase_mem_pool_group mem_pools;
 
