@@ -155,16 +155,25 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 {
 	int ret = 1;
 	unsigned long flags;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+	int ret_warn = 0;
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 	dev_dbg(kbdev->dev, "%s %pK\n", __func__, (void *)kbdev->dev->pm_domain);
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+	if (likely(kbdev->csf.firmware_inited)) {
+		ret_warn = WARN_ON(!kbdev->pm.active_count);
+		ret_warn |= WARN_ON(kbdev->pm.runtime_active);
+	}
+	if (ret_warn)
+		kbase_pm_debug_status(kbdev);
+#else
 	if (likely(kbdev->csf.firmware_inited)) {
 		WARN_ON(!kbdev->pm.active_count);
 		WARN_ON(kbdev->pm.runtime_active);
 	}
-
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
@@ -221,16 +230,27 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
 	int ret = 1;
 #endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+	int ret_warn = 0;
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 	struct arm_smccc_res res;
 
 	dev_dbg(kbdev->dev, "%s\n", __func__);
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+	if (likely(kbdev->csf.firmware_inited)) {
+		ret_warn = WARN_ON(kbase_csf_scheduler_get_nr_active_csgs(kbdev));
+		ret_warn |= WARN_ON(kbdev->pm.backend.mcu_state != KBASE_MCU_OFF);
+	}
+	if (ret_warn)
+		kbase_pm_debug_status(kbdev);
+#else
 	if (likely(kbdev->csf.firmware_inited)) {
 		WARN_ON(kbase_csf_scheduler_get_nr_active_csgs(kbdev));
 		WARN_ON(kbdev->pm.backend.mcu_state != KBASE_MCU_OFF);
 	}
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
@@ -281,13 +301,22 @@ static void pm_callback_runtime_gpu_active(struct kbase_device *kbdev)
 {
 	unsigned long flags;
 	int error;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+	int ret_warn = 0;
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 	dev_dbg(kbdev->dev, "%s\n", __func__);
 
 	lockdep_assert_held(&kbdev->pm.lock);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+	ret_warn = WARN_ON(!kbdev->pm.active_count);
+	ret_warn |= WARN_ON(kbdev->pm.runtime_active);
+	if (ret_warn)
+		kbase_pm_debug_status(kbdev);
+#else
 	WARN_ON(!kbdev->pm.active_count);
 	WARN_ON(kbdev->pm.runtime_active);
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	mtk_common_ged_dvfs_write_sysram_last_commit_top_idx();
@@ -308,15 +337,24 @@ static void pm_callback_runtime_gpu_active(struct kbase_device *kbdev)
 static void pm_callback_runtime_gpu_idle(struct kbase_device *kbdev)
 {
 	unsigned long flags;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+	int ret_warn = 0;
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 	dev_dbg(kbdev->dev, "%s", __func__);
 
 	lockdep_assert_held(&kbdev->pm.lock);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+	ret_warn = WARN_ON(kbdev->pm.backend.l2_state != KBASE_L2_OFF);
+	ret_warn |= WARN_ON(kbdev->pm.active_count);
+	ret_warn |= WARN_ON(!kbdev->pm.runtime_active);
+	if (ret_warn)
+		kbase_pm_debug_status(kbdev);
+#else
 	WARN_ON(kbdev->pm.backend.l2_state != KBASE_L2_OFF);
 	WARN_ON(kbdev->pm.active_count);
 	WARN_ON(!kbdev->pm.runtime_active);
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	mtk_common_ged_dvfs_write_sysram_last_commit_top_idx();
