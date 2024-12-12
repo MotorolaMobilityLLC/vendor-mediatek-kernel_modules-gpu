@@ -1640,7 +1640,7 @@ invalid_request:
 KBASE_EXPORT_TEST_API(kbase_alloc_phy_pages_helper);
 
 static size_t free_partial_locked(struct kbase_context *kctx, struct kbase_mem_pool *pool,
-				  struct tagged_addr tp)
+				  struct tagged_addr tp, bool syncback)
 {
 	struct page *p, *head_page;
 	struct kbase_sub_alloc *sa;
@@ -1653,9 +1653,13 @@ static size_t free_partial_locked(struct kbase_context *kctx, struct kbase_mem_p
 	head_page = (struct page *)p->lru.prev;
 	sa = (struct kbase_sub_alloc *)head_page->lru.next;
 	clear_bit(p - head_page, sa->sub_pages);
+	if (syncback) {
+		kbase_sync_single_for_device(kctx->kbdev, kbase_dma_addr_as_priv(p), PAGE_SIZE,
+					     DMA_BIDIRECTIONAL);
+	}
 	if (bitmap_empty(sa->sub_pages, NUM_PAGES_IN_2MB_LARGE_PAGE)) {
 		list_del(&sa->link);
-		kbase_mem_pool_free_locked(pool, head_page, true);
+		kbase_mem_pool_free_locked(pool, head_page, false);
 		kfree(sa);
 		nr_pages_to_account = NUM_PAGES_IN_2MB_LARGE_PAGE;
 	} else if (bitmap_weight(sa->sub_pages, NUM_PAGES_IN_2MB_LARGE_PAGE) ==
@@ -1941,7 +1945,7 @@ alloc_failed:
 					nr_pages_to_free -= NUM_PAGES_IN_2MB_LARGE_PAGE;
 					start_free += NUM_PAGES_IN_2MB_LARGE_PAGE;
 				} else if (is_partial(*start_free)) {
-					free_partial_locked(kctx, pool, *start_free);
+					free_partial_locked(kctx, pool, *start_free, false);
 					nr_pages_to_free--;
 					start_free++;
 				}
@@ -1971,7 +1975,8 @@ invalid_request:
 	return NULL;
 }
 
-static size_t free_partial(struct kbase_context *kctx, int group_id, struct tagged_addr tp)
+static size_t free_partial(struct kbase_context *kctx, int group_id, struct tagged_addr tp,
+			   bool syncback)
 {
 	struct page *p, *head_page;
 	struct kbase_sub_alloc *sa;
@@ -1980,11 +1985,15 @@ static size_t free_partial(struct kbase_context *kctx, int group_id, struct tagg
 	p = as_page(tp);
 	head_page = (struct page *)p->lru.prev;
 	sa = (struct kbase_sub_alloc *)head_page->lru.next;
+	if (syncback) {
+		kbase_sync_single_for_device(kctx->kbdev, kbase_dma_addr_as_priv(p), PAGE_SIZE,
+					     DMA_BIDIRECTIONAL);
+	}
 	spin_lock(&kctx->mem_partials_lock);
 	clear_bit(p - head_page, sa->sub_pages);
 	if (bitmap_empty(sa->sub_pages, NUM_PAGES_IN_2MB_LARGE_PAGE)) {
 		list_del(&sa->link);
-		kbase_mem_pool_free(&kctx->mem_pools.large[group_id], head_page, true);
+		kbase_mem_pool_free(&kctx->mem_pools.large[group_id], head_page, false);
 		kfree(sa);
 		nr_pages_to_account = NUM_PAGES_IN_2MB_LARGE_PAGE;
 	} else if (bitmap_weight(sa->sub_pages, NUM_PAGES_IN_2MB_LARGE_PAGE) ==
@@ -2047,7 +2056,8 @@ int kbase_free_phy_pages_helper(struct kbase_mem_phy_alloc *alloc, size_t nr_pag
 			freed += NUM_PAGES_IN_2MB_LARGE_PAGE;
 			nr_pages_to_account += NUM_PAGES_IN_2MB_LARGE_PAGE;
 		} else if (is_partial(*start_free)) {
-			nr_pages_to_account += free_partial(kctx, alloc->group_id, *start_free);
+			nr_pages_to_account +=
+				free_partial(kctx, alloc->group_id, *start_free, syncback);
 			nr_pages_to_free--;
 			start_free++;
 			freed++;
@@ -2164,7 +2174,8 @@ void kbase_free_phy_pages_helper_locked(struct kbase_mem_phy_alloc *alloc,
 			nr_pages_to_account += NUM_PAGES_IN_2MB_LARGE_PAGE;
 		} else if (is_partial(*start_free)) {
 			WARN_ON(!pool->order);
-			nr_pages_to_account += free_partial_locked(kctx, pool, *start_free);
+			nr_pages_to_account +=
+				free_partial_locked(kctx, pool, *start_free, syncback);
 			nr_pages_to_free--;
 			start_free++;
 			freed++;
