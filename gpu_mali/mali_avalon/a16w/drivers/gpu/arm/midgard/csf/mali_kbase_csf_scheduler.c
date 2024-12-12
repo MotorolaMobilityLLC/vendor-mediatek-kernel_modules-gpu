@@ -62,6 +62,11 @@
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE)
+#include <platform/mtk_platform_common.h>
+#include <platform/mtk_platform_common/mtk_platform_whitebox_sync_update.h>
+#endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
+
 /* Value to indicate that a queue group is not groups_to_schedule list */
 #define KBASEP_GROUP_PREPARED_SEQ_NUM_INVALID (U32_MAX)
 
@@ -5353,6 +5358,20 @@ static void scheduler_sleep_on_idle(struct kbase_device *kbdev)
 	scheduler_pm_idle_before_sleep(kbdev);
 	scheduler->state = SCHED_SLEEPING;
 	KBASE_KTRACE_ADD(kbdev, SCHED_SLEEPING, NULL, scheduler->state);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE)
+	if (mtk_common_whitebox_sync_update_test_mode() ==
+		SYNC_UPDATE_TEST_MODE_SYNC_UPDATE_AFTER_GPU_IDLE) {
+		int i;
+		// for loop to find valid kctx
+		for (i = 0 ; i < BASE_MAX_NR_AS; ++i) {
+			if (kbdev->as_to_kctx[i]) {
+				kbase_csf_scheduler_enqueue_sync_update_work(kbdev->as_to_kctx[i]);
+				break;
+			}
+		}
+	}
+#endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
 }
 #endif
 
@@ -6901,6 +6920,10 @@ static void check_sync_update_in_sleep_mode(struct kbase_device *kbdev)
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 	u32 const num_groups = kbdev->csf.global_iface.group_num;
 	u32 csg_nr;
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE)
+	unsigned long flags;
+	bool is_mcu_need_sleep;
+#endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
 
 	lockdep_assert_held(&scheduler->lock);
 
@@ -6909,6 +6932,19 @@ static void check_sync_update_in_sleep_mode(struct kbase_device *kbdev)
 	 * queue stuck on SYNC_WAIT has been unblocked.
 	 */
 	wait_for_mcu_sleep_before_sync_update_check(kbdev);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE)
+	if (mtk_common_whitebox_sync_update_test_mode() > SYNC_UPDATE_TEST_MODE_NONE) {
+		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+		is_mcu_need_sleep = !kbdev->pm.backend.exit_gpu_sleep_mode && !kbdev->pm.active_count;
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+		if (!kbase_csf_firmware_mcu_halted(kbdev)) {
+			if (is_mcu_need_sleep) {
+				dev_err(kbdev->dev, "FW is not ready during sync update! (%d)", kbdev->pm.backend.mcu_state);
+			}
+		}
+	}
+#endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
 
 	for (csg_nr = 0; csg_nr < num_groups; csg_nr++) {
 		struct kbase_queue_group *const group =

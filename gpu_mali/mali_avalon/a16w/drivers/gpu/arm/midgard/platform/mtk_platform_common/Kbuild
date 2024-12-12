@@ -76,6 +76,10 @@ ifeq ($(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT),y)
     mali_kbase-y += $(curr)/mtk_platform_whitebox_memory_footprint.o
 endif ## CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT ##
 
+ifeq ($(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE),y)
+    mali_kbase-y += $(curr)/mtk_platform_whitebox_sync_update.o
+endif ## CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE ##
+
 ifeq ($(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY),y)
     mali_kbase-y += $(curr)/mtk_platform_qinspect.o
     mali_kbase-y += $(curr)/mtk_platform_qinspect_recovery.o
