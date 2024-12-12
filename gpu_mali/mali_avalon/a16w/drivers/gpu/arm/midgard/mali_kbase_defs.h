@@ -1449,6 +1449,10 @@ struct kbase_device {
 	size_t mmu_debug_info_head;
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	u32 jit_reclaim_timeout_ms;
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)
 	u32 exception_mask;
 #endif /* CONFIG_MALI_MTK_TRIGGER_KE */
