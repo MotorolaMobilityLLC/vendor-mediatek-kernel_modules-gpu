@@ -67,6 +67,9 @@
 #define CS_RING_BUFFER_MAX_SIZE ((uint32_t)(1 << 31)) /* 2GiB */
 #define CS_RING_BUFFER_MIN_SIZE ((uint32_t)4096)
 
+/* 0.2 second assuming 600 MHz GPU clock, which is double of iterator disabling timeout */
+#define MAX_PROGRESS_TIMEOUT_EVENT_DELAY ((u32)120000000)
+
 #define PROTM_ALLOC_MAX_RETRIES ((u8)5)
 
 const u8 kbasep_csf_queue_group_priority_to_relative[BASE_QUEUE_GROUP_PRIORITY_COUNT] = {
@@ -1294,6 +1297,7 @@ static int create_queue_group(struct kbase_context *const kctx,
 			INIT_WORK(&group->timer_event_work, timer_event_worker);
 #if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 			INIT_LIST_HEAD(&group->protm_event_work);
+			group->progress_timer_state = 0;
 			atomic_set(&group->pending_protm_event_work, 0);
 #else
 			INIT_WORK(&group->protm_event_work, protm_event_worker);
@@ -2517,19 +2521,74 @@ static void timer_event_worker(struct work_struct *data)
 }
 
 /**
- * handle_progress_timer_event() - Progress timer timeout event handler.
+ * handle_progress_timer_events() - Progress timer timeout events handler.
  *
- * @group: Pointer to GPU queue group for which the timeout event is received.
+ * @kbdev:     Instance of a GPU platform device that implements a CSF interface.
+ * @slot_mask: Bitmap reflecting the slots on which progress timer timeouts happen.
  *
  * Notify a waiting user space client of the timeout.
  * Enqueue a work item to terminate the group and notify the event notification
  * thread of progress timeout fault for the GPU command queue group.
+ * Ignore fragment timeout if it is following a compute timeout.
  */
-static void handle_progress_timer_event(struct kbase_queue_group *const group)
+static void handle_progress_timer_events(struct kbase_device *const kbdev, unsigned long *slot_mask)
 {
-	kbase_debug_csf_fault_notify(group->kctx->kbdev, group->kctx, DF_PROGRESS_TIMER_TIMEOUT);
+	u32 max_csg_slots = kbdev->csf.global_iface.group_num;
+	u32 csg_nr;
+	struct kbase_queue_group *group = NULL;
+	struct kbase_csf_cmd_stream_group_info *ginfo;
 
-	queue_work(group->kctx->csf.wq, &group->timer_event_work);
+	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
+	if (likely(bitmap_empty(slot_mask, MAX_SUPPORTED_CSGS)))
+		return;
+
+	/* Log each timeout and Update timestamp of compute progress timeout */
+	for_each_set_bit(csg_nr, slot_mask, max_csg_slots) {
+		group = kbdev->csf.scheduler.csg_slots[csg_nr].resident_group;
+		ginfo = &kbdev->csf.global_iface.groups[csg_nr];
+		group->progress_timer_state =
+			kbase_csf_firmware_csg_output(ginfo, CSG_PROGRESS_TIMER_STATE);
+
+		dev_info(
+			kbdev->dev,
+			"[%llu] Iterator PROGRESS_TIMER timeout notification received for group %u of ctx %d_%d on slot %u with state %x",
+			kbase_backend_get_cycle_cnt(kbdev), group->handle, group->kctx->tgid,
+			group->kctx->id, csg_nr, group->progress_timer_state);
+
+		if (CSG_PROGRESS_TIMER_STATE_GET(group->progress_timer_state) ==
+		    CSG_PROGRESS_TIMER_STATE_COMPUTE)
+			kbdev->csf.compute_progress_timeout_cc = kbase_backend_get_cycle_cnt(kbdev);
+	}
+
+	/* Ignore fragment timeout if it is following a compute timeout.
+	 * Otherwise, terminate the command stream group.
+	 */
+	for_each_set_bit(csg_nr, slot_mask, max_csg_slots) {
+		group = kbdev->csf.scheduler.csg_slots[csg_nr].resident_group;
+
+		/* Check if it is a fragment timeout right after another compute timeout.
+		 * In such case, kill compute CSG and give fragment CSG a second chance
+		 */
+		if (CSG_PROGRESS_TIMER_STATE_GET(group->progress_timer_state) ==
+		    CSG_PROGRESS_TIMER_STATE_FRAGMENT) {
+			u64 cycle_counter = kbase_backend_get_cycle_cnt(kbdev);
+			u64 compute_progress_timeout_cc = kbdev->csf.compute_progress_timeout_cc;
+
+			if (compute_progress_timeout_cc <= cycle_counter &&
+			    cycle_counter <= compute_progress_timeout_cc +
+						     MAX_PROGRESS_TIMEOUT_EVENT_DELAY) {
+				dev_info(
+					kbdev->dev,
+					"Ignored Fragment iterator timeout for group %d on slot %d",
+					group->handle, group->csg_nr);
+				continue;
+			}
+		}
+
+		kbase_debug_csf_fault_notify(group->kctx->kbdev, group->kctx,
+					     DF_PROGRESS_TIMER_TIMEOUT);
+		queue_work(group->kctx->csf.wq, &group->timer_event_work);
+	}
 }
 
 /**
@@ -3083,6 +3142,8 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
  * @csg_nr: CSG number.
  * @track: Pointer that tracks the highest idle CSG and the newly possible viable
  *         protected mode requesting group, in current IRQ context.
+ * @progress_timeout_slot_mask: slot mask to indicate on which slot progress timeout
+ *         happens.
  *
  * Handles interrupts for a CSG and for CSs within it.
  *
@@ -3094,7 +3155,8 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
  * See process_cs_interrupts() for details of per-stream interrupt handling.
  */
 static void process_csg_interrupts(struct kbase_device *const kbdev, u32 const csg_nr,
-				   struct irq_idle_and_protm_track *track)
+				   struct irq_idle_and_protm_track *track,
+				   unsigned long *progress_timeout_slot_mask)
 {
 	struct kbase_csf_cmd_stream_group_info *ginfo;
 	struct kbase_queue_group *group = NULL;
@@ -3187,12 +3249,6 @@ static void process_csg_interrupts(struct kbase_device *const kbdev, u32 const c
 			"[%llxt] Iterator PROGRESS_TIMER timeout notification received for group %u of ctx %d_%d on slot %d, pending_faults %d\n",
 			kbase_backend_get_timestamp(kbdev), group->handle, group->kctx->tgid,
 			group->kctx->id, csg_nr, atomic_read(&kbdev->faults_pending));
-#else
-		dev_info(
-			kbdev->dev,
-			"[%llu] Iterator PROGRESS_TIMER timeout notification received for group %u of ctx %d_%d on slot %u\n",
-			kbase_backend_get_cycle_cnt(kbdev), group->handle, group->kctx->tgid,
-			group->kctx->id, csg_nr);
 #endif /* CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
@@ -3208,7 +3264,8 @@ static void process_csg_interrupts(struct kbase_device *const kbdev, u32 const c
 			kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT_AFTER_ABNORMAL_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
 
-		handle_progress_timer_event(group);
+		set_bit(csg_nr, progress_timeout_slot_mask);
+
 	}
 
 	process_cs_interrupts(group, ginfo, irqreq, irqack, track);
@@ -3520,18 +3577,25 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 			struct irq_idle_and_protm_track track = { .protm_grp = NULL,
 								  .idle_seq = U32_MAX,
 								  .idle_slot = S8_MAX };
+			DECLARE_BITMAP(progress_timeout_csgs, MAX_SUPPORTED_CSGS) = { 0 };
 
 			kbase_csf_scheduler_spin_lock(kbdev, &flags);
-			/* Looping through and track the highest idle and protm groups */
+			/* Looping through and track the highest idle and protm groups.
+			 * Also track the groups for which progress timer timeout happened.
+			 */
 			while (csg_interrupts != 0) {
 				u32 const csg_nr = (u32)ffs((int)csg_interrupts) - 1;
 
-				process_csg_interrupts(kbdev, csg_nr, &track);
+				process_csg_interrupts(kbdev, csg_nr, &track,
+						       progress_timeout_csgs);
 				csg_interrupts &= ~(1U << csg_nr);
 			}
 
 			/* Handle protm from the tracked information */
 			process_tracked_info_for_protm(kbdev, &track);
+			/* Handle pending progress timeout(s) */
+			handle_progress_timer_events(kbdev, progress_timeout_csgs);
+
 			kbase_csf_scheduler_spin_unlock(kbdev, flags);
 		}
 
@@ -3560,10 +3624,27 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 
 				/* Handle IDLE Hysteresis notification event */
 				if ((glb_req ^ glb_ack) & GLB_REQ_IDLE_EVENT_MASK) {
+					u32 const glb_idle_timer_cfg =
+						kbase_csf_firmware_global_input_read(
+							global_iface, GLB_IDLE_TIMER_CONFIG);
+
 					dev_dbg(kbdev->dev, "Idle-hysteresis event flagged");
 					kbase_csf_firmware_global_input_mask(
 						global_iface, GLB_REQ, glb_ack,
 						GLB_REQ_IDLE_EVENT_MASK);
+
+					if (glb_idle_timer_cfg &
+					    GLB_IDLE_TIMER_CONFIG_SLEEP_ON_IDLE_MASK) {
+						/* The FW is going to sleep, we shall:
+						 * - Enable fast GPU idle handling to avoid
+						 *   confirming CSGs status in gpu_idle_worker().
+						 * - Enable doorbell mirroring to minimise the
+						 *   chance of KBase raising kernel doorbells which
+						 *   would cause the FW to be woken up.
+						 */
+						kbdev->csf.scheduler.fast_gpu_idle_handling = true;
+						kbase_pm_enable_db_mirror_interrupt(kbdev);
+					}
 
 					glb_idle_irq_received = true;
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)

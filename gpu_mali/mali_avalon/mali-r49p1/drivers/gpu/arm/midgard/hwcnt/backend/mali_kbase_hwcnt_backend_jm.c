@@ -855,6 +855,14 @@ static void kbasep_hwcnt_backend_jm_term(struct kbase_hwcnt_backend *backend)
 	kbasep_hwcnt_backend_jm_destroy((struct kbase_hwcnt_backend_jm *)backend);
 }
 
+static void kbasep_hwcnt_backend_jm_acquire(const struct kbase_hwcnt_backend *backend)
+{
+}
+
+static void kbasep_hwcnt_backend_jm_release(const struct kbase_hwcnt_backend *backend)
+{
+}
+
 /**
  * kbasep_hwcnt_backend_jm_info_destroy() - Destroy a JM backend info.
  * @info: Pointer to info to destroy.
@@ -936,6 +944,8 @@ int kbase_hwcnt_backend_jm_create(struct kbase_device *kbdev,
 	iface->metadata = kbasep_hwcnt_backend_jm_metadata;
 	iface->init = kbasep_hwcnt_backend_jm_init;
 	iface->term = kbasep_hwcnt_backend_jm_term;
+	iface->acquire = kbasep_hwcnt_backend_jm_acquire;
+	iface->release = kbasep_hwcnt_backend_jm_release;
 	iface->timestamp_ns = kbasep_hwcnt_backend_jm_timestamp_ns;
 	iface->dump_enable = kbasep_hwcnt_backend_jm_dump_enable;
 	iface->dump_enable_nolock = kbasep_hwcnt_backend_jm_dump_enable_nolock;

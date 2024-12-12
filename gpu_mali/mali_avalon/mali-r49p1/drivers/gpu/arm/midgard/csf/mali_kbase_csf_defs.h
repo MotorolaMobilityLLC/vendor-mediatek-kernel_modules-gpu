@@ -267,7 +267,6 @@ enum kbase_queue_group_priority {
  * @CSF_PM_TIMEOUT: Timeout for GPU Power Management to reach the desired
  *                  Shader, L2 and MCU state.
  * @CSF_GPU_RESET_TIMEOUT: Waiting timeout for GPU reset to complete.
- * @CSF_CSG_SUSPEND_TIMEOUT: Timeout given for a CSG to be suspended.
  * @CSF_CSG_TERM_TIMEOUT: Timeout given for a CSG to be terminated.
  * @CSF_FIRMWARE_BOOT_TIMEOUT: Maximum time to wait for firmware to boot.
  * @CSF_FIRMWARE_PING_TIMEOUT: Maximum time to wait for firmware to respond
@@ -293,7 +292,6 @@ enum kbase_timeout_selector {
 #endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
 	CSF_PM_TIMEOUT,
 	CSF_GPU_RESET_TIMEOUT,
-	CSF_CSG_SUSPEND_TIMEOUT,
 	CSF_CSG_TERM_TIMEOUT,
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
 	CSF_CSG_SUSPEND_TIMEOUT_AFTER_ABNORMAL_TIMEOUT,
@@ -560,6 +558,8 @@ struct kbase_protected_suspend_buffer {
  *               returned to userspace if such an error has occurred.
  * @timer_event_work: Work item to handle the progress timeout fatal event
  *                    for the group.
+ * @progress_timer_state: Value of CSG_PROGRESS_TIMER_STATE register when progress
+ *                        timer timeout is reported for the group.
  * @deschedule_deferred_cnt: Counter keeping a track of the number of threads
  *                           that tried to deschedule the group and had to defer
  *                           the descheduling due to the dump on fault.
@@ -620,6 +620,7 @@ struct kbase_queue_group {
 	struct kbase_csf_notification error_fatal;
 
 	struct work_struct timer_event_work;
+	u32 progress_timer_state;
 
 	/**
 	 * @dvs_buf: Address and size of scratch memory.
@@ -1162,6 +1163,8 @@ struct kbase_csf_mcu_shared_regions {
  * @gpuq_kthread:           Dedicated thread primarily used to handle
  *                          latency-sensitive tasks such as GPU queue
  *                          submissions.
+ * @gpu_idle_timer_enabled: Tracks whether the GPU idle timer is enabled or disabled.
+ * @fw_soi_enabled:         True if FW Sleep-on-Idle is currently enabled.
  */
 struct kbase_csf_scheduler {
 	struct mutex lock;
@@ -1250,6 +1253,8 @@ struct kbase_csf_scheduler {
 	 */
 	spinlock_t gpu_metrics_lock;
 #endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
+	atomic_t gpu_idle_timer_enabled;
+	atomic_t fw_soi_enabled;
 };
 
 /*
@@ -1728,6 +1733,7 @@ struct kbase_csf_user_reg {
  * @gpu_idle_dur_count_no_modifier: Update csffw_glb_req_idle_enable to make the shr(10)
  *                                  modifier conditional on the new flag
  *                                  in GLB_IDLE_TIMER_CONFIG.
+ * @csg_suspend_timeout_ms: Timeout given for a CSG to be suspended.
  *                          for any request sent to the firmware.
  * @hwcnt:                  Contain members required for handling the dump of
  *                          HW counters.
@@ -1748,7 +1754,8 @@ struct kbase_csf_user_reg {
  *                          workarounds configuration.
  * @mmu_sync_sem:           RW Semaphore to defer MMU operations till the P.Mode entrance
  *                          or DCS request has been completed.
- * @gpu_idle_timer_enabled: Tracks whether the GPU idle timer is enabled or disabled.
+ * @compute_progress_timeout_cc: Value of GPU cycle count register when progress
+ *                               timer timeout is reported for the compute iterator.
  */
 struct kbase_csf_device {
 	struct kbase_mmu_table mcu_mmu;
@@ -1788,8 +1795,8 @@ struct kbase_csf_device {
 	u32 gpu_idle_dur_count_no_modifier;
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_REDUCE)
 	unsigned int csg_term_timeout_ms;
-	unsigned int csg_suspend_timeout_ms;
 #endif /* CONFIG_MALI_MTK_TIMEOUT_REDUCE */
+	u32 csg_suspend_timeout_ms;
 	struct kbase_csf_hwcnt hwcnt;
 	struct kbase_csf_mcu_fw fw;
 	struct kbase_csf_firmware_log fw_log;
@@ -1809,7 +1816,7 @@ struct kbase_csf_device {
 	spinlock_t pending_gpuq_kick_queues_lock;
 	u32 *quirks_ext;
 	struct rw_semaphore mmu_sync_sem;
-	bool gpu_idle_timer_enabled;
+	u64 compute_progress_timeout_cc;
 };
 
 /**

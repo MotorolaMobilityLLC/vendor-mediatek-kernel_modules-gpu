@@ -204,15 +204,27 @@ int kbase_hwaccess_pm_init(struct kbase_device *kbdev)
 	kbase_hwcnt_context_disable(kbdev->hwcnt_gpu_ctx);
 
 #if MALI_USE_CSF && defined(KBASE_PM_RUNTIME)
-	kbdev->pm.backend.gpu_sleep_supported =
-		kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_GPU_SLEEP) &&
-		!kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_TURSEHW_1997) &&
-		kbdev->pm.backend.callback_power_runtime_gpu_active &&
-		kbdev->pm.backend.callback_power_runtime_gpu_idle;
+	kbdev->pm.backend.gpu_sleep_allowed = 0;
+	if (kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_GPU_SLEEP) &&
+	    !kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_TURSEHW_1997) &&
+	    kbdev->pm.backend.callback_power_runtime_gpu_active &&
+	    kbdev->pm.backend.callback_power_runtime_gpu_idle)
+		set_bit(KBASE_GPU_SUPPORTS_GPU_SLEEP, &kbdev->pm.backend.gpu_sleep_allowed);
 
 	kbdev->pm.backend.apply_hw_issue_TITANHW_2938_wa =
 		kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_TITANHW_2938) &&
-		kbdev->pm.backend.gpu_sleep_supported;
+		test_bit(KBASE_GPU_SUPPORTS_GPU_SLEEP, &kbdev->pm.backend.gpu_sleep_allowed);
+
+	/* FW Sleep-on-Idle is only available in certain architecture revisions */
+	if ((kbdev->gpu_props.gpu_id.arch_major > 11) ||
+	    ((kbdev->gpu_props.gpu_id.arch_major == 11) &&
+	     (kbdev->gpu_props.gpu_id.arch_minor >= 8) && (kbdev->gpu_props.gpu_id.arch_rev >= 10)))
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+		clear_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE, &kbdev->pm.backend.gpu_sleep_allowed);
+#else
+		set_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE, &kbdev->pm.backend.gpu_sleep_allowed);
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
+
 #endif
 
 	if (IS_ENABLED(CONFIG_MALI_HW_ERRATA_1485982_NOT_AFFECTED))
@@ -1307,4 +1319,5 @@ out:
 
 	return ret;
 }
+
 #endif

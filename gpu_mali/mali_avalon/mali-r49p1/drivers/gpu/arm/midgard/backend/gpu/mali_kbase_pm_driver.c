@@ -843,16 +843,8 @@ bool kbase_pm_is_mcu_inactive(struct kbase_device *kbdev, enum kbase_mcu_state s
 }
 
 #ifdef KBASE_PM_RUNTIME
-/**
- * kbase_pm_enable_mcu_db_notification - Enable the Doorbell notification on
- *                                       MCU side
- *
- * @kbdev: Pointer to the device.
- *
- * This function is called to re-enable the Doorbell notification on MCU side
- * when MCU needs to beome active again.
- */
-static void kbase_pm_enable_mcu_db_notification(struct kbase_device *kbdev)
+
+void kbase_pm_enable_mcu_db_notification(struct kbase_device *kbdev)
 {
 	u32 val = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_CONTROL));
 
@@ -1031,6 +1023,16 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			if (kbase_pm_is_mcu_desired(kbdev) &&
 			    !backend->policy_change_clamp_state_to_off &&
 			    backend->l2_state == KBASE_L2_ON) {
+				/* Ensure that FW would not go to sleep immediately after
+				 * resumption.
+				 */
+				kbase_csf_firmware_global_input_mask(&kbdev->csf.global_iface,
+								     GLB_REQ,
+								     GLB_REQ_REQ_IDLE_DISABLE,
+								     GLB_REQ_IDLE_DISABLE_MASK);
+				atomic_set(&kbdev->csf.scheduler.gpu_idle_timer_enabled, false);
+				atomic_set(&kbdev->csf.scheduler.fw_soi_enabled, false);
+
 				kbase_csf_firmware_trigger_reload(kbdev);
 				backend->mcu_state = KBASE_MCU_PEND_ON_RELOAD;
 			}
@@ -1349,7 +1351,20 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			}
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MCU */
 			if (!kbase_pm_is_mcu_desired(kbdev)) {
-				kbase_csf_firmware_trigger_mcu_sleep(kbdev);
+				bool db_notif_disabled = false;
+
+				if (likely(test_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE,
+						    &kbdev->pm.backend.gpu_sleep_allowed)))
+					db_notif_disabled =
+						kbase_reg_read32(kbdev,
+								 GPU_CONTROL_ENUM(MCU_CONTROL)) &
+						MCU_CNTRL_DOORBELL_DISABLE_MASK;
+
+				/* If DB notification is enabled on FW side then send a sleep
+				 * request to FW.
+				 */
+				if (!db_notif_disabled)
+					kbase_csf_firmware_trigger_mcu_sleep(kbdev);
 				backend->mcu_state = KBASE_MCU_ON_PEND_SLEEP;
 			} else
 				backend->mcu_state = KBASE_MCU_ON_HWCNT_ENABLE;
@@ -1383,6 +1398,16 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 		case KBASE_MCU_IN_SLEEP:
 			if (kbase_pm_is_mcu_desired(kbdev) && backend->l2_state == KBASE_L2_ON) {
 				wait_mcu_as_inactive(kbdev);
+				/* Ensure that FW would not go to sleep immediately after
+				 * resumption.
+				 */
+				kbase_csf_firmware_global_input_mask(&kbdev->csf.global_iface,
+								     GLB_REQ,
+								     GLB_REQ_REQ_IDLE_DISABLE,
+								     GLB_REQ_IDLE_DISABLE_MASK);
+				atomic_set(&kbdev->csf.scheduler.gpu_idle_timer_enabled, false);
+				atomic_set(&kbdev->csf.scheduler.fw_soi_enabled, false);
+
 				KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_WAKEUP(
 					kbdev, kbase_backend_get_cycle_cnt(kbdev));
 				kbase_pm_enable_mcu_db_notification(kbdev);
@@ -2662,6 +2687,9 @@ void kbase_pm_reset_complete(struct kbase_device *kbdev)
 	backend->in_reset = false;
 #if MALI_USE_CSF && defined(KBASE_PM_RUNTIME)
 	backend->gpu_wakeup_override = false;
+	backend->db_mirror_interrupt_enabled = false;
+	backend->gpu_sleep_mode_active = false;
+	backend->exit_gpu_sleep_mode = false;
 #endif
 	kbase_pm_update_state(kbdev);
 
@@ -3441,6 +3469,7 @@ void kbase_pm_clock_on(struct kbase_device *kbdev, bool is_resume)
 	update_user_reg_page_mapping(kbdev);
 #endif
 
+
 	if (ret == GPU_STATE_IN_RESET) {
 		/* GPU is already in reset state after power on and no
 		 * soft-reset needed. Just reconfiguration is needed.
@@ -3452,7 +3481,6 @@ void kbase_pm_clock_on(struct kbase_device *kbdev, bool is_resume)
 		 */
 		kbase_pm_init_hw(kbdev, PM_ENABLE_IRQS);
 	}
-
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 	else {
 		if (kbdev->arb.arb_if) {
@@ -4216,6 +4244,7 @@ int kbase_pm_init_hw(struct kbase_device *kbdev, unsigned int flags)
 	kbase_amba_set_shareable_cache_support(kbdev);
 #if MALI_USE_CSF
 	kbase_backend_update_gpu_timestamp_offset(kbdev);
+	kbdev->csf.compute_progress_timeout_cc = 0;
 #endif
 
 	/* Sanity check protected mode was left after reset */
