@@ -3101,7 +3101,14 @@ void kbase_pm_reset_start_locked(struct kbase_device *kbdev)
 #ifdef KBASE_PM_RUNTIME
 		backend->exit_gpu_sleep_mode = true;
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_RESET_RELOAD_ON_FW)
+		if (backend->fw_reload_on_reset_worker == false)
+			kbdev->csf.firmware_reload_needed = true;
+		else
+			kbdev->csf.firmware_reload_needed = false;
+#else
 		kbdev->csf.firmware_reload_needed = true;
+#endif
 	} else {
 		WARN_ON(backend->mcu_state != KBASE_MCU_OFF);
 	}

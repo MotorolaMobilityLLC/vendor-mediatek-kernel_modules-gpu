@@ -364,7 +364,14 @@ kbase_csf_reset_gpu_once(struct kbase_device *kbdev, bool firmware_inited, bool 
 	err = kbase_pm_init_hw(kbdev, 0);
 
 	mutex_unlock(&kbdev->pm.lock);
-
+#if IS_ENABLED(CONFIG_MALI_MTK_RESET_RELOAD_ON_FW)
+	if (kbdev->pm.backend.fw_reload_on_reset_worker == true)
+	{
+		kbdev->csf.firmware_reload_needed = false;
+		kbase_csf_firmware_reload(kbdev);
+		dev_info(kbdev->dev, "Reload fw on reset worker.");
+	}
+#endif /* CONFIG_MALI_MTK_RESET_RELOAD_ON_FW */
 	if (WARN_ON(err))
 		return SOFT_RESET_FAILED;
 
@@ -430,7 +437,9 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 	dev_dbg(kbdev->dev, "Disable GPU hardware counters.\n");
 	/* This call will block until counters are disabled. */
 	kbase_hwcnt_context_disable(kbdev->hwcnt_gpu_ctx);
-
+#if IS_ENABLED(CONFIG_MALI_MTK_RESET_RELOAD_ON_FW)
+	kbdev->pm.backend.fw_reload_on_reset_worker = false;
+#endif /* IS_ENABLED(CONFIG_MALI_MTK_RESET_RELOAD_ON_FW) */
 	ret = kbase_csf_reset_gpu_once(kbdev, firmware_inited, silent);
 
 	if (ret == SOFT_RESET_FAILED) {
@@ -440,6 +449,29 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 		dev_err(kbdev->dev, "L2 power up failed after the soft-reset");
 		goto err;
 	} else if (ret == MCU_REINIT_FAILED) {
+#if IS_ENABLED(CONFIG_MALI_MTK_RESET_RELOAD_ON_FW)
+		dev_err(kbdev->dev, "[1]MCU re-init failed, trying reload firmware on reset worker[%d]",ret);
+		cancel_work_sync(&kbdev->csf.firmware_reload_work);
+		kbdev->pm.backend.fw_reload_on_reset_worker = true;
+		ret = kbase_csf_reset_gpu_once(kbdev, firmware_inited, true);
+		dev_err(kbdev->dev,"Reload fw on reset worker ret = [%d]",ret);
+		if (ret != RESET_SUCCESS) {
+			dev_err(kbdev->dev, "[2]MCU re-init failed trying full firmware reload[%d]",ret);
+			/* Since MCU reinit failed despite successful soft reset, we can try
+			* the firmware full reload.
+			*/
+			kbdev->csf.firmware_full_reload_needed = true;
+			kbdev->pm.backend.fw_reload_on_reset_worker = false;
+			ret = kbase_csf_reset_gpu_once(kbdev, firmware_inited, true);
+			if (ret != RESET_SUCCESS) {
+				kbdev->csf.firmware_full_reload_needed = false;
+				dev_err(kbdev->dev,
+					"[3]MCU Re-init failed even after trying full firmware reload, ret = [%d]",
+					ret);
+				goto err;
+			}
+		}
+#else
 		dev_err(kbdev->dev, "MCU re-init failed trying full firmware reload");
 		/* Since MCU reinit failed despite successful soft reset, we can try
 		 * the firmware full reload.
@@ -452,6 +484,7 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 				ret);
 			goto err;
 		}
+#endif /* CONFIG_MALI_MTK_RESET_RELOAD_ON_FW */
 	}
 
 	/* Re-enable GPU hardware counters */
