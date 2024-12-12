@@ -3460,7 +3460,11 @@ static inline void check_protm_enter_req_complete(struct kbase_device *kbdev, u3
 	dev_dbg(kbdev->dev, "Protected mode entry interrupt received");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR,
-		"Protected mode entry interrupt received\n");
+	    "Protected mode entry interrupt received, Group-%d of kctx %d_%d on slot %d\n",
+                       kbdev->csf.scheduler.active_protm_grp->handle,
+                       kbdev->csf.scheduler.active_protm_grp->kctx->tgid,
+                       kbdev->csf.scheduler.active_protm_grp->kctx->id,
+                       kbdev->csf.scheduler.active_protm_grp->csg_nr);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	kbdev->protected_mode = true;
@@ -3495,7 +3499,11 @@ static inline int process_protm_exit(struct kbase_device *kbdev, u32 glb_ack)
 	dev_dbg(kbdev->dev, "Protected mode exit interrupt received");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR,
-		"Protected mode exit interrupt received\n");
+	    "Protected mode exit interrupt received, Group-%d of kctx %d_%d on slot %d\n",
+                       kbdev->csf.scheduler.active_protm_grp->handle,
+                       kbdev->csf.scheduler.active_protm_grp->kctx->tgid,
+                       kbdev->csf.scheduler.active_protm_grp->kctx->id,
+                       kbdev->csf.scheduler.active_protm_grp->csg_nr);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	if (kbase_csf_fw_io_open(fw_io, &fw_io_flags))
