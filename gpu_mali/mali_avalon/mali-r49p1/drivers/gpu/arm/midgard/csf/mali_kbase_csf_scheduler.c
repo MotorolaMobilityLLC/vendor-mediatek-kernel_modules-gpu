@@ -113,10 +113,6 @@
 /* Explicitly defining this blocked_reason code as SB_WAIT for clarity */
 #define CS_STATUS_BLOCKED_ON_SB_WAIT CS_STATUS_BLOCKED_REASON_REASON_WAIT
 
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
-static int g_api_sync_flag = 6;
-#endif
-
 static int scheduler_group_schedule(struct kbase_queue_group *group);
 static void remove_group_from_idle_wait(struct kbase_queue_group *const group);
 static void insert_group_to_runnable(struct kbase_csf_scheduler *const scheduler,
@@ -7333,10 +7329,10 @@ static void update_api_sync_flag(struct kbase_device *kbdev)
 
 	temp_api_sync_flag = get_api_sync_flag();
 
-	if (((g_api_sync_flag == 6 && temp_api_sync_flag == 7) ||
-		(g_api_sync_flag == 7 && temp_api_sync_flag == 6)) &&
-		g_api_sync_flag != temp_api_sync_flag) {
-		g_api_sync_flag = temp_api_sync_flag;
+	if (((kbdev->final_api_sync_flag == API_SYNC_FLAG_RESET && temp_api_sync_flag == API_SYNC_FLAG_SET) ||
+		(kbdev->final_api_sync_flag == API_SYNC_FLAG_SET && temp_api_sync_flag == API_SYNC_FLAG_RESET)) &&
+		kbdev->final_api_sync_flag != temp_api_sync_flag) {
+		kbdev->temp_api_sync_flag = temp_api_sync_flag;
 		kbdev->ptp_update_in_progress = true;
 	}
 }

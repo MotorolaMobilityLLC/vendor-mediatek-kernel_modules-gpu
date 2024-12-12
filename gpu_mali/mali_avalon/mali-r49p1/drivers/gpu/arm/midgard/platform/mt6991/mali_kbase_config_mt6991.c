@@ -326,6 +326,7 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 		if (kbdev->ptp_update_in_progress) {
 			gpufreq_set_mfgsys_config(CONFIG_PTP3, DATA_UPDATE);
 			kbdev->ptp_update_in_progress = false;
+			kbdev->final_api_sync_flag = kbdev->temp_api_sync_flag;
 		}
 #endif
 		mutex_unlock(&g_mfg_lock);
