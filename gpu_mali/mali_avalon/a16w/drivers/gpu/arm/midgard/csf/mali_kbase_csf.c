@@ -967,6 +967,9 @@ int kbase_csf_queue_kick(struct kbase_context *kctx, struct kbase_ioctl_cs_queue
 				list_add_tail(
 					&queue->pending_kick_link,
 					&kbdev->csf.pending_gpuq_kick_queues[queue->group_priority]);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+				mali_kthread_event("queue work", queue, "kbase_csf_process_queue_kick");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 				if (atomic_cmpxchg(&kbdev->csf.pending_gpuq_kicks, false, true) ==
 				    false)
 					complete(&kbdev->csf.scheduler.kthread_signal);
@@ -1550,6 +1553,9 @@ static void cancel_queue_group_events(struct kbase_queue_group *group)
 	/* Drain a pending protected mode request if any */
 	kbase_csf_scheduler_wait_for_kthread_pending_work(group->kctx->kbdev,
 							  &group->pending_protm_event_work);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	WARN_ON(atomic_read(&group->pending_protm_event_work) != 0 || !list_empty(&group->protm_event_work));
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 }
 
 static void remove_pending_group_fatal_error(struct kbase_queue_group *group)
@@ -4041,6 +4047,9 @@ void kbase_csf_process_queue_kick(struct kbase_queue *queue)
 				list_add_tail(
 					&queue->pending_kick_link,
 					&kbdev->csf.pending_gpuq_kick_queues[queue->group_priority]);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+				mali_kthread_event("queue work", queue, "kbase_csf_process_queue_kick");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 				spin_unlock(&kbdev->csf.pending_gpuq_kick_queues_lock);
 			} else {
 				spin_unlock(&kbdev->csf.pending_gpuq_kick_queues_lock);

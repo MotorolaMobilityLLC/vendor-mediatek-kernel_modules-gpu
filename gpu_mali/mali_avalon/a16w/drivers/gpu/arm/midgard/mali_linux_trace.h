@@ -524,6 +524,46 @@ TRACE_EVENT(tracing_mark_write,
 #define MALI_TRACE_VALUE_TARGET(...)
 #endif /* CONFIG_MALI_MTK_KBASE_TRACE_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+#include <linux/ktime.h>
+
+TRACE_EVENT(mali_kthread_event,
+	TP_PROTO(const char *event, void *work, const char *function),
+	TP_ARGS(event, work, function),
+	TP_STRUCT__entry(
+		__string(event, event)
+		__field(void *, work)
+		__string(function, function)
+	),
+	TP_fast_assign(
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0))
+		__assign_str(event, event);
+#else
+		__assign_str(event);
+#endif
+		__entry->work = work;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0))
+		__assign_str(function, function);
+#else
+		__assign_str(function);
+#endif
+	),
+	TP_printk("%s: work struct=%p function=%s timestamp=%llu", __get_str(event), __entry->work, __get_str(function), ktime_get_raw_ns())
+);
+
+#define mali_kthread_event(event, work, function) \
+	/* pr_err("%s: work struct=%p function=%s", event, work, function); */ \
+	trace_mali_kthread_event(event, work, function);
+
+#define MALI_KTHREAD_WORK_START(work, function) \
+	mali_kthread_event("work start", work, function); \
+	MALI_TRACE_BEGIN(function);
+
+#define MALI_KTHREAD_WORK_END(work, function) \
+	MALI_TRACE_END(); \
+	mali_kthread_event("work end", work, function);
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
 TRACE_EVENT(tracing_mark_write_tl,
 	TP_PROTO(const char *fmt, va_list *va),
