@@ -258,7 +258,7 @@ static void MTKEnableMfgClock(PVRSRV_POWER_FLAGS ePwrFlags)
 	if (gpu_debug_enable)
 		PVR_DPF((PVR_DBG_ERROR, "MTKEnableMfgClock"));
 
-	ged_dvfs_gpu_clock_switch_notify(1);
+	ged_dvfs_gpu_clock_switch_notify(GED_POWER_ON);
 	mtk_notify_gpu_power_change(1);
 }
 
@@ -269,7 +269,7 @@ static void MTKDisableMfgClock(PVRSRV_POWER_FLAGS ePwrFlags)
 	int buck_state;
 
 	mtk_notify_gpu_power_change(0);
-	ged_dvfs_gpu_clock_switch_notify(0);
+	ged_dvfs_gpu_clock_switch_notify(GED_POWER_OFF);
 #ifdef MTK_GPU_DVFS
 	buck_state = gpufreq_power_control(GPU_PWR_OFF);
 #endif
