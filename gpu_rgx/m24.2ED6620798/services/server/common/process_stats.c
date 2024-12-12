@@ -922,6 +922,11 @@ PVRSRVStatsInitialise(void)
 	dllist_init(&gsDeadList);
 
 	bProcessStatsInitialised = IMG_TRUE;
+#if defined(MTK_FULL_PORTING)
+	/* MTK dump gpu memory usage */
+	mtk_get_gpu_memory_usage_fp = MTKGetMemStat;
+	mtk_dump_gpu_memory_usage_fp = MTKGetMemStatDump;
+#endif /* MTK_FULL_PORTING */
 #if defined(PVRSRV_ENABLE_GPU_MEMORY_INFO)
 	/* Register our 'system' PID to hold driver-wide alloc stats */
 	_RegisterProcess(&g_hDriverProcessStats, PVR_SYS_ALLOC_PID);
@@ -2439,14 +2444,13 @@ int RawProcessStatsPrintElements(OSDI_IMPL_ENTRY *psEntry, void *pvData)
 	DLLIST_NODE *psNode, *psNext;
 
 	DIPrintf(psEntry,
-	         "%s,%s,%s,%s,%s,%s,%s\n",
+	         "%s,%s,%s,%s,%s,%s\n",
 	         "PID",
 	         "MemoryUsageKMalloc",           // PVRSRV_PROCESS_STAT_TYPE_KMALLOC
 	         "MemoryUsageAllocPTMemoryUMA",  // PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_UMA
 	         "MemoryUsageAllocPTMemoryLMA",  // PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_LMA
 	         "MemoryUsageAllocGPUMemLMA",    // PVRSRV_PROCESS_STAT_TYPE_ALLOC_LMA_PAGES
-	         "MemoryUsageAllocGPUMemUMA",    // PVRSRV_PROCESS_STAT_TYPE_ALLOC_UMA_PAGES
-	         "MemoryUsageDmaBufImport");     // PVRSRV_PROCESS_STAT_TYPE_DMA_BUF_IMPORT
+	         "MemoryUsageAllocGPUMemUMA");    // PVRSRV_PROCESS_STAT_TYPE_ALLOC_UMA_PAGES
 
 	OSLockAcquire(g_psLinkedListLock);
 
@@ -2458,14 +2462,13 @@ int RawProcessStatsPrintElements(OSDI_IMPL_ENTRY *psEntry, void *pvData)
 			DIPrintf(psEntry,
 			         "%d,%"IMG_INT64_FMTSPECd",%"IMG_INT64_FMTSPECd","
 			         "%"IMG_INT64_FMTSPECd",%"IMG_INT64_FMTSPECd","
-			         "%"IMG_INT64_FMTSPECd",%"IMG_INT64_FMTSPECd"\n",
+			         "%"IMG_INT64_FMTSPECd"\n",
 			         psProcessStats->pid,
 			         psProcessStats->i64StatValue[PVRSRV_PROCESS_STAT_TYPE_KMALLOC],
 			         psProcessStats->i64StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_UMA],
 			         psProcessStats->i64StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_LMA],
 			         psProcessStats->i64StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_LMA_PAGES],
-			         psProcessStats->i64StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_UMA_PAGES],
-			         psProcessStats->i64StatValue[PVRSRV_PROCESS_STAT_TYPE_DMA_BUF_IMPORT]);
+			         psProcessStats->i64StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_UMA_PAGES]);
 		}
 	}
 
@@ -3490,3 +3493,49 @@ PVRSRV_ERROR PVRSRVGetProcessMemUsage(IMG_UINT64 *pui64TotalMem,
 	return eError;
 
 } /* PVRSRVGetProcessMemUsage */
+#if defined(MTK_FULL_PORTING)
+bool MTKGetMemStatDump(void)
+{
+	IMG_UINT32 ui32_pages;
+
+#if 0
+	PVRSRV_PROCESS_STATS *psProcessStats = g_psLiveList;
+
+	/* output the total memory usage and cap for this device */
+	pr_warn("%10s\t%16s\n", "PID", "Memory by Page");
+	pr_warn("============================\n");
+
+	OSLockAcquire(g_psLinkedListLock);
+	while (psProcessStats != NULL) {
+		ui32_pages = psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_KMALLOC] +
+			psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_VMALLOC] +
+			psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_UMA] +
+			psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_UMA_PAGES];
+
+		ui32_pages /= PAGE_SIZE;
+
+		pr_warn("%10d\t%16d\n", psProcessStats->pid, ui32_pages);
+		psProcessStats = psProcessStats->psNext;
+	}
+	OSLockRelease(g_psLinkedListLock);
+#endif
+
+	ui32_pages = MTKGetMemStat();
+	ui32_pages /= PAGE_SIZE;
+
+	pr_warn("============================\n");
+	pr_warn("%10s\t%16u\n", "Total", ui32_pages);
+	pr_warn("============================\n");
+
+	return true;
+}
+
+
+IMG_UINT32 MTKGetMemStat(void)
+{
+	return (IMG_UINT32) ( GET_GLOBAL_STAT_VALUE(PVRSRV_DRIVER_STAT_TYPE_KMALLOC) +
+						  GET_GLOBAL_STAT_VALUE(PVRSRV_DRIVER_STAT_TYPE_VMALLOC) +
+						  GET_GLOBAL_STAT_VALUE(PVRSRV_DRIVER_STAT_TYPE_ALLOC_PT_MEMORY_UMA) +
+						  GET_GLOBAL_STAT_VALUE(PVRSRV_DRIVER_STAT_TYPE_ALLOC_GPUMEM_UMA) );
+}
+#endif /* MTK_FULL_PORTING */

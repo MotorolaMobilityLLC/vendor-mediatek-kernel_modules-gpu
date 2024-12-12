@@ -110,11 +110,18 @@ static void _RGXUpdateGPUUtilStats(PVRSRV_RGXDEV_INFO *psDevInfo)
 	IMG_UINT64 ui64TimeNow;
 	IMG_UINT32 ui32DriverID;
 	IMG_UINT64 ui64DMOSStatsCounter;
+#if defined(MTK_MINI_PORTING)
+	unsigned long uLockFlags;
+#endif /* MTK_MINI_PORTING */
 
 	psUtilFW = psDevInfo->psRGXFWIfGpuUtilFW;
 	RGXFwSharedMemCacheOpPtr(psDevInfo->psRGXFWIfGpuUtilFW, INVALIDATE);
 
+#if defined(MTK_MINI_PORTING)
+	spin_lock_irqsave(&psDevInfo->sGPUUtilLock, uLockFlags);
+#else
 	OSLockAcquire(psDevInfo->hGPUUtilLock);
+#endif /* MTK_MINI_PORTING */
 
 	ui64TimeNow = RGXFWIF_GPU_UTIL_GET_TIME(RGXTimeCorrGetClockns64(psDevInfo->psDeviceNode));
 
@@ -165,7 +172,11 @@ static void _RGXUpdateGPUUtilStats(PVRSRV_RGXDEV_INFO *psDevInfo)
 	}
 	RGXFwSharedMemCacheOpPtr(psDevInfo->psRGXFWIfGpuUtilFW, FLUSH);
 
+#if defined(MTK_MINI_PORTING)
+	spin_unlock_irqrestore(&psDevInfo->sGPUUtilLock, uLockFlags);
+#else
 	OSLockRelease(psDevInfo->hGPUUtilLock);
+#endif /* MTK_MINI_PORTING */
 }
 
 static INLINE PVRSRV_ERROR RGXDoStop(PVRSRV_DEVICE_NODE *psDeviceNode)

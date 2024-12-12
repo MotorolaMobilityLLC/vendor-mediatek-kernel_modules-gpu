@@ -36,7 +36,7 @@ mt6761_outs = [
 ]
 
 mt6765_outs = [
-     "mt6765/m24.2ED6603887/pvrsrvkm_mt6765.ko",
+     "mt6765/m24.2ED6620798/pvrsrvkm_mt6765.ko",
 ]
 
 mt6877_outs = [
