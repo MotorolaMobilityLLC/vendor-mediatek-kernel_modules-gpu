@@ -2720,6 +2720,42 @@ static ssize_t mmu_dbg_config_show(struct device *dev, struct device_attribute *
 	return scnprintf(buf, PAGE_SIZE, "%u\n", mmu_dbg_config_value);
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
+static ssize_t force_cache_sync_show(struct device *dev, struct device_attribute *attr, char * const buf)
+{
+	struct kbase_device *kbdev;
+
+	CSTD_UNUSED(attr);
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	return scnprintf(buf, PAGE_SIZE, "System cohrency: %u, Force cache: %d\n", kbdev->system_coherency, kbdev->acp_dbg_force_sync);
+}
+
+static ssize_t force_cache_sync_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct kbase_device *kbdev;
+	unsigned int force_sync;
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev) {
+		pr_info("[KBASE] Bad kbdev!\n");
+		return -ENODEV;
+	}
+
+	if ((kstrtoint(buf, 0, &force_sync)) || kbdev->acp_dbg_force_sync == FORCE_SYNC_DTS ||
+		(force_sync != FORCE_SYNC_NONE && force_sync != FORCE_SYNC_CMD))
+		return -EINVAL;
+
+	kbdev->acp_dbg_force_sync = FORCE_SYNC_CMD;
+
+	return count;
+}
+static DEVICE_ATTR_RW(force_cache_sync);
+#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
+
 /**
  * mmu_dbg_config_store - Set the KBase MMU debug config value.
  *
@@ -6048,6 +6084,24 @@ int kbase_device_coherency_init(struct kbase_device *kbdev)
 {
 	int err = 0;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
+	kbdev->acp_dbg_force_sync = FORCE_SYNC_NONE;
+	if (IS_ENABLED(CONFIG_OF)) {
+		u32 override_dbg_force_sync;
+		const void *dbg_force_sync_override_dts;
+		dbg_force_sync_override_dts =
+			of_get_property(kbdev->dev->of_node, "dbg-force-sync", NULL);
+
+		if (dbg_force_sync_override_dts)
+			override_dbg_force_sync = be32_to_cpup(dbg_force_sync_override_dts);
+		else
+			override_dbg_force_sync = FORCE_SYNC_NONE;
+
+		if (override_dbg_force_sync == FORCE_SYNC_DTS)
+			kbdev->acp_dbg_force_sync = override_dbg_force_sync;
+	}
+#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
+
 	kbdev->system_coherency = COHERENCY_NONE;
 
 	/* device tree may override the coherency */
@@ -6667,6 +6721,9 @@ static struct attribute *kbase_attrs[] = {
 	&dev_attr_dvfs_hint_26m_perf_cnting.attr,
 	&dev_attr_ipa_enable.attr,
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY && CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING*/
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
+	&dev_attr_force_cache_sync.attr,
+#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
 	NULL
 };
 

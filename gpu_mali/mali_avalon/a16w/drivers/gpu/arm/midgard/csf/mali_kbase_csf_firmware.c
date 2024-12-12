@@ -564,6 +564,13 @@ static unsigned long convert_mem_flags(const struct kbase_device *const kbdev, c
 	    (kbdev->system_coherency == COHERENCY_NONE))
 		cache_mode = CSF_FIRMWARE_CACHE_MODE_NONE;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
+	if ((cache_mode == CSF_FIRMWARE_CACHE_MODE_CACHED_COHERENT) &&
+		(kbdev->system_coherency == COHERENCY_ACE_LITE) &&
+		kbdev->acp_dbg_force_sync)
+		cache_mode = CSF_FIRMWARE_CACHE_MODE_NONE;
+#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
+
 	*cm = cache_mode;
 
 	switch (cache_mode) {
@@ -3572,7 +3579,12 @@ int kbase_csf_firmware_mcu_shared_mapping_init(struct kbase_device *kbdev, unsig
 
 	if (kbdev->system_coherency == COHERENCY_ACE) {
 		gpu_map_prot = KBASE_REG_MEMATTR_INDEX(KBASE_MEMATTR_INDEX_DEFAULT_ACE);
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
+	} else if (kbdev->system_coherency == COHERENCY_ACE_LITE &&
+		kbdev->acp_dbg_force_sync == FORCE_SYNC_NONE) {
+#else
 	} else if (kbdev->system_coherency == COHERENCY_ACE_LITE) {
+#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
 		gpu_map_prot = KBASE_REG_SHARE_BOTH |
 			       KBASE_REG_MEMATTR_INDEX(KBASE_MEMATTR_INDEX_SHARED);
 	} else {

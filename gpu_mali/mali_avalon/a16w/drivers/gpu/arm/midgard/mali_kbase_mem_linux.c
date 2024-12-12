@@ -413,6 +413,13 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	if (unlikely(reg->cpu_alloc != reg->gpu_alloc))
 		*flags |= BASE_MEM_KERNEL_SYNC;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
+	if ((*flags & BASE_MEM_COHERENT_SYSTEM) != 0 &&
+		kbase_device_is_cpu_coherent(kctx->kbdev) &&
+		kctx->kbdev->acp_dbg_force_sync)
+		*flags |= BASE_MEM_KERNEL_SYNC;
+#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
+
 	/* make sure base knows if the memory is actually cached or not */
 	if (reg->flags & KBASE_REG_CPU_CACHED)
 		*flags |= BASE_MEM_CACHED_CPU;
@@ -3567,7 +3574,12 @@ static vm_fault_t kbase_csf_user_io_pages_vm_fault(struct vm_fault *vmf)
 	/* Always map the doorbell page as uncached */
 	doorbell_pgprot = pgprot_device(vma->vm_page_prot);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
+	if (kbdev->system_coherency == COHERENCY_NONE ||
+		kbdev->acp_dbg_force_sync) {
+#else
 	if (kbdev->system_coherency == COHERENCY_NONE) {
+#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
 		input_page_pgprot = pgprot_writecombine(vma->vm_page_prot);
 		output_page_pgprot = pgprot_writecombine(vma->vm_page_prot);
 	} else {

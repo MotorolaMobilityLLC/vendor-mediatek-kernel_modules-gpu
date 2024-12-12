@@ -150,6 +150,13 @@
  */
 #define BASE_MAX_NR_CLOCKS_REGULATORS (2)
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
+/* Define Force sync value for ACP debug use */
+#define FORCE_SYNC_NONE 0
+#define FORCE_SYNC_CMD  1
+#define FORCE_SYNC_DTS  2
+#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
 #define API_SYNC_FLAG_RESET 0x00060000
 #define API_SYNC_FLAG_SET   0x00070000
@@ -1165,6 +1172,10 @@ enum mmu_dbg_log_config {
  *                              driver, this is used to be informed of the
  *                              changes in the list of prioritized processes.
  * @io:                     kbase IO object for the GPU device.
+ * @acp_dbg_force_sync:     Define ACP debug mode.
+ *                          0:ACP trans can hit CPU cache
+ *                          1:ACP trans miss CPU cahce except for CSF interface (CMD enable)
+ *                          2:ACP trans miss CPU cache (DTS enable)
  */
 struct kbase_device {
 	u32 hw_quirks_sc;
@@ -1541,6 +1552,11 @@ struct kbase_device {
 	ktime_t scheduler_kthread_exec_begin_time;
 	ktime_t scheduler_kthread_exec_end_time;
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
+	u32 acp_dbg_force_sync;
+#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
+
 };
 
 /**
