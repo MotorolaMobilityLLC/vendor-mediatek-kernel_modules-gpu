@@ -6399,6 +6399,7 @@ static void firmware_aliveness_monitor(struct work_struct *work)
 
 	if (kbase_csf_scheduler_wait_mcu_active(kbdev)) {
 		dev_err(kbdev->dev, "Wait for MCU power on failed at fw aliveness monitor");
+		kbase_pm_context_idle(kbdev);
 		goto exit;
 	}
 
