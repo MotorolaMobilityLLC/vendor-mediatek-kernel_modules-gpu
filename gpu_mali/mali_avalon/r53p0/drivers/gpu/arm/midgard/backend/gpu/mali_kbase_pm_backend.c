@@ -208,7 +208,7 @@ int kbase_hwaccess_pm_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_SOI)
 		set_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE, &kbdev->pm.backend.gpu_sleep_allowed);
 #else
-		set_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE, &kbdev->pm.backend.gpu_sleep_allowed);
+		clear_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE, &kbdev->pm.backend.gpu_sleep_allowed);
 #endif /* CONFIG_MALI_MTK_SOI */
 
 #endif

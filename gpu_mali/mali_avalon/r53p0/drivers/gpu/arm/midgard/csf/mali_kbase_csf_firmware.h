@@ -718,6 +718,33 @@ u64 kbase_csf_firmware_get_gpu_idle_hysteresis_time(struct kbase_device *kbdev);
  */
 u32 kbase_csf_firmware_set_gpu_idle_hysteresis_time(struct kbase_device *kbdev, u64 dur_ns);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SOI)
+/**
+ * @brief Get the current state of sleep on idle allowed by the CSF firmware.
+ *
+ * This function retrieves the current state of sleep on idle allowed by the CSF firmware.
+ * It uses spinlock protection to ensure thread safety.
+ *
+ * @param kbdev Pointer to the KBase device structure.
+ *
+ * @return True if sleep on idle is allowed, false otherwise.
+ */
+bool kbase_csf_firmware_get_sleep_on_idle(struct kbase_device *kbdev);
+
+/**
+ * @brief Set the state of sleep on idle allowed by the CSF firmware.
+ *
+ * This function sets the state of sleep on idle allowed by the CSF firmware,
+ * preventing GPU reset during the operation and ensuring proper scheduler state transition.
+ *
+ * @param kbdev Pointer to the KBase device structure.
+ * @param enable Flag indicating whether sleep on idle should be enabled (true) or disabled (false).
+ *
+ * @return The newly set state of sleep on idle allowed by the CSF firmware.
+ */
+u32 kbase_csf_firmware_set_sleep_on_idle(struct kbase_device *kbdev, bool enable);
+#endif
+
 /**
  * kbase_csf_firmware_get_mcu_core_pwroff_time - Get the MCU shader Core power-off
  *                                               time value

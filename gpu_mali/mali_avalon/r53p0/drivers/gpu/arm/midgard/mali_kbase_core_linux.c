@@ -6523,6 +6523,82 @@ static ssize_t idle_hysteresis_time_show(struct device *dev, struct device_attri
 
 static DEVICE_ATTR_RW(idle_hysteresis_time);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SOI)
+
+/**
+ * @brief Store whether sleep on idle should be enabled for the KBase device.
+ *
+ * This function sets the state of sleep on idle from user input string representation.
+ *
+ * @param dev   Pointer to the device structure.
+ * @param attr  Device attribute pointer (unused).
+ * @param buf   Buffer containing user input string.
+ * @param count Length of the user input buffer.
+ *
+ * @retval >=0 Number of characters processed from the buffer.
+ * @retval <0 Negative error code.
+ */
+
+static ssize_t sleep_on_idle_enable_store(struct device *dev, struct device_attribute *attr,
+					  const char *buf, size_t count)
+{
+	struct kbase_device *kbdev;
+	u32 enabled = 0;
+
+	CSTD_UNUSED(attr);
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	if (kstrtou32(buf, 0, &enabled)) {
+		dev_err(kbdev->dev, "Couldn't process sleep_on_idle_enable write operation.\n"
+				    "Use format <sleep_on_idle_enable>\n");
+		return -EINVAL;
+	}
+
+	kbase_csf_firmware_set_sleep_on_idle(kbdev,enabled);
+
+	return (ssize_t)count;
+}
+
+/**
+ * @brief Show whether sleep on idle is enabled for the KBase device.
+ *
+ * This function reads the current state of sleep on idle from the CSF firmware
+ * and returns it as a string representation.
+ *
+ * @param dev  Pointer to the device structure.
+ * @param attr Device attribute pointer (unused).
+ * @param buf  Buffer to store the result string.
+ *
+ * @retval >=0 Number of characters written to the buffer.
+ * @retval <0 Negative error code.
+ */
+
+static ssize_t sleep_on_idle_enable_show(struct device *dev, struct device_attribute *attr,
+					 char *const buf)
+{
+	struct kbase_device *kbdev;
+	ssize_t ret;
+	u64 enabled;
+
+	CSTD_UNUSED(attr);
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	enabled = kbase_csf_firmware_get_sleep_on_idle(kbdev);
+	ret = scnprintf(buf, PAGE_SIZE, "sleep on idle enable = %u\n", (u32)enabled);
+
+	return ret;
+}
+
+static DEVICE_ATTR_RW(sleep_on_idle_enable);
+
+#endif /* CONFIG_MALI_MTK_SOI */
+
 /**
  * idle_hysteresis_time_ns_store - Store callback for CSF
  *                     idle_hysteresis_time_ns sysfs file.
@@ -6766,6 +6842,9 @@ static struct attribute *kbase_attrs[] = {
 	&dev_attr_fw_timeout.attr,
 	&dev_attr_idle_hysteresis_time.attr,
 	&dev_attr_idle_hysteresis_time_ns.attr,
+#if IS_ENABLED(CONFIG_MALI_MTK_SOI)
+	&dev_attr_sleep_on_idle_enable.attr,
+#endif /* IS_ENABLED(CONFIG_MALI_MTK_SOI) */
 	&dev_attr_mcu_shader_pwroff_timeout.attr,
 	&dev_attr_mcu_shader_pwroff_timeout_ns.attr,
 #endif /* !MALI_USE_CSF */
