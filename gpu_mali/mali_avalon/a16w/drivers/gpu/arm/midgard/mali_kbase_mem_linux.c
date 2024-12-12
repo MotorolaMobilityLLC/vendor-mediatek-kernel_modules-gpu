@@ -693,9 +693,11 @@ static unsigned long kbase_mem_evictable_reclaim_count_objects(struct shrinker *
 	int evict_nents = atomic_read(&kctx->evict_nents);
 	unsigned long nr_freeable_items;
 
+#if !IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
 	WARN(in_atomic(),
 	     "Shrinker called in atomic context. The caller must use GFP_ATOMIC or similar, then Shrinkers must not be called. gfp_mask==%x\n",
 	     sc->gfp_mask);
+#endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 
 	if (unlikely(evict_nents < 0)) {
 		dev_err(kctx->kbdev->dev, "invalid evict_nents(%d)", evict_nents);

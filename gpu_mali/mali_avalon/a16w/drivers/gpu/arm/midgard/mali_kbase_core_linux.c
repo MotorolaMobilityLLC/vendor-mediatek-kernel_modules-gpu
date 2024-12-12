@@ -2415,9 +2415,13 @@ static int core_mask_parse(struct kbase_device *const kbdev, const char *const b
 {
 	int err = kstrtou64(buf, 0, &mask->new_core_mask);
 
-	if (err)
+	if (err) {
+#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
+		dev_dbg(kbdev->dev, "Couldn't process core mask write operation.\n");
+#else /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 		dev_err(kbdev->dev, "Couldn't process core mask write operation.\n");
-
+#endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
+        }
 	return err;
 }
 
@@ -2435,13 +2439,21 @@ static int core_mask_set(struct kbase_device *kbdev, struct kbase_core_mask *con
 	shader_present = kbdev->gpu_props.shader_present;
 
 	if ((new_core_mask & shader_present) != new_core_mask) {
+#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
+		dev_dbg(kbdev->dev,
+#else /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 		dev_err(kbdev->dev,
+#endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 			"Invalid requested core mask 0x%llX: Includes non-existent cores (present = 0x%llX)",
 			new_core_mask, shader_present);
 		ret = -EINVAL;
 		goto exit;
 	} else if (!(new_core_mask & shader_present & kbdev->pm.backend.ca_cores_enabled)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
+		dev_dbg(kbdev->dev,
+#else /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 		dev_err(kbdev->dev,
+#endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 			"Invalid requested core mask 0x%llX: No intersection with currently available cores (present = 0x%llX, CA enabled = 0x%llX)",
 			new_core_mask, kbdev->gpu_props.shader_present,
 			kbdev->pm.backend.ca_cores_enabled);

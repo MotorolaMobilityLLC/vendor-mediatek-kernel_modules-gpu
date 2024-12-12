@@ -37,6 +37,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_SYSFS := y
         CONFIG_MALI_MTK_PROC_FS := y
         CONFIG_MALI_MTK_DEBUG_FS := y
+        CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH := y
         CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE := y
     endif ## mt6991 ##
 endif

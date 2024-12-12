@@ -24,6 +24,7 @@
 #include "backend/gpu/mali_kbase_clk_rate_trace_mgr.h"
 #include "mali_kbase_csf_ipa_control.h"
 #include <mali_kbase_io.h>
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 /*
  * Status flags from the STATUS register of the IPA Control interface.
@@ -202,7 +203,11 @@ static inline void calc_prfcnt_delta(struct kbase_device *kbdev,
 		static bool warned;
 
 		if (!warned) {
+#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
+			dev_vdbg(kbdev->dev, "%s: GPU freq is unexpectedly 0", __func__);
+#else
 			dev_warn(kbdev->dev, "%s: GPU freq is unexpectedly 0", __func__);
+#endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 			warned = true;
 		}
 	} else if (prfcnt->gpu_norm)

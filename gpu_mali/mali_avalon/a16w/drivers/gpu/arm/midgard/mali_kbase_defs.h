@@ -70,6 +70,10 @@
 #include <linux/debugfs.h>
 #include <linux/regulator/consumer.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
+#include "platform/mtk_platform_utils.h"
+#endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
+
 /** Number of milliseconds before we time out on a GPU soft/hard reset */
 #define RESET_TIMEOUT 500
 

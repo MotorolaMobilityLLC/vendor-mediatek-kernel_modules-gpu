@@ -18,6 +18,7 @@
 #include <mali_kbase_defs.h>
 #include <mali_kbase_config.h>
 #include "mali_kbase_config_platform.h"
+#include <platform/mtk_platform_utils.h>
 #include <platform/mtk_platform_common.h>
 #include <platform/mtk_platform_common/mtk_platform_debug.h>
 #include <ged_dvfs.h>

@@ -27,5 +27,6 @@ ifeq ($(CONFIG_MALI_MEMORY_GROUP_MANAGER), y)
 obj-m += mali_mgm_$(MTK_PLATFORM_VERSION)_a16w.o
 mali_mgm_$(MTK_PLATFORM_VERSION)_a16w-y := memory_group_manager.o
 
+ccflags-y += -DCONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH
 endif
 

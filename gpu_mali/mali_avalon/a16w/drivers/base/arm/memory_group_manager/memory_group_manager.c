@@ -32,6 +32,10 @@
 #include <linux/mm.h>
 #include <linux/memory_group_manager.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
+#include "mtk_platform_utils.h"
+#endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
+
 #ifndef CSTD_UNUSED
 #define CSTD_UNUSED(x) ((void)(x))
 #endif

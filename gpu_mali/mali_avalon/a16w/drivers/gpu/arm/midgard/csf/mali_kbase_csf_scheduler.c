@@ -7358,7 +7358,12 @@ static int scheduler_wait_mcu_active(struct kbase_device *kbdev, bool killable_w
 		err = kbase_pm_wait_for_desired_state(kbdev);
 	if (!err) {
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
+		if (kbdev->pm.backend.mcu_state != KBASE_MCU_ON)
+			dev_dbg(kbdev->dev, "mcu_state: %d != KBASE_MCU_ON", kbdev->pm.backend.mcu_state);
+#else
 		WARN_ON(kbdev->pm.backend.mcu_state != KBASE_MCU_ON);
+#endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	}
 

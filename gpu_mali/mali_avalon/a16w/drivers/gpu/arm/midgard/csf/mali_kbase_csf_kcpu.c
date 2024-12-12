@@ -1749,7 +1749,11 @@ static void fence_signal_timeout_cb(struct timer_list *timer)
 		container_of(timer, struct kbase_kcpu_command_queue, fence_signal_timeout);
 	struct kbase_context *const kctx = kcpu_queue->kctx;
 #ifdef CONFIG_MALI_FENCE_DEBUG
+#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
+	dev_dbg(kctx->kbdev->dev, "kbase KCPU fence signal timeout callback triggered");
+#else /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 	dev_warn(kctx->kbdev->dev, "kbase KCPU fence signal timeout callback triggered");
+#endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 #endif
 
 	/* If we have additional pending fence signal commands in the queue, re-arm for the

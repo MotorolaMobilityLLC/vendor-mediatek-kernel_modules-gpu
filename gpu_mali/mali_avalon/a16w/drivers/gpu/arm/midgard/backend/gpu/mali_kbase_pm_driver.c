@@ -56,6 +56,8 @@
 
 #include <linux/of.h>
 
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
+
 #ifdef CONFIG_MALI_CORESTACK
 bool corestack_driver_control = true;
 #else
