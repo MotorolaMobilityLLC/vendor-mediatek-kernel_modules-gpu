@@ -299,8 +299,12 @@ struct kbase_kcpu_command_queue {
 	struct kbase_context *kctx;
 	struct kbase_kcpu_command commands[KBASEP_KCPU_QUEUE_SIZE];
 	struct work_struct work;
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 	struct list_head high_prio_work;
 	atomic_t pending_kick;
+#else
+	struct workqueue_struct *wq;
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 	struct work_struct timeout_work;
 	u8 start_offset;
 	u8 id;

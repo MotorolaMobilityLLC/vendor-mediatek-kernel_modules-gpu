@@ -472,12 +472,16 @@ static void kbase_kcpu_jit_allocate_finish(struct kbase_kcpu_command_queue *queu
 
 static void enqueue_kcpuq_work(struct kbase_kcpu_command_queue *queue)
 {
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 	struct kbase_context *const kctx = queue->kctx;
 
 	if (!atomic_read(&kctx->prioritized))
 		queue_work(kctx->csf.kcpu_queues.kcpu_wq, &queue->work);
 	else
 		kbase_csf_scheduler_enqueue_kcpuq_work(queue);
+#else
+	queue_work(queue->wq, &queue->work);
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 }
 
 /**
@@ -1946,7 +1950,11 @@ static void fence_signal_timeout_cb(struct timer_list *timer)
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 			fence_signal_timeout_start(kcpu_queue);
 
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 		queue_work(kctx->csf.kcpu_queues.kcpu_wq, &kcpu_queue->timeout_work);
+#else
+		queue_work(kcpu_queue->wq, &kcpu_queue->timeout_work);
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 	}
 }
 
@@ -2504,6 +2512,7 @@ static int delete_queue(struct kbase_context *kctx, u32 id)
 
 		cancel_work_sync(&queue->timeout_work);
 
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 		/*
 		 * Drain a pending request to process this queue in
 		 * kbase_csf_scheduler_kthread() if any. By this point the
@@ -2514,8 +2523,13 @@ static int delete_queue(struct kbase_context *kctx, u32 id)
 #if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
 		WARN_ON(atomic_read(&queue->pending_kick) != 0 || !list_empty(&queue->high_prio_work));
 #endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 
 		cancel_work_sync(&queue->work);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
+		destroy_workqueue(queue->wq);
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 
 		mutex_destroy(&queue->lock);
 
@@ -3146,6 +3160,7 @@ out:
 
 int kbase_csf_kcpu_queue_context_init(struct kbase_context *kctx)
 {
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 	kctx->csf.kcpu_queues.kcpu_wq =
 		alloc_workqueue("mali_kcpu_wq_%i_%i", 0, 0, kctx->tgid, kctx->id);
 	if (kctx->csf.kcpu_queues.kcpu_wq == NULL) {
@@ -3153,6 +3168,7 @@ int kbase_csf_kcpu_queue_context_init(struct kbase_context *kctx)
 			"Failed to initialize KCPU queue high-priority workqueue");
 		return -ENOMEM;
 	}
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 
 	mutex_init(&kctx->csf.kcpu_queues.lock);
 
@@ -3172,7 +3188,9 @@ void kbase_csf_kcpu_queue_context_term(struct kbase_context *kctx)
 
 	mutex_destroy(&kctx->csf.kcpu_queues.lock);
 
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 	destroy_workqueue(kctx->csf.kcpu_queues.kcpu_wq);
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 }
 KBASE_EXPORT_TEST_API(kbase_csf_kcpu_queue_context_term);
 
@@ -3287,8 +3305,10 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx, struct kbase_ioctl_kcpu
 
 	mutex_init(&queue->lock);
 	INIT_WORK(&queue->work, kcpu_queue_process_worker);
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 	INIT_LIST_HEAD(&queue->high_prio_work);
 	atomic_set(&queue->pending_kick, 0);
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 	INIT_WORK(&queue->timeout_work, kcpu_queue_timeout_worker);
 	INIT_LIST_HEAD(&queue->jit_blocked);
 
@@ -3315,6 +3335,24 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx, struct kbase_ioctl_kcpu
 
 	if (IS_ENABLED(CONFIG_MALI_FENCE_DEBUG))
 		kbase_timer_setup(&queue->fence_timeout, fence_timeout_callback);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
+	queue->wq = alloc_workqueue("mali_kbase_csf_kcpu_wq_%i", WQ_UNBOUND | WQ_HIGHPRI, 0, idx);
+	if (queue->wq == NULL) {
+#if IS_ENABLED(CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG)
+		dev_warn(kctx->kbdev->dev, "%s: Fail to allocate workqueue", __func__);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"%s: Fail to allocate workqueue", __func__);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG */
+		vfree(queue);
+		kfree(metadata);
+		ret = -ENOMEM;
+
+		goto out;
+	}
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 
 	bitmap_set(kctx->csf.kcpu_queues.in_use, (unsigned int)idx, 1);
 	kctx->csf.kcpu_queues.array[idx] = queue;
