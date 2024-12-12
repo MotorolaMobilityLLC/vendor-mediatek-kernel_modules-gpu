@@ -891,7 +891,7 @@ static unsigned long kbase_mem_evictable_reclaim_scan_objects(struct shrinker *s
 #if MALI_USE_CSF
 	up_read(&kctx->kbdev->csf.mmu_sync_sem);
 #endif
-	return freed ?: SHRINK_STOP;
+	return freed;
 }
 
 int kbase_mem_evictable_init(struct kbase_context *kctx)
