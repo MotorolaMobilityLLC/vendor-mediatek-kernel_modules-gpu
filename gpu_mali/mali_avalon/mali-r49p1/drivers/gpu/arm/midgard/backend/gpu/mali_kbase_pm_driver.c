@@ -744,7 +744,10 @@ static void kbase_pm_l2_config_override(struct kbase_device *kbdev)
 				kbdev->l2_hash_values[i], i);
 			kbase_reg_write32(kbdev, GPU_L2_SLICE_HASH_OFFSET(i),
 					  kbdev->l2_hash_values[i]);
+			/* Check if the write was successful */
+			BUG_ON(kbdev->l2_hash_values[i] != kbase_reg_read32(kbdev, GPU_L2_SLICE_HASH_OFFSET(i)));
 		}
+
 #endif /* MALI_USE_CSF */
 	}
 
