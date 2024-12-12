@@ -159,6 +159,14 @@
  */
 #define BASE_MEM_FLAGS_NR_BITS 30
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+/*
+* Set Bit 62 as PBHA extension hint
+*/
+#define BASE_MEM_FLAGS_PBHA_HINT_SHIFT 62
+#define BASE_MEM_FLAGS_PBHA_HINT_MASK ((u64)1 << BASE_MEM_FLAGS_PBHA_HINT_SHIFT)
+#endif
+
 /* A mask of all the flags which are only valid within kbase,
  * and may not be passed to/from user space.
  */

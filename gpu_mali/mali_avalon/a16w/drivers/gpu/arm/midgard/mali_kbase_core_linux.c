@@ -174,6 +174,10 @@ struct v1_data *gpu_info_ref;
 #include <platform/mtk_platform_common/mtk_platform_mali_event.h>
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+#include <gpu_pdma.h>
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
+
 #define KERNEL_SIDE_DDK_VERSION_STRING "K:" MALI_RELEASE_NAME "(GPL)"
 
 /**
@@ -1067,6 +1071,10 @@ static int kbase_api_mem_alloc_ex(struct kbase_context *kctx,
 
 		flags |= (BASE_MEM_SAME_VA | BASE_MEM_CACHED_CPU | BASE_MEM_COHERENT_SYSTEM);
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+	if (alloc_ex->in.have_pbha_hint)
+		flags |= BASE_MEM_FLAGS_PBHA_HINT_MASK;
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
 	reg = kbase_mem_alloc(kctx, alloc_ex->in.va_pages, alloc_ex->in.commit_pages,
@@ -1081,6 +1089,9 @@ static int kbase_api_mem_alloc_ex(struct kbase_context *kctx,
 
 	alloc_ex->out.flags = flags;
 	alloc_ex->out.gpu_va = gpu_va;
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+	alloc_ex->out.pbha_8bit = reg->pbha_8bit;
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 
 	return 0;
 }
@@ -1350,9 +1361,38 @@ static int kbase_api_mem_import(struct kbase_context *kctx, union kbase_ioctl_me
 	if (flags & BASE_MEM_FLAGS_KERNEL_ONLY)
 		return -ENOMEM;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+		u8 PBHA = import->in.in_pbha_8bit;
+		if (import->in.vkAllocateMemoryCallID != 0) {
+			/*
+			 * If PBHA from user DDK != 0 means that this is an AHB with multiple planes (multiple dma buffers)
+			 * Since these 1~3 dma buffers should share the same PBHA value, use the previous assigned PBHA value insted.
+			 * Also, send this information (if the PBHA from user DDK is 0 or not) to kbase_mem_import.
+			 * Because PDMA only release the PBHA value once when we have multiple PBHA.
+			 * So we should save this data inside kbase_va_region for free function to use.
+			 */
+
+			bool isFirstDmaBuf = false;
+			if (PBHA == 0) {
+				PBHA = pdma_request_extended_pbha(kctx->id);
+				isFirstDmaBuf = true;
+			}
+
+			ret = kbase_mem_import(kctx, import->in.type, u64_to_user_ptr(import->in.phandle),
+					   import->in.padding, &import->out.gpu_va, &import->out.va_pages, &flags,
+					   PBHA, isFirstDmaBuf);
+			import->out.out_pbha_8bit = PBHA;
+		}
+		else { //callID == 0 -> pbha hint from user DDK is off.
+			ret = kbase_mem_import(kctx, import->in.type, u64_to_user_ptr(import->in.phandle),
+							   import->in.padding, &import->out.gpu_va, &import->out.va_pages, &flags, 0, false);
+			import->out.out_pbha_8bit = 0;
+		}
+#else
 	ret = kbase_mem_import(kctx, import->in.type, u64_to_user_ptr(import->in.phandle),
 			       import->in.padding, &import->out.gpu_va, &import->out.va_pages,
 			       &flags);
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 
 	import->out.flags = flags;
 

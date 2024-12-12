@@ -639,11 +639,19 @@ union kbase_ioctl_mem_alloc_ex {
 		__u64 extension;
 		__u64 flags;
 		__u64 fixed_address;
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+		__u8  have_pbha_hint;
+		__u8  allignment[7];
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 		__u64 extra[3];
 	} in;
 	struct {
 		__u64 flags;
 		__u64 gpu_va;
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+		__u8  pbha_8bit;
+		__u8  allignment[7];
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 	} out;
 };
 

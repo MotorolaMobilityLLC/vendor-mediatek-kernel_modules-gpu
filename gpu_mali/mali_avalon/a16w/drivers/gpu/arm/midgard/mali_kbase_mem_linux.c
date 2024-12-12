@@ -54,6 +54,9 @@
 #include <trusted_mem_api.h>
 #include <mtk_heap.h>
 #endif /* CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM && CONFIG_MTK_GZ_KREE && CONFIG_MALI_MTK_PROTECTED_PATCH */
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+#include <gpu_pdma.h>
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
@@ -316,6 +319,9 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	struct kbase_va_region *reg;
 	enum kbase_memory_zone zone;
 	struct device *dev;
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+	bool have_pbha_hint = false;
+#endif
 
 	KBASE_DEBUG_ASSERT(kctx);
 	KBASE_DEBUG_ASSERT(flags);
@@ -324,6 +330,13 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	dev = kctx->kbdev->dev;
 	dev_dbg(dev, "Allocating %lld va_pages, %lld commit_pages, %lld extension, 0x%llX flags\n",
 		va_pages, commit_pages, extension, *flags);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+	if (*flags & BASE_MEM_FLAGS_PBHA_HINT_MASK) {
+		have_pbha_hint = true;
+		*flags &= ~BASE_MEM_FLAGS_PBHA_HINT_MASK;
+	}
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 
 #if MALI_USE_CSF
 	if (!(*flags & BASE_MEM_FIXED))
@@ -473,6 +486,13 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	/* mmap needed to setup VA? */
 	if (*flags & BASE_MEM_SAME_VA) {
 		unsigned long cookie, cookie_nr;
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+		if (have_pbha_hint) {
+			reg->pbha_8bit = pdma_request_extended_pbha(kctx->id);
+			reg->isFirstDmaBuf = false;
+			reg->isImportedMemory = false;
+		}
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 
 		/* Bind to a cookie */
 		if (bitmap_empty(kctx->cookies, BITS_PER_LONG)) {
@@ -2106,10 +2126,14 @@ bad_stride:
 bad_flags:
 	return 0;
 }
-
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+int kbase_mem_import(struct kbase_context *kctx, enum base_mem_import_type type,
+		     void __user *phandle, u32 padding, u64 *gpu_va, u64 *va_pages, base_mem_alloc_flags *flags, u8 PBHA, bool isFirstDmaBuf)
+#else
 int kbase_mem_import(struct kbase_context *kctx, enum base_mem_import_type type,
 		     void __user *phandle, u32 padding, u64 *gpu_va, u64 *va_pages,
 		     base_mem_alloc_flags *flags)
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 {
 	struct kbase_va_region *reg;
 
@@ -2195,6 +2219,12 @@ int kbase_mem_import(struct kbase_context *kctx, enum base_mem_import_type type,
 		goto no_reg;
 
 	kbase_gpu_vm_lock_with_pmode_sync(kctx);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+	reg->pbha_8bit = PBHA;
+	reg->isFirstDmaBuf = isFirstDmaBuf;
+	reg->isImportedMemory = true;
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 
 	/* mmap needed to setup VA? */
 	if (*flags & (BASE_MEM_SAME_VA | BASE_MEM_NEED_MMAP)) {

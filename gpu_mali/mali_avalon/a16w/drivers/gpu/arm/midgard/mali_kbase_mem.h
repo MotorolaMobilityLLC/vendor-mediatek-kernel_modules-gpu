@@ -718,6 +718,11 @@ struct kbase_va_region {
 #if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
 	u64 last_used_ts;
 #endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+	u32 pbha_8bit;
+	bool isFirstDmaBuf;
+	bool isImportedMemory;
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 };
 
 /* Special marker for failed JIT allocations that still must be marked as

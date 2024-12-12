@@ -46,6 +46,10 @@
 #include <mali_kbase_trace_gpu_mem.h>
 #include <linux/version_compat_defs.h>
 #include <mali_kbase_mem_flags.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+#include <gpu_pdma.h>
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
+
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MMAP_LOGGING)
 #include <platform/mtk_platform_common/mtk_platform_debug.h>
@@ -1019,6 +1023,13 @@ int kbase_mem_free_region(struct kbase_context *kctx, struct kbase_va_region *re
 			 "Attempt to free GPU memory whose freeing by user space is forbidden!\n");
 		return -EINVAL;
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+	if((reg->isImportedMemory && reg->isFirstDmaBuf) || !reg->isImportedMemory)
+	{
+		if(reg->pbha_8bit != 0)
+			pdma_release_extended_pbha(kctx->id, reg->pbha_8bit);
+	}
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 
 	/* If a region has been made evictable then we must unmake it
 	 * before trying to free it.

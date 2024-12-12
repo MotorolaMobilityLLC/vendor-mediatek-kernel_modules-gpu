@@ -63,6 +63,11 @@
 /* Macro to convert updated PDGs to flags indicating levels skip in flush */
 #define pgd_level_to_skip_flush(dirty_pgds) (~(dirty_pgds)&0xF)
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+#define PBHA_EXTENSION_PTE_LOW 36
+#define PBHA_EXTENSION_PTE_HIGH 59
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
+
 /**
  * kmap_pgd() - Map a PGD page and return the address of it
  *
@@ -2724,6 +2729,25 @@ u64 kbase_mmu_create_ate(struct kbase_device *const kbdev, struct tagged_addr co
 						      kbdev->mma_wa_id, pte_flags, level, entry);
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+void kbase_mmu_update_pte_for_PBHA(u64 *pte, u8 PBHA)
+{
+	/* separate low/high pbha bit */
+	u8 high = (PBHA >> 4) & 0x0F;
+	u8 low = PBHA & 0x0F;
+
+	/* clear original value in pte */
+	*pte &= ~((u64)(0x0F) << PBHA_EXTENSION_PTE_LOW);
+	*pte &= ~((u64)(0x0F) << PBHA_EXTENSION_PTE_HIGH);
+
+	/* update PBHA to pte */
+	*pte |= ((u64)(high) << PBHA_EXTENSION_PTE_LOW);
+	*pte |= ((u64)(low) << PBHA_EXTENSION_PTE_HIGH);
+
+}
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
+
+
 static int mmu_insert_pages_no_flush(struct kbase_device *kbdev, struct kbase_mmu_table *mmut,
 				     u64 start_vpfn, struct tagged_addr *phys, size_t nr,
 				     unsigned long flags, int const group_id, u64 *dirty_pgds,
@@ -2880,7 +2904,11 @@ repeat_page_table_walk:
 			int level_index = (insert_vpfn >> 9) & 0x1FF;
 			pgd_page[level_index] =
 				kbase_mmu_create_ate(kbdev, *phys, flags, cur_level, group_id);
-
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+			if(reg != NULL && reg->pbha_8bit != 0) {
+				kbase_mmu_update_pte_for_PBHA(&pgd_page[level_index], reg->pbha_8bit);
+			}
+#endif /*CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2*/
 			num_of_valid_entries++;
 		} else {
 			for (i = 0; i < count; i += GPU_PAGES_PER_CPU_PAGE) {
@@ -2907,6 +2935,10 @@ repeat_page_table_walk:
 					*target = kbase_mmu_create_ate(kbdev,
 								       as_tagged(page_address),
 								       flags, cur_level, group_id);
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+					if(reg != NULL && reg->pbha_8bit != 0)
+						kbase_mmu_update_pte_for_PBHA(target, reg->pbha_8bit);
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 				}
 
 				/* If page migration is enabled, this is the right time
