@@ -76,6 +76,10 @@ static struct proc_dir_entry *proc_root;
 #include <platform/mtk_platform_common/mtk_platform_whitebox_force_hard_reset.h>
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET)
+#include <platform/mtk_platform_common/mtk_platform_whitebox_directly_hard_reset.h>
+#endif /* CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG)
 #include <platform/mtk_platform_common/mtk_platform_whitebox_force_terminate_csg.h>
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG */
@@ -141,6 +145,13 @@ bool mtk_common_whitebox_force_hard_reset_enable(void)
 	return mtk_whitebox_force_hard_reset_enable();
 }
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET)
+bool mtk_common_whitebox_directly_hard_reset_enable(void)
+{
+	return mtk_whitebox_directly_hard_reset_enable();
+}
+#endif /* CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG)
 bool mtk_common_whitebox_force_terminate_csg_enable(void)
@@ -640,6 +651,9 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
 	mtk_whitebox_force_hard_reset_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET)
+	mtk_whitebox_directly_hard_reset_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET */
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG)
 	mtk_whitebox_force_terminate_csg_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG */
@@ -740,6 +754,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
 	mtk_whitebox_force_hard_reset_init();
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET)
+	mtk_whitebox_directly_hard_reset_init();
+#endif /* CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG)
 	mtk_whitebox_force_terminate_csg_init();

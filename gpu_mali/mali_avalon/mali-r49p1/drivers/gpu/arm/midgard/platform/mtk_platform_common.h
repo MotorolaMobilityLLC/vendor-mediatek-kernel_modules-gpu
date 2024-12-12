@@ -106,6 +106,10 @@ void mtk_platform_cpu_cache_request(struct kbase_device *kbdev, int request, enu
 bool mtk_common_whitebox_force_hard_reset_enable(void);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET)
+bool mtk_common_whitebox_directly_hard_reset_enable(void);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG)
 bool mtk_common_whitebox_force_terminate_csg_enable(void);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG */
