@@ -36,6 +36,12 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IOMMU)
 #pragma message "enable CONFIG_MALI_MTK_GPU_IOMMU"
 #include <mtk_gpufreq.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
+#pragma message "CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE enabled (pma)"
+#include <ghpm_wrapper.h>
+#else
+#pragma message "CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE disabled (pma)"
+#endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
 #include <linux/err.h>
 #include <linux/of_address.h>
 #include <linux/of_device.h>
@@ -431,6 +437,16 @@ static int mtk_gpu_iommu_init(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 
 #if defined(CONFIG_MTK_GPUFREQ_V2)
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
+	/* On mfg0 and gpueb */
+	ret = gpueb_ctrl(GHPM_ON, MFG1_OFF, SUSPEND_POWER_ON);
+	if (ret) {
+		dev_err(dev, "gpueb on fail, return value=%d \n", ret);
+		return ret;
+	}
+#endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
+
 	/* on,off/ SWCG(BG3D)/ MTCMOS/ BUCK */
 	if (gpufreq_power_control(GPU_PWR_ON) < 0) {
 		dev_err(dev, "Power On Failed");
@@ -463,6 +479,15 @@ static int mtk_gpu_iommu_init(struct platform_device *pdev)
 		dev_err(dev, "Power Off Failed");
 		return 1;
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
+	/* Off mfg0 and gpueb */
+	ret = gpueb_ctrl(GHPM_OFF, MFG1_OFF, SUSPEND_POWER_OFF);
+	if (ret) {
+		dev_err(dev, "gpueb off fail, return value=%d \n", ret);
+		return ret;
+	}
+#endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
 
 	dev_info(dev, "[gpu_iommu] init done %d", ret);

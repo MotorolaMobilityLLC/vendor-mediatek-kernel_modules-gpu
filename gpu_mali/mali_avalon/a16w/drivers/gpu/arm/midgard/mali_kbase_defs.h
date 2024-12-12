@@ -1330,6 +1330,9 @@ struct kbase_device {
 	u32 sysc_alloc[GPU_SYSC_ALLOC_COUNT];
 
 	struct mutex fw_load_lock;
+#if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
+	struct mutex ghpm_lock;
+#endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
 #if MALI_USE_CSF
 	/* CSF object for the GPU device. */
 	struct kbase_csf_device csf;

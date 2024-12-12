@@ -35,6 +35,7 @@ ifeq ($(BUILD_RULE),OOT)
 
         # *** MTK CONFIG ***
         CONFIG_MALI_MTK_PROC_FS := y
+        CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE := y
     endif ## mt6991 ##
 endif
 
