@@ -2349,6 +2349,9 @@ static void timer_event_worker(struct work_struct *data)
 	struct kbase_context *const kctx = group->kctx;
 	struct kbase_device *const kbdev = kctx->kbdev;
 	bool reset_prevented = false;
+#if IS_ENABLED(CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG) && IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	u32 csg_nr;
+#endif /* CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG */
 	int err = kbase_reset_gpu_prevent_and_wait(kbdev);
 
 	if (err)
@@ -2368,6 +2371,21 @@ static void timer_event_worker(struct work_struct *data)
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	mutex_lock(&kctx->csf.lock);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG) && IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, NULL, MTK_DBG_HOOK_NA);
+	for (csg_nr = 0; csg_nr < kbdev->csf.global_iface.group_num; csg_nr++) {
+		struct kbase_queue_group *const group =
+			kbdev->csf.scheduler.csg_slots[csg_nr].resident_group;
+
+		if (!group)
+			continue;
+		if (group->kctx != kctx)
+			continue;
+
+		mtk_debug_csf_dump_queue_data(group);
+	}
+#endif /* CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG */
 
 	term_queue_group(group);
 	flush_gpu_cache_on_fatal_error(kbdev);
@@ -2405,11 +2423,26 @@ static void handle_progress_timer_events(struct kbase_device *const kbdev, unsig
 		group->progress_timer_state = kbase_csf_fw_io_group_read(&kbdev->csf.fw_io, csg_nr,
 									 CSG_PROGRESS_TIMER_STATE);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG)
+		dev_info(
+			kbdev->dev,
+			"[%llxt] Iterator PROGRESS_TIMER timeout notification received for group %u of ctx %d_%d on slot %d with state %x, pending_faults %d\n",
+			kbase_backend_get_timestamp(kbdev), group->handle, group->kctx->tgid,
+			group->kctx->id, csg_nr, group->progress_timer_state, atomic_read(&kbdev->faults_pending));
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"[%llxt] Iterator PROGRESS_TIMER timeout notification received for group %u of ctx %d_%d on slot %d with state %x, pending_faults %d\n",
+			kbase_backend_get_timestamp(kbdev), group->handle, group->kctx->tgid,
+			group->kctx->id, csg_nr, group->progress_timer_state, atomic_read(&kbdev->faults_pending));
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#else
 		dev_info(
 			kbdev->dev,
 			"[%llu] Iterator PROGRESS_TIMER timeout notification received for group %u of ctx %d_%d on slot %u with state %x",
 			kbase_backend_get_cycle_cnt(kbdev), group->handle, group->kctx->tgid,
 			group->kctx->id, csg_nr, group->progress_timer_state);
+#endif /* CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG */
 
 		if (CSG_PROGRESS_TIMER_STATE_GET(group->progress_timer_state) ==
 		    CSG_PROGRESS_TIMER_STATE_COMPUTE)
