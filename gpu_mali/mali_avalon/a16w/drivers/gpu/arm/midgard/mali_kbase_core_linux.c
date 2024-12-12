@@ -144,6 +144,10 @@
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
+#include <platform/mtk_platform_common/mtk_platform_qinspect_recovery.h>
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
+
 #define KERNEL_SIDE_DDK_VERSION_STRING "K:" MALI_RELEASE_NAME "(GPL)"
 
 /**
