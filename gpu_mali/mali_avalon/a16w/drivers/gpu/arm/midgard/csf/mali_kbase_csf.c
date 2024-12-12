@@ -44,6 +44,10 @@
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 #include <mali_kbase_io.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 #include <platform/mtk_platform_common.h>
 #include <platform/mtk_platform_common/mtk_platform_debug_dump_queue_data.h>
@@ -662,6 +666,12 @@ void kbase_csf_queue_terminate(struct kbase_context *kctx,
 			kbdev->dev,
 			"Unsuccessful GPU reset detected when terminating queue (buffer_addr=0x%.16llx), attempting to terminate regardless",
 			term->buffer_gpu_addr);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Unsuccessful GPU reset detected when terminating queue (buffer_addr=0x%.16llx), attempting to terminate regardless\n",
+			term->buffer_gpu_addr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_RESET_FAIL);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
@@ -1550,6 +1560,11 @@ void kbase_csf_queue_group_terminate(struct kbase_context *kctx, u8 group_handle
 			kbdev->dev,
 			"Unsuccessful GPU reset detected when terminating group %d, attempting to terminate regardless",
 			group_handle);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Unsuccessful GPU reset detected when terminating group %d, attempting to terminate regardless\n",
+			group_handle);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_RESET_FAIL);
@@ -2672,11 +2687,15 @@ static void cs_error_worker(struct work_struct *const data)
 	kbase_debug_csf_fault_wait_completion(kbdev);
 	err = kbase_reset_gpu_prevent_and_wait(kbdev);
 
-	if (err)
+	if (err) {
 		dev_warn(
 			kbdev->dev,
 			"Unsuccessful GPU reset detected when terminating group to handle fatal event, attempting to terminate regardless");
-	else
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Unsuccessful GPU reset detected when terminating group to handle fatal event, attempting to terminate regardless\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	} else
 		reset_prevented = true;
 
 	mutex_lock(&kctx->csf.lock);
@@ -2684,6 +2703,11 @@ static void cs_error_worker(struct work_struct *const data)
 	group = get_bound_queue_group(queue);
 	if (!group) {
 		dev_warn(kbdev->dev, "queue not bound when handling an error event");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"queue not bound when handling an error event\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_CSFATAL_QUEUENOTBOUND);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
@@ -2847,9 +2871,24 @@ u32 kbase_csf_report_cs_fatal_info(struct kbase_queue *const queue, u32 slot_id,
 				 kbase_gpu_exception_name(cs_fatal_exception_type),
 				 cs_fatal_exception_data, cs_fatal_info_exception_data,
 				 cs_fatal_trace_id0, cs_fatal_trace_id1, cs_fatal_trace_task);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				 "Ctx %d_%d Group %d CSG %d CSI: %d\n"
+				 "CS_FATAL.EXCEPTION_TYPE: 0x%x (%s)\n"
+				 "CS_FATAL.EXCEPTION_DATA: 0x%x\n"
+				 "CS_FATAL_INFO.EXCEPTION_DATA: 0x%llx\n"
+				 "CS_FATAL_TRACE_ID0.EXCEPTION_TRACE_ID0: 0x%x\n"
+				 "CS_FATAL_TRACE_ID1.EXCEPTION_TRACE_ID1:  0x%x\n"
+				 "CS_FATAL_TRACE_TASK.EXCEPTION_TRACE_TASK: 0x%x\n",
+				 queue->kctx->tgid, queue->kctx->id, queue->group->handle,
+				 queue->group->csg_nr, queue->csi_index, cs_fatal_exception_type,
+				 kbase_gpu_exception_name(cs_fatal_exception_type),
+				 cs_fatal_exception_data, cs_fatal_info_exception_data,
+				 cs_fatal_trace_id0, cs_fatal_trace_id1, cs_fatal_trace_task);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		}
 	}
-	if (!has_trace_info && !skip_fault_report)
+	if (!has_trace_info && !skip_fault_report) {
 		dev_warn(kbdev->dev,
 			 "Ctx %d_%d Group %d CSG %d CSI: %d\n"
 			 "CS_FATAL.EXCEPTION_TYPE: 0x%x (%s)\n"
@@ -2859,6 +2898,18 @@ u32 kbase_csf_report_cs_fatal_info(struct kbase_queue *const queue, u32 slot_id,
 			 queue->group->csg_nr, queue->csi_index, cs_fatal_exception_type,
 			 kbase_gpu_exception_name(cs_fatal_exception_type), cs_fatal_exception_data,
 			 cs_fatal_info_exception_data);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			 "Ctx %d_%d Group %d CSG %d CSI: %d\n"
+			 "CS_FATAL.EXCEPTION_TYPE: 0x%x (%s)\n"
+			 "CS_FATAL.EXCEPTION_DATA: 0x%x\n"
+			 "CS_FATAL_INFO.EXCEPTION_DATA: 0x%llx\n",
+			 queue->kctx->tgid, queue->kctx->id, queue->group->handle,
+			 queue->group->csg_nr, queue->csi_index, cs_fatal_exception_type,
+			 kbase_gpu_exception_name(cs_fatal_exception_type), cs_fatal_exception_data,
+			 cs_fatal_info_exception_data);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	}
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	/* Remove the diagnosis mode's print to prevent IRQ long */
@@ -2900,7 +2951,7 @@ void kbase_csf_report_cs_fault_info(struct kbase_queue *const queue, u32 slot_id
 		lockdep_assert_held(&kbdev->csf.scheduler.lock);
 
 
-	if (!has_trace_info && !skip_fault_report)
+	if (!has_trace_info && !skip_fault_report) {
 		dev_warn(kbdev->dev,
 			 "Ctx %d_%d Group %d CSG %d CSI: %d\n"
 			 "CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
@@ -2910,6 +2961,18 @@ void kbase_csf_report_cs_fault_info(struct kbase_queue *const queue, u32 slot_id
 			 queue->group->csg_nr, queue->csi_index, cs_fault_exception_type,
 			 kbase_gpu_exception_name(cs_fault_exception_type), cs_fault_exception_data,
 			 cs_fault_info_exception_data);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			 "Ctx %d_%d Group %d CSG %d CSI: %d\n"
+			 "CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
+			 "CS_FAULT.EXCEPTION_DATA: 0x%x\n"
+			 "CS_FAULT_INFO.EXCEPTION_DATA: 0x%llx\n",
+			 queue->kctx->tgid, queue->kctx->id, queue->group->handle,
+			 queue->group->csg_nr, queue->csi_index, cs_fault_exception_type,
+			 kbase_gpu_exception_name(cs_fault_exception_type), cs_fault_exception_data,
+			 cs_fault_info_exception_data);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	}
 
 	queue->cs_error = cs_fault;
 	queue->cs_error_info = cs_fault_info;
@@ -2930,6 +2993,11 @@ int kbase_csf_handle_pending_oom_interrupt(struct kbase_queue *const queue, u32 
 			dev_warn(kbdev->dev,
 				 "Tiler OOM work already queued: queue %d group %d (ctx %d_%d)",
 				 queue->csi_index, group_id, queue->kctx->tgid, queue->kctx->id);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				 "Tiler OOM work already queued: queue %d group %d (ctx %d_%d)\n",
+				 queue->csi_index, group_id, queue->kctx->tgid, queue->kctx->id);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			return -EBUSY;
 		}
 	}
@@ -3325,6 +3393,10 @@ static inline void check_protm_enter_req_complete(struct kbase_device *kbdev, u3
 		return;
 
 	dev_dbg(kbdev->dev, "Protected mode entry interrupt received");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR,
+		"Protected mode entry interrupt received\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	kbdev->protected_mode = true;
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
@@ -3356,6 +3428,10 @@ static inline int process_protm_exit(struct kbase_device *kbdev, u32 glb_ack)
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 
 	dev_dbg(kbdev->dev, "Protected mode exit interrupt received");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR,
+		"Protected mode exit interrupt received\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	if (kbase_csf_fw_io_open(fw_io, &fw_io_flags))
 		return -ENODEV;

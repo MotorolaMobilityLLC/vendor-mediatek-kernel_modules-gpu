@@ -51,6 +51,10 @@
 #include <uapi/linux/sched/types.h>
 #endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 #include <platform/mtk_platform_common.h>
 #include <platform/mtk_platform_common/mtk_platform_debug_dump_queue_data.h>
@@ -626,6 +630,10 @@ static int force_scheduler_to_exit_sleep(struct kbase_device *kbdev)
 		dev_warn(kbdev->dev,
 			 "[%llu] Wait for MCU wake up failed on forced scheduler suspend",
 			 kbase_backend_get_cycle_cnt(kbdev));
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			 "Wait for MCU wake up failed on forced scheduler suspend\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		goto out;
 	}
 
@@ -645,6 +653,10 @@ static int force_scheduler_to_exit_sleep(struct kbase_device *kbdev)
 		dev_warn(kbdev->dev,
 			 "[%llu] Wait for pm state change failed on forced scheduler suspend",
 			 kbase_backend_get_cycle_cnt(kbdev));
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			 "Wait for pm state change failed on forced scheduler suspend\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		goto out;
 	}
 
@@ -1069,6 +1081,11 @@ static bool scheduler_protm_wait_quit(struct kbase_device *kbdev)
 
 		dev_warn(kbdev->dev, "[%llu] Timeout (%d ms), protm_quit wait skipped",
 			 kbase_backend_get_cycle_cnt(kbdev), fw_timeout_ms);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			 "Timeout (%d ms), protm_quit wait skipped\n",
+			 fw_timeout_ms);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		schedule_actions_trigger_df(kbdev, kctx, DF_PROTECTED_MODE_EXIT_TIMEOUT);
 		success = false;
 	}
@@ -1475,6 +1492,12 @@ static int halt_stream_sync(struct kbase_queue *queue)
 				"[%llu] Timeout (%d ms) waiting for queue to start on csi %d bound to group %d on slot %d",
 				kbase_backend_get_cycle_cnt(kbdev), fw_timeout_ms, csi_index,
 				group->handle, group->csg_nr);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"Timeout (%d ms) waiting for queue to start on csi %d bound to group %d on slot %d\n",
+				fw_timeout_ms,
+				csi_index, group->handle, group->csg_nr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
 				kbase_reset_gpu(kbdev);
 
@@ -1514,6 +1537,12 @@ static int halt_stream_sync(struct kbase_queue *queue)
 			"[%llu] Timeout (%d ms) waiting for queue to stop on csi %d bound to group %d on slot %d",
 			kbase_backend_get_cycle_cnt(kbdev), fw_timeout_ms, queue->csi_index,
 			group->handle, group->csg_nr);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Timeout (%d ms) waiting for queue to stop on csi %d bound to group %d on slot %d\n",
+			fw_timeout_ms,
+			queue->csi_index, group->handle, group->csg_nr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 		/* TODO GPUCORE-25328: The CSG can't be terminated, the GPU
 		 * will be reset as a work-around.
@@ -1674,7 +1703,12 @@ retry:
 						"[%llu] Timeout (%d ms) waiting for queue stop ack on csi %d bound to group %d on slot %d",
 						kbase_backend_get_cycle_cnt(kbdev), fw_timeout_ms,
 						queue->csi_index, group->handle, group->csg_nr);
-
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+					mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+						"Timeout (%d ms) waiting for queue stop ack on csi %d bound to group %d on slot %d\n",
+						fw_timeout_ms, queue->csi_index,
+						group->handle, group->csg_nr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 					err = -ETIMEDOUT;
 				}
@@ -1686,7 +1720,12 @@ retry:
 			"[%llu] Group-%d failed to get a slot for stopping the queue on csi %d (timeout %d ms)",
 			kbase_backend_get_cycle_cnt(kbdev), group->handle, queue->csi_index,
 			group_schedule_timeout);
-
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Group-%d failed to get a slot for stopping the queue on csi %d (timeout %d ms)\n",
+			group->handle, queue->csi_index,
+			group_schedule_timeout);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 		err = -ETIMEDOUT;
 	}
@@ -1718,6 +1757,12 @@ static void scheduler_activate_on_queue_stop(struct kbase_queue *queue)
 			"[%llu] Wait for MCU active failed for stopping queue on csi %d bound to group %d of context %d_%d on slot %d",
 			kbase_backend_get_cycle_cnt(kbdev), queue->csi_index, queue->group->handle,
 			queue->kctx->tgid, queue->kctx->id, queue->group->csg_nr);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Wait for MCU active failed for stopping queue on csi %d bound to group %d of context %d_%d on slot %d\n",
+			queue->csi_index, queue->group->handle,
+			queue->kctx->tgid, queue->kctx->id, queue->group->csg_nr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 }
 
@@ -2232,6 +2277,12 @@ static void halt_csg_slot(struct kbase_queue_group *group, bool suspend)
 		if (!remaining) {
 			dev_warn(kbdev->dev, "[%llu] slot %d timeout (%d ms) on up-running\n",
 				 kbase_backend_get_cycle_cnt(kbdev), slot, fw_timeout_ms);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				 "slot %d timeout (%d ms) on up-running\n",
+				 slot,
+				 fw_timeout_ms);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_GSG_TIMEOUT);
@@ -3444,6 +3495,12 @@ static int term_group_sync(struct kbase_queue_group *group)
 			"[%llu] term request timeout (%d ms) for group %d of context %d_%d on slot %d",
 			kbase_backend_get_cycle_cnt(kbdev), group_term_timeout_ms, group->handle,
 			group->kctx->tgid, group->kctx->id, group->csg_nr);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"term request timeout (%d ms) for group %d of context %d_%d on slot %d\n",
+			group_term_timeout_ms, group->handle,
+			group->kctx->tgid, group->kctx->id, group->csg_nr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		if (kbase_csf_firmware_ping_wait(kbdev, FW_PING_AFTER_ERROR_TIMEOUT_MS))
 			error_type = DF_PING_REQUEST_TIMEOUT;
 		schedule_actions_trigger_df(kbdev, group->kctx, error_type);
@@ -4084,6 +4141,12 @@ static void wait_csg_slots_start(struct kbase_device *kbdev)
 				kbase_backend_get_cycle_cnt(kbdev),
 				kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT), num_groups,
 				slot_mask);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"Timeout (%d ms) waiting for CSG slots to start, slots: 0x%*pb\n",
+				kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT),
+				num_groups, slot_mask);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			if (kbase_csf_firmware_ping_wait(kbdev, FW_PING_AFTER_ERROR_TIMEOUT_MS))
 				error_type = DF_PING_REQUEST_TIMEOUT;
 			schedule_actions_trigger_df(kbdev, group->kctx, error_type);
@@ -4235,6 +4298,11 @@ static void wait_csg_slots_finish_prio_update(struct kbase_device *kbdev)
 			kbdev->dev,
 			"[%llu] Timeout (%d ms) on CSG_REQ:EP_CFG, skipping the update wait: slot mask=0x%lx",
 			kbase_backend_get_cycle_cnt(kbdev), fw_timeout_ms, slot_mask[0]);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Timeout (%d ms) on CSG_REQ:EP_CFG, skipping the update wait: slot mask=0x%lx\n",
+			fw_timeout_ms, slot_mask[0]);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		if (kbase_csf_firmware_ping_wait(kbdev, FW_PING_AFTER_ERROR_TIMEOUT_MS))
 			error_type = DF_PING_REQUEST_TIMEOUT;
 		schedule_actions_trigger_df(kbdev, group->kctx, error_type);
@@ -4281,6 +4349,11 @@ void kbase_csf_scheduler_evict_ctx_slots(struct kbase_device *kbdev, struct kbas
 
 			dev_dbg(kbdev->dev, "Evicting group [%d] running on slot [%d] due to reset",
 				group->handle, group->csg_nr);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"Evicting group [%d] running on slot [%d] due to reset\n",
+				group->handle, group->csg_nr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 			term_csg_slot(group);
 			as_fault = cleanup_csg_slot(group);
@@ -4296,6 +4369,11 @@ void kbase_csf_scheduler_evict_ctx_slots(struct kbase_device *kbdev, struct kbas
 
 	dev_info(kbdev->dev, "Evicting context %d_%d slots: 0x%*pb\n", kctx->tgid, kctx->id,
 		 num_groups, slot_mask);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		 "Evicting context %d_%d slots: 0x%*pb\n", kctx->tgid, kctx->id,
+		 num_groups, slot_mask);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	/* Fatal errors may have been the cause of the GPU reset
 	 * taking place, in which case we want to make sure that
@@ -4969,6 +5047,12 @@ static void scheduler_update_idle_slots_status(struct kbase_device *kbdev,
 				"[%llu] Timeout (%d ms) on CSG_REQ:STATUS_UPDATE, treat groups as not idle: slot mask=0x%lx",
 				kbase_backend_get_cycle_cnt(kbdev), fw_timeout_ms, csg_bitmap[0]);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER && CONFIG_MALI_MTK_DEBUG_DUMP */
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"Timeout (%d ms) on CSG_REQ:STATUS_UPDATE, treat groups as not idle: slot mask=0x%lx\n",
+				fw_timeout_ms,
+				csg_bitmap[0]);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			schedule_actions_trigger_df(kbdev, group->kctx,
 						    DF_CSG_STATUS_UPDATE_TIMEOUT);
 
@@ -5160,6 +5244,12 @@ static int suspend_active_groups_on_powerdown(struct kbase_device *kbdev, bool s
 				kbase_backend_get_cycle_cnt(kbdev),
 				kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT),
 				kbdev->csf.global_iface.group_num, slot_mask);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"Timeout (%d ms) waiting for CSG slots to suspend on power down, slot_mask: 0x%*pb\n",
+				kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT),
+				kbdev->csf.global_iface.group_num, slot_mask);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			if (kbase_csf_firmware_ping_wait(kbdev, FW_PING_AFTER_ERROR_TIMEOUT_MS))
 				error_type = DF_PING_REQUEST_TIMEOUT;
 			schedule_actions_trigger_df(kbdev, group->kctx, error_type);
@@ -5759,6 +5849,10 @@ static void schedule_actions(struct kbase_device *kbdev, bool is_tick)
 
 	if (kbase_csf_scheduler_wait_mcu_active(kbdev)) {
 		dev_err(kbdev->dev, "Wait for MCU power on failed on scheduling tick/tock");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Wait for MCU power on failed on scheduling tick/tock\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_MCUPOWERON_FAIL);
@@ -6077,6 +6171,11 @@ static int suspend_active_queue_groups_on_reset(struct kbase_device *kbdev)
 			kbdev->dev,
 			"Timeout waiting for CSG slots to suspend before reset, slot_mask: 0x%*pb\n",
 			kbdev->csf.global_iface.group_num, slot_mask);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Timeout waiting for CSG slots to suspend before reset, slot_mask: 0x%*pb\n",
+			kbdev->csf.global_iface.group_num, slot_mask);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 
 	/* Need to flush the GPU cache to ensure suspend buffer
@@ -6096,6 +6195,10 @@ static int suspend_active_queue_groups_on_reset(struct kbase_device *kbdev)
 	if (ret2) {
 		dev_err(kbdev->dev, "[%llu] Timeout waiting for CACHE_CLN_INV_L2_LSC",
 			kbase_backend_get_cycle_cnt(kbdev));
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Timeout waiting for CACHE_CLN_INV_L2_LSC\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		if (!ret)
 			ret = ret2;
 	}
@@ -6444,6 +6547,11 @@ int kbase_csf_scheduler_group_copy_suspend_buf(struct kbase_queue_group *group,
 			dev_warn(kbdev->dev,
 				 "[%llu] Timeout waiting for the group %d to suspend on slot %d",
 				 kbase_backend_get_cycle_cnt(kbdev), group->handle, group->csg_nr);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				 "Timeout waiting for the group %d to suspend on slot %d\n",
+				 group->handle, group->csg_nr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			goto exit;
 		}
 	}
