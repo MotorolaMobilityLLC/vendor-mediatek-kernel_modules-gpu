@@ -211,6 +211,10 @@ static void kbase_csf_reset_end_hw_access(struct kbase_device *kbdev, int err_du
 	} else {
 		dev_err(kbdev->dev, "Reset failed to complete");
 		atomic_set(&kbdev->csf.reset.state, KBASE_CSF_RESET_GPU_FAILED);
+#if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)
+		if (kbdev->exception_mask & (1u << EXCEPTION_RESET_FAILED))
+			BUG_ON(1);
+#endif /* CONFIG_MALI_MTK_TRIGGER_KE */
 	}
 
 	kbase_csf_scheduler_spin_unlock(kbdev, scheduler_spin_lock_flags);

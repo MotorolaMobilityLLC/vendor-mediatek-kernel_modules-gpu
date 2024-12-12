@@ -194,6 +194,11 @@ static int wait_ready(struct kbase_device *kbdev, unsigned int as_nr)
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_BITSTUCK_FAIL);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)
+	if (kbdev->exception_mask & (1u << EXCEPTION_BIT_STUCK))
+		BUG_ON(1);
+#endif /* CONFIG_MALI_MTK_TRIGGER_KE */
+
 	if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
 		kbase_reset_gpu_locked(kbdev);
 
