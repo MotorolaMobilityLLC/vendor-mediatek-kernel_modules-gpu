@@ -586,7 +586,7 @@ static void dump_hwif_registers(struct kbase_device *kbdev, int faulty_as)
 	}
 }
 
-static void dump_mmu_teardown_records(struct kbase_device *kbdev) {
+static void dump_mmu_teardown_records(struct kbase_device *kbdev, u64 fault_addr, struct kbase_context *kctx) {
 	size_t idx;
 	size_t tail;
 
@@ -641,6 +641,20 @@ static void dump_mmu_teardown_records(struct kbase_device *kbdev) {
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR,
 			"[mmu] %llu,%zu,%llx,%d,%d,%d,%d,%d\n",
 			kbdev->mmu_dbg[idx].time, kbdev->mmu_dbg[idx].pgds, kbdev->mmu_dbg[idx].va, kbdev->mmu_dbg[idx].tgid, kbdev->mmu_dbg[idx].id, kbdev->mmu_dbg[idx].as_nr, kbdev->mmu_dbg[idx].ipm, kbdev->mmu_dbg[idx].mmu_op_type);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	}
+
+#define DBG_NEAR_REGION_THRESHOLD 0x8000 // bytes
+#define DBG_PAGE_SIZE_IN_MMU_DBG 0x1000 //4k
+	for (idx = 0; idx < tail; idx++) {
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		u64 start_addr = max(0, kbdev->mmu_dbg[idx].va - kbdev->mmu_dbg[idx].pgds * DBG_PAGE_SIZE_IN_MMU_DBG + DBG_NEAR_REGION_THRESHOLD);
+		u64 end_addr = kbdev->mmu_dbg[idx].va + kbdev->mmu_dbg[idx].pgds * DBG_PAGE_SIZE_IN_MMU_DBG + DBG_NEAR_REGION_THRESHOLD;
+		if(fault_addr >= start_addr && fault_addr < end_addr && kbdev->mmu_dbg[idx].tgid == kctx->tgid && kbdev->mmu_dbg[idx].id == kctx->id) {
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR,
+				"[mmu_dump][close_region] time(microsec) %llu, pgds %zu, gpu_va %llx, %d_%d, as %d, ipm %d, op(0: map, 1: unmap) %d\n",
+				kbdev->mmu_dbg[idx].time, kbdev->mmu_dbg[idx].pgds, kbdev->mmu_dbg[idx].va, kbdev->mmu_dbg[idx].tgid, kbdev->mmu_dbg[idx].id, kbdev->mmu_dbg[idx].as_nr, kbdev->mmu_dbg[idx].ipm, kbdev->mmu_dbg[idx].mmu_op_type);
+		}
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 
@@ -773,7 +787,7 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx, struct kbase_as
 
 		mutex_unlock(&kbdev->register_check_lock);
 
-		dump_mmu_teardown_records(kbdev);
+		dump_mmu_teardown_records(kbdev, fault->addr, kctx);
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 	}
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
