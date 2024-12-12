@@ -6523,7 +6523,7 @@ static ssize_t idle_hysteresis_time_show(struct device *dev, struct device_attri
 
 static DEVICE_ATTR_RW(idle_hysteresis_time);
 
-#if IS_ENABLED(CONFIG_MALI_MTK_SOI)
+#if IS_ENABLED(CONFIG_MALI_MTK_SOI_DEBUG)
 
 /**
  * @brief Store whether sleep on idle should be enabled for the KBase device.
@@ -6597,7 +6597,7 @@ static ssize_t sleep_on_idle_enable_show(struct device *dev, struct device_attri
 
 static DEVICE_ATTR_RW(sleep_on_idle_enable);
 
-#endif /* CONFIG_MALI_MTK_SOI */
+#endif /* CONFIG_MALI_MTK_SOI_DEBUG */
 
 /**
  * idle_hysteresis_time_ns_store - Store callback for CSF
@@ -6842,9 +6842,9 @@ static struct attribute *kbase_attrs[] = {
 	&dev_attr_fw_timeout.attr,
 	&dev_attr_idle_hysteresis_time.attr,
 	&dev_attr_idle_hysteresis_time_ns.attr,
-#if IS_ENABLED(CONFIG_MALI_MTK_SOI)
+#if IS_ENABLED(CONFIG_MALI_MTK_SOI_DEBUG)
 	&dev_attr_sleep_on_idle_enable.attr,
-#endif /* IS_ENABLED(CONFIG_MALI_MTK_SOI) */
+#endif /* IS_ENABLED(CONFIG_MALI_MTK_SOI_DEBUG) */
 	&dev_attr_mcu_shader_pwroff_timeout.attr,
 	&dev_attr_mcu_shader_pwroff_timeout_ns.attr,
 #endif /* !MALI_USE_CSF */
