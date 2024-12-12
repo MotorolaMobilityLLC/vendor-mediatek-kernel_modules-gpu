@@ -89,10 +89,14 @@ int kbase_mem_query(struct kbase_context *kctx, u64 gpu_addr, u64 query, u64 *co
  *            memory.
  * Return: 0 on success or error code
  */
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+int kbase_mem_import(struct kbase_context *kctx, enum base_mem_import_type type,
+		     void __user *phandle, u32 padding, u64 *gpu_va, u64 *va_pages, base_mem_alloc_flags *flags, u8 PBHA, bool isFirstDmaBuf);
+#else
 int kbase_mem_import(struct kbase_context *kctx, enum base_mem_import_type type,
 		     void __user *phandle, u32 padding, u64 *gpu_va, u64 *va_pages,
 		     base_mem_alloc_flags *flags);
-
+#endif
 /**
  * kbase_mem_alias - Create a new allocation for GPU, aliasing one or more
  *                   memory regions

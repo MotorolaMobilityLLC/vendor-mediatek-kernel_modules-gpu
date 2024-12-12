@@ -106,6 +106,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_SCMI_ENABLE := n
         CONFIG_MALI_MTK_ACP_DSU_REQ := y
         CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG := y
+        CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 := y
     endif ## mt6991 ##
 
     ifeq ($(MTK_PLATFORM_VERSION),mt6993)
@@ -183,6 +184,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_SCMI_ENABLE := n
         CONFIG_MALI_MTK_ACP_DSU_REQ := n
         CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG := n
+        CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 := n
     endif ## mt6993 ##
 endif
 
@@ -317,6 +319,9 @@ ccflags-y += \
     -I$(KO_CODE_PATH)/../../../../include
 ifeq ($(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE), y)
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/slbc
+endif
+ifeq ($(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2), y)
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpu_pdma/include
 endif
 
 subdir-ccflags-y += $(ccflags-y)

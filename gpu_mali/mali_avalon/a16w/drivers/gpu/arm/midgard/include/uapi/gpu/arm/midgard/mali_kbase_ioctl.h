@@ -355,12 +355,15 @@ union kbase_ioctl_mem_alias {
  * @in: Input parameters
  * @in.flags: Flags, see BASE_MEM_xxx
  * @in.phandle: Handle to the external memory
+ * @in.vkAllocateMemoryCallID: Used for PBHA hint, to determin which call of vkAllocateMemory is happening
+ * @in.numOfPlanes: Number of planes (Assigned by AHardwareBuffer format)
  * @in.type: Type of external memory, see base_mem_import_type
  * @in.padding: Amount of extra VA pages to append to the imported buffer
  * @out: Output parameters
  * @out.flags: Flags, see BASE_MEM_xxx
  * @out.gpu_va: Address of the new alias
  * @out.va_pages: Size of the new alias
+ * @out.out_pbha_8bit: return the value of pbha get from kernel
  */
 union kbase_ioctl_mem_import {
 	struct {
@@ -368,11 +371,22 @@ union kbase_ioctl_mem_import {
 		__u64 phandle;
 		__u32 type;
 		__u32 padding;
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+		__u32 vkAllocateMemoryCallID;
+		__u8 numOfPlanes;
+		__u8 in_pbha_8bit;
+		__u8  alignment[6];
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 	} in;
 	struct {
 		__u64 flags;
 		__u64 gpu_va;
 		__u64 va_pages;
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+		__u8  out_pbha_8bit;
+		__u8  alignment[7];
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
+
 	} out;
 };
 
