@@ -1282,6 +1282,7 @@ static int create_queue_group(struct kbase_context *const kctx,
 			group->faulted = false;
 			group->cs_unrecoverable = false;
 			group->reevaluate_idle_status = false;
+			group->idle_on_stop = false;
 
 			group->csg_reg = NULL;
 			group->csg_reg_bind_retries = 0;
