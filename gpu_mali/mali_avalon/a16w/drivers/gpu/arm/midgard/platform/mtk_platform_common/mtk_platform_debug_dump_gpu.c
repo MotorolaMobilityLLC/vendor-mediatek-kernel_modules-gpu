@@ -1510,7 +1510,7 @@ void mtk_debug_csf_csg_active_dump_group(struct kbase_queue_group *const group,
             group->kctx->tgid,
             group->kctx->id);
 
-        for (i = 0; i < MAX_SUPPORTED_STREAMS_PER_GROUP; i++) {
+        for (i = 0; i < BASEP_GPU_QUEUE_PER_QUEUE_GROUP_MAX; i++) {
             mtk_debug_csf_csg_active_dump_queue(
                 group->kctx->tgid,
                 group->kctx->id,

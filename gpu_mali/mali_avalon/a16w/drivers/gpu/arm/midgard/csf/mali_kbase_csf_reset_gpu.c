@@ -384,11 +384,13 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 
 #if MALI_USE_CSF
 	if (kbdev->pm.backend.has_host_pwr_iface) {
+		u32 domain_status;
 		if (kbdev->gpu_props.gpu_id.arch_id < GPU_ID_ARCH_MAKE(14, 10, 0))
 			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_DEFERRED_WHEN_RESET,
 				"  NEURAL_CONFIG=0x%08x\n",
 				kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(NEURAL_CONFIG)));
-		if (kbase_pm_get_domain_status(kbdev, PWR_COMMAND_DOMAIN_L2, 0))
+		if (!kbase_pm_get_domain_status(kbdev, PWR_COMMAND_DOMAIN_L2, 0, &domain_status) &&
+		    domain_status)
 			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_DEFERRED_WHEN_RESET,
 				"  L2_PWR_STATUS=0x%05llx\n",
 				kbase_reg_read64(kbdev, HOST_POWER_ENUM(PWR_CMDARG)));
@@ -460,10 +462,12 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 
 #if MALI_USE_CSF
 	if (kbdev->pm.backend.has_host_pwr_iface) {
+		u32 domain_status;
 		if (kbdev->gpu_props.gpu_id.arch_id < GPU_ID_ARCH_MAKE(14, 10, 0))
 			dev_err(kbdev->dev, "  NEURAL_CONFIG=0x%08x",
 				kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(NEURAL_CONFIG)));
-		if (kbase_pm_get_domain_status(kbdev, PWR_COMMAND_DOMAIN_L2, 0))
+		if (!kbase_pm_get_domain_status(kbdev, PWR_COMMAND_DOMAIN_L2, 0, &domain_status) &&
+		    domain_status)
 			dev_err(kbdev->dev, "  L2_PWR_STATUS=0x%05llx",
 				kbase_reg_read64(kbdev, HOST_POWER_ENUM(PWR_CMDARG)));
 	}
@@ -844,7 +848,7 @@ bool __kbase_prepare_to_reset_gpu(struct kbase_device *kbdev, unsigned int flags
 bool kbase_prepare_to_reset_gpu(struct kbase_device *kbdev, unsigned int flags)
 #endif /* CONFIG_MALI_MTK_GPU_RESET_DEBUG */
 {
-	if (kbase_io_is_gpu_lost(kbdev)) {
+	if (kbase_io_is_aw_removed(kbdev)) {
 		/* GPU access has been removed, reset will be done by Arbiter instead */
 		return false;
 	}

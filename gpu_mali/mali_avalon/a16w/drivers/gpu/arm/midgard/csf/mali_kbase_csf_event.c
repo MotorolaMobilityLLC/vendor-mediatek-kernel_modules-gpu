@@ -100,7 +100,7 @@ static void sync_update_notify_gpu(struct kbase_context *kctx)
 	can_notify_gpu = kbase_io_is_gpu_powered(kctx->kbdev);
 #ifdef KBASE_PM_RUNTIME
 	if (kctx->kbdev->pm.backend.db_mirror_interrupt_enabled ||
-			kctx->kbdev->pm.backend.gpu_sleep_mode_active)
+	    kctx->kbdev->pm.backend.gpu_sleep_mode_active)
 		can_notify_gpu = false;
 #endif
 
