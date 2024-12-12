@@ -161,12 +161,16 @@ bool kbase_pm_is_mcu_desired(struct kbase_device *kbdev)
 	/* Check if policy changing transition needs MCU to be off. */
 	if (unlikely(kbdev->pm.backend.policy_change_clamp_state_to_off))
 		return false;
-
+	/* Check if Scheduler requires MCU to be ON */
 	if (kbdev->pm.backend.mcu_desired)
 		return true;
 
-	/* For always_on policy, the MCU needs to be kept on */
-	if (kbase_pm_no_mcu_core_pwroff(kbdev))
+	/* For always_on policy, the MCU needs to be kept on even if not required
+	 * by Scheduler.
+	 * But if System suspend or unload of Kbase is being done then the whole
+	 * GPU needs to be turned off. To know that check for the l2_desired flag.
+	 */
+	if (kbase_pm_no_mcu_core_pwroff(kbdev) && kbdev->pm.backend.l2_desired)
 		return true;
 
 #ifdef KBASE_PM_RUNTIME
