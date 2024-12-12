@@ -17,6 +17,7 @@ $(info *GPU [mtk-Kbuild] DEVICE_MODULES_PATH = $(DEVICE_MODULES_PATH))
 
 # build support for a ARM Mali Midgard GPU
 CONFIG_MALI_MIDGARD := $(CONFIG_MTK_GPU_SUPPORT)
+CONFIG_MALI_MIDGARD := m
 
 # use mtk platform
 CONFIG_MALI_PLATFORM_NAME := $(MTK_PLATFORM)
