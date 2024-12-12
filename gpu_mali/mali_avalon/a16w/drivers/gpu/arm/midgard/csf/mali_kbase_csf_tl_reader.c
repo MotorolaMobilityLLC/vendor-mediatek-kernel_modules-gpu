@@ -76,26 +76,12 @@ enum kbase_csffw_tl_fw_state {
 	CSFFW_TL_FW_NORMAL_MODE,    /**< FW has entered normal mode */
 	CSFFW_TL_FW_PROTECTED_MODE, /**< FW has entered protected mode */
 	CSFFW_TL_FW_SLEEPING,	    /**< FW has started sleeping */
-	CSFFW_TL_FW_RELOADING,
-	CSFFW_TL_FW_ENABLING,
-	CSFFW_TL_FW_REQUEST_SLEEP,  /**< KBASE has  request sleep */
-	CSFFW_TL_FW_REQUEST_WAKEUP,
-	CSFFW_TL_FW_REQUEST_HALT,  /**< KBASE has  request sleep */
-	CSFFW_TL_FW_DISABLING,
-	CSFFW_TL_FW_OFF,
 };
 
 static const char *csffw_tl_fw_state_strings[] = {
 	"NORMAL_MODE",    /**< FW has entered normal mode */
 	"PROTECTED_MODE", /**< FW has entered protected mode */
 	"SLEEPING",	    /**< FW has started sleeping */
-	"RELOADING",
-	"ENABLING",
-	"REQUEST_SLEEP",  /**< KBASE has  request sleep */
-	"REQUEST_WAKEUP",
-	"REQUEST_HALT",  /**< KBASE has  request sleep */
-	"DISABLING",
-	"OFF",
 };
 
 enum kbase_tl_csg_internal_state {

@@ -177,6 +177,55 @@ static const char *csffw_tl_fw_state_strings[] = {
 	"DISABLING",
 	"OFF",
 };
+
+static const char *csffw_tl_l2_state_strings[] = {
+	"OFF",
+	"PEND_ON",
+	"RESTORE_CLOCKS",
+	"ON_HWCNT_ENABLE",
+	"ON",
+	"ON_HWCNT_DISABLE",
+	"SLOW_DOWN_CLOCKS",
+	"POWER_DOWN",
+	"PEND_OFF",
+	"RESET_WAIT",
+};
+
+static const char *csffw_tl_mcu_state_strings[] = {
+	"OFF",
+	"PEND_ON_RELOAD",
+	"ON_GLB_REINIT_PEND",
+	"ON_HWCNT_ENABLE",
+	"ON",
+	"ON_CORE_ATTR_UPDATE_PEND",
+	"ON_HWCNT_DISABLE",
+	"ON_HALT",
+	"PEND_OFF",
+	"ON_PEND_HALT",
+	"POWER_DOWN",
+	"RESET_WAIT",
+	"HCTL_STACK_PEND_ON",
+	"HCTL_BASE_PEND_ON",
+	"HCTL_SHADERS_PEND_ON",
+	"HCTL_CORES_NOTIFY_PEND",
+	"HCTL_MCU_ON_RECHECK",
+	"HCTL_SHADERS_READY_OFF",
+	"HCTL_SHADERS_PEND_OFF",
+	"HCTL_BASE_PEND_OFF",
+	"HCTL_STACK_PEND_OFF",
+	"HCTL_CORES_DOWN_SCALE_NOTIFY_PEND",
+	"HCTL_CORE_INACTIVE_PEND",
+	"HCTL_SHADERS_CORE_OFF_PEND",
+	"ON_SLEEP_INITIATE",
+	"ON_PEND_SLEEP",
+	"ON_PEND_SOI_SLEEP",
+	"IN_SLEEP",
+	"ON_PMODE_ENTER_CORESIGHT_DISABLE",
+	"ON_PMODE_EXIT_CORESIGHT_ENABLE",
+	"CORESIGHT_DISABLE",
+	"CORESIGHT_ENABLE",
+};
+
 #endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
 
 #define OBJ_TP_LIST \
@@ -3699,8 +3748,8 @@ void __kbase_tlstream_tl_kbase_device_l2_core_state(
 	unsigned long acq_flags;
 	size_t pos = 0;
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
-	kbase_tl_systrace("E|7788|CSFFW State-300|%lld", ktime_get_raw_ns());
-	kbase_tl_systrace("B|7788|CSFFW State-300|%s|%lld", csffw_tl_fw_state_strings[CSFFW_TL_FW_RELOADING], ktime_get_raw_ns());
+	kbase_tl_systrace("E|7788|CSFFW L2 State-301|%lld", ktime_get_raw_ns());
+	kbase_tl_systrace("B|7788|CSFFW L2 State-301|%s|%lld", csffw_tl_l2_state_strings[new_state], ktime_get_raw_ns());
 #endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
 	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
 
@@ -3728,7 +3777,10 @@ void __kbase_tlstream_tl_kbase_device_mcu_state(
 	char *buffer;
 	unsigned long acq_flags;
 	size_t pos = 0;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+	kbase_tl_systrace("E|7788|CSFFW MCU State-302|%lld", ktime_get_raw_ns());
+	kbase_tl_systrace("B|7788|CSFFW MCU State-302|%s|%lld", csffw_tl_mcu_state_strings[new_state], ktime_get_raw_ns());
+#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
 	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
 
 	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
@@ -3767,6 +3819,53 @@ void __kbase_tlstream_tl_kbase_device_shader_core_state(
 
 	kbase_tlstream_msgbuf_release(stream, acq_flags);
 }
+
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+void __kbase_tlstream_tl_kbase_csffw_fw_reloading(
+	struct kbase_tlstream *stream,
+	u64 csffw_cycle
+)
+{
+	kbase_tl_systrace("E|7788|CSFFW State-300|%lld", ktime_get_raw_ns());
+	kbase_tl_systrace("B|7788|CSFFW State-300|%s|%lld", csffw_tl_fw_state_strings[CSFFW_TL_FW_RELOADING], ktime_get_raw_ns());
+}
+
+void __kbase_tlstream_tl_kbase_csffw_fw_enabling(
+	struct kbase_tlstream *stream,
+	u64 csffw_cycle
+)
+{
+	kbase_tl_systrace("E|7788|CSFFW State-300|%lld", ktime_get_raw_ns());
+	kbase_tl_systrace("B|7788|CSFFW State-300|%s|%lld", csffw_tl_fw_state_strings[CSFFW_TL_FW_ENABLING], ktime_get_raw_ns());
+}
+
+void __kbase_tlstream_tl_kbase_csffw_fw_request_sleep(
+	struct kbase_tlstream *stream,
+	u64 csffw_cycle
+)
+{
+	kbase_tl_systrace("E|7788|CSFFW State-300|%lld", ktime_get_raw_ns());
+	kbase_tl_systrace("B|7788|CSFFW State-300|%s|%lld", csffw_tl_fw_state_strings[CSFFW_TL_FW_REQUEST_SLEEP], ktime_get_raw_ns());
+}
+
+void __kbase_tlstream_tl_kbase_csffw_fw_request_wakeup(
+	struct kbase_tlstream *stream,
+	u64 csffw_cycle
+)
+{
+	kbase_tl_systrace("E|7788|CSFFW State-300|%lld", ktime_get_raw_ns());
+	kbase_tl_systrace("B|7788|CSFFW State-300|%s|%lld", csffw_tl_fw_state_strings[CSFFW_TL_FW_REQUEST_WAKEUP], ktime_get_raw_ns());
+}
+
+void __kbase_tlstream_tl_kbase_csffw_fw_request_halt(
+	struct kbase_tlstream *stream,
+	u64 csffw_cycle
+)
+{
+	kbase_tl_systrace("E|7788|CSFFW State-300|%lld", ktime_get_raw_ns());
+	kbase_tl_systrace("B|7788|CSFFW State-300|%s|%lld", csffw_tl_fw_state_strings[CSFFW_TL_FW_REQUEST_HALT], ktime_get_raw_ns());
+}
+#endif /* IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG) */
 
 void __kbase_tlstream_tl_kbase_csffw_fw_disabling(
 	struct kbase_tlstream *stream,

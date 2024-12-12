@@ -436,6 +436,10 @@ static void wait_for_firmware_boot(struct kbase_device *kbdev)
 
 static void enable_mcu(struct kbase_device *kbdev)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+	KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_ENABLING(kbdev, kbase_backend_get_cycle_cnt(kbdev));
+#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
+
 	/* Trigger the boot of MCU firmware, Use the AUTO mode as
 	 * otherwise on fast reset, to exit protected mode, MCU will
 	 * not reboot by itself to enter normal mode.
@@ -2198,6 +2202,10 @@ static void kbase_csf_firmware_reload_worker(struct work_struct *work)
 	dev_info(kbdev->dev, "reloading firmware");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+	KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_RELOADING(kbdev, kbase_backend_get_cycle_cnt(kbdev));
+#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
+
 	/* Reload just the data sections from firmware binary image */
 	err = reload_fw_image(kbdev);
 	if (err) {
@@ -2236,7 +2244,9 @@ void kbase_csf_firmware_reload(struct kbase_device *kbdev)
 	dev_info(kbdev->dev, "reloading firmware");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
-	//KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_RELOADING(kbdev, kbase_backend_get_cycle_cnt(kbdev));
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+	KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_RELOADING(kbdev, kbase_backend_get_cycle_cnt(kbdev));
+#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
 
 	/* Reload just the data sections from firmware binary image */
 	err = reload_fw_image(kbdev);
@@ -3364,7 +3374,9 @@ void kbase_csf_firmware_trigger_mcu_halt(struct kbase_device *kbdev)
 
 	if (kbase_csf_fw_io_open(fw_io, &fw_io_flags))
 		goto unlock;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+	KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_HALT(kbdev, kbase_backend_get_cycle_cnt(kbdev));
+#endif /* IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG) */
 	if (kbdev->pm.backend.has_host_pwr_iface)
 		set_global_req_state_as_halt(fw_io);
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
@@ -3415,11 +3427,14 @@ void kbase_csf_firmware_trigger_mcu_sleep(struct kbase_device *kbdev)
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 	if (kbase_csf_fw_io_open(fw_io, &fw_io_flags))
 		goto unlock;
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+	KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_SLEEP(kbdev, kbase_backend_get_cycle_cnt(kbdev));
+#endif /* IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG) */
 
 	if (kbdev->pm.backend.has_host_pwr_iface)
 		set_global_req_state_as_sleep(fw_io);
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
-	else {	
+	else {
 		if (mtk_common_whitebox_missing_doorbell_enable())
 			kbase_csf_db_valid_push_event(DOORBELL_GLB_SLEEP);
 		set_global_request(fw_io, GLB_REQ_SLEEP_MASK);

@@ -759,6 +759,32 @@ void __kbase_tlstream_tl_kbase_device_shader_core_state(
 	u32 kbase_device_id,
 	u64 new_state
 );
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+void __kbase_tlstream_tl_kbase_csffw_fw_reloading(
+	struct kbase_tlstream *stream,
+	u64 csffw_cycle
+);
+
+void __kbase_tlstream_tl_kbase_csffw_fw_enabling(
+	struct kbase_tlstream *stream,
+	u64 csffw_cycle
+);
+
+void __kbase_tlstream_tl_kbase_csffw_fw_request_sleep(
+	struct kbase_tlstream *stream,
+	u64 csffw_cycle
+);
+
+void __kbase_tlstream_tl_kbase_csffw_fw_request_wakeup(
+	struct kbase_tlstream *stream,
+	u64 csffw_cycle
+);
+
+void __kbase_tlstream_tl_kbase_csffw_fw_request_halt(
+	struct kbase_tlstream *stream,
+	u64 csffw_cycle
+);
+#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
 
 void __kbase_tlstream_tl_kbase_csffw_fw_disabling(
 	struct kbase_tlstream *stream,
@@ -3875,6 +3901,143 @@ struct kbase_tlstream;
 	)	\
 	do { } while (0)
 #endif /* MALI_USE_CSF */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+/**
+ * KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_RELOADING - CSF FW is being reloaded
+ *
+ * @kbdev: Kbase device
+ * @csffw_cycle: Cycle number of a CSFFW event
+ */
+#if MALI_USE_CSF
+#define KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_RELOADING(	\
+	kbdev,	\
+	csffw_cycle	\
+	)	\
+	do {	\
+		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
+		if (enabled & BASE_TLSTREAM_ENABLE_CSFFW_TRACEPOINTS)	\
+			__kbase_tlstream_tl_kbase_csffw_fw_reloading(	\
+				__TL_DISPATCH_STREAM(kbdev, obj),	\
+				csffw_cycle	\
+				);	\
+	} while (0)
+#else
+#define KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_RELOADING(	\
+	kbdev,	\
+	csffw_cycle	\
+	)	\
+	do { } while (0)
+#endif /* MALI_USE_CSF */
+
+/**
+ * KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_ENABLING - CSF FW is being enabled
+ *
+ * @kbdev: Kbase device
+ * @csffw_cycle: Cycle number of a CSFFW event
+ */
+#if MALI_USE_CSF
+#define KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_ENABLING(	\
+	kbdev,	\
+	csffw_cycle	\
+	)	\
+	do {	\
+		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
+		if (enabled & BASE_TLSTREAM_ENABLE_CSFFW_TRACEPOINTS)	\
+			__kbase_tlstream_tl_kbase_csffw_fw_enabling(	\
+				__TL_DISPATCH_STREAM(kbdev, obj),	\
+				csffw_cycle	\
+				);	\
+	} while (0)
+#else
+#define KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_ENABLING(	\
+	kbdev,	\
+	csffw_cycle	\
+	)	\
+	do { } while (0)
+#endif /* MALI_USE_CSF */
+
+/**
+ * KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_SLEEP - CSF FW sleep is requested
+ *
+ * @kbdev: Kbase device
+ * @csffw_cycle: Cycle number of a CSFFW event
+ */
+#if MALI_USE_CSF
+#define KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_SLEEP(	\
+	kbdev,	\
+	csffw_cycle	\
+	)	\
+	do {	\
+		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
+		if (enabled & BASE_TLSTREAM_ENABLE_CSFFW_TRACEPOINTS)	\
+			__kbase_tlstream_tl_kbase_csffw_fw_request_sleep(	\
+				__TL_DISPATCH_STREAM(kbdev, obj),	\
+				csffw_cycle	\
+				);	\
+	} while (0)
+#else
+#define KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_SLEEP(	\
+	kbdev,	\
+	csffw_cycle	\
+	)	\
+	do { } while (0)
+#endif /* MALI_USE_CSF */
+
+/**
+ * KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_WAKEUP - CSF FW wake up is requested
+ *
+ * @kbdev: Kbase device
+ * @csffw_cycle: Cycle number of a CSFFW event
+ */
+#if MALI_USE_CSF
+#define KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_WAKEUP(	\
+	kbdev,	\
+	csffw_cycle	\
+	)	\
+	do {	\
+		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
+		if (enabled & BASE_TLSTREAM_ENABLE_CSFFW_TRACEPOINTS)	\
+			__kbase_tlstream_tl_kbase_csffw_fw_request_wakeup(	\
+				__TL_DISPATCH_STREAM(kbdev, obj),	\
+				csffw_cycle	\
+				);	\
+	} while (0)
+#else
+#define KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_WAKEUP(	\
+	kbdev,	\
+	csffw_cycle	\
+	)	\
+	do { } while (0)
+#endif /* MALI_USE_CSF */
+
+/**
+ * KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_HALT - CSF FW halt is requested
+ *
+ * @kbdev: Kbase device
+ * @csffw_cycle: Cycle number of a CSFFW event
+ */
+#if MALI_USE_CSF
+#define KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_HALT(	\
+	kbdev,	\
+	csffw_cycle	\
+	)	\
+	do {	\
+		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
+		if (enabled & BASE_TLSTREAM_ENABLE_CSFFW_TRACEPOINTS)	\
+			__kbase_tlstream_tl_kbase_csffw_fw_request_halt(	\
+				__TL_DISPATCH_STREAM(kbdev, obj),	\
+				csffw_cycle	\
+				);	\
+	} while (0)
+#else
+#define KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_HALT(	\
+	kbdev,	\
+	csffw_cycle	\
+	)	\
+	do { } while (0)
+#endif /* MALI_USE_CSF */
+#endif /* IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG) */
 
 /**
  * KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_DISABLING - CSF FW is being disabled
