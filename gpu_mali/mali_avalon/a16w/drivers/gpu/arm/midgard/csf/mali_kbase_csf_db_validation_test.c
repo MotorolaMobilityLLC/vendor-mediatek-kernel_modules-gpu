@@ -148,16 +148,18 @@ static bool kbasep_csf_db_valid_test_glb_prfcnt_sample(struct kbase_device *kbde
 static bool kbasep_csf_db_valid_test_glb_counter_enable(struct kbase_device *kbdev)
 {
 	u32 glb_req;
-	unsigned long flags;
+	unsigned long flags, flags_fw_io;
 	struct kbase_csf_fw_io *fw_io = &kbdev->csf.fw_io;
 
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 
 	kbase_csf_db_valid_push_event(DOORBELL_GLB_COUNTER_ENABLE);
+	kbase_csf_fw_io_open_force(&kbdev->csf.fw_io, &flags_fw_io);
 	glb_req = kbase_csf_fw_io_global_input_read(fw_io, GLB_REQ);
 	glb_req ^= GLB_REQ_COUNTER_ENABLE_MASK;
 	kbase_csf_fw_io_global_write_mask(fw_io, GLB_REQ, glb_req,
 						 GLB_REQ_COUNTER_ENABLE_MASK);
+	kbase_csf_fw_io_close(&kbdev->csf.fw_io, flags_fw_io);
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
 
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
@@ -210,9 +212,11 @@ static bool kbasep_csf_db_valid_test_csi_extract_event(struct kbase_device *kbde
 					unsigned long flags;
 
 					kbase_csf_scheduler_spin_lock(kbdev, &flags);
+					kbase_csf_fw_io_open_force(&kbdev->csf.fw_io, &flags);
 					kbase_csf_db_valid_push_event(DOORBELL_CSI_EXTRACT_EVENT(csg_nr, queue->csi_index));
 					kbase_csf_fw_io_stream_write_mask(&kbdev->csf.fw_io, queue->group->csg_nr, queue->csi_index , CS_REQ, ~kbase_csf_fw_io_stream_read(&kbdev->csf.fw_io, queue->group->csg_nr, queue->csi_index, CS_ACK),
 									 CS_REQ_EXTRACT_EVENT_MASK);
+					kbase_csf_fw_io_close(&kbdev->csf.fw_io, flags);
 					kbase_csf_ring_cs_kernel_doorbell(kbdev, queue->csi_index, csg_nr, true);
 					kbase_csf_scheduler_spin_unlock(kbdev, flags);
 

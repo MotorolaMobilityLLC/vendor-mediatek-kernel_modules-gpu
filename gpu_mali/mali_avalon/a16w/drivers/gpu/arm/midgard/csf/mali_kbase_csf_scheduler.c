@@ -3278,7 +3278,10 @@ static void program_csg_slot(struct kbase_queue_group *group, s8 slot, u8 prio)
 		WARN_ON(group->run_state != KBASE_CSF_GROUP_RUNNABLE);
 		state = CSG_REQ_STATE_START;
 	}
-
+	if (kbase_csf_fw_io_open(fw_io, &fw_io_flags)) {
+		spin_unlock_irqrestore(&kbdev->csf.scheduler.interrupt_lock, flags);
+		goto skip_fw;
+	}
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
 	if (mtk_common_whitebox_missing_doorbell_enable())
 	{
@@ -3286,11 +3289,6 @@ static void program_csg_slot(struct kbase_queue_group *group, s8 slot, u8 prio)
 		kbase_csf_db_valid_flush_pending_events();
 	}
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
-
-	if (kbase_csf_fw_io_open(fw_io, &fw_io_flags)) {
-		spin_unlock_irqrestore(&kbdev->csf.scheduler.interrupt_lock, flags);
-		goto skip_fw;
-	}
 
 	/* Endpoint programming for CSG */
 	kbase_csf_fw_io_group_write(fw_io, slot, CSG_ALLOW_COMPUTE_LO, compute_mask & U32_MAX);

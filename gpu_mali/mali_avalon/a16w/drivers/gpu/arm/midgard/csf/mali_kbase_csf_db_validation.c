@@ -24,15 +24,19 @@ static void clear_ring_queue(u32 begin, u32 length)
 {
 	int i;
 
+	kbase_csf_fw_io_assert_opened(dbvld_ctx.fw_io);
+
 	for (i = 0 ; i < length ; ++i) {
 		kbase_csf_fw_io_global_write(dbvld_ctx.fw_io, RING_QUEUE_GLB_INPUT(begin + i), 0);
 	}
+
 
 	dmb(osh);
 }
 
 static void write_ring_queue(u32 event)
 {
+	kbase_csf_fw_io_assert_opened(dbvld_ctx.fw_io);
 	if (dbvld_ctx.ring_queue_ptr < RING_QUEUE_HSIZE) {
 		if (dbvld_ctx.ring_queue_ptr == RING_QUEUE_HSIZE - 1) {
 			clear_ring_queue(RING_QUEUE_HSIZE, RING_QUEUE_HSIZE);
@@ -43,9 +47,7 @@ static void write_ring_queue(u32 event)
 			clear_ring_queue(0, RING_QUEUE_HSIZE);
 		}
 	}
-
 	kbase_csf_fw_io_global_write(dbvld_ctx.fw_io, RING_QUEUE_GLB_INPUT(dbvld_ctx.ring_queue_ptr), event);
-
 	++dbvld_ctx.ring_queue_ptr;
 	if (dbvld_ctx.ring_queue_ptr >= RING_QUEUE_SIZE) {
 		dbvld_ctx.ring_queue_ptr = 0;
@@ -71,9 +73,11 @@ int kbase_csf_db_valid_reset(struct kbase_device *kbdev)
 	spin_lock_irqsave(&queue_lock, flags);
 
 	// clear ring buffers
+	kbase_csf_fw_io_open_force(dbvld_ctx.fw_io, &flags);
 	if (dbvld_ctx.fw_io) {
 		clear_ring_queue(0, RING_QUEUE_HSIZE);
 	}
+	kbase_csf_fw_io_close(dbvld_ctx.fw_io, flags);
 
 	dbvld_ctx.ring_queue_ptr = 0;
 	dbvld_ctx.pending_event_count = 0;
@@ -162,14 +166,15 @@ static inline bool kbasep_csf_db_valid_request_done(
 {
 	struct kbase_csf_fw_io *fw_io = &kbdev->csf.fw_io;
 	bool complete = false;
-	unsigned long flags;
+	unsigned long flags, flags_fw_io;
 
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 
+	kbase_csf_fw_io_open_force(dbvld_ctx.fw_io, &flags_fw_io);
 	if ((kbase_csf_fw_io_global_read(fw_io, DBVALID_ACK) & req_mask) ==
 		(kbase_csf_fw_io_global_input_read(fw_io, DBVALID_REQ) & req_mask))
 		complete = true;
-
+	kbase_csf_fw_io_close(dbvld_ctx.fw_io, flags_fw_io);
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 
 	return complete;
@@ -179,10 +184,10 @@ static void kbasep_csf_db_valid_send_request(struct kbase_device *kbdev, u32 req
 {
 	u32 glb_req;
 	u32 dbvalid_req;
-	unsigned long flags;
+	unsigned long flags, flags_fw_io;
 
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
-
+	kbase_csf_fw_io_open_force(dbvld_ctx.fw_io, &flags_fw_io);
 	dbvalid_req = kbase_csf_fw_io_global_read(dbvld_ctx.fw_io, DBVALID_ACK);
 	dbvalid_req ^= req_mask;
 	kbase_csf_fw_io_global_write_mask(dbvld_ctx.fw_io, DBVALID_REQ, dbvalid_req,
@@ -194,8 +199,8 @@ static void kbasep_csf_db_valid_send_request(struct kbase_device *kbdev, u32 req
 	glb_req ^= GLB_REQ_DBVALID_EVENT_MASK;
 	kbase_csf_fw_io_global_write_mask(dbvld_ctx.fw_io, GLB_REQ, glb_req,
 						 GLB_REQ_DBVALID_EVENT_MASK);
-
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
+	kbase_csf_fw_io_close(dbvld_ctx.fw_io, flags_fw_io);
 
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 }
@@ -214,12 +219,14 @@ static bool kbasep_csf_db_valid_wait_ack(struct kbase_device *kbdev, u32 req_mas
 
 int kbasep_csf_db_valid_update_result(struct kbase_device *kbdev)
 {
+	unsigned long flags;
+
 	kbasep_csf_db_valid_send_request(kbdev, DBVALID_REQ_RESULT_UPDATE_MASK);
 
 	if (!kbasep_csf_db_valid_wait_ack(kbdev, DBVALID_REQ_RESULT_UPDATE_MASK)) {
 		dev_warn(kbdev->dev, "DB validation may not able to get latest result!\n");
 	}
-
+	kbase_csf_fw_io_open_force(dbvld_ctx.fw_io, &flags);
 	if (dbvld_ctx.fw_io) {
 		int i;
 
@@ -229,7 +236,7 @@ int kbasep_csf_db_valid_update_result(struct kbase_device *kbdev)
 
 		dev_dbg(kbdev->dev, "DB validation update result\n");
 	}
-
+	kbase_csf_fw_io_close(dbvld_ctx.fw_io, flags);
 	return 0;
 }
 

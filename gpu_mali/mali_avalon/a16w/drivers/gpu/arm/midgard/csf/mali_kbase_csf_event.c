@@ -94,7 +94,7 @@ void kbase_csf_event_wait_remove(struct kbase_context *kctx, kbase_csf_event_cal
 static void sync_update_notify_gpu(struct kbase_context *kctx)
 {
 	bool can_notify_gpu;
-	unsigned long flags;
+	unsigned long flags, fw_io_flags;
 
 	spin_lock_irqsave(&kctx->kbdev->hwaccess_lock, flags);
 	can_notify_gpu = kbase_io_is_gpu_powered(kctx->kbdev);
@@ -107,8 +107,11 @@ static void sync_update_notify_gpu(struct kbase_context *kctx)
 
 	if (can_notify_gpu) {
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
-		if (mtk_common_whitebox_missing_doorbell_enable())
+		if (mtk_common_whitebox_missing_doorbell_enable()) {
+			kbase_csf_fw_io_open_force(&kctx->kbdev->csf.fw_io, &fw_io_flags);
 			kbase_csf_db_valid_push_event(DOORBELL_GLB_SYNC_NOTIFY);
+			kbase_csf_fw_io_close(&kctx->kbdev->csf.fw_io, fw_io_flags);
+		}
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 		kbase_csf_ring_doorbell(kctx->kbdev, CSF_KERNEL_DOORBELL_NR);
 		KBASE_KTRACE_ADD(kctx->kbdev, CSF_SYNC_UPDATE_NOTIFY_GPU_EVENT, kctx, 0u);

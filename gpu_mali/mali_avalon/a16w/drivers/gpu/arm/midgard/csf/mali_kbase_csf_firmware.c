@@ -1775,6 +1775,7 @@ static void enable_gpu_idle_timer(struct kbase_csf_fw_io *fw_io)
 {
 	struct kbase_device *const kbdev = fw_io->kbdev;
 
+	kbase_csf_fw_io_assert_opened(fw_io);
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
 	u32 glb_req, glb_ack;
 
@@ -1791,7 +1792,6 @@ static void enable_gpu_idle_timer(struct kbase_csf_fw_io *fw_io)
 #else
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
-	kbase_csf_fw_io_assert_opened(fw_io);
 
 	kbase_csf_fw_io_global_write(fw_io, GLB_IDLE_TIMER, kbdev->csf.gpu_idle_dur_count);
 
@@ -3147,6 +3147,8 @@ int kbase_csf_firmware_disable_gpu_idle_timer(struct kbase_device *kbdev)
 	struct kbase_csf_fw_io *fw_io = &kbdev->csf.fw_io;
 	unsigned long fw_io_flags;
 
+	if (kbase_csf_fw_io_open(fw_io, &fw_io_flags))
+		return -ENODEV;
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
 	u32 glb_req;
 
@@ -3162,9 +3164,6 @@ int kbase_csf_firmware_disable_gpu_idle_timer(struct kbase_device *kbdev)
 #else
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
-
-	if (kbase_csf_fw_io_open(fw_io, &fw_io_flags))
-		return -ENODEV;
 
 	set_gpu_idle_timer_glb_req(fw_io, false);
 	dev_dbg(kbdev->dev, "Sending request to disable gpu idle timer");

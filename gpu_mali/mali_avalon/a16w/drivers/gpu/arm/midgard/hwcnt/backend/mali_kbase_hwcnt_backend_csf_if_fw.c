@@ -717,12 +717,12 @@ static void kbasep_hwcnt_backend_csf_if_fw_dump_disable(struct kbase_hwcnt_backe
 	kbdev = fw_ctx->kbdev;
 
 	/* Disable the HWC */
+	kbdev->csf.hwcnt.enable_pending = true;
+	kbase_csf_fw_io_open_force(&kbdev->csf.fw_io, &fw_io_flags);
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
 	if (mtk_common_whitebox_missing_doorbell_enable())
 		kbase_csf_db_valid_push_event(DOORBELL_GLB_PRFCNT_ENABLE);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
-	kbdev->csf.hwcnt.enable_pending = true;
-	kbase_csf_fw_io_open_force(&kbdev->csf.fw_io, &fw_io_flags);
 	kbase_csf_fw_io_global_write_mask(&kbdev->csf.fw_io, GLB_REQ, 0,
 					  GLB_REQ_PRFCNT_ENABLE_MASK);
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
@@ -758,12 +758,12 @@ static void kbasep_hwcnt_backend_csf_if_fw_dump_request(struct kbase_hwcnt_backe
 	kbdev = fw_ctx->kbdev;
 
 	/* Trigger dumping */
+	kbdev->csf.hwcnt.request_pending = true;
+	kbase_csf_fw_io_open_force(&kbdev->csf.fw_io, &fw_io_flags);
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
 	if (mtk_common_whitebox_missing_doorbell_enable())
 		kbase_csf_db_valid_push_event(DOORBELL_GLB_PRFCNT_SAMPLE);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
-	kbdev->csf.hwcnt.request_pending = true;
-	kbase_csf_fw_io_open_force(&kbdev->csf.fw_io, &fw_io_flags);
 	glb_req = kbase_csf_fw_io_global_input_read(&kbdev->csf.fw_io, GLB_REQ);
 	glb_req ^= GLB_REQ_PRFCNT_SAMPLE_MASK;
 	kbase_csf_fw_io_global_write_mask(&kbdev->csf.fw_io, GLB_REQ, glb_req,
