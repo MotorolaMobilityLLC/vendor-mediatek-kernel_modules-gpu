@@ -30,6 +30,18 @@
 #include <linux/mman.h>
 #include <linux/version_compat_defs.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+#define FWLOG_EOF_LEN 64
+/* for fwlog get latest 1MB data */
+static u8 g_buf[PAGE_SIZE * 256];
+extern u8 *g_fw_dump_dest;
+static char fw_eof_content[FWLOG_EOF_LEN] = "====[Cut]:fwlog End Of File====";
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+extern char fw_content[];
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
+
 /**
  * struct firmware_trace_buffer - Trace Buffer within the MCU firmware
  *
@@ -120,7 +132,11 @@ static const struct firmware_trace_buffer_data trace_buffer_data[] = {
 #if MALI_UNIT_TEST
 	{ KBASE_CSFFW_UTF_BUF_NAME, { 0 }, 1 },
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+	{ KBASE_CSFFW_LOG_BUF_NAME, { 0 }, 256 },
+#else
 	{ KBASE_CSFFW_LOG_BUF_NAME, { 0 }, 4 },
+#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
 	{ KBASE_CSFFW_BENCHMARK_BUF_NAME, { 0 }, 2 },
 	{ KBASE_CSFFW_TIMELINE_BUF_NAME, { 0 }, KBASE_CSF_TL_BUFFER_NR_PAGES },
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
@@ -454,14 +470,68 @@ bool kbase_csf_firmware_trace_buffer_is_empty(const struct firmware_trace_buffer
 }
 EXPORT_SYMBOL(kbase_csf_firmware_trace_buffer_is_empty);
 
-unsigned int kbase_csf_firmware_trace_buffer_read_data(struct firmware_trace_buffer *trace_buffer,
-						       u8 *data, unsigned int num_bytes)
+#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+unsigned int kbase_csf_firmware_trace_buffer_read_data(
+	struct firmware_trace_buffer *trace_buffer, u8 *data, unsigned int num_bytes)
+{
+	static unsigned int bytes_copied = 0, extract_offset_tmp = 0;
+	u8 *data_cpu_va = trace_buffer->data_mapping.cpu_addr;
+	u32 extract_offset = *(trace_buffer->cpu_va.extract_cpu_va);
+	u32 insert_offset = *(trace_buffer->cpu_va.insert_cpu_va);
+	u32 buffer_size = trace_buffer->num_pages << PAGE_SHIFT;
+
+	if ((bytes_copied == 0) && (buffer_size == 0x100000)) /* CONFIG_MALI_MTK_KE_DUMP_FWLOG: need to check fwlog size = 1MB */
+		extract_offset_tmp = extract_offset;
+
+	if (insert_offset >= extract_offset) {
+		bytes_copied = min_t(unsigned int, num_bytes,
+			(insert_offset - extract_offset));
+		memcpy(data, &data_cpu_va[extract_offset], bytes_copied);
+		extract_offset += bytes_copied;
+	} else {
+		unsigned int bytes_copied_head, bytes_copied_tail;
+
+		bytes_copied_tail = min_t(unsigned int, num_bytes,
+			(buffer_size - extract_offset));
+		memcpy(data, &data_cpu_va[extract_offset], bytes_copied_tail);
+
+		bytes_copied_head = min_t(unsigned int,
+			(num_bytes - bytes_copied_tail), insert_offset);
+		memcpy(&data[bytes_copied_tail], data_cpu_va, bytes_copied_head);
+
+		bytes_copied = bytes_copied_head + bytes_copied_tail;
+		extract_offset += bytes_copied;
+		if (extract_offset >= buffer_size)
+			extract_offset = bytes_copied_head;
+	}
+
+	if ((kbase_csf_firmware_trace_buffer_get_active_mask64(trace_buffer) == 0) && (bytes_copied == 0) && (buffer_size == 0x100000))
+		*(trace_buffer->cpu_va.extract_cpu_va) = extract_offset_tmp;
+	else
+		*(trace_buffer->cpu_va.extract_cpu_va) = extract_offset;
+
+	return bytes_copied;
+}
+EXPORT_SYMBOL(kbase_csf_firmware_trace_buffer_read_data);
+#else
+unsigned int kbase_csf_firmware_trace_buffer_read_data(
+	struct firmware_trace_buffer *trace_buffer, u8 *data, unsigned int num_bytes)
 {
 	unsigned int bytes_copied;
 	u8 *data_cpu_va = trace_buffer->data_mapping.cpu_addr;
 	u32 extract_offset = *(trace_buffer->cpu_va.extract_cpu_va);
 	u32 insert_offset = *(trace_buffer->cpu_va.insert_cpu_va);
 	u32 buffer_size = trace_buffer->num_pages << PAGE_SHIFT;
+
+	/* The access to insert offset needs to be ordered with respect to the data
+	 * to be read from the trace buffer to avoid the scenario where the update
+	 * of insert offset becomes visible before the update of data is completely
+	 * visible. Memory barrier is required, both on Host and FW side, to guarantee
+	 * the ordering.
+	 *
+	 * 'osh' is used as CPU and GPU would be in the same Outer shareable domain.
+	 */
+	dmb(osh);
 
 	if (insert_offset >= extract_offset) {
 		bytes_copied = min_t(unsigned int, num_bytes, (insert_offset - extract_offset));
@@ -488,6 +558,7 @@ unsigned int kbase_csf_firmware_trace_buffer_read_data(struct firmware_trace_buf
 	return bytes_copied;
 }
 EXPORT_SYMBOL(kbase_csf_firmware_trace_buffer_read_data);
+#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
 
 void kbase_csf_firmware_trace_buffer_discard(struct firmware_trace_buffer *trace_buffer)
 {
@@ -575,3 +646,37 @@ int kbase_csf_firmware_trace_buffer_set_active_mask64(struct firmware_trace_buff
 
 	return err;
 }
+
+#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+void mtk_kbase_csf_firmware_ke_dump_fwlog(struct kbase_device *kbdev)
+{
+	unsigned int read_size, total_size = 0;
+	struct firmware_trace_buffer *tb =
+		kbase_csf_firmware_get_trace_buffer(kbdev, KBASE_CSFFW_LOG_BUF_NAME);
+	if (tb == NULL || g_fw_dump_dest == NULL) {
+		dev_info(kbdev->dev, "Can't get the trace buffer, firmware trace dump skipped");
+		return;
+	}
+	while ((read_size = kbase_csf_firmware_trace_buffer_read_data(tb, g_buf, PAGE_SIZE))) {
+		total_size += read_size;
+		if (total_size <= PAGE_SIZE * 256) {
+			memcpy_toio(g_fw_dump_dest, g_buf, read_size);
+			g_fw_dump_dest +=read_size;
+		} else {
+			dev_info(kbdev->dev, "fwlog dump size > 1MB");
+			break;
+		}
+	}
+	dev_info(kbdev->dev, "[CSFFW]:(ke)dump fwlog size = 0x%x\n", total_size);
+
+	/* printf "[Cut]:fwlog end of file" at END of SYS_MALI_CSFFW_LOG */
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	if (total_size < (PAGE_SIZE * 256 - FWLOG_EOF_LEN))
+		memcpy_toio(g_fw_dump_dest, fw_content, FWLOG_EOF_LEN);
+#else
+	if (total_size < (PAGE_SIZE * 256 - FWLOG_EOF_LEN))
+		memcpy_toio(g_fw_dump_dest, fw_eof_content, FWLOG_EOF_LEN);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+}
+EXPORT_SYMBOL(mtk_kbase_csf_firmware_ke_dump_fwlog);
+#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
