@@ -855,6 +855,39 @@ void kbase_pm_enable_mcu_db_notification(struct kbase_device *kbdev)
 	kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(MCU_CONTROL), val);
 }
 
+
+static void handle_sleep_initiate_state(struct kbase_device *kbdev)
+{
+	struct kbase_pm_backend_data *backend = &kbdev->pm.backend;
+
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
+	if (likely(test_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE, &backend->gpu_sleep_allowed))) {
+		bool db_notif_disabled = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_CONTROL)) &
+					 MCU_CNTRL_DOORBELL_DISABLE_MASK;
+
+		if (atomic_read(&kbdev->csf.scheduler.gpu_idle_timer_enabled) &&
+		    atomic_read(&kbdev->csf.scheduler.fw_soi_enabled)) {
+			if (unlikely(!db_notif_disabled))
+				goto pend_soi_sleep;
+			backend->mcu_state = KBASE_MCU_ON_PEND_SLEEP;
+			return;
+		}
+
+		WARN_ON_ONCE(db_notif_disabled);
+	}
+
+	/* SoI is disabled or unsupported, so send a sleep request to FW.*/
+	kbase_csf_firmware_trigger_mcu_sleep(kbdev);
+	backend->mcu_state = KBASE_MCU_ON_PEND_SLEEP;
+	return;
+pend_soi_sleep:
+	backend->exit_gpu_sleep_mode = true;
+	wake_up(&backend->gpu_in_desired_state_wait);
+	kbase_csf_scheduler_invoke_tick(kbdev);
+	backend->mcu_state = KBASE_MCU_ON_PEND_SOI_SLEEP;
+}
+
 /**
  * wait_mcu_as_inactive - Wait for AS used by MCU FW to get configured
  *
@@ -992,6 +1025,18 @@ static bool hctl_shader_cores_power_down_done(struct kbase_device *kbdev, u64 sh
 }
 #endif /* MALI_USE_CSF */
 
+static void disable_gpu_idle_timer_no_db(struct kbase_device *kbdev)
+{
+	struct kbase_csf_global_iface *global_iface = &kbdev->csf.global_iface;
+
+	if (!atomic_read(&kbdev->csf.scheduler.gpu_idle_timer_enabled))
+		return;
+
+	kbase_csf_firmware_global_input_mask(global_iface, GLB_REQ, GLB_REQ_REQ_IDLE_DISABLE,
+					     GLB_REQ_IDLE_DISABLE_MASK);
+	atomic_set(&kbdev->csf.scheduler.gpu_idle_timer_enabled, false);
+}
+
 static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 {
 	struct kbase_pm_backend_data *backend = &kbdev->pm.backend;
@@ -1027,12 +1072,7 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 				/* Ensure that FW would not go to sleep immediately after
 				 * resumption.
 				 */
-				kbase_csf_firmware_global_input_mask(&kbdev->csf.global_iface,
-								     GLB_REQ,
-								     GLB_REQ_REQ_IDLE_DISABLE,
-								     GLB_REQ_IDLE_DISABLE_MASK);
-				atomic_set(&kbdev->csf.scheduler.gpu_idle_timer_enabled, false);
-				atomic_set(&kbdev->csf.scheduler.fw_soi_enabled, false);
+				disable_gpu_idle_timer_no_db(kbdev);
 
 				kbase_csf_firmware_trigger_reload(kbdev);
 				backend->mcu_state = KBASE_MCU_PEND_ON_RELOAD;
@@ -1351,25 +1391,20 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 				}
 			}
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MCU */
-			if (!kbase_pm_is_mcu_desired(kbdev)) {
-				bool db_notif_disabled = false;
-
-				if (likely(test_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE,
-						    &kbdev->pm.backend.gpu_sleep_allowed)))
-					db_notif_disabled =
-						kbase_reg_read32(kbdev,
-								 GPU_CONTROL_ENUM(MCU_CONTROL)) &
-						MCU_CNTRL_DOORBELL_DISABLE_MASK;
-
-				/* If DB notification is enabled on FW side then send a sleep
-				 * request to FW.
-				 */
-				if (!db_notif_disabled)
-					kbase_csf_firmware_trigger_mcu_sleep(kbdev);
-				backend->mcu_state = KBASE_MCU_ON_PEND_SLEEP;
-			} else
+			if (!kbase_pm_is_mcu_desired(kbdev))
+				handle_sleep_initiate_state(kbdev);
+			else
 				backend->mcu_state = KBASE_MCU_ON_HWCNT_ENABLE;
 			break;
+
+		case KBASE_MCU_ON_PEND_SOI_SLEEP:
+			if (kbase_pm_is_mcu_desired(kbdev)) {
+				/* Assume the transition is complete and prepare to goto ON state */
+				WARN_ON_ONCE(backend->l2_state != KBASE_L2_ON);
+				backend->mcu_state = KBASE_MCU_IN_SLEEP;
+				break;
+			}
+			fallthrough;
 
 		case KBASE_MCU_ON_PEND_SLEEP:
 			if (kbase_csf_firmware_is_mcu_in_sleep(kbdev)) {
@@ -1399,15 +1434,11 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 		case KBASE_MCU_IN_SLEEP:
 			if (kbase_pm_is_mcu_desired(kbdev) && backend->l2_state == KBASE_L2_ON) {
 				wait_mcu_as_inactive(kbdev);
+
 				/* Ensure that FW would not go to sleep immediately after
 				 * resumption.
 				 */
-				kbase_csf_firmware_global_input_mask(&kbdev->csf.global_iface,
-								     GLB_REQ,
-								     GLB_REQ_REQ_IDLE_DISABLE,
-								     GLB_REQ_IDLE_DISABLE_MASK);
-				atomic_set(&kbdev->csf.scheduler.gpu_idle_timer_enabled, false);
-				atomic_set(&kbdev->csf.scheduler.fw_soi_enabled, false);
+				disable_gpu_idle_timer_no_db(kbdev);
 
 				KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_WAKEUP(
 					kbdev, kbase_backend_get_cycle_cnt(kbdev));
