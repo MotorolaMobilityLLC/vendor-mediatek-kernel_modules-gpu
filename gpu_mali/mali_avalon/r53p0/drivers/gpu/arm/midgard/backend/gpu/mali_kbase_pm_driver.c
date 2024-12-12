@@ -1692,13 +1692,14 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 		case KBASE_MCU_ON_HWCNT_DISABLE:
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MCU)
 			if (ged_get_whitebox_power_test_support()) {
-				if (ged_get_whitebox_power_test_case() == 6)
-				{
+				if (ged_get_whitebox_power_test_case() ==
+					KBASE_MCU_ON_HWCNT_DISABLE) {
 					ged_get_whitebox_power_test_case_clear();
-					dev_err(kbdev->dev, "whitebox: 6-->3 (%d)\n",
+					dev_err(kbdev->dev, "whitebox: %u-->%u (%u)\n",
+							KBASE_MCU_ON_HWCNT_DISABLE,
+							KBASE_MCU_ON_HWCNT_ENABLE,
 							kbase_pm_is_mcu_desired(kbdev));
 					backend->mcu_state = KBASE_MCU_ON_HWCNT_ENABLE;
-
 					break;
 				}
 			}
@@ -1759,13 +1760,14 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 		case KBASE_MCU_ON_HALT:
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MCU)
 			if (ged_get_whitebox_power_test_support()) {
-				if (ged_get_whitebox_power_test_case() == 7)
-				{
+				if (ged_get_whitebox_power_test_case() ==
+					KBASE_MCU_ON_HALT) {
 					ged_get_whitebox_power_test_case_clear();
-					dev_err(kbdev->dev, "whitebox: 7-->3 (%d)\n",
+					dev_err(kbdev->dev, "whitebox: %u-->%u (%u)\n",
+							KBASE_MCU_ON_HALT,
+							KBASE_MCU_ON_HWCNT_ENABLE,
 							kbase_pm_is_mcu_desired(kbdev));
 					backend->mcu_state = KBASE_MCU_ON_HWCNT_ENABLE;
-
 					break;
 				}
 			}
@@ -1850,13 +1852,14 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 		case KBASE_MCU_ON_SLEEP_INITIATE:
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MCU)
 			if (ged_get_whitebox_power_test_support()) {
-				if (ged_get_whitebox_power_test_case() == 20)
-				{
+				if (ged_get_whitebox_power_test_case() ==
+					KBASE_MCU_ON_SLEEP_INITIATE) {
 					ged_get_whitebox_power_test_case_clear();
-					dev_err(kbdev->dev, "whitebox: 20-->3 (%d)\n",
+					dev_err(kbdev->dev, "whitebox: %u-->%u (%u)\n",
+							KBASE_MCU_ON_SLEEP_INITIATE,
+							KBASE_MCU_ON_HWCNT_ENABLE,
 							kbase_pm_is_mcu_desired(kbdev));
 					backend->mcu_state = KBASE_MCU_ON_HWCNT_ENABLE;
-
 					break;
 				}
 			}
