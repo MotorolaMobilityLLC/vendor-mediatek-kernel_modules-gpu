@@ -1399,10 +1399,9 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 #endif
 		case KBASE_MCU_RESET_WAIT:
 #if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
-			if (mcu_history_idx >= MAX_STATES_NUM)
-				mcu_history_idx = 0;
+			mcu_history_idx = mcu_history_idx % MAX_STATES_NUM;
 			mcu_state_array[mcu_history_idx] = (u8)(backend->mcu_state & 0xFF);
-			mcu_history_idx++;
+			mcu_history_idx = (mcu_history_idx + 1) % MAX_STATES_NUM;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 			/* Reset complete  */
 			if (!backend->in_reset)
@@ -1424,10 +1423,10 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 				kbase_mcu_state_to_string(backend->mcu_state));
 			kbase_ktrace_log_mcu_state(kbdev, backend->mcu_state);
 #if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
-			if (mcu_history_idx >= MAX_STATES_NUM)
-				mcu_history_idx = 0;
+			mcu_history_idx = mcu_history_idx  % MAX_STATES_NUM;
 			mcu_state_array[mcu_history_idx] = (u8)(backend->mcu_state & 0xFF);
-			mcu_history_idx++;
+			mcu_history_idx = (mcu_history_idx + 1) % MAX_STATES_NUM;
+
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MCU)
@@ -1953,10 +1952,9 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 			/* Reset complete  */
 			if (!backend->in_reset) {
 #if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
-				if (l2_history_idx >= MAX_STATES_NUM)
-					l2_history_idx = 0;
+				l2_history_idx = l2_history_idx % MAX_STATES_NUM;
 				l2_state_array[l2_history_idx] = (u8)(backend->l2_state & 0xFF);
-				l2_history_idx++;
+				l2_history_idx = (l2_history_idx + 1) % MAX_STATES_NUM;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 #if MALI_USE_CSF
 				backend->l2_force_off_after_mcu_halt = false;
@@ -1979,10 +1977,9 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 				kbase_l2_core_state_to_string(backend->l2_state));
 			kbase_ktrace_log_l2_core_state(kbdev, backend->l2_state);
 #if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
-			if (l2_history_idx >= MAX_STATES_NUM)
-				l2_history_idx = 0;
+			l2_history_idx = l2_history_idx % MAX_STATES_NUM;
 			l2_state_array[l2_history_idx] = (u8)(backend->l2_state & 0xFF);
-			l2_history_idx++;
+			l2_history_idx = (l2_history_idx + 1) % MAX_STATES_NUM;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 		}
 
