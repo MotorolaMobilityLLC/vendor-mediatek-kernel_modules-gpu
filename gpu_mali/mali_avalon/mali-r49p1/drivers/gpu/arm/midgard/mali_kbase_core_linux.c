@@ -802,7 +802,9 @@ static int kbase_open(struct inode *inode, struct file *filp)
 	}
 
 	filp->private_data = kfile;
+#if (KERNEL_VERSION(6, 12, 0) > LINUX_VERSION_CODE)
 	filp->f_mode |= FMODE_UNSIGNED_OFFSET;
+#endif
 
 	return 0;
 
@@ -2483,6 +2485,9 @@ static const struct file_operations kbase_fops = {
 	.mmap = kbase_mmap,
 	.check_flags = kbase_check_flags,
 	.get_unmapped_area = kbase_get_unmapped_area,
+#if (KERNEL_VERSION(6, 12, 0) <= LINUX_VERSION_CODE)
+	.fop_flags = FOP_UNSIGNED_OFFSET,
+#endif
 };
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
@@ -3095,7 +3100,9 @@ static const struct file_operations fops_force_dump_mmu = {
 	.open = simple_open,
 	.read = force_dump_mmu_read,
 	.write = force_dump_mmu_write,
+#if (KERNEL_VERSION(6, 12, 0) > LINUX_VERSION_CODE)
 	.llseek = no_llseek,
+#endif
 };
 #endif /* CONFIG_MALI_MTK_MMU_DUMP */
 
