@@ -1253,7 +1253,7 @@ int kbase_pm_handle_runtime_suspend(struct kbase_device *kbdev)
 	}
 
 	mcu_state = kbdev->pm.backend.mcu_state;
-	if (WARN_ON(!kbase_pm_is_mcu_inactive(kbdev, mcu_state))) {
+	if (unlikely(!kbase_pm_is_mcu_inactive(kbdev, mcu_state))) {
 #if !MALI_USE_CSF
 		dev_err(kbdev->dev, "Desired state :\n");
 		dev_err(kbdev->dev, "\tShader=%016llx\n",
@@ -1285,7 +1285,7 @@ int kbase_pm_handle_runtime_suspend(struct kbase_device *kbdev)
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_PM_TIMEOUT);
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_PM_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
-		dev_info(kbdev->dev, "Skip runtime_suspend, autosuspend_delay:%d\n",kbdev->dev->power.autosuspend_delay);
+		dev_WARN_ONCE(kbdev->dev, 1, "MCU SM in unexpected state %d on runtime suspend", mcu_state);
 		ret = -EBUSY;
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 		goto unlock;
