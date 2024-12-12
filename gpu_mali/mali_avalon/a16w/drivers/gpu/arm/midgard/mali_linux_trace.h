@@ -466,6 +466,30 @@ TRACE_EVENT(mali_jit_trim, TP_PROTO(size_t freed_pages), TP_ARGS(freed_pages),
 	    TP_fast_assign(__entry->freed_pages = freed_pages;),
 	    TP_printk("freed_pages=%zu", __entry->freed_pages));
 
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+TRACE_EVENT(tracing_mark_write_tl,
+	TP_PROTO(const char *fmt, va_list *va),
+	TP_ARGS(fmt, va),
+	TP_STRUCT__entry(
+		__vstring(vstr, fmt, va)
+	),
+	TP_fast_assign(
+		__assign_vstr(vstr, fmt, va);
+	),
+	TP_printk("%s", __get_str(vstr))
+);
+
+#ifndef __TRACE_MALI_GET_TL_VSRTING__
+#define __TRACE_MALI_GET_TL_VSRTING__
+static inline void kbase_tl_systrace(const char *fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	trace_tracing_mark_write_tl(fmt, &args);
+	va_end(args);
+}
+#endif /* __TRACE_MALI_GET_TL_VSRTING__ */
+#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
 #include "debug/mali_kbase_debug_linux_ktrace.h"
 
 #endif /* _TRACE_MALI_H */

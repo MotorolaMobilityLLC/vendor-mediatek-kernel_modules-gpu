@@ -57,6 +57,253 @@ struct kbase_csffw_tl_message {
 	u64 cycle_counter;
 } __packed __aligned(4);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+enum kbase_csffw_tl_msg_id {
+	CSFFW_TL_ENUM,
+	CSFFW_TL_EVENT_ITER_INITIAL_CONNECTIONS,
+	CSFFW_TL_EVENT_FW_STATE_CHANGE,
+	CSFFW_TL_EVENT_CS_USER_DB,
+	CSFFW_TL_EVENT_CS_STATE_CHANGE,
+	CSFFW_TL_EVENT_CSG_STATE_CHANGE,
+	CSFFW_TL_EVENT_CSHWIF_STATE_CHANGE,
+	CSFFW_TL_EVENT_ITER_STATE_CHANGE,
+	CSFFW_TL_EVENT_CS_ACQUIRE_ITER,
+	CSFFW_TL_EVENT_CS_RELEASE_ITER,
+	CSFFW_TRACEPOINT_COUNT,
+};
+
+enum kbase_csffw_tl_fw_state {
+	CSFFW_TL_FW_NORMAL_MODE,    /**< FW has entered normal mode */
+	CSFFW_TL_FW_PROTECTED_MODE, /**< FW has entered protected mode */
+	CSFFW_TL_FW_SLEEPING,	    /**< FW has started sleeping */
+	CSFFW_TL_FW_RELOADING,
+	CSFFW_TL_FW_ENABLING,
+	CSFFW_TL_FW_REQUEST_SLEEP,  /**< KBASE has  request sleep */
+	CSFFW_TL_FW_REQUEST_WAKEUP,
+	CSFFW_TL_FW_REQUEST_HALT,  /**< KBASE has  request sleep */
+	CSFFW_TL_FW_DISABLING,
+	CSFFW_TL_FW_OFF,
+};
+
+static const char *csffw_tl_fw_state_strings[] = {
+	"NORMAL_MODE",    /**< FW has entered normal mode */
+	"PROTECTED_MODE", /**< FW has entered protected mode */
+	"SLEEPING",	    /**< FW has started sleeping */
+	"RELOADING",
+	"ENABLING",
+	"REQUEST_SLEEP",  /**< KBASE has  request sleep */
+	"REQUEST_WAKEUP",
+	"REQUEST_HALT",  /**< KBASE has  request sleep */
+	"DISABLING",
+	"OFF",
+};
+
+enum kbase_tl_csg_internal_state {
+	CSFFW_TL_CSG_DISABLING, /**< Disabling as a result of suspension or termination */
+	CSFFW_TL_CSG_ENABLING, /**< Enabling, with one or more CSIs enabled and/or iterators binded */
+	CSFFW_TL_CSG_SUSPENDING, /**< Transition from ENABLED to SUSPEND. Can be escalated to TERMINATE */
+	CSFFW_TL_CSG_TERMINATING, /**< Transition from ENABLED/SUSPENDING to TERMINATE */
+	CSFFW_TL_CSG_PROTM_SUSPENDING, /**< Transition from ENABLED to SUSPEND by protected mode manager request */
+	CSFFW_TL_CSG_ENABLED,  /**< End of handling ENABLED state */
+	CSFFW_TL_CSG_DISABLED, /**< End of handling DISABLED state */
+};
+
+static const char *tl_csg_internal_state_strings[] = {
+	"DISABLING", /**< Disabling as a result of suspension or termination */
+	"ENABLING", /**< Enabling, with one or more CSIs enabled and/or iterators binded */
+	"SUSPENDING", /**< Transition from ENABLED to SUSPEND. Can be escalated to TERMINATE */
+	"TERMINATING", /**< Transition from ENABLED/SUSPENDING to TERMINATE */
+	"PROTM_SUSPENDING", /**< Transition from ENABLED to SUSPEND by protected mode manager request */
+	"ENABLED",  /**< End of handling ENABLED state */
+	"DISABLED", /**< End of handling DISABLED state */
+};
+
+enum kbase_tl_iter_type {
+	CSFFW_ITER_TILER,
+	CSFFW_ITER_COMPUTE,
+	CSFFW_ITER_FRAGMENT,
+	CSFFW_ITER_NEURAL,
+};
+
+static const char *tl_iter_type_strings[] = {
+	"Tiler",
+	"Compute",
+	"Fragment",
+	"Neural",
+};
+
+enum kbase_csffw_tl_csi_state {
+	CSFFW_CSI_STOPPED = 0,		 /**< Stopped by host request, must be 0 */
+	CSFFW_CSI_STOPPING,		 /**< Stopping by host request */
+	CSFFW_CSI_SUSPENDING,		 /**< Suspending by host request */
+	CSFFW_CSI_TERMINATING,		 /**< Terminating by host request */
+	CSFFW_CSI_BLOCKED_PROGRESS,	 /**< Blocked in PROGRESS_WAIT */
+	CSFFW_CSI_BLOCKED_DEFERRED,	 /**< Blocked waiting for deferred slots */
+	CSFFW_CSI_BLOCKED_RESOURCE,	 /**< Blocked in resource request */
+	CSFFW_CSI_BLOCKED_PROTM_PEND,	 /**< Blocked in protected memory request */
+	CSFFW_CSI_BLOCKED_SHARED_SB_DEC, /**< Blocked as result of stalled SHARED_SB_DEC */
+	CSFFW_CSI_FAULT,		 /**< Fault has occurred */
+	CSFFW_CSI_SUSPENDING_FAULT, /**< Fault has occurred during suspension, or suspend requested during fault. */
+	CSFFW_CSI_RUNNABLE,	     /**< Runnable (subject to scheduler decisions) */
+	CSFFW_CSI_BLOCKED_SYNC_WAIT, /**< Blocked in SYNC_WAIT */
+	CSFFW_CSI_EMPTY,	     /**< Command buffer is empty */
+};
+
+static const char *tl_csi_state_strings[] = {
+	"STOPPED", /**< Disabling as a result of suspension or termination */
+	"STOPING", /**< Enabling, with one or more CSIs enabled and/or iterators binded */
+	"SUSPENDING", /**< Transition from ENABLED to SUSPEND. Can be escalated to TERMINATE */
+	"TERMINATING", /**< Transition from ENABLED/SUSPENDING to TERMINATE */
+	"BLOCKED_PROGRESS",	 /**< Blocked in PROGRESS_WAIT */
+	"BLOCKED_DEFERRED",	 /**< Blocked waiting for deferred slots */
+	"BLOCKED_RESOURCE",	 /**< Blocked in resource request */
+	"BLOCKED_PROTM_PEND",	 /**< Blocked in protected memory request */
+	"BLOCKED_SHARED_SB_DEC", /**< Blocked as result of stalled SHARED_SB_DEC */
+	"FAULT",		 /**< Fault has occurred */
+	"SUSPENDING_FAULT", /**< Fault has occurred during suspension, or suspend requested during fault. */
+	"RUNNABLE",	     /**< Runnable (subject to scheduler decisions) */
+	"SYNC_WAIT", /**< Blocked in SYNC_WAIT */
+	"EMPTY",	     /**< Command buffer is empty */
+};
+
+enum kbase_tl_cshwif_state {
+	CSFFW_TL_CSHWIF_DISABLED,
+	CSFFW_TL_CSHWIF_ENABLED,
+	CSFFW_TL_CSHWIF_HALTED,
+	CSFFW_TL_CSHWIF_DISABLING,
+	CSFFW_TL_CSHWIF_PAUSING,
+	CSFFW_TL_CSHWIF_PAUSED,
+};
+
+static const char *tl_cshwif_state_strings[] = {
+	"DISABLED",
+	"ENABLED",
+	"HALTED",
+	"DISABLING",
+	"PAUSING",
+	"PAUSED",
+};
+
+enum kbase_tl_iter_status {
+	/** Iterator is disabled */
+	CSFFW_ITER_DISABLED,
+	/** Iterator is enabled */
+	CSFFW_ITER_ENABLED,
+	/** Iterator is being enabled during start (DISABLED->ENABLED) or
+	 * resumption step 2 (PAUSED->ENABLED)
+	 */
+	CSFFW_ITER_ENABLING,
+	/** Iterator is being paused during resumption step 1
+	 * (DISABLED->PAUSED) or optional suspension step 1.5 (HALTED->PAUSED)
+	 * or optional preemption step 1.5 (HALTED->PAUSED)
+	 */
+	CSFFW_ITER_PAUSING,
+	/** Iterator is being halted during suspension step 1 (ENABLED->HALTED)
+	 * or preemption step 1 (ENABLED->HALTED)
+	 */
+	CSFFW_ITER_HALTING,
+	/** Iterator is HALTED. It is used during exclusive scheduling enabling/disabling transition only. */
+	CSFFW_ITER_HALTED,
+	/** Iterator is being disabled during suspension step 2
+	 * (HALTED/PAUSED->DISABLED) or termination (ENABLED->DISABLED) or
+	 * preemption step 2 (HALTED/PAUSED->DISABLED)
+	 */
+	CSFFW_ITER_DISABLING,
+};
+
+static const char *tl_iter_status_strings[] = {
+	"DISABLED",
+	"ENABLED",
+	"ENABLING",
+	"PAUSING",
+	"HALTING",
+	"HALTED",
+	"DISABLING",
+};
+
+struct kbase_csffw_tl_event_iter_initial_connections_msg {
+	u32 msg_id;
+	u64 timestamp;
+	u64 cycle_counter;
+	u32 iter;
+	u32 iterator_type;
+	u32 csg;
+	u32 csis;
+} __pack4 __aligned(4);
+
+struct kbase_csffw_fw_state_change_tl_message {
+	u32 msg_id;
+	u64 timestamp;
+	u64 cycle_counter;
+	u32 fw_state;
+} __packed __aligned(4);
+
+struct kbase_csffw_fw_cs_user_db_msg {
+	u32 msg_id;
+	u64 timestamp;
+	u64 cycle_counter;
+	u32 csg;
+	u32 cs;
+} __packed __aligned(4);
+
+struct kbase_csffw_tl_event_cs_state_change_msg {
+	u32 msg_id;
+	u64 timestamp;
+	u64 cycle_counter;
+	u32 csg;
+	u32 cs;
+	u32 cs_state;
+} __packed __aligned(4);
+
+struct kbase_csffw_tl_event_csg_state_change_msg {
+	u32 msg_id;
+	u64 timestamp;
+	u64 cycle_counter;
+	u32 csg;
+	u32 csg_state;
+} __packed __aligned(4);
+
+struct kbase_csffw_tl_event_cshwif_state_change_msg {
+	u32 msg_id;
+	u64 timestamp;
+	u64 cycle_counter;
+	u32 cshwif;
+	u32 tl_cshwif_state;
+	u32 csg;
+	u32 cs;
+}  __packed __aligned(4);
+
+struct kbase_csffw_tl_event_iter_state_change_msg {
+	u32 msg_id;
+	u64 timestamp;
+	u64 cycle_counter;
+	u32 iter;
+	u32 iterator_type;
+	u32 iterator_state;
+	u32 csg;
+} __packed __aligned(4);
+
+struct kbase_csffw_tl_event_cs_acquire_iter_msg {
+	u32 msg_id;
+	u64 timestamp;
+	u64 cycle_counter;
+	u32 csg;
+	u32 cs;
+	u32 iter;
+	u32 iterator_type;
+} __packed __aligned(4);
+
+struct kbase_csffw_tl_event_cs_release_iter_msg {
+	u32 msg_id;
+	u64 timestamp;
+	u64 cycle_counter;
+	u32 csg;
+	u32 cs;
+	u32 iter;
+	u32 iterator_type;
+} __packed __aligned(4);
+#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
+
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 static int kbase_csf_tl_debugfs_poll_interval_read(void *data, u64 *val)
 {
@@ -240,6 +487,54 @@ int kbase_csf_tl_reader_flush_buffer(struct kbase_csf_tl_reader *self)
 				(struct kbase_csffw_tl_message *)csffw_data_it;
 			msg->timestamp =
 				kbase_backend_time_convert_gpu_to_cpu(kbdev, msg->timestamp);
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+			if (msg->msg_id == CSFFW_TL_EVENT_ITER_INITIAL_CONNECTIONS) {
+				struct kbase_csffw_tl_event_iter_initial_connections_msg *msg2 =
+					(struct kbase_csffw_tl_event_iter_initial_connections_msg *)csffw_data_it;
+				//trace_tracing_mark_write_tl(7788,"iter_init_connection", msg2->iterator_type, msg2->timestamp);
+				//kbase_tl_systrace("C|7788|init:csgs%d:iter%d:csis%d|%d|%lld", msg2->csg, msg2->iter, msg2->csis, msg2->iterator_type, msg2->timestamp);
+			} else if (msg->msg_id == CSFFW_TL_EVENT_FW_STATE_CHANGE) {
+				struct kbase_csffw_fw_state_change_tl_message *msg2 =
+					(struct kbase_csffw_fw_state_change_tl_message *)csffw_data_it;
+				kbase_tl_systrace("E|7788|CSFFW State-300|%lld", msg2->timestamp);
+				kbase_tl_systrace("B|7788|CSFFW State-300|%s|%lld", csffw_tl_fw_state_strings[msg2->fw_state], msg2->timestamp);
+			} else if (msg->msg_id == CSFFW_TL_EVENT_CS_USER_DB) {
+				struct  kbase_csffw_fw_cs_user_db_msg *msg2 =
+					(struct kbase_csffw_fw_cs_user_db_msg *)csffw_data_it;
+				u32 pid= msg2->cs + 1;
+				kbase_tl_systrace("B|7788|User DB CSG%d-CSI%dState-8%d%d|Ring|%lld", msg2->csg, msg2->cs, msg2->csg, pid, msg2->timestamp);
+				kbase_tl_systrace("E|7788|User DB CSG%d-CSI%dState-8%d%d|%lld", msg2->csg, msg2->cs, msg2->csg, pid, msg2->timestamp);
+			} else if (msg->msg_id == CSFFW_TL_EVENT_CS_STATE_CHANGE) {
+				struct  kbase_csffw_tl_event_cs_state_change_msg *msg2 =
+					(struct kbase_csffw_tl_event_cs_state_change_msg *)csffw_data_it;
+				u32 pid= msg2->cs + 1;
+				kbase_tl_systrace("E|7788|CSG%d-CSI%dState-4%d%d|%lld", msg2->csg, msg2->cs, msg2->csg, pid, msg2->timestamp);
+				kbase_tl_systrace("B|7788|CSG%d-CSI%dState-4%d%d|%s|%lld", msg2->csg, msg2->cs, msg2->csg, pid, tl_csi_state_strings[msg2->cs_state], msg2->timestamp);
+			} else if (msg->msg_id == CSFFW_TL_EVENT_CSG_STATE_CHANGE) {
+				struct  kbase_csffw_tl_event_csg_state_change_msg *msg2 =
+					(struct kbase_csffw_tl_event_csg_state_change_msg *)csffw_data_it;
+				kbase_tl_systrace("E|7788|CSG%d State-4%d0|%lld", msg2->csg, msg2->csg, msg2->timestamp);
+				kbase_tl_systrace("B|7788|CSG%d State-4%d0|%s|%lld", msg2->csg, msg2->csg, tl_csg_internal_state_strings[msg2->csg_state], msg2->timestamp);
+			} else if (msg->msg_id == CSFFW_TL_EVENT_CSHWIF_STATE_CHANGE) {
+				struct  kbase_csffw_tl_event_cshwif_state_change_msg *msg2 =
+					(struct kbase_csffw_tl_event_cshwif_state_change_msg *)csffw_data_it;
+				kbase_tl_systrace("E|7788|CSHWIF %d-50%d|%lld", msg2->cshwif, msg2->cshwif, msg2->timestamp);
+				kbase_tl_systrace("B|7788|CSHWIF %d-50%d|CSI:%d CSG:%d-%s|%lld", msg2->cshwif, msg2->cshwif, msg2->cs,msg2->csg, tl_cshwif_state_strings[msg2->tl_cshwif_state], msg2->timestamp);
+			} else if(msg->msg_id == CSFFW_TL_EVENT_ITER_STATE_CHANGE) {
+				struct kbase_csffw_tl_event_iter_state_change_msg *msg2 =
+					(struct kbase_csffw_tl_event_iter_state_change_msg *)csffw_data_it;
+				kbase_tl_systrace("E|7788|%s iterator%d state-6%d0|%lld", tl_iter_type_strings[msg2->iterator_type], msg2->iter,msg2->iterator_type, msg2->timestamp);
+				kbase_tl_systrace("B|7788|%s iterator%d state-6%d0|CSG:%d-%s|%lld", tl_iter_type_strings[msg2->iterator_type], msg2->iter, msg2->iterator_type,msg2->csg, tl_iter_status_strings[msg2->iterator_state], msg2->timestamp);
+			} else if (msg->msg_id == CSFFW_TL_EVENT_CS_ACQUIRE_ITER) {
+				struct kbase_csffw_tl_event_cs_acquire_iter_msg *msg2 =
+					(struct kbase_csffw_tl_event_cs_acquire_iter_msg *)csffw_data_it;
+				kbase_tl_systrace("B|7788|%s connections-6%d1|CSIs:[%d ]CSG:%d|%lld", tl_iter_type_strings[msg2->iterator_type], msg2->iterator_type, msg2->cs,msg2->csg, msg2->timestamp);
+			} else if (msg->msg_id == CSFFW_TL_EVENT_CS_RELEASE_ITER) {
+				struct kbase_csffw_tl_event_cs_release_iter_msg *msg2 =
+					(struct kbase_csffw_tl_event_cs_release_iter_msg *)csffw_data_it;
+				kbase_tl_systrace("E|7788|%s connection-6%d1|%lld", tl_iter_type_strings[msg2->iterator_type], msg2->iterator_type, msg2->timestamp);
+			}
+#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
 		}
 
 		/* Copy the message out to the tl_stream. */

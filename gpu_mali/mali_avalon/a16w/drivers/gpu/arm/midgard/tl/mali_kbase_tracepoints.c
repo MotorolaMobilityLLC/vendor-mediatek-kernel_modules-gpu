@@ -27,7 +27,9 @@
 #include "mali_kbase_tracepoints.h"
 #include "mali_kbase_tlstream.h"
 #include "mali_kbase_tl_serialize.h"
-
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+#include <mali_linux_trace.h>
+#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
 /* clang-format off */
 
 /* Message ids of trace events that are recorded in the obj stream. */
@@ -151,6 +153,35 @@ enum tl_msg_id_obj {
 	KBASE_TL_KBASE_CSFFW_TLSTREAM_OVERFLOW,
 	KBASE_OBJ_MSG_COUNT,
 };
+
+
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+enum kbase_csffw_tl_fw_state {
+	CSFFW_TL_FW_NORMAL_MODE,    /**< FW has entered normal mode */
+	CSFFW_TL_FW_PROTECTED_MODE, /**< FW has entered protected mode */
+	CSFFW_TL_FW_SLEEPING,	    /**< FW has started sleeping */
+	CSFFW_TL_FW_RELOADING,
+	CSFFW_TL_FW_ENABLING,
+	CSFFW_TL_FW_REQUEST_SLEEP,  /**< KBASE has  request sleep */
+	CSFFW_TL_FW_REQUEST_WAKEUP,
+	CSFFW_TL_FW_REQUEST_HALT,  /**< KBASE has  request sleep */
+	CSFFW_TL_FW_DISABLING,
+	CSFFW_TL_FW_OFF,
+};
+
+static const char *csffw_tl_fw_state_strings[] = {
+	"NORMAL_MODE",    /**< FW has entered normal mode */
+	"PROTECTED_MODE", /**< FW has entered protected mode */
+	"SLEEPING",	    /**< FW has started sleeping */
+	"RELOADING",
+	"ENABLING",
+	"REQUEST_SLEEP",  /**< KBASE has  request sleep */
+	"REQUEST_WAKEUP",
+	"REQUEST_HALT",  /**< KBASE has  request sleep */
+	"DISABLING",
+	"OFF",
+};
+#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
 
 #define OBJ_TP_LIST \
 	TRACEPOINT_DESC(KBASE_TL_NEW_CTX, \
@@ -3704,7 +3735,10 @@ void __kbase_tlstream_tl_kbase_csffw_fw_reloading(
 	char *buffer;
 	unsigned long acq_flags;
 	size_t pos = 0;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+	kbase_tl_systrace("E|7788|CSFFW State-300|%lld", ktime_get_raw_ns());
+	kbase_tl_systrace("B|7788|CSFFW State-300|%s|%lld", csffw_tl_fw_state_strings[CSFFW_TL_FW_RELOADING], ktime_get_raw_ns());
+#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
 	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
 
 	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
@@ -3727,7 +3761,10 @@ void __kbase_tlstream_tl_kbase_csffw_fw_enabling(
 	char *buffer;
 	unsigned long acq_flags;
 	size_t pos = 0;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+	kbase_tl_systrace("E|7788|CSFFW State-300|%lld", ktime_get_raw_ns());
+	kbase_tl_systrace("B|7788|CSFFW State-300|%s|%lld", csffw_tl_fw_state_strings[CSFFW_TL_FW_ENABLING], ktime_get_raw_ns());
+#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
 	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
 
 	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
@@ -3750,7 +3787,10 @@ void __kbase_tlstream_tl_kbase_csffw_fw_request_sleep(
 	char *buffer;
 	unsigned long acq_flags;
 	size_t pos = 0;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+	kbase_tl_systrace("E|7788|CSFFW State-300|%lld", ktime_get_raw_ns());
+	kbase_tl_systrace("B|7788|CSFFW State-300|%s|%lld", csffw_tl_fw_state_strings[CSFFW_TL_FW_REQUEST_SLEEP], ktime_get_raw_ns());
+#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
 	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
 
 	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
@@ -3773,7 +3813,10 @@ void __kbase_tlstream_tl_kbase_csffw_fw_request_wakeup(
 	char *buffer;
 	unsigned long acq_flags;
 	size_t pos = 0;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+	kbase_tl_systrace("E|7788|CSFFW State-300|%lld", ktime_get_raw_ns());
+	kbase_tl_systrace("B|7788|CSFFW State-300|%s|%lld", csffw_tl_fw_state_strings[CSFFW_TL_FW_REQUEST_WAKEUP], ktime_get_raw_ns());
+#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
 	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
 
 	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
@@ -3796,7 +3839,10 @@ void __kbase_tlstream_tl_kbase_csffw_fw_request_halt(
 	char *buffer;
 	unsigned long acq_flags;
 	size_t pos = 0;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+	kbase_tl_systrace("E|7788|CSFFW State-300|%lld", ktime_get_raw_ns());
+	kbase_tl_systrace("B|7788|CSFFW State-300|%s|%lld", csffw_tl_fw_state_strings[CSFFW_TL_FW_REQUEST_HALT], ktime_get_raw_ns());
+#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
 	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
 
 	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
@@ -3819,7 +3865,10 @@ void __kbase_tlstream_tl_kbase_csffw_fw_disabling(
 	char *buffer;
 	unsigned long acq_flags;
 	size_t pos = 0;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+	kbase_tl_systrace("E|7788|CSFFW State-300|%lld", ktime_get_raw_ns());
+	kbase_tl_systrace("B|7788|CSFFW State-300|%s|%lld", csffw_tl_fw_state_strings[CSFFW_TL_FW_DISABLING], ktime_get_raw_ns());
+#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
 	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
 
 	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
@@ -3843,6 +3892,10 @@ void __kbase_tlstream_tl_kbase_csffw_fw_off(
 	unsigned long acq_flags;
 	size_t pos = 0;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+	kbase_tl_systrace("E|7788|CSFFW State-300|%lld", ktime_get_raw_ns());
+	kbase_tl_systrace("B|7788|CSFFW State-300|%s|%lld", csffw_tl_fw_state_strings[CSFFW_TL_FW_OFF], ktime_get_raw_ns());
+#endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
 	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
 
 	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
