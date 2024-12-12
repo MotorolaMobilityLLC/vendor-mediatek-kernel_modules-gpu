@@ -32,10 +32,6 @@
 #include <linux/export.h>
 #include <linux/version_compat_defs.h>
 
-#if IS_ENABLED(CONFIG_SYNC_FILE)
-#include "mali_kbase_fence.h"
-#include "mali_kbase_sync.h"
-
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
@@ -48,8 +44,16 @@
 #include <platform/mtk_platform_common/mtk_platform_qinspect_recovery.h>
 #endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
 
+#if IS_ENABLED(CONFIG_SYNC_FILE)
+#include "mali_kbase_fence.h"
+#include "mali_kbase_sync.h"
+
 static DEFINE_SPINLOCK(kbase_csf_fence_lock);
 #endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 #define FENCE_WAIT_TIMEOUT_MS 2000
@@ -1501,6 +1505,11 @@ static void fence_timeout_callback(struct timer_list *timer)
 		dev_err(kctx->kbdev->dev,
 			"%s: Unexpected command type %d in ctx:%d_%d kcpu queue:%u", __func__,
 			cmd->type, kctx->tgid, kctx->id, kcpu_queue->id);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"%s: Unexpected command type %d in ctx:%d_%d kcpu queue:%u\n", __func__,
+			cmd->type, kctx->tgid, kctx->id, kcpu_queue->id);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return;
 	}
 
@@ -1510,6 +1519,11 @@ static void fence_timeout_callback(struct timer_list *timer)
 	if (!fence) {
 		dev_err(kctx->kbdev->dev, "no fence found in ctx:%d_%d kcpu queue:%u", kctx->tgid,
 			kctx->id, kcpu_queue->id);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"no fence found in ctx:%d_%d kcpu queue:%u\n", kctx->tgid,
+			kctx->id, kcpu_queue->id);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return;
 	}
 
@@ -1626,6 +1640,13 @@ static void fence_timeout_callback(struct timer_list *timer)
 		dev_warn(kctx->kbdev->dev,
 			 "ctx:%d_%d kcpu queue:%u faulty fence[%pK] context#seqno:%s error(%d)",
 			 kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name, info.status);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"fence has got error\n");
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"ctx:%d_%d kcpu queue:%u faulty fence[%pK] context#seqno:%s error(%d)\n",
+			kctx->tgid, kctx->id, kcpu_queue->id, fence, info.name, info.status);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 
 	kbase_fence_put(fence);
