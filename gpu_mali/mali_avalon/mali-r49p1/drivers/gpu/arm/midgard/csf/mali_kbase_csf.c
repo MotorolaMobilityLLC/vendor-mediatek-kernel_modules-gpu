@@ -2554,7 +2554,7 @@ static void dump_hwif_registers(struct kbase_context *kctx)
 		u64 rb_start_ptr = kbase_reg_read(kbdev, CSHWIF_REG(i, 0x100)) |
 				   ((u64)kbase_reg_read(kbdev, CSHWIF_REG(i, 0x104)) << 32);
 		u64 rb_end_ptr, rb_read_ptr, rb_write_ptr, lb_start_ptr, lb_end_ptr, lb_read_ptr;
-		u32 config, cb_stack, call_depth, jasid;
+		u32 config, cb_stack;
 
 		if (!rb_start_ptr)
 			continue;
@@ -2603,13 +2603,6 @@ static void dump_hwif_registers(struct kbase_context *kctx)
 			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x2C)),
 			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x30)));
 		dev_err(kbdev->dev, "\n");
-
-		jasid = CSHWIF_CONFIG_JASID_GET(config);
-		call_depth = CSHWIF_CB_STACK_CURRENT_GET(cb_stack);
-		if (call_depth && jasid) {
-			if (kctx == kbdev->as_to_kctx[jasid])
-				dump_cmd_ptr_instructions(kctx, lb_read_ptr);
-		}
 	}
 }
 
