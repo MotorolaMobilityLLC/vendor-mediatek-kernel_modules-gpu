@@ -1789,6 +1789,19 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 	         fence_wait->flags,
 	         fence_wait->pid);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		if (kctx->kbdev->scheduler_kthread_exec_begin_time > kctx->kbdev->scheduler_kthread_exec_end_time) {
+			s64 blocked_time = ktime_to_ms(ktime_sub(ktime_get(), kctx->kbdev->scheduler_kthread_exec_begin_time));
+			if (blocked_time > 100) {
+				struct kbase_csf_scheduler *scheduler = &(kctx->kbdev)->csf.scheduler;
+				unsigned int state = scheduler->gpuq_kthread->__state;
+				dev_info(kctx->kbdev->dev,
+					"ctx_%d_%d scheduler kthread was blocked (%llu ms), state=0x%x", kctx->tgid, kctx->id, blocked_time, state);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+					"ctx_%d_%d scheduler kthread was blocked (%llu ms), state=0x%x\n", kctx->tgid, kctx->id, blocked_time, state);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+			}
+		}
 		if (fence_wait->flags & BASE_INTERNAL_FENCE_WAIT_DUMP_FLAG) {
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 			struct kbase_context *kctx_pid;

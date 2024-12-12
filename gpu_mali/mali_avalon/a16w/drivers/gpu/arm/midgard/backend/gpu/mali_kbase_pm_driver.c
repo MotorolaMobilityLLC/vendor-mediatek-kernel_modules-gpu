@@ -894,8 +894,10 @@ static void kbase_pm_control_gpu_clock(struct kbase_device *kbdev)
 #define MAX_STATES_NUM 16
 u8 mcu_state_array[MAX_STATES_NUM];
 int mcu_history_idx = 0;
+unsigned int mcu_change_count = 0;
 u8 l2_state_array[MAX_STATES_NUM];
 int l2_history_idx = 0;
+unsigned int l2_change_count = 0;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 
 #if MALI_USE_CSF
@@ -1778,6 +1780,7 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			mcu_history_idx = mcu_history_idx % MAX_STATES_NUM;
 			mcu_state_array[mcu_history_idx] = (u8)(backend->mcu_state & 0xFF);
 			mcu_history_idx = (mcu_history_idx + 1) % MAX_STATES_NUM;
+			mcu_change_count = mcu_change_count + 1;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 			/* Reset complete  */
 			if (!backend->in_reset)
@@ -1802,6 +1805,7 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			mcu_history_idx = mcu_history_idx  % MAX_STATES_NUM;
 			mcu_state_array[mcu_history_idx] = (u8)(backend->mcu_state & 0xFF);
 			mcu_history_idx = (mcu_history_idx + 1) % MAX_STATES_NUM;
+			mcu_change_count = mcu_change_count + 1;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MCU)
 			/* WB power transition timeout test case */
@@ -2520,6 +2524,7 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 				l2_history_idx = l2_history_idx % MAX_STATES_NUM;
 				l2_state_array[l2_history_idx] = (u8)(backend->l2_state & 0xFF);
 				l2_history_idx = (l2_history_idx + 1) % MAX_STATES_NUM;
+				l2_change_count = l2_change_count + 1;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 #if MALI_USE_CSF
 				backend->l2_force_off_after_mcu_halt = false;
@@ -2542,6 +2547,7 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 			l2_history_idx = l2_history_idx % MAX_STATES_NUM;
 			l2_state_array[l2_history_idx] = (u8)(backend->l2_state & 0xFF);
 			l2_history_idx = (l2_history_idx + 1) % MAX_STATES_NUM;
+			l2_change_count = l2_change_count + 1;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 		}
 

@@ -7233,6 +7233,10 @@ static int kbase_csf_scheduler_kthread(void *data)
 			continue;
 		}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+		kbdev->scheduler_kthread_exec_begin_time = ktime_get();
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+
 		reinit_completion(&scheduler->kthread_signal);
 #else
 		if (wait_for_completion_interruptible(&scheduler->kthread_signal) != 0)
@@ -7310,6 +7314,9 @@ static int kbase_csf_scheduler_kthread(void *data)
 
 		dev_dbg(kbdev->dev, "Waking up for event after a scheduling iteration.");
 		wake_up_all(&kbdev->csf.event_wait);
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+		kbdev->scheduler_kthread_exec_end_time = ktime_get();
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 	}
 
 	/* Wait for the other thread, that signaled the exit, to call kthread_stop() */
