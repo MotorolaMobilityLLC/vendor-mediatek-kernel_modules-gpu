@@ -319,6 +319,14 @@ struct kbase_kcpu_command_queue {
 #endif /* CONFIG_SYNC_FILE */
 	struct timer_list fence_signal_timeout;
 	atomic_t fence_signal_pending_cnt;
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	/* For ARM kcpu command - FENCE_SIGNAL timeout */
+	unsigned int fence_signal_command_timeout_counter;
+	char fence_signal_command_timeout_fence[32];
+	/* For ARM kcpu command - FENCE_WAIT timeout */
+	unsigned int fence_wait_command_timeout_counter;
+	char fence_wait_command_timeout_fence[32];
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 };
 
 /**

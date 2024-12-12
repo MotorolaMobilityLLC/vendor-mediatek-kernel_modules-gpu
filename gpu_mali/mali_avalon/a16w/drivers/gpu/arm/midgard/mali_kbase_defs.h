@@ -2109,6 +2109,12 @@ struct kbase_context {
 	char group_leader_comm[TASK_COMM_LEN];
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	uint64_t notification_fd_signal_time;
+	uint64_t notification_data_read_time;
+	uint64_t notification_polling_start_time;
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+
 	char comm[TASK_COMM_LEN];
 };
 

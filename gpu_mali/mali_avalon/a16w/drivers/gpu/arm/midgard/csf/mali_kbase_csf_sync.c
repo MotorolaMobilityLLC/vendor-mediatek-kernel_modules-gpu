@@ -121,9 +121,15 @@ static void kbasep_csf_sync_print_kcpu_fence_wait_or_signal(char *buffer, int *l
 			     "cmd:%s obj:0x%pK live_value:0x%.8x | ", cmd_name, fence, is_signaled);
 
 	/* Note: fence->seqno was u32 until 5.1 kernel, then u64 */
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	*length += scnprintf(buffer + *length, CSF_SYNC_DUMP_SIZE - *length,
+			     "timeline_name:%s context#seqno:%s",
+			     timeline_name, info.name);
+#else /* CONFIG_MALI_MTK_FENCE_DEBUG */
 	*length += scnprintf(buffer + *length, CSF_SYNC_DUMP_SIZE - *length,
 			     "timeline_name:%s timeline_context:0x%.16llx fence_seqno:0x%.16llx",
 			     timeline_name, fence->context, (u64)fence->seqno);
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 	kbase_fence_put(fence);
 }
@@ -371,9 +377,24 @@ static void kbasep_csf_sync_kcpu_print_queue(struct kbase_context *kctx,
 									"FENCE_SIGNAL");
 			break;
 		case BASE_KCPU_COMMAND_TYPE_FENCE_WAIT:
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+			{
+				if(((i == 0) && queue->command_started) && strstr(buffer, "-P_0_")) {
+					pr_info("KCPU Queue is blocked by display fence timeout");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+					mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+						"KCPU Queue is blocked by display fence timeout\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+				}
+				kbasep_csf_sync_print_kcpu_fence_wait_or_signal(buffer, &length, cmd,
+						"FENCE_WAIT");
+				break;
+			}
+#else /* CONFIG_MALI_MTK_FENCE_DEBUG */
 			kbasep_csf_sync_print_kcpu_fence_wait_or_signal(buffer, &length, cmd,
 									"FENCE_WAIT");
 			break;
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 #endif
 		case BASE_KCPU_COMMAND_TYPE_CQS_WAIT:
 			kbasep_csf_sync_print_kcpu_cqs_wait(kctx, buffer, &length, cmd);
