@@ -124,6 +124,11 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS) || IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG_FS || CONFIG_MALI_MTK_DEBUG_DUMP */
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+#include <mtk_heap.h>
+#include <slbc_ops.h>
+#include <linux/memory_group_manager.h>
+#endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST)
 #include <platform/mtk_platform_common/mtk_platform_gpu_idle_test.h>
@@ -6615,6 +6620,11 @@ static int kbase_device_suspend(struct device *dev)
 		flush_workqueue(kbdev->devfreq_queue.workq);
 	}
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+	slbc_invalidate(ID_GPU, slbc_gid_val(ID_GPU));
+	slbc_gid_release(ID_GPU, slbc_gid_val(ID_GPU));
+#endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
+
 	return 0;
 }
 
@@ -6630,6 +6640,10 @@ static int kbase_device_suspend(struct device *dev)
 static int kbase_device_resume(struct device *dev)
 {
 	struct kbase_device *kbdev = to_kbase_device(dev);
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+	int gid = slbc_gid_val(ID_GPU);
+	struct slbc_gid_data slbc_data = {0x51ca11ca,0,0,0,0,0,0,0,0};
+#endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
 
 	if (!kbdev)
 		return -ENODEV;
@@ -6645,6 +6659,10 @@ static int kbase_device_resume(struct device *dev)
 	if (kbdev->devfreq)
 		kbase_devfreq_enqueue_work(kbdev, DEVFREQ_WORK_RESUME);
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+	slbc_gid_request(ID_GPU, &gid, &slbc_data);
+	slbc_validate(ID_GPU, slbc_gid_val(ID_GPU));
+#endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
 	return 0;
 }
 

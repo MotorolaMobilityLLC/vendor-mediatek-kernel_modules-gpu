@@ -49,6 +49,11 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_COMMON */
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+#include <mtk_heap.h>
+#include <slbc_ops.h>
+#include <linux/memory_group_manager.h>
+#endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
 
 /**
  * kbase_device_firmware_hwcnt_term - Terminate CSF firmware and HWC
@@ -472,6 +477,10 @@ virt_fail:
 static int kbase_csf_firmware_deferred_init(struct kbase_device *kbdev)
 {
 	int err = 0;
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+	int gid = slbc_gid_val(ID_GPU);
+	struct slbc_gid_data slbc_data = {0x51ca11ca,0,0,0,0,0,0,0,0};
+#endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
 
 	lockdep_assert_held(&kbdev->fw_load_lock);
 
@@ -483,6 +492,10 @@ static int kbase_csf_firmware_deferred_init(struct kbase_device *kbdev)
 		kbdev->pm.backend.mcu_state = KBASE_MCU_ON;
 		kbdev->csf.firmware_inited = true;
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+		slbc_gid_request(ID_GPU, &gid, &slbc_data);
+		slbc_validate(ID_GPU, slbc_gid_val(ID_GPU));
+#endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
 	} else {
 		dev_err(kbdev->dev, "Firmware initialization failed");
 	}

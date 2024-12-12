@@ -57,6 +57,11 @@
 #include <linux/version_compat_defs.h>
 #include <mali_kbase_config_defaults.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+#include <mtk_heap.h>
+#include <slbc_ops.h>
+#include <linux/memory_group_manager.h>
+#endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 #include "platform/mtk_platform_common.h"
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
@@ -2813,6 +2818,10 @@ void kbase_csf_firmware_unload_term(struct kbase_device *kbdev)
 	kbase_pm_wait_for_desired_state(kbdev);
 
 	free_global_iface(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+	slbc_invalidate(ID_GPU, slbc_gid_val(ID_GPU));
+	slbc_gid_release(ID_GPU, slbc_gid_val(ID_GPU));
+#endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	kbdev->csf.firmware_inited = false;
