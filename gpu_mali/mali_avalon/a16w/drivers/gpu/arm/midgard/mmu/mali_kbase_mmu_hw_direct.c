@@ -29,6 +29,10 @@
 #include <tl/mali_kbase_tracepoints.h>
 #include <linux/delay.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
@@ -186,6 +190,11 @@ static int wait_ready(struct kbase_device *kbdev, unsigned int as_nr)
 	dev_err(kbdev->dev,
 		"AS_ACTIVE bit stuck for as %u. Might be caused by unstable GPU clk/pwr or faulty system",
 		as_nr);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		"AS_ACTIVE bit stuck for as %u. Might be caused by unstable GPU clk/pwr or faulty system\n",
+		as_nr);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	kbdev->mmu_unresponsive = true;
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
@@ -221,6 +230,11 @@ static int write_cmd(struct kbase_device *kbdev, unsigned int as_nr, u32 cmd)
 		dev_err(kbdev->dev,
 			"Wait for AS_ACTIVE bit failed for as %u, before sending MMU command %u",
 			as_nr, cmd);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Wait for AS_ACTIVE bit failed for as %u, before sending MMU command %u\n",
+			as_nr, cmd);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 
 	return status;
@@ -317,6 +331,10 @@ static int apply_hw_issue_GPU2019_3901_wa(struct kbase_device *kbdev, u32 *mmu_c
 
 		ret = wait_cores_power_trans_complete(kbdev);
 		if (unlikely(ret)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"wait_cores_power_trans_complete fail, try to do reset\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			if (kbase_prepare_to_reset_gpu_locked(kbdev,
 							      RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
 				kbase_reset_gpu_locked(kbdev);
@@ -533,6 +551,10 @@ int kbase_mmu_hw_do_flush(struct kbase_device *kbdev, struct kbase_as *as,
 	 */
 	if (flush_op != KBASE_MMU_OP_FLUSH_PT && flush_op != KBASE_MMU_OP_FLUSH_MEM) {
 		dev_err(kbdev->dev, "Unexpected flush operation received");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Unexpected flush operation received\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return -EINVAL;
 	}
 
@@ -595,6 +617,10 @@ int kbase_mmu_hw_do_flush_on_gpu_ctrl(struct kbase_device *kbdev, struct kbase_a
 	 */
 	if (flush_op != KBASE_MMU_OP_FLUSH_PT && flush_op != KBASE_MMU_OP_FLUSH_MEM) {
 		dev_err(kbdev->dev, "Unexpected flush operation received");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Unexpected flush operation received\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return -EINVAL;
 	}
 

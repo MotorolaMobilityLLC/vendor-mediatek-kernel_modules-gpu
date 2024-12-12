@@ -49,6 +49,16 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_COMMON */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+#define FWLOG_CONTENT_LEN 64
+extern u8 *g_fw_dump_dest;
+char fw_content[FWLOG_CONTENT_LEN] = "======CSF fwlog is empy!======";
+#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
 #include <mtk_heap.h>
 #include <slbc_ops.h>
@@ -506,6 +516,12 @@ static int kbase_csf_firmware_deferred_init(struct kbase_device *kbdev)
 int kbase_device_firmware_init_once(struct kbase_device *kbdev)
 {
 	int ret = 0;
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+	uint64_t ts_nsec;
+	uint32_t rem_nsec;
+#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	mutex_lock(&kbdev->fw_load_lock);
 
@@ -528,6 +544,23 @@ int kbase_device_firmware_init_once(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
 		dev_info(kbdev->dev, "CSF firmware was successfully initialized by process '%s'", current->comm);
 #endif /* CONFIG_MALI_MTK_COMMON */
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"[%llxt] CSF firmware was successfully initialized by process '%s'\n",
+			mtk_logbuffer_get_timestamp(kbdev), current->comm);
+#if IS_ENABLED(CONFIG_MALI_MTK_KE_DUMP_FWLOG)
+		ts_nsec = ktime_get_ns();
+		rem_nsec = do_div(ts_nsec, 1000000000);
+		snprintf(fw_content, FWLOG_CONTENT_LEN,
+			"[%5lu.%06lu] [%llxt]====fwlog End Of File====\n",
+			(unsigned long)ts_nsec,
+			(unsigned long)rem_nsec / 1000,
+			mtk_logbuffer_get_timestamp(kbdev));
+
+		if (g_fw_dump_dest != NULL)
+			memcpy(g_fw_dump_dest, fw_content, FWLOG_CONTENT_LEN);
+#endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 out:
 		kbase_pm_context_idle(kbdev);
 	}
