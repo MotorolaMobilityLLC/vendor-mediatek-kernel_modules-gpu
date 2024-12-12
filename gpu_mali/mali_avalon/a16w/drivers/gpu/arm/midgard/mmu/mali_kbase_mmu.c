@@ -2706,6 +2706,13 @@ static int mmu_insert_pages_no_flush(struct kbase_device *kbdev, struct kbase_mm
 	phys_addr_t new_pgds[MIDGARD_MMU_BOTTOMLEVEL + 1];
 	int l, cur_level, insert_level;
 	struct tagged_addr *start_phys = phys;
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	struct kbase_mmu_debug_info mmu_debug_info;
+	u64 time_in_ns;
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
+	int page_num = 0;
+#endif /* CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG */
 
 	if (mmut->kctx)
 		lockdep_assert_held(&mmut->kctx->reg_lock);
@@ -2724,6 +2731,33 @@ static int mmu_insert_pages_no_flush(struct kbase_device *kbdev, struct kbase_mm
 	insert_vpfn *= GPU_PAGES_PER_CPU_PAGE;
 	remain *= GPU_PAGES_PER_CPU_PAGE;
 	mutex_lock(&mmut->mmu_lock);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
+	if(kbdev->mmu_dbg_config_value != MMU_DBG_CFG_LOG_DIS && phys) {
+		dev_err(kbdev->dev, "[MMU][map] va 0x%llx, phys 0x%llx, flag 0x%lx, nr 0x%lx, ctx %d_%d, as %d\n",
+			start_vpfn, as_phys_addr_t(phys[0]), flags, nr,
+			mmut->kctx ? mmut->kctx->tgid : 0,
+			mmut->kctx ? mmut->kctx->id : 0,
+			mmut->kctx ? mmut->kctx->as_nr : MCU_AS_NR);
+		for(page_num = 0; page_num < nr; page_num++) {
+			dev_err(kbdev->dev, "[MMU][map] %4u: pa %llx , f 0x%lx\n", page_num, as_phys_addr_t(phys[page_num]), flags);
+		}
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		// show pa to gpu log
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR, "[map] va 0x%llx, phys 0x%llx, flag 0x%lx, nr 0x%lx, ctx %d_%d, as %d\n",
+			start_vpfn, as_phys_addr_t(phys[0]), flags, nr,
+			mmut->kctx ? mmut->kctx->tgid : 0,
+			mmut->kctx ? mmut->kctx->id : 0,
+			mmut->kctx ? mmut->kctx->as_nr : MCU_AS_NR);
+		for(page_num = 0; page_num < nr; page_num++) {
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR, "[map] %4u: pa %llx , f 0x%lx,\n", page_num, as_phys_addr_t(phys[page_num]), flags);
+		}
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	}
+	if(kbdev->mmu_dbg_config_value == MMU_DBG_CFG_LOG_BT_EN) {
+		dump_stack();
+	}
+#endif /* CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG */
 
 	while (remain) {
 		unsigned int vindex = insert_vpfn & 0x1FF;
@@ -2890,6 +2924,22 @@ repeat_page_table_walk:
 		remain -= count;
 		kunmap_pgd(p, pgd_page);
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	mutex_lock(&kbdev->mmu_debug_info_lock);
+	time_in_ns = ktime_get_raw_ns() / 1000;
+	mmu_debug_info = (struct kbase_mmu_debug_info) { time_in_ns,
+							 nr,
+							 start_vpfn << PAGE_SHIFT,
+							 mmut->kctx ? mmut->kctx->tgid : 0,
+							 mmut->kctx ? mmut->kctx->id : 0,
+							 mmut->kctx ? mmut->kctx->as_nr : MCU_AS_NR,
+							 ignore_page_migration,
+							 MMU_OP_MAP};
+	kbdev->mmu_dbg[kbdev->mmu_debug_info_head % MMU_DEBUG_INFO_BUFFER_SIZE] = mmu_debug_info;
+	kbdev->mmu_debug_info_head++;
+	mutex_unlock(&kbdev->mmu_debug_info_lock);
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
 	mutex_unlock(&mmut->mmu_lock);
 
@@ -3457,6 +3507,13 @@ static int mmu_teardown_pages(struct kbase_device *kbdev, struct kbase_mmu_table
 	struct kbase_mmu_hw_op_param op_param;
 	int err = -EFAULT;
 	u64 dirty_pgds = 0;
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	struct kbase_mmu_debug_info mmu_debug_info;
+	u64 time_in_ns;
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
+	int page_num = 0;
+#endif /* CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG */
 	LIST_HEAD(free_pgds_list);
 
 	/* Calls to this function are inherently asynchronous, with respect to
@@ -3500,6 +3557,30 @@ static int mmu_teardown_pages(struct kbase_device *kbdev, struct kbase_mmu_table
 
 	mutex_lock(&mmut->mmu_lock);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
+	if(kbdev->mmu_dbg_config_value != MMU_DBG_CFG_LOG_DIS && phys) {
+		dev_err(kbdev->dev, "[MMU][unmap] va 0x%llx, phys 0x%llx, nr 0x%lx, ctx %d_%d, as %d\n",
+			start_vpfn, as_phys_addr_t(phys[0]), nr_phys_pages,
+			mmut->kctx ? mmut->kctx->tgid : 0,
+			mmut->kctx ? mmut->kctx->id : 0,
+			mmut->kctx ? mmut->kctx->as_nr : MCU_AS_NR);
+		for(page_num = 0; page_num < nr_phys_pages; page_num++) {
+			dev_err(kbdev->dev, "[MMU][unmap] %4u: pa %llx\n", page_num, as_phys_addr_t(phys[page_num]));
+		}
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		// show pa to gpu log
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR, "[unmap] va 0x%llx, phys 0x%llx, nr 0x%lx, ctx %d_%d, as %d\n",
+			start_vpfn, as_phys_addr_t(phys[0]), nr_phys_pages,
+			mmut->kctx ? mmut->kctx->tgid : 0,
+			mmut->kctx ? mmut->kctx->id : 0,
+			mmut->kctx ? mmut->kctx->as_nr : MCU_AS_NR);
+		for(page_num = 0; page_num < nr_phys_pages; page_num++) {
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR,"[unmap] %4u: pa %llx\n", page_num, as_phys_addr_t(phys[page_num]));
+		}
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	}
+#endif /* CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG */
+
 	err = kbase_mmu_teardown_pgd_pages(kbdev, mmut, vpfn, nr_virt_pages, &dirty_pgds,
 					   &free_pgds_list, flush_op, as_nr);
 
@@ -3525,6 +3606,22 @@ static int mmu_teardown_pages(struct kbase_device *kbdev, struct kbase_mmu_table
 		kbase_mmu_progress_migration_on_teardown(kbdev, phys, nr_phys_pages);
 
 	kbase_mmu_free_pgds_list(kbdev, mmut);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	mutex_lock(&kbdev->mmu_debug_info_lock);
+	time_in_ns = ktime_get_raw_ns() / 1000;
+	mmu_debug_info = (struct kbase_mmu_debug_info) { time_in_ns,
+							 nr_phys_pages,
+							 vpfn << PAGE_SHIFT,
+							 mmut->kctx ? mmut->kctx->tgid : 0,
+							 mmut->kctx ? mmut->kctx->id : 0,
+							 as_nr,
+							 ignore_page_migration,
+							 MMU_OP_UNMAP};
+	kbdev->mmu_dbg[kbdev->mmu_debug_info_head % MMU_DEBUG_INFO_BUFFER_SIZE] = mmu_debug_info;
+	kbdev->mmu_debug_info_head++;
+	mutex_unlock(&kbdev->mmu_debug_info_lock);
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
 	mutex_unlock(&mmut->mmu_lock);
 
@@ -4802,6 +4899,212 @@ fail_free:
 }
 KBASE_EXPORT_TEST_API(kbase_mmu_dump);
 #endif /* CONFIG_MALI_VECTOR_DUMP */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MMU_DUMP)
+size_t kbasep_mmu_dump_level_size(struct kbase_device *kbdev, phys_addr_t pgd, int level,
+				    struct kbase_mmu_table *mmu)
+{
+	phys_addr_t target_pgd;
+	u64 *pgd_page;
+	int i;
+	size_t size = KBASE_MMU_PAGE_ENTRIES * sizeof(u64) + sizeof(u64);
+	size_t dump_size;
+	struct kbase_mmu_mode const *mmu_mode;
+
+	if (WARN_ON(mmu == NULL))
+		return 0;
+	lockdep_assert_held(&(mmu->mmu_lock));
+
+	mmu_mode = kbdev->mmu_mode;
+
+	pgd_page = kbase_kmap(pfn_to_page(PFN_DOWN(pgd)));
+	if (!pgd_page) {
+		dev_warn(kbdev->dev, "%s: kmap failure", __func__);
+		return 0;
+	}
+
+
+	if (level < MIDGARD_MMU_BOTTOMLEVEL) {
+		for (i = 0; i < KBASE_MMU_PAGE_ENTRIES; i++) {
+			if (mmu_mode->pte_is_valid(pgd_page[i], level)) {
+				target_pgd = mmu_mode->pte_to_phy_addr(
+					kbdev->mgm_dev->ops.mgm_pte_to_original_pte(
+						kbdev->mgm_dev, MGM_DEFAULT_PTE_GROUP, level,
+						pgd_page[i]));
+
+				dump_size = kbasep_mmu_dump_level_size(kbdev, target_pgd, level + 1,
+								  mmu);
+				if (!dump_size) {
+					dev_warn(kbdev->dev, "[GPUMMU] return 0, dump_size = %u", (unsigned int) dump_size);
+					kbase_kunmap(pfn_to_page(PFN_DOWN(pgd)), pgd_page);
+					return 0;
+				}
+				size += dump_size;
+			}
+		}
+	}
+
+	kbase_kunmap(pfn_to_page(PFN_DOWN(pgd)), pgd_page);
+
+	return size;
+}
+
+size_t kbasep_mmu_dump_table_size(struct kbase_device *kbdev, int level, struct kbase_mmu_table *mmu)
+{
+	size_t size = 0;
+
+	if(mmu == NULL) return 0;
+
+	mutex_lock(&mmu->mmu_lock);
+	size = kbasep_mmu_dump_level_size(kbdev, mmu->pgd, MIDGARD_MMU_TOPLEVEL, mmu);
+	mutex_unlock(&mmu->mmu_lock);
+
+	return size;
+}
+
+static size_t kbasep_mmu_dump_level_mtk(struct kbase_device *kbdev, phys_addr_t pgd, int level,
+				    char **const buffer, size_t *size_left, struct kbase_mmu_table *mmu)
+{
+	phys_addr_t target_pgd;
+	u64 *pgd_page;
+	int i;
+	size_t size = KBASE_MMU_PAGE_ENTRIES * sizeof(u64) + sizeof(u64);
+	size_t dump_size;
+	struct kbase_mmu_mode const *mmu_mode;
+
+	if (WARN_ON(mmu == NULL))
+		return 0;
+	lockdep_assert_held(&(mmu->mmu_lock));
+
+	mmu_mode = kbdev->mmu_mode;
+
+	pgd_page = kbase_kmap(pfn_to_page(PFN_DOWN(pgd)));
+	if (!pgd_page) {
+		dev_warn(kbdev->dev, "%s: kmap failure", __func__);
+		return 0;
+	}
+
+
+	if (*size_left >= size) {
+		/* A modified physical address that contains
+		 * the page table level
+		 */
+		u64 m_pgd = pgd | (u64)level;
+		//dev_err(kbdev->dev, "[GPUMMU] dump ok (pgd | level = %llx)", m_pgd);
+
+		/* Put the modified physical address in the output buffer */
+		memcpy(*buffer, &m_pgd, sizeof(m_pgd));
+		*buffer += sizeof(m_pgd);
+
+		/* Followed by the page table itself */
+		memcpy(*buffer, pgd_page, sizeof(u64) * KBASE_MMU_PAGE_ENTRIES);
+		*buffer += sizeof(u64) * KBASE_MMU_PAGE_ENTRIES;
+
+		*size_left -= size;
+	} else {
+		dev_warn(kbdev->dev, "[GPUMMU] dump failed, size = %u, pgd | level = %llx", (unsigned int) size, (u64) (pgd | (u64)level) );
+	}
+
+	if (level < MIDGARD_MMU_BOTTOMLEVEL) {
+		for (i = 0; i < KBASE_MMU_PAGE_ENTRIES; i++) {
+			if (mmu_mode->pte_is_valid(pgd_page[i], level)) {
+				target_pgd = mmu_mode->pte_to_phy_addr(
+					kbdev->mgm_dev->ops.mgm_pte_to_original_pte(
+						kbdev->mgm_dev, MGM_DEFAULT_PTE_GROUP, level,
+						pgd_page[i]));
+
+				dump_size = kbasep_mmu_dump_level_mtk(kbdev, target_pgd, level + 1,
+								  buffer, size_left, mmu);
+				if (!dump_size) {
+					dev_warn(kbdev->dev, "[GPUMMU] return 0, dump_size = %u", (unsigned int) dump_size);
+					kbase_kunmap(pfn_to_page(PFN_DOWN(pgd)), pgd_page);
+					return 0;
+				}
+				size += dump_size;
+			}
+		}
+	}
+
+	kbase_kunmap(pfn_to_page(PFN_DOWN(pgd)), pgd_page);
+
+	return size;
+}
+
+void *kbase_mmu_dump_mtk(struct kbase_device *kbdev, struct kbase_context *kctx, size_t nr_pages, size_t *ret_size)
+{
+	void *kaddr;
+	size_t size_left;
+	struct kbase_mmu_table *target_mmu;
+
+	if (nr_pages == 0) {
+		/* can't dump in a 0 sized buffer, early out */
+		return NULL;
+	}
+
+	target_mmu = (kctx) ? &kctx->mmu : &kbdev->csf.mcu_mmu; // dump kctx mmu or csf mmu
+
+	size_left = nr_pages * PAGE_SIZE;
+
+	if (WARN_ON(size_left == 0))
+		return NULL;
+	kaddr = (void *) vmalloc_user(size_left);
+
+	mutex_lock(&target_mmu->mmu_lock);
+
+	if (kaddr) {
+		u64 end_marker = 0xFFULL;
+		char *buffer;
+		char *mmu_dump_buffer;
+		u64 config[3];
+		size_t dump_size, size = 0;
+		struct kbase_mmu_setup as_setup;
+
+		buffer = (char *)kaddr;
+		mmu_dump_buffer = buffer;
+
+		kbdev->mmu_mode->get_as_setup(target_mmu, &as_setup);
+		config[0] = as_setup.transtab;
+		config[1] = as_setup.memattr;
+		config[2] = as_setup.transcfg;
+		memcpy(buffer, &config, sizeof(config));
+		mmu_dump_buffer += sizeof(config);
+		size_left -= sizeof(config);
+		size += sizeof(config);
+
+		dev_info(kbdev->dev, "[GPUMMU] start dump, size_left = %u", (unsigned int) size_left);
+		dump_size = kbasep_mmu_dump_level_mtk(kbdev, target_mmu->pgd, MIDGARD_MMU_TOPLEVEL,
+						  &mmu_dump_buffer, &size_left, target_mmu);
+
+		if (!dump_size)
+			goto fail_exit;
+
+		size += dump_size;
+
+		/* Add on the size for the end marker */
+		size += sizeof(u64);
+		*ret_size = size;
+
+		if (size > (nr_pages * PAGE_SIZE)) {
+			/* The buffer isn't big enough - return without end_marker
+			 */
+			goto fail_exit;
+		}
+
+		/* Add the end marker */
+		memcpy(mmu_dump_buffer, &end_marker, sizeof(u64));
+	}
+
+	mutex_unlock(&target_mmu->mmu_lock);
+	return kaddr;
+
+fail_exit:
+	*ret_size = nr_pages * PAGE_SIZE;
+	dev_err(kbdev->dev, "%s: The buffer isn't big enough - return without end_marker \n", __func__);
+	mutex_unlock(&target_mmu->mmu_lock);
+	return kaddr;
+}
+EXPORT_SYMBOL(kbase_mmu_dump_mtk);
+#endif /* CONFIG_MALI_MTK_MMU_DUMP */
 
 void kbase_mmu_bus_fault_worker(struct work_struct *data)
 {

@@ -734,6 +734,48 @@ struct kbase_mem_migrate {
 #endif
 };
 
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+#define MMU_DEBUG_INFO_BUFFER_SIZE 4096
+
+enum kbase_mmu_dbg_op_type {
+	MMU_OP_MAP = 0,
+	MMU_OP_UNMAP = 1,
+};
+
+/**
+ * struct kbase_mmu_debug_info - Kernel mmu debug information
+ *
+ * @time:  Kernel time of the record (ns).
+ * @pgds:  Number of pyhsical pages.
+ * @va:    Shifted page frame number of the GPU virtual pages to unmap.
+ * @tgid:  Thread group ID of the process whose thread created the context.
+ * @id:    Unique identifier for the context, indicates the number of
+ *         contexts which have been created for the device so far.
+ * @as_nr: Address space number, for GPU cache maintenance operations
+ *         that happen outside a specific kbase context.
+ * @ipm:   Whether page migration metadata should be ignored.
+ *
+ */
+struct kbase_mmu_debug_info {
+	u64 time;
+	size_t pgds;
+	u64 va;
+	pid_t tgid;
+	u32 id;
+	int as_nr;
+	bool ipm;
+	enum kbase_mmu_dbg_op_type mmu_op_type;
+};
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
+enum mmu_dbg_log_config {
+	MMU_DBG_CFG_LOG_DIS = 0,
+	MMU_DBG_CFG_LOG_EN = 1,
+	MMU_DBG_CFG_LOG_BT_EN = 2,
+};
+#endif /* CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG */
+
 /**
  * struct kbase_device   - Object representing an instance of GPU platform device,
  *                         allocated from the probe method of mali driver.
@@ -1378,6 +1420,17 @@ struct kbase_device {
 
 
 	struct kbase_mem_migrate mem_migrate;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	struct mutex register_check_lock;
+	struct kbase_mmu_debug_info mmu_dbg[MMU_DEBUG_INFO_BUFFER_SIZE];
+	struct mutex mmu_debug_info_lock;
+	size_t mmu_debug_info_head;
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
+	u32 mmu_dbg_config_value;
+#endif /* CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG */
 
 #if MALI_USE_CSF && IS_ENABLED(CONFIG_SYNC_FILE)
 	atomic_t live_fence_metadata;
@@ -2038,6 +2091,10 @@ struct kbase_context {
 	 */
 	struct kbase_gpu_metrics_ctx *gpu_metrics_ctx;
 #endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	char group_leader_comm[TASK_COMM_LEN];
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
 	char comm[TASK_COMM_LEN];
 };

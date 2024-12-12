@@ -125,6 +125,10 @@
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG_FS */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM)
+#include "csf/mali_kbase_csf_tiler_heap_reclaim.h"
+#endif /* CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM */
+
 #define KERNEL_SIDE_DDK_VERSION_STRING "K:" MALI_RELEASE_NAME "(GPL)"
 
 /**
@@ -2347,6 +2351,463 @@ static ssize_t power_policy_store(struct device *dev, struct device_attribute *a
  * policy.
  */
 static DEVICE_ATTR_RW(power_policy);
+
+
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
+/**
+ * mmu_dbg_config_show - Get the KBase MMU debug config value.
+ *
+ * @dev:  The device this sysfs file is for.
+ * @attr: The attributes of the sysfs file.
+ * @buf:  The output buffer for the sysfs file contents
+ *
+ * Get value for configuring MMU debug log
+ *
+ * Return: The number of bytes output to @buf if the
+ *         function succeeded. A Negative value on failure.
+ */
+static ssize_t mmu_dbg_config_show(struct device *dev, struct device_attribute *attr, char * const buf)
+{
+	struct kbase_device *kbdev = dev_get_drvdata(dev);
+	u32 mmu_dbg_config_value;
+
+	if (!kbdev) {
+		pr_info("[KBASE] Bad kbdev!\n");
+		return -ENODEV;
+	}
+
+	mmu_dbg_config_value = kbdev->mmu_dbg_config_value;
+	return scnprintf(buf, PAGE_SIZE, "%u\n", mmu_dbg_config_value);
+}
+
+/**
+ * mmu_dbg_config_store - Set the KBase MMU debug config value.
+ *
+ * @dev:   The device with sysfs file is for
+ * @attr:  The attributes of the sysfs file
+ * @buf:   The value written to the sysfs file
+ * @count: The number of bytes to write to the sysfs file
+ *
+ * The value for configuring MMU debug log
+ *
+ * Return: @count if the function succeeded. An error code on failure.
+ */
+static ssize_t mmu_dbg_config_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct kbase_device *kbdev = dev_get_drvdata(dev);
+	u32 mmu_dbg_config_value;
+
+	if (!kbdev) {
+		pr_info("[KBASE] Bad kbdev!\n");
+		return -ENODEV;
+	}
+
+	if (kstrtouint(buf, 0, &mmu_dbg_config_value))
+		return -EINVAL;
+
+	kbdev->mmu_dbg_config_value = mmu_dbg_config_value;
+	pr_info("[KBASE] mmu_dbg_config_value=%d\n", mmu_dbg_config_value);
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(mmu_dbg_config);
+#endif /* CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM)
+static ssize_t force_reclaim_show(struct device *dev, struct device_attribute *attr, char * const buf)
+{
+	return 0;
+}
+
+static ssize_t force_reclaim_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct kbase_device *kbdev;
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev) {
+		pr_info("[KBASE] Bad kbdev!\n");
+		return -ENODEV;
+	}
+	mtk_force_reclaim(kbdev);
+	return count;
+}
+
+static DEVICE_ATTR_RW(force_reclaim);
+#endif /* CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MMU_DUMP)
+extern void *kbase_mmu_dump_mtk(struct kbase_device *kbdev, struct kbase_context *kctx, size_t nr_pages, size_t *ret_size);
+#define DUMP_LIST_D1_NUM   (KBASE_MMU_PAGE_ENTRIES + 1) // PGD | LEVEL (1) + ENTRY_LIST (512)
+#define DUMP_LIST_STR_SIZE (DUMP_LIST_D1_NUM*17)        // 1 byte for space + 16 bytes for each entry hex dump => 17 bytes
+
+static void dump_mmu_table_to_km_log(struct kbase_device *kbdev, u64 *table, unsigned long dump_entry_nr)
+{
+	size_t entry_list_str_i = 0;
+	unsigned long i = 0;
+	char* entry_list_str = (char *) kmalloc(DUMP_LIST_STR_SIZE+1, GFP_KERNEL);
+	entry_list_str[DUMP_LIST_STR_SIZE] = 0;
+
+	dev_info(kbdev->dev, "[GPUMMU] as_setup: transtab 0x%llx, memattr 0x%llx, transcfg 0x%llx,\n", table[0], table[1], table[2]);
+	dev_info(kbdev->dev, "[GPUMMU] show i = %lu, range (3, %lu)\n", i, dump_entry_nr);
+	for(i = 3; i < dump_entry_nr; i++) {
+		if ( (i-3) % DUMP_LIST_D1_NUM == 0 ) {
+			dev_info(kbdev->dev, "[GPUMMU] [%lu] %llx \n", i, table[i]);
+			//count += scnprintf(buf_str + count, buf_size - count, "[GPUMMU] [%lu] %llx \n", i, table[i]);
+		}
+		//dev_info(kbdev->dev, "%llx ", table[i]);
+		if(0xFFULL == table[i])
+			break;
+		entry_list_str_i += scnprintf(entry_list_str + entry_list_str_i, DUMP_LIST_D1_NUM*16 - entry_list_str_i, "%llx ", table[i]);
+		if ( ((i-3) % DUMP_LIST_D1_NUM) == (DUMP_LIST_D1_NUM - 1) ) {
+			//dev_info(kbdev->dev, "\n");
+			entry_list_str_i += scnprintf(entry_list_str + entry_list_str_i, DUMP_LIST_D1_NUM*16 - entry_list_str_i, " \n");
+			entry_list_str[entry_list_str_i] = 0;
+			dev_info(kbdev->dev, "[GPUMMU] %s,\n", entry_list_str);
+			entry_list_str_i = 0;
+		}
+	}
+	kfree(entry_list_str);
+}
+
+static size_t dump_mmu_table_to_str_buf(struct kbase_device *kbdev, u64 *table, unsigned long dump_entry_nr, char* buf_str, size_t buf_size)
+{
+	size_t count = 0;
+	unsigned long i = 0;
+
+	//dump_mmu_table_to_km_log(table, dump_entry_nr);
+	count += scnprintf(buf_str + count, buf_size - count,
+					"[GPUMMU] as_setup: transtab 0x%llx, memattr 0x%llx, transcfg 0x%llx,\n", table[0], table[1], table[2]);
+	count += scnprintf(buf_str + count, buf_size - count, "[GPUMMU] Table:\n");
+	for(i = 3; i < dump_entry_nr; i++) {
+		if(0xFFULL == table[i])
+			break;
+		count += scnprintf(buf_str + count, buf_size - count, "%llx ", table[i]);
+		if ( ((i-3) % DUMP_LIST_D1_NUM) == (DUMP_LIST_D1_NUM - 1) ) {
+			count += scnprintf(buf_str + count, buf_size - count, " \n");
+		}
+	}
+	return count;
+}
+
+/*
+static void dump_mmu_table_to_gpu_log(struct kbase_device *kbdev, u64 *table, unsigned long dump_entry_nr)
+{
+	size_t count = 0;
+	unsigned long i = 0;
+
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR, "[GPUMMU] show i = %lu, range (0, %lu)\n", i, dump_entry_nr);
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR, "[GPUMMU] as_setup: transtab 0x%llx, memattr 0x%llx, transcfg 0x%llx,\n", table[0], table[1], table[2]);
+	for(i = 3; i < dump_entry_nr; i++) {
+		if ( (i-3) % DUMP_LIST_D1_NUM == 0 ) {
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR, "[GPUMMU] show i = %lu\n", i);
+		}
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR, "%llx ", table[i]);
+		if(0xFFULL == table[i])
+			break;
+		if ( ((i-3) % DUMP_LIST_D1_NUM) == (DUMP_LIST_D1_NUM - 1) ) {
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR, "\n");
+		}
+	}
+}
+*/
+
+#define DUMP_MMU_TABLE_MAX_NUM 256
+struct mmu_user_info {
+	void *mmu_table_addr;   // mmu table base
+	size_t table_size;
+	unsigned int as_no;     // as number
+	int as_nr;              // idx in kbdev->as[kctx->as_nr]
+	u32 id;                 // process info
+	pid_t tgid;             // process info
+	pid_t pid;              // process info
+	char group_leader_comm[TASK_COMM_LEN];
+	char comm[TASK_COMM_LEN];
+};
+/* MMU table in str buffer */
+static char* mmu_table_user_arr_in_str_buf = NULL;
+static struct mutex mmu_table_str_buf_mutex;
+static ssize_t mmu_table_str_buf_size = 0;
+/* dump mode */
+static atomic_t dump_mmu_mode;
+static struct mutex dump_mmu_mode_mutex;
+#define DUMP_MMU_MODE_INIT   1   // alloc buffer and snapshot (dump csf mmu and all kctx mmu to buffer)
+#define DUMP_MMU_MODE_LOCK   2   // lock buffer
+#define DUMP_MMU_MODE_UNLOCK 3   // unlock buffer
+#define DUMP_MMU_MODE_FINISH 0   // free buffer
+#define DUMP_MMU_MODE_KM_LOG 4   // Don't use dump buffer, kernel log only
+
+static void save_mmu_table_user_info(struct kbase_device *kbdev,
+									struct mmu_user_info * dst,
+									void *mmu_table_addr,  // mmu table base
+									size_t table_size,
+									unsigned int as_no,     // as number
+									int as_nr,              // idx in kbdev->as[kctx->as_nr]
+									u32 id,                 // process info
+									pid_t tgid,             // process info
+									pid_t pid,              // process info
+									char *group_leader_comm,
+									char *comm)
+{
+	u64 *table = NULL;
+	dev_info(kbdev->dev,
+		"[GPUMMU] Dump MMU table, as_no %u, as_nr %d, dump address %p, ctx_id %d_%d, pid %d, group_leader %s, comm %s, table_size %lu \n",
+		as_no, as_nr, mmu_table_addr,
+		tgid, id, pid,
+		group_leader_comm, comm, table_size);
+	dst->mmu_table_addr = mmu_table_addr;
+	dst->table_size = table_size;
+	dst->as_no = as_no;
+	dst->as_nr = as_nr;
+	dst->id = id;
+	dst->tgid = tgid;
+	dst->pid = pid;
+	memcpy(dst->group_leader_comm, group_leader_comm, TASK_COMM_LEN);
+	memcpy(dst->comm, comm, TASK_COMM_LEN);
+
+	if(mmu_table_addr)
+		table = (u64 *) mmu_table_addr;
+		dev_info(kbdev->dev, "[GPUMMU] as_setup: transtab 0x%llx, memattr 0x%llx, transcfg 0x%llx,\n", table[0], table[1], table[2]);
+}
+
+static void free_all_dump_mmu_table(struct kbase_device *kbdev)
+{
+	unsigned int i = 0;
+
+	if(mmu_table_str_buf_size == 0)
+		return;
+
+	mutex_lock(&mmu_table_str_buf_mutex);
+	mmu_table_str_buf_size = 0;
+	if(mmu_table_user_arr_in_str_buf)
+		kfree(mmu_table_user_arr_in_str_buf);
+	mmu_table_user_arr_in_str_buf = NULL;
+	mutex_unlock(&mmu_table_str_buf_mutex);
+}
+
+static void dump_mmu_table_all_to_str_buf(struct kbase_device *kbdev,
+										  struct mmu_user_info *mmu_table_user_arr, unsigned int mmu_table_num)
+{
+	unsigned int i = 0;
+	size_t out_size = PAGE_SIZE + 1, used_size = 0;
+	unsigned long entry_nr = 0;
+
+	if(mmu_table_num == 0)
+		return;
+
+	for(i=0; i< mmu_table_num; i++)
+		out_size += (mmu_table_user_arr[i].table_size * 17) / sizeof(u64);// u64 => str array (including space)
+
+	mmu_table_user_arr_in_str_buf = (char *) kmalloc(out_size, GFP_KERNEL);
+	char* buf_str = mmu_table_user_arr_in_str_buf;
+	if(buf_str == NULL)
+		return;
+
+	out_size -= 1;
+	buf_str[out_size] = 0;
+	dev_info(kbdev->dev, "[GPUMMU] out_size = %lu \n", out_size);
+
+	for(i=0; i< mmu_table_num && used_size <= out_size; i++){
+		used_size += (size_t)scnprintf(buf_str + used_size, out_size - used_size,
+							"[GPUMMU] Dump MMU table, as_no %u, as_nr %d, dump address %p, ctx_id %d_%d, pid %d, size %lu, group_leader %s, comm %s\n",
+							mmu_table_user_arr[i].as_no, mmu_table_user_arr[i].as_nr, mmu_table_user_arr[i].mmu_table_addr,
+							mmu_table_user_arr[i].tgid,  mmu_table_user_arr[i].id,  mmu_table_user_arr[i].pid,
+							mmu_table_user_arr[i].table_size, mmu_table_user_arr[i].group_leader_comm,  mmu_table_user_arr[i].comm);
+		entry_nr = mmu_table_user_arr[i].table_size / sizeof(u64);
+		used_size += dump_mmu_table_to_str_buf(kbdev, (u64 *)mmu_table_user_arr[i].mmu_table_addr, entry_nr, buf_str + used_size, out_size - used_size);
+		used_size += (size_t)scnprintf(buf_str + used_size, out_size - used_size, "\n[GPUMMU] -----------------------\n");
+	}
+	buf_str[used_size] = '\0';
+	used_size++;
+	dev_info(kbdev->dev, "[GPUMMU] used_size = %lu \n", used_size);
+	if(used_size == out_size){
+		dev_err(kbdev->dev, "[GPUMMU] warning (used_size = out_size) \n");
+	}
+	mmu_table_str_buf_size = used_size;
+}
+
+static void dump_mmu_table_all(struct kbase_device *kbdev)
+{
+	struct kbase_context *kctx;
+	size_t nr_pages = 0, copy_size = 0;
+	unsigned int i = 0;
+	struct mmu_user_info *mmu_table_user_arr = NULL; // one item is csf or per-ctx mmu table base address
+	unsigned int mmu_table_num = 0;
+
+	if (!kbdev) {
+		pr_info("[KBASE] Bad kbdev!\n");
+		return;
+	}
+
+	mutex_lock(&mmu_table_str_buf_mutex);
+	mutex_lock(&kbdev->kctx_list_lock);
+	size_t kctx_num = list_count_nodes(&kbdev->kctx_list);
+#if MALI_USE_CSF
+	mmu_table_num = kctx_num + 1; // all kctx + csf
+#else
+	mmu_table_num = kctx_num; // all kctx
+#endif
+	mmu_table_user_arr = (struct mmu_user_info *) kmalloc(sizeof(struct mmu_user_info)*mmu_table_num, GFP_KERNEL);
+	if (!mmu_table_user_arr) {
+		pr_info("[KBASE] Bad alloc of mmu_table_user_arr!\n");
+		return;
+	}
+	list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
+		if(kctx == NULL) continue;
+		// Dump GPU MMU table for each kctx (per-process)
+		nr_pages = 2;
+		nr_pages += kbasep_mmu_dump_table_size(kbdev, MIDGARD_MMU_TOPLEVEL, &kctx->mmu) >> PAGE_SHIFT; //(nr_pages * PAGE_SIZE)
+		//dev_info(kbdev->dev, "[GPUMMU] start dump, dump_target_size = %u", (unsigned int) dump_target_size);
+		void *kaddr = (void *) kbase_mmu_dump_mtk(kbdev, kctx, nr_pages, &copy_size);
+		// Show pid, process name, AS value
+		unsigned int as_no = (kctx->as_nr != KBASEP_AS_NR_INVALID) ? kbdev->as[kctx->as_nr].number : 0xFF;
+		dev_info(kbdev->dev, "[GPUMMU] i = %u ", i);
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+		save_mmu_table_user_info(kbdev, mmu_table_user_arr + i, kaddr, copy_size, as_no, kctx->as_nr,
+								kctx->id, kctx->tgid, kctx->pid, kctx->group_leader_comm, kctx->comm);
+#else
+		save_mmu_table_user_info(kbdev, mmu_table_user_arr + i, kaddr, copy_size, as_no, kctx->as_nr,
+								kctx->id, kctx->tgid, kctx->pid, kctx->comm, kctx->comm);
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+		i++;
+	}
+	mutex_unlock(&kbdev->kctx_list_lock);
+#if MALI_USE_CSF
+	nr_pages = 2;
+	nr_pages += kbasep_mmu_dump_table_size(kbdev, MIDGARD_MMU_TOPLEVEL, &kbdev->csf.mcu_mmu) >> PAGE_SHIFT; //(nr_pages * PAGE_SIZE)
+	//dev_info(kbdev->dev, "[GPUMMU] start dump, dump_target_size = %u", (unsigned int) dump_target_size);
+	dev_info(kbdev->dev, "[GPUMMU] i = %u ", mmu_table_num-1);
+	void *csf_dump_kaddr = (void *) kbase_mmu_dump_mtk(kbdev, NULL, nr_pages, &copy_size);
+	char csf_name[TASK_COMM_LEN] = "CSF (GPU FW)";
+	save_mmu_table_user_info(kbdev, mmu_table_user_arr + (mmu_table_num-1), csf_dump_kaddr, copy_size, 0, 0, 0, 0, 0, csf_name, csf_name);
+#endif
+
+	dump_mmu_table_all_to_str_buf(kbdev, mmu_table_user_arr, mmu_table_num);
+
+	for(i=0; i< mmu_table_num; i++){
+		//dev_info(kbdev->dev, "[GPUMMU] Free mmu_table_addr, i = %u \n", i);
+		// free csf_dump_kaddr & kaddr
+		if( (mmu_table_user_arr + i)->mmu_table_addr )
+			vfree( (mmu_table_user_arr + i)->mmu_table_addr );
+	}
+	//dev_info(kbdev->dev, "[GPUMMU] Free mmu_table_user_arr \n" );
+	kfree(mmu_table_user_arr);
+	mmu_table_user_arr = NULL;
+	mmu_table_num = 0;
+	mutex_unlock(&mmu_table_str_buf_mutex);
+}
+
+
+static ssize_t force_dump_mmu_read(struct file *file, char __user *buf, size_t len,
+						 loff_t *ppos)
+{
+	mutex_lock(&dump_mmu_mode_mutex);
+	if(atomic_read(&dump_mmu_mode) != DUMP_MMU_MODE_LOCK && mmu_table_str_buf_size <= 0) {
+		mutex_unlock(&dump_mmu_mode_mutex);
+		pr_err("[GPUMMU] User Guide (Please init and lock buffer before reading): \n"
+			"[GPUMMU]  Write Option 1: alloc buffer and snapshot (dump csf mmu and all kctx mmu to buffer) \n"
+			"[GPUMMU]  Write Option 2: lock buffer \n"
+			"[GPUMMU]  Write Option 3: unlock buffer \n"
+			"[GPUMMU]  Write Option 0: free buffer \n"
+			"[GPUMMU]  Read: dump buffer \n"
+			"[GPUMMU]  Example: echo 1 (init) -> echo 2 (lock) -> cat (dump) -> echo 3 (unlock) -> echo 0 (free) \n");
+		return 0;
+	}
+	mutex_unlock(&dump_mmu_mode_mutex);
+	return simple_read_from_buffer(buf, len, ppos, mmu_table_user_arr_in_str_buf, mmu_table_str_buf_size);
+}
+
+static ssize_t force_dump_mmu_write(struct file *file,
+		const char __user *ubuf, size_t count, loff_t *ppos)
+{
+	unsigned long val = 0;
+	int err = 0;
+
+	CSTD_UNUSED(ppos);
+	err = kstrtoul_from_user(ubuf, count, 0, &val);
+	if (err)
+		return err;
+
+	mutex_lock(&dump_mmu_mode_mutex);
+	unsigned int pre_mode = atomic_read(&dump_mmu_mode);
+	switch(val)
+	{
+		case DUMP_MMU_MODE_INIT:
+		{
+			if(pre_mode == DUMP_MMU_MODE_FINISH) {
+				atomic_set(&dump_mmu_mode, DUMP_MMU_MODE_INIT);
+				pr_info("[GPUMMU] DUMP_MMU_MODE_INIT \n");
+				free_all_dump_mmu_table((struct kbase_device *)file->private_data);
+				dump_mmu_table_all((struct kbase_device *)file->private_data);
+			} else {
+				goto fail_print_guide;
+			}
+			break;
+		}
+		case DUMP_MMU_MODE_LOCK:
+		{
+			if(pre_mode == DUMP_MMU_MODE_INIT) {
+				atomic_set(&dump_mmu_mode, DUMP_MMU_MODE_LOCK);
+				mutex_lock(&mmu_table_str_buf_mutex);
+				pr_info("[GPUMMU] DUMP_MMU_MODE_LOCK \n");
+			} else {
+				goto fail_print_guide;
+			}
+			break;
+		}
+		case DUMP_MMU_MODE_UNLOCK:
+		{
+			if(pre_mode == DUMP_MMU_MODE_LOCK) {
+				atomic_set(&dump_mmu_mode, DUMP_MMU_MODE_UNLOCK);
+				mutex_unlock(&mmu_table_str_buf_mutex);
+				pr_info("[GPUMMU] DUMP_MMU_MODE_UNLOCK \n");
+			} else {
+				goto fail_print_guide;
+			}
+			break;
+		}
+		case DUMP_MMU_MODE_FINISH:
+		{
+			if(pre_mode == DUMP_MMU_MODE_UNLOCK || pre_mode == DUMP_MMU_MODE_INIT) {
+				atomic_set(&dump_mmu_mode, DUMP_MMU_MODE_FINISH);
+				pr_info("[GPUMMU] DUMP_MMU_MODE_FINISH \n");
+				free_all_dump_mmu_table((struct kbase_device *)file->private_data);
+			} else {
+				goto fail_print_guide;
+			}
+			break;
+		}
+		case DUMP_MMU_MODE_KM_LOG:
+		default:
+			goto fail_print_guide;
+			break;
+	}
+
+	pr_info("[GPUMMU] set dump_mmu_mode=%u done\n", atomic_read(&dump_mmu_mode));
+	mutex_unlock(&dump_mmu_mode_mutex);
+
+	return count;
+
+fail_print_guide:
+	pr_err("[GPUMMU] Write Option is not expected, target %lu, current dump_mmu_mode %u\n", val, atomic_read(&dump_mmu_mode));
+	pr_err("[GPUMMU] User Guide : \n"
+			"[GPUMMU]  Write Option 1: alloc buffer and snapshot (dump csf mmu and all kctx mmu to buffer) \n"
+			"[GPUMMU]  Write Option 2: lock buffer \n"
+			"[GPUMMU]  Write Option 3: unlock buffer \n"
+			"[GPUMMU]  Write Option 0: free buffer \n"
+			"[GPUMMU]  Read: dump buffer \n"
+			"[GPUMMU]  Example: echo 1 (init) -> echo 2 (lock) -> cat (dump) -> echo 3 (unlock) -> echo 0 (free) \n");
+	return count;
+}
+
+static const struct file_operations fops_force_dump_mmu = {
+	.owner = THIS_MODULE,
+	.open = simple_open,
+	.read = force_dump_mmu_read,
+	.write = force_dump_mmu_write,
+	.llseek = no_llseek,
+};
+#endif /* CONFIG_MALI_MTK_MMU_DUMP */
 
 /*
  * core_mask_show - Show callback for the core_mask sysfs file.
@@ -5046,6 +5507,15 @@ static struct dentry *init_debugfs(struct kbase_device *kbdev)
 		return dentry;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MMU_DUMP)
+	dentry = debugfs_create_file("force_dump_mmu", 0644, kbdev->mali_debugfs_directory, kbdev,
+				     &fops_force_dump_mmu);
+	if (IS_ERR_OR_NULL(dentry)) {
+		dev_err(kbdev->dev, "Unable to create reset debugfs entry (force_dump_mmu) \n");
+		return dentry;
+	}
+#endif /* CONFIG_MALI_MTK_MMU_DUMP */
+
 	kbase_ktrace_debugfs_init(kbdev);
 
 #ifdef CONFIG_MALI_DEVFREQ
@@ -5765,6 +6235,12 @@ static struct attribute *kbase_attrs[] = {
 #endif /* !MALI_USE_CSF */
 	&dev_attr_power_policy.attr,
 	&dev_attr_core_mask.attr,
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM)
+	&dev_attr_force_reclaim.attr,
+#endif /* CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM */
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
+	&dev_attr_mmu_dbg_config.attr,
+#endif /* CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG */
 	&dev_attr_mem_pool_size.attr,
 	&dev_attr_mem_pool_max_size.attr,
 	&dev_attr_lp_mem_pool_size.attr,

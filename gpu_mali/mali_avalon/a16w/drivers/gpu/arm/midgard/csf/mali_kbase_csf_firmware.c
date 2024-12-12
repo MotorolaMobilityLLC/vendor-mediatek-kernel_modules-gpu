@@ -1351,6 +1351,9 @@ static int parse_capabilities(struct kbase_device *kbdev)
 	void *global_input, *global_output;
 	u32 gid;
 	int err;
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM)
+	const void *kbase_dbg_force_csg_num;
+#endif /* CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM */
 
 	/* All offsets are in bytes, so divide by 4 for access via a u32 pointer
 	 */
@@ -1376,6 +1379,13 @@ static int parse_capabilities(struct kbase_device *kbdev)
 	kbase_csf_fw_io_set_global_pages(fw_io, global_input, global_output);
 
 	iface->group_num = shared_info[GLB_GROUP_NUM / 4];
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM)
+	kbase_dbg_force_csg_num = of_get_property(kbdev->dev->of_node, "force-csg-num-three", NULL);
+	if (kbase_dbg_force_csg_num && be32_to_cpup(kbase_dbg_force_csg_num) > 0) {
+		iface->group_num = 3;
+		dev_err(kbdev->dev, "Enable kbase debug (force-csg-num-three, group_num=%u)\n", iface->group_num);
+	}
+#endif /* CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM */
 
 	if ((iface->group_num == 0) || (iface->group_num > MAX_SUPPORTED_CSGS)) {
 		dev_err(kbdev->dev, "Invalid number of CSGs (%u), MAX_SUPPORTED_CSGS = %u",

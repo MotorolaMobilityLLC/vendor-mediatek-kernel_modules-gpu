@@ -322,6 +322,12 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	mtk_common_procfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_PROC_FS */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	mutex_init(&kbdev->register_check_lock);
+	mutex_init(&kbdev->mmu_debug_info_lock);
+	kbdev->mmu_debug_info_head = 0;
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+
 	return 0;
 }
 
@@ -335,6 +341,11 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_PROC_FS)
 	mtk_common_procfs_term(kbdev);
 #endif /* CONFIG_MALI_MTK_PROC_FS */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	mutex_destroy(&kbdev->register_check_lock);
+	mutex_destroy(&kbdev->mmu_debug_info_lock);
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
 	mtk_platform_pm_term(kbdev);
 }

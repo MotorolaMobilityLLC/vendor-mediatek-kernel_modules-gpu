@@ -350,6 +350,16 @@ static unsigned long kbase_csf_tiler_heap_reclaim_scan_objects(struct shrinker *
 	return kbase_csf_tiler_heap_reclaim_scan_free_pages(kbdev, sc);
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM)
+void mtk_force_reclaim(struct kbase_device *kbdev)
+{
+	struct shrink_control sc = {0};
+	pr_info("[KBASE][+++] Directly trigger tiler heap reclaim\n");
+	kbase_csf_tiler_heap_reclaim_scan_free_pages(kbdev, &sc);
+	pr_info("[KBASE][---] Directly trigger tiler heap reclaim\n");
+}
+#endif /* CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM */
+
 void kbase_csf_tiler_heap_reclaim_ctx_init(struct kbase_context *kctx)
 {
 	/* Per-kctx heap_info object initialization */
