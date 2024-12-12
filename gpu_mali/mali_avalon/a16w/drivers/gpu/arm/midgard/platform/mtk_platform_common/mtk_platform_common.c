@@ -34,6 +34,17 @@
 static struct proc_dir_entry *proc_root;
 #endif /* CONFIG_MALI_MTK_PROC_FS */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
+#include <platform/mtk_platform_common/mtk_platform_whitebox_force_hard_reset.h>
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG)
+#include <platform/mtk_platform_common/mtk_platform_whitebox_force_terminate_csg.h>
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET)
+#include <platform/mtk_platform_common/mtk_platform_whitebox_directly_hard_reset.h>
+#endif /* CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET */
 
 static bool mfg_powered;
 static DEFINE_MUTEX(mfg_pm_lock);
@@ -64,6 +75,27 @@ void mtk_common_pm_mfg_idle(void)
 	mfg_powered = false;
 	mutex_unlock(&mfg_pm_lock);
 }
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
+bool mtk_common_whitebox_force_hard_reset_enable(void)
+{
+	return mtk_whitebox_force_hard_reset_enable();
+}
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG)
+bool mtk_common_whitebox_force_terminate_csg_enable(void)
+{
+	return mtk_whitebox_force_terminate_csg_enable();
+}
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET)
+bool mtk_common_whitebox_directly_hard_reset_enable(void)
+{
+	return mtk_whitebox_directly_hard_reset_enable();
+}
+#endif /* CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET */
 
 void mtk_common_debug(enum mtk_common_debug_types type, struct kbase_context *kctx, u64 hook_point)
 {
@@ -332,6 +364,15 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	mtk_debug_csf_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
+	mtk_whitebox_force_hard_reset_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG)
+	mtk_whitebox_force_terminate_csg_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG */
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET)
+	mtk_whitebox_directly_hard_reset_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET */
 
 	mtk_debug_sleep_mode_debugfs_init(kbdev);
 }
@@ -379,6 +420,18 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	mutex_init(&kbdev->mmu_debug_info_lock);
 	kbdev->mmu_debug_info_head = 0;
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
+	mtk_whitebox_force_hard_reset_init();
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG)
+	mtk_whitebox_force_terminate_csg_init();
+#endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET)
+	mtk_whitebox_directly_hard_reset_init();
+#endif /* CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)
 	kbdev->exception_mask = (1u << EXCEPTION_RESET_FAILED);
