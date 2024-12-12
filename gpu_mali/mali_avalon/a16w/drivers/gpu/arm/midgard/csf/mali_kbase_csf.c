@@ -2433,7 +2433,7 @@ static void timer_event_worker(struct work_struct *data)
 	mutex_lock(&kctx->csf.lock);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG) && IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-	mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, NULL, MTK_DBG_HOOK_NA);
+	mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, NULL, MTK_DBG_HOOK_ITER_PROGRESS_TIMER_TIMEOUT);
 	for (csg_nr = 0; csg_nr < kbdev->csf.global_iface.group_num; csg_nr++) {
 		struct kbase_queue_group *const group =
 			kbdev->csf.scheduler.csg_slots[csg_nr].resident_group;
@@ -2445,6 +2445,7 @@ static void timer_event_worker(struct work_struct *data)
 
 		mtk_debug_csf_dump_queue_data(group);
 	}
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_ITER_PROGRESS_TIMER_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG */
 
 	term_queue_group(group);
@@ -2635,10 +2636,6 @@ static void handle_fault_event(struct kbase_queue *const queue, u32 group_id, co
 	kbase_csf_fw_io_assert_opened(&kbdev->csf.fw_io);
 
 	kbase_csf_report_cs_fault_info(queue, group_id, true);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_CSFAULT);
-#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	/* If dump-on-fault daemon is waiting for a fault, wake up the daemon.
 	 * Acknowledging the fault is deferred to the bottom-half until the wait
@@ -2970,8 +2967,7 @@ u32 kbase_csf_report_cs_fatal_info(struct kbase_queue *const queue, u32 slot_id,
 	}
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-	/* Remove the diagnosis mode's print to prevent IRQ long */
-	//mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_CSFATAL);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_CSFATAL);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	if (cs_fatal_exception_type == CS_FATAL_EXCEPTION_TYPE_CS_UNRECOVERABLE)
@@ -3035,6 +3031,13 @@ void kbase_csf_report_cs_fault_info(struct kbase_queue *const queue, u32 slot_id
 			queue->csi_index, cs_fault_exception_type, cs_fault_exception_data, cs_fault_info_exception_data);
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	/* Remove diagnosis mode's action for irrelevant error type */
+	if (cs_fault_exception_type != CS_FAULT_EXCEPTION_TYPE_CS_RESOURCE_TERMINATED &&
+		cs_fault_exception_type != CS_FAULT_EXCEPTION_TYPE_CS_INHERIT_FAULT)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_CSFAULT);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	queue->cs_error = cs_fault;
 	queue->cs_error_info = cs_fault_info;

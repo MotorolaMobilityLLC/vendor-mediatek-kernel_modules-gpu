@@ -41,11 +41,12 @@ enum mtk_common_debug_types {
 #define MTK_DBG_HOOK_GLOBALREQUEST_TIMEOUT                     ((u64)0x1<<33)
 #define MTK_DBG_HOOK_MCUPOWERON_FAIL                           ((u64)0x1<<34)
 #define MTK_DBG_HOOK_FWRELOAD_FAIL                             ((u64)0x1<<35)
-#define MTK_DBG_HOOK_GSG_TIMEOUT                               ((u64)0x1<<36)
+#define MTK_DBG_HOOK_CSG_TIMEOUT                               ((u64)0x1<<36)
 #define MTK_DBG_HOOK_PM_TIMEOUT                                ((u64)0x1<<37)
 #define MTK_DBG_HOOK_PM_RESET_FAIL                             ((u64)0x1<<38)
 #define MTK_DBG_HOOK_FWBOOT_TIMEOUT                            ((u64)0x1<<39)
 #define MTK_DBG_HOOK_MALI_FENCE_SIGNAL_TIMEOUT                 ((u64)0x1<<40)
+#define MTK_DBG_HOOK_ITER_PROGRESS_TIMER_TIMEOUT               ((u64)0x1<<41)
 // bit 56~63 to control dump in common dump flow
 #define MTK_DBG_COMMON_DUMP_SKIP_ETB                           ((u64)0x1<<60)
 #define MTK_DBG_COMMON_DUMP_SKIP_FWLOG                         ((u64)0x1<<61)

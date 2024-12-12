@@ -2264,9 +2264,9 @@ static void halt_csg_slot(struct kbase_queue_group *group, bool suspend)
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_GSG_TIMEOUT);
-			mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_NA);
-			mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, NULL, MTK_DBG_HOOK_NA);
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_CSG_TIMEOUT);
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_CSG_TIMEOUT);
+			mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, NULL, MTK_DBG_HOOK_CSG_TIMEOUT);
 			mtk_debug_csf_dump_queue_data(group);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		}
@@ -3513,7 +3513,7 @@ static int term_group_sync(struct kbase_queue_group *group)
 			error_type = DF_PING_REQUEST_TIMEOUT;
 		schedule_actions_trigger_df(kbdev, group->kctx, error_type);
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, group->kctx, MTK_DBG_HOOK_GSG_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, group->kctx, MTK_DBG_HOOK_CSG_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE)) {
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
@@ -4049,8 +4049,8 @@ static void program_suspending_csg_slots(struct kbase_device *kbdev)
 				kbase_event_wakeup(group->kctx);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-				mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_GSG_TIMEOUT);
-				mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_GSG_TIMEOUT);
+				mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_CSG_TIMEOUT);
+				mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_CSG_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 				/* The group has failed suspension, stop
@@ -4172,9 +4172,9 @@ static void wait_csg_slots_start(struct kbase_device *kbdev)
 			schedule_actions_trigger_df(kbdev, group->kctx, error_type);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_GSG_TIMEOUT);
-			mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_NA);
-			mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, NULL, MTK_DBG_HOOK_NA);
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_CSG_TIMEOUT);
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_CSG_TIMEOUT);
+			mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, NULL, MTK_DBG_HOOK_CSG_TIMEOUT);
 			mtk_debug_csf_dump_queue_data(group);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
@@ -5096,9 +5096,9 @@ static void scheduler_update_idle_slots_status(struct kbase_device *kbdev,
 						    DF_CSG_STATUS_UPDATE_TIMEOUT);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_GSG_TIMEOUT);
-			mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_NA);
-			mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, NULL, MTK_DBG_HOOK_NA);
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_CSG_TIMEOUT);
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_CSG_TIMEOUT);
+			mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, NULL, MTK_DBG_HOOK_CSG_TIMEOUT);
 			mtk_debug_csf_dump_queue_data(group);
 			kbase_csf_debug_dump_registers(kbdev);
 			kbase_csf_firmware_log_dump_buffer(kbdev);
@@ -5804,7 +5804,7 @@ static int wait_csg_slots_suspend(struct kbase_device *kbdev, unsigned long *slo
 				kbase_backend_get_cycle_cnt(kbdev), slot_mask[0],
 				slot_mask_local[0]);
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_GSG_TIMEOUT);
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_CSG_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 			/* Return the bitmask of the timed out slots to the caller */
 			bitmap_copy(slot_mask, slot_mask_local, MAX_SUPPORTED_CSGS);
