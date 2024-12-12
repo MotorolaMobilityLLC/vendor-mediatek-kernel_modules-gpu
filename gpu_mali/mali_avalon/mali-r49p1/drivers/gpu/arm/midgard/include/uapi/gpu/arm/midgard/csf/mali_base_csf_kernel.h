@@ -527,6 +527,9 @@ enum base_gpu_queue_group_error_type {
 	BASE_GPU_QUEUE_GROUP_ERROR_TIMEOUT,
 	BASE_GPU_QUEUE_GROUP_ERROR_TILER_HEAP_OOM,
 	BASE_GPU_QUEUE_GROUP_QUEUE_ERROR_FAULT,
+#if IS_ENABLED(CONFIG_MALI_MTK_HWCNT_HINT)
+	BASE_NOTIFICATION_HWCNT,
+#endif /* CONFIG_MALI_MTK_HWCNT_HINT */
 	BASE_GPU_QUEUE_GROUP_ERROR_FATAL_COUNT
 };
 
@@ -557,6 +560,7 @@ struct base_gpu_queue_group_error {
  * @BASE_CSF_NOTIFICATION_GPU_QUEUE_GROUP_ERROR: Notification with GPU error
  * @BASE_CSF_NOTIFICATION_CPU_QUEUE_DUMP:        Notification with dumping cpu
  *                                               queue
+ * @BASE_CSF_NOTIFICATION_HWCNT:                 Notification with hwcnt start info
  * @BASE_CSF_NOTIFICATION_COUNT:                 The number of notification type
  *
  * This type is used for &struct_base_csf_notification.type.
@@ -565,6 +569,9 @@ enum base_csf_notification_type {
 	BASE_CSF_NOTIFICATION_EVENT = 0,
 	BASE_CSF_NOTIFICATION_GPU_QUEUE_GROUP_ERROR,
 	BASE_CSF_NOTIFICATION_CPU_QUEUE_DUMP,
+#if IS_ENABLED(CONFIG_MALI_MTK_HWCNT_HINT)
+	BASE_CSF_NOTIFICATION_HWCNT,
+#endif /* CONFIG_MALI_MTK_HWCNT_HINT */
 	BASE_CSF_NOTIFICATION_COUNT
 };
 
