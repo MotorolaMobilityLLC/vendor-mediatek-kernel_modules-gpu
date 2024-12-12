@@ -58,6 +58,12 @@
 #include <mali_kbase_dummy_job_wa.h>
 #include <arbiter/mali_kbase_arbiter_pm.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
+#include <gpueb_debug.h>
+#include <ghpm_wrapper.h>
+#include <ged_notify_sw_vsync.h>
+#endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
+
 #if MALI_USE_CSF
 #include <linux/delay.h>
 #endif
@@ -3680,6 +3686,11 @@ static void kbase_pm_timed_out(struct kbase_device *kbdev, const char *timeout_m
 	mtk_kbase_pm_timed_out_mcu_transition_check(kbdev);
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 #endif /* CONFIG_MALI_MTK_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
+	dump_pm_callback_kbase_info();
+	gpueb_dump_status(NULL, NULL, 0);
+	dump_ghpm_info();
+#endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
 #if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)
 	if (kbdev->exception_mask & (1u << EXCEPTION_PM_TIMED_OUT))
 		BUG_ON(1);
