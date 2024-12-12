@@ -263,6 +263,12 @@ _Resize(HASH_TABLE *pHash, IMG_UINT32 uNewSize)
 	ppNewTable = _AllocZMem(sizeof(BUCKET *) * uNewSize);
 	if (ppNewTable == NULL)
 	{
+#if defined(MTK_FULL_PORTING)
+		PVR_DPF((PVR_DBG_ERROR,
+				"%s %d: call to _AllocZMem failed size: %zu",
+				__func__, __LINE__,
+				sizeof(BUCKET *) * uNewSize));
+#endif /* MTK_FULL_PORTING */
 		return IMG_FALSE;
 	}
 
@@ -323,6 +329,12 @@ HASH_TABLE * HASH_Create_Extended_Int (IMG_UINT32 uInitialLen, size_t uKeySize, 
 	pHash = _AllocMem(sizeof(HASH_TABLE));
 	if (pHash == NULL)
 	{
+#if defined(MTK_FULL_PORTING)
+		PVR_DPF((PVR_DBG_ERROR,
+				"%s %d: call to _AllocMem failed size: %zu",
+				__func__,  __LINE__,
+				sizeof(HASH_TABLE)));
+#endif /* MTK_FULL_PORTING */
 		return NULL;
 	}
 
@@ -338,6 +350,12 @@ HASH_TABLE * HASH_Create_Extended_Int (IMG_UINT32 uInitialLen, size_t uKeySize, 
 	pHash->ppBucketTable = _AllocZMem(sizeof(BUCKET *) * pHash->uSize);
 	if (pHash->ppBucketTable == NULL)
 	{
+#if defined(MTK_FULL_PORTING)
+		PVR_DPF((PVR_DBG_ERROR,
+				"%s %d: call to _AllocZMem failed size: %zu",
+				__func__, __LINE__,
+				sizeof(BUCKET *) * pHash->uSize));
+#endif /* MTK_FULL_PORTING */
 		_FreeMem(pHash);
 		/*not nulling pointer, out of scope*/
 		return NULL;
@@ -505,6 +523,12 @@ HASH_Insert_Extended(HASH_TABLE *pHash, void *pKey, uintptr_t v)
 	pBucket = _AllocMem(sizeof(BUCKET) + pHash->uKeySize);
 	if (pBucket == NULL)
 	{
+#if defined(MTK_FULL_PORTING)
+		PVR_DPF((PVR_DBG_ERROR,
+				"%s %d: call to _AllocMem failed size: %zu",
+				__func__, __LINE__,
+				sizeof(BUCKET) + pHash->uKeySize));
+#endif /* MTK_FULL_PORTING */
 		return IMG_FALSE;
 	}
 

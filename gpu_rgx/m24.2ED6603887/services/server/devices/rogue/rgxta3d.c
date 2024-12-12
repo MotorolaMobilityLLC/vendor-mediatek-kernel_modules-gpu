@@ -1041,6 +1041,9 @@ static PVRSRV_ERROR RGXReconstructFreeList(RGX_FREELIST *psFreeList)
 
 #if defined(PM_INTERACTIVE_MODE)
 	psFWFreeList->ui32CurrentStackTop       = psFWFreeList->ui32CurrentPages - 1;
+	psFWFreeList->ui64CurrentDevVAddr       = (psFWFreeList->psFreeListDevVAddr.uiAddr +
+				((psFreeList->ui32MaxFLPages - psFreeList->ui32CurrentFLPages) * sizeof(IMG_UINT32))) &
+				~((IMG_UINT64)RGX_BIF_PM_FREELIST_BASE_ADDR_ALIGNSIZE-1);
 	psFWFreeList->ui32AllocatedPageCount    = 0;
 	psFWFreeList->ui32AllocatedMMUPageCount = 0;
 #else
