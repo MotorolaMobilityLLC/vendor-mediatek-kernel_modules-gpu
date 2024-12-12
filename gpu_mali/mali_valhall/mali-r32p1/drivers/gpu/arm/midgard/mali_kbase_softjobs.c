@@ -2115,4 +2115,5 @@ void kbase_resume_suspended_soft_jobs(struct kbase_device *kbdev)
 	if (resched)
 		kbase_js_sched_all(kbdev);
 }
+MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
 #endif /* !MALI_USE_CSF */
