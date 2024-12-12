@@ -841,8 +841,8 @@ static unsigned long mtk_mgm_pool_reclaim_count_objects(struct shrinker *s,
 	ret += mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[0][0], data->szRefillTarget);
 	ret += mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[0][1], data->szRefillTarget);
 
-	ret += ((mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[1][0], data->szRefillTarget >> LP_ORDER)) << LP_ORDER);
-	ret += ((mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[1][1], data->szRefillTarget >> LP_ORDER)) << LP_ORDER);
+	ret += mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[1][0] << LP_ORDER, data->szRefillTarget);
+	ret += mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[1][1] << LP_ORDER, data->szRefillTarget);
 
 	return ret;
 }
@@ -875,7 +875,6 @@ static unsigned long mtk_mgm_pool_reclaim_scan_objects(struct shrinker *s,
 
 	j = i;
 	target = mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[0][1], data->szRefillTarget);
-
 	for (i = 0; i < target; i++){
 		p = mtk_fetch_page(data, SP_ORDER, 1);
 		if (p) {
@@ -887,7 +886,7 @@ static unsigned long mtk_mgm_pool_reclaim_scan_objects(struct shrinker *s,
 
 	dev_dbg(data->dev, "mGMM pool[0]: reclaimed %zu (rank0:%zu, rank1:%zu)\n", j+i, j ,i);
 
-	target = mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[1][0], data->szRefillTarget >> LP_ORDER);
+	target = mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[1][0] << LP_ORDER, data->szRefillTarget) >> LP_ORDER;
 	for (i = 0; i < target; i++){
 		p = mtk_fetch_page(data, LP_ORDER, 0);
 		if (p) {
@@ -898,8 +897,7 @@ static unsigned long mtk_mgm_pool_reclaim_scan_objects(struct shrinker *s,
 	}
 
 	j = i;
-	target = mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[1][1], data->szRefillTarget >> LP_ORDER);
-
+	target = mtk_mgm_pool_reclaim_count_objects_local(data->nr_rank[1][1] << LP_ORDER, data->szRefillTarget) >> LP_ORDER;
 	for (i = 0; i < target; i++){
 		p = mtk_fetch_page(data, LP_ORDER, 1);
 		if (p) {
