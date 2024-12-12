@@ -595,20 +595,21 @@ TRACE_EVENT(mali_alloc_req_stats,
 #define __TRACE_MALI_GET_VSRTING__
 static inline const char *__format_trace_str(char type, int pid, const char *name, int value, char *buf)
 {
+	int ret;
 	switch (type)
 	{
 	case 'B':
-		snprintf(buf, 256, "B|%d|%s", pid, name);
+		ret = snprintf(buf, 256, "B|%d|%s", pid, name);
 		break;
 	case 'E':
-		snprintf(buf, 256, "E|%d", pid);
+		ret = snprintf(buf, 256, "E|%d", pid);
 		break;
 
 	default:
-		snprintf(buf, 256, "%c|%d|%s|%d", type, pid, name, value);
+		ret = snprintf(buf, 256, "%c|%d|%s|%d", type, pid, name, value);
 		break;
 	}
-	return buf;
+	return (ret > 0) ? buf : "";
 }
 #endif /* __TRACE_MALI_GET_VSRTING__ */
 

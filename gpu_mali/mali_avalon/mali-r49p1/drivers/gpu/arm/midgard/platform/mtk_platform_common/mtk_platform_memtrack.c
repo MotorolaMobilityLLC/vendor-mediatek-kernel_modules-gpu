@@ -34,7 +34,7 @@ static inline const char *get_gpu_memory_str(struct kbase_context *kctx) {
 		offset += snprintf(gpu_memory_str + offset, MAX_GPU_MEMORY_STR_LEN - offset, ") %10u %s", kctx->tgid, kctx->process_name);
 	}
 	else
-		snprintf(gpu_memory_str, MAX_GPU_MEMORY_STR_LEN, "%10u %10u", atomic_read(&(kctx->used_pages)), kctx->tgid);
+		offset += snprintf(gpu_memory_str, MAX_GPU_MEMORY_STR_LEN, "%10u %10u", atomic_read(&(kctx->used_pages)), kctx->tgid);
 	return gpu_memory_str;
 }
 #endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
