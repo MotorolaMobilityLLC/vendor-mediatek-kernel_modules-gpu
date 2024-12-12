@@ -65,21 +65,24 @@ mt6893_outs = [
 ]
 
 mt6781_outs = [
-    "mt6781/mali_valhall/mali-r32p1/drivers/gpu/arm/midgard/mali_kbase_mt6781.ko",
-    "mt6781/mali_valhall/mali-r32p1/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6781.ko",
-    "mt6781/mali_valhall/mali-r32p1/drivers/base/arm/memory_group_manager/mali_mgm_mt6781.ko",
+    "mt6781/mali_avalon/mali-r49p1/drivers/base/arm/memory_group_manager/mali_mgm_mt6781_r49.ko",
+    "mt6781/mali_avalon/mali-r49p1/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6781_r49.ko",
+    "mt6781/mali_avalon/mali-r49p1/drivers/base/arm/dma_buf_test_exporter/mali_dmabuf_test_mt6781_r49.ko",
+    "mt6781/mali_avalon/mali-r49p1/drivers/gpu/arm/midgard/mali_kbase_mt6781_r49.ko",
 ]
 
 mt6853_outs = [
-    "mt6853/mali_valhall/mali-r32p1/drivers/gpu/arm/midgard/mali_kbase_mt6853.ko",
-    "mt6853/mali_valhall/mali-r32p1/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6853.ko",
-    "mt6853/mali_valhall/mali-r32p1/drivers/base/arm/memory_group_manager/mali_mgm_mt6853.ko",
+    "mt6853/mali_avalon/mali-r49p1/drivers/base/arm/memory_group_manager/mali_mgm_mt6853_r49.ko",
+    "mt6853/mali_avalon/mali-r49p1/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6853_r49.ko",
+    "mt6853/mali_avalon/mali-r49p1/drivers/base/arm/dma_buf_test_exporter/mali_dmabuf_test_mt6853_r49.ko",
+    "mt6853/mali_avalon/mali-r49p1/drivers/gpu/arm/midgard/mali_kbase_mt6853_r49.ko",
 ]
 
 mt6833_outs = [
-    "mt6833/mali_valhall/mali-r32p1/drivers/gpu/arm/midgard/mali_kbase_mt6833.ko",
-    "mt6833/mali_valhall/mali-r32p1/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6833.ko",
-    "mt6833/mali_valhall/mali-r32p1/drivers/base/arm/memory_group_manager/mali_mgm_mt6833.ko",
+    "mt6833/mali_avalon/mali-r49p1/drivers/base/arm/memory_group_manager/mali_mgm_mt6833_r49.ko",
+    "mt6833/mali_avalon/mali-r49p1/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6833_r49.ko",
+    "mt6833/mali_avalon/mali-r49p1/drivers/base/arm/dma_buf_test_exporter/mali_dmabuf_test_mt6833_r49.ko",
+    "mt6833/mali_avalon/mali-r49p1/drivers/gpu/arm/midgard/mali_kbase_mt6833_r49.ko",
 ]
 
 define_mgk_ko(
