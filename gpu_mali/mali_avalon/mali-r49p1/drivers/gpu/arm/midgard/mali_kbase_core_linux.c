@@ -4759,13 +4759,13 @@ int kbase_device_backend_init(struct kbase_device *kbdev)
 	 */
 	if (kbase_is_pm_enabled(kbdev->dev->of_node)) {
 		/* Arbitration AND power management invalid */
-		dev_err(kbdev->dev, "Invalid combination of arbitration AND power management\n");
+		dev_dbg(kbdev->dev, "Arbitration not supported with power management");
 		return -EPERM;
 	}
 
 	if (kbase_is_full_coherency_enabled(kbdev->dev->of_node)) {
 		/* Arbitration AND full coherency invalid */
-		dev_err(kbdev->dev, "Invalid combination of arbitration AND full coherency\n");
+		dev_dbg(kbdev->dev, "Arbitration not supported with full coherency");
 		return -EPERM;
 	}
 
@@ -4786,11 +4786,11 @@ int kbase_device_backend_init(struct kbase_device *kbdev)
 		if (product_model != GPU_ID_PRODUCT_TGOX && product_model != GPU_ID_PRODUCT_TNOX &&
 		    product_model != GPU_ID_PRODUCT_TBAX) {
 			kbase_arbiter_pm_early_term(kbdev);
-			dev_err(kbdev->dev, "GPU platform not suitable for arbitration\n");
+			dev_dbg(kbdev->dev, "GPU platform not suitable for arbitration");
 			return -EPERM;
 		}
 #endif /* !MALI_USE_CSF */
-		dev_info(kbdev->dev, "Arbitration interface enabled\n");
+		dev_info(kbdev->dev, "Arbitration interface enabled");
 	}
 #endif /* defined(CONFIG_MALI_ARBITER_SUPPORT) && defined(CONFIG_OF) */
 	return err;
