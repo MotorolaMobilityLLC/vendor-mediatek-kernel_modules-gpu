@@ -50,6 +50,12 @@ ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpueb/include
 endif
 endif
 
+ifeq ($(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP), y)
+ccflags-y += -DCONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/trusted_mem/public \
+             -I$(DEVICE_MODULES_PATH)/drivers/dma-buf/heaps
+endif
+
 ccflags-y += -DCONFIG_MALI_MTK_GPU_PROTECTED_MEMORY_SUPPORT
 obj-m += mali_prot_alloc_$(MTK_PLATFORM_VERSION)_a16w.o
 mali_prot_alloc_$(MTK_PLATFORM_VERSION)_a16w-y := protected_memory_allocator.o
