@@ -103,8 +103,6 @@ static phys_addr_t alloc_sec_dma_heap(struct simple_pma_device *const epma_dev, 
 	struct dma_buf *buf = NULL;
 	struct dma_buf_attachment *buf_attachment = NULL;
 	struct sg_table *sgt = NULL;
-	struct scatterlist *s = NULL;
-	int i = 0;
 	phys_addr_t pma_base = 0;
 	uint64_t phy_addr = 0;
 	u64 sec_handle = 0;
@@ -284,6 +282,7 @@ static void simple_pma_free_dma_page(
 	devm_kfree(epma_dev->dev, pma);
 }
 
+#if 0
 static void pma_alloc_test(struct protected_memory_allocator_device *pma_dev)
 {
 	struct simple_pma_device *const epma_dev =
@@ -293,6 +292,7 @@ static void pma_alloc_test(struct protected_memory_allocator_device *pma_dev)
 	dev_err(epma_dev->dev, "pma_alloc_test: phy_addr=%llx\n", (unsigned long long) pa);
 	simple_pma_free_dma_page(pma_dev, pma);
 }
+#endif
 #endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP */
 
 /**
@@ -800,6 +800,7 @@ static int protected_memory_allocator_probe(struct platform_device *pdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_PROTECTED_MEMORY_SUPPORT)
 /* Below macro is hard coded*/
 #define GPR(X, Y) (X + (Y << 2))
+#if !IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP)
 static int get_gpueb_gpr_val_v1(struct platform_device *pdev, uint32_t gpr_id, uint64_t *p_GPR_target_64)
 {
 	struct device_node *np;
@@ -885,16 +886,19 @@ static int get_gpueb_gpr_val_v2(uint32_t gpr_id, uint64_t *p_GPR_target_64)
 
 	return 0;
 }
+#endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP */
 
 static int mtk_protected_memory_allocator_probe(struct platform_device *pdev)
 {
 	struct simple_pma_device *epma_dev;
 	struct device_node *np;
+#if !IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP)
 	phys_addr_t rmem_base = 0;
 	size_t rmem_size;
 	size_t alloc_bitmap_pages_arr_size;
-	uint32_t gpr_id, gmpu_table_size, psize, pma_version;
 	uint64_t GPR_target_64;
+#endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP */
+	uint32_t gpr_id, gmpu_table_size, psize, pma_version;
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP_2MB)
 	struct protected_memory_allocation *pma;
 #endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP_2MB */
