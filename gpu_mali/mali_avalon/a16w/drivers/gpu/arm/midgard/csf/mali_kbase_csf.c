@@ -41,6 +41,11 @@
 #include <linux/version_compat_defs.h>
 #include <mali_kbase_io.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+#include <platform/mtk_platform_common.h>
+#include <platform/mtk_platform_common/mtk_platform_debug_dump_queue_data.h>
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
 #define CS_REQ_EXCEPTION_MASK (CS_REQ_FAULT_MASK | CS_REQ_FATAL_MASK)
 #define CS_ACK_EXCEPTION_MASK (CS_ACK_FAULT_MASK | CS_ACK_FATAL_MASK)
 
@@ -649,12 +654,15 @@ void kbase_csf_queue_terminate(struct kbase_context *kctx,
 	bool reset_prevented = false;
 
 	err = kbase_reset_gpu_prevent_and_wait(kbdev);
-	if (err)
+	if (err) {
 		dev_warn(
 			kbdev->dev,
 			"Unsuccessful GPU reset detected when terminating queue (buffer_addr=0x%.16llx), attempting to terminate regardless",
 			term->buffer_gpu_addr);
-	else
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_RESET_FAIL);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+	} else
 		reset_prevented = true;
 
 	mutex_lock(&kctx->csf.lock);
@@ -1534,12 +1542,16 @@ void kbase_csf_queue_group_terminate(struct kbase_context *kctx, u8 group_handle
 	struct kbase_device *const kbdev = kctx->kbdev;
 
 	err = kbase_reset_gpu_prevent_and_wait(kbdev);
-	if (err)
+	if (err) {
 		dev_warn(
 			kbdev->dev,
 			"Unsuccessful GPU reset detected when terminating group %d, attempting to terminate regardless",
 			group_handle);
-	else
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_RESET_FAIL);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+	} else
 		reset_prevented = true;
 
 	mutex_lock(&kctx->csf.lock);
@@ -1769,6 +1781,13 @@ void kbase_csf_ctx_handle_fault(struct kbase_context *kctx, struct kbase_fault *
 		struct kbase_queue_group *const group = kctx->csf.queue_groups[gr];
 
 		if (group && group->run_state != KBASE_CSF_GROUP_TERMINATED) {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+			dev_info(kctx->kbdev->dev, "Terminate ctx %d_%d, group %d, kbase_csf_ctx_handle_fault", group->kctx->tgid, group->kctx->id, group->handle);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"Terminate ctx %d_%d, group %d, kbase_csf_ctx_handle_fault\n", group->kctx->tgid, group->kctx->id, group->handle);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 			/* If the FW is known to have become unresponsive, then the wait for CSG
 			 * termination request can be safely skipped.
 			 */
@@ -2246,6 +2265,13 @@ static void kbase_queue_oom_event(struct kbase_queue *const queue)
 			 "Queue group to be terminated, couldn't handle the OoM event\n");
 		kbase_debug_csf_fault_notify(kbdev, kctx, DF_TILER_OOM);
 		kbase_csf_scheduler_unlock(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		dev_info(kbdev->dev, "Terminate ctx %d_%d, group %d, kbase_queue_oom_event", group->kctx->tgid, group->kctx->id, group->handle);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Terminate ctx %d_%d, group %d, kbase_queue_oom_event\n", group->kctx->tgid, group->kctx->id, group->handle);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		term_queue_group(group);
 		flush_gpu_cache_on_fatal_error(kbdev);
 		report_tiler_oom_error(group);
@@ -2332,6 +2358,14 @@ static void timer_event_worker(struct work_struct *data)
 			group->handle);
 	else
 		reset_prevented = true;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	dev_info(kbdev->dev, "Terminate ctx %d_%d, group %d, timer_event_worker", group->kctx->tgid, group->kctx->id, group->handle);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		"Terminate ctx %d_%d, group %d, timer_event_worker\n", group->kctx->tgid, group->kctx->id, group->handle);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	mutex_lock(&kctx->csf.lock);
 
@@ -2509,6 +2543,9 @@ static void handle_fault_event(struct kbase_queue *const queue, u32 group_id, co
 
 	kbase_csf_report_cs_fault_info(queue, group_id, true);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_CSFAULT);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	/* If dump-on-fault daemon is waiting for a fault, wake up the daemon.
 	 * Acknowledging the fault is deferred to the bottom-half until the wait
@@ -2611,6 +2648,9 @@ static void cs_error_worker(struct work_struct *const data)
 	group = get_bound_queue_group(queue);
 	if (!group) {
 		dev_warn(kbdev->dev, "queue not bound when handling an error event");
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_CSFATAL_QUEUENOTBOUND);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		goto unlock;
 	}
 
@@ -2649,6 +2689,13 @@ static void cs_error_worker(struct work_struct *const data)
 			kbase_csf_scheduler_spin_unlock(kbdev, flags);
 		}
 	} else {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		dev_info(kbdev->dev, "Terminate ctx %d_%d, group %d, cs_error_worker", group->kctx->tgid, group->kctx->id, group->handle);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Terminate ctx %d_%d, group %d, cs_error_worker\n", group->kctx->tgid, group->kctx->id, group->handle);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		term_queue_group(group);
 		flush_gpu_cache_on_fatal_error(kbdev);
 		/* For an invalid GPU page fault, CS_BUS_FAULT fatal error is expected after the
@@ -2776,6 +2823,11 @@ u32 kbase_csf_report_cs_fatal_info(struct kbase_queue *const queue, u32 slot_id,
 			 queue->group->csg_nr, queue->csi_index, cs_fatal_exception_type,
 			 kbase_gpu_exception_name(cs_fatal_exception_type), cs_fatal_exception_data,
 			 cs_fatal_info_exception_data);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	/* Remove the diagnosis mode's print to prevent IRQ long */
+	//mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, -1, MTK_DBG_HOOK_CSFATAL);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	if (cs_fatal_exception_type == CS_FATAL_EXCEPTION_TYPE_CS_UNRECOVERABLE)
 		queue->group->cs_unrecoverable = true;

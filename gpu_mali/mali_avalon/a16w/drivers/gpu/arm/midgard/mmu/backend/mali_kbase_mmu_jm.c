@@ -30,6 +30,9 @@
 #include <mali_kbase_as_fault_debugfs.h>
 #include <mmu/mali_kbase_mmu_internal.h>
 #include <mmu/mali_kbase_mmu_faults_decoder.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 void kbase_mmu_get_as_setup(struct kbase_mmu_table *mmut, struct kbase_mmu_setup *const setup)
 {
@@ -111,6 +114,11 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx, struct kbase_as
 	/* Make sure the context was active */
 	if (WARN_ON(atomic_read(&kctx->refcount) <= 0))
 		return;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_NA);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_NA);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	if (!kbase_ctx_flag(kctx, KCTX_PAGE_FAULT_REPORT_SKIP)) {
 		/* decode the fault status */

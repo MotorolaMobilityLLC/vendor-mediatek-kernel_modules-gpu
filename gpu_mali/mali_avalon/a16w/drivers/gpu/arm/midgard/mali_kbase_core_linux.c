@@ -121,9 +121,9 @@
 
 #include <mali_kbase_caps.h>
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS)
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS) || IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 #include <platform/mtk_platform_common.h>
-#endif /* CONFIG_MALI_MTK_DEBUG_FS */
+#endif /* CONFIG_MALI_MTK_DEBUG_FS || CONFIG_MALI_MTK_DEBUG_DUMP */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM)
 #include "csf/mali_kbase_csf_tiler_heap_reclaim.h"

@@ -29,6 +29,10 @@
 #include <tl/mali_kbase_tracepoints.h>
 #include <linux/delay.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
 #if MALI_USE_CSF
 /**
  * mmu_has_flush_skip_pgd_levels() - Check if the GPU has the feature
@@ -183,6 +187,13 @@ static int wait_ready(struct kbase_device *kbdev, unsigned int as_nr)
 		"AS_ACTIVE bit stuck for as %u. Might be caused by unstable GPU clk/pwr or faulty system",
 		as_nr);
 	kbdev->mmu_unresponsive = true;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_BITSTUCK_FAIL);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_BITSTUCK_FAIL);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_BITSTUCK_FAIL);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
 	if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
 		kbase_reset_gpu_locked(kbdev);
 

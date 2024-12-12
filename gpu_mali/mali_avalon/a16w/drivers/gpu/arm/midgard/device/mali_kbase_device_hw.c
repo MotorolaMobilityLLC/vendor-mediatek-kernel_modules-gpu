@@ -27,6 +27,10 @@
 #include <mali_kbase_reset_gpu.h>
 #include <mmu/mali_kbase_mmu.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
 /**
  * busy_wait_cache_operation - Wait for a pending cache flush to complete
  *
@@ -111,6 +115,12 @@ static int busy_wait_cache_operation(struct kbase_device *kbdev, u32 irq_bit)
 		dev_err(kbdev->dev,
 			"Stuck waiting on %s bit, might be due to unstable GPU clk/pwr or possible faulty FPGA connector\n",
 			irq_flag_name);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_BITSTUCK_FAIL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_BITSTUCK_FAIL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_BITSTUCK_FAIL);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 		if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_NONE))
 			kbase_reset_gpu_locked(kbdev);
@@ -322,6 +332,11 @@ int kbase_gpu_wait_cache_clean_timeout(struct kbase_device *kbdev, unsigned int 
 	if (!remaining) {
 		dev_err(kbdev->dev,
 			"Cache clean timed out. Might be caused by unstable GPU clk/pwr or faulty system");
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_BITSTUCK_FAIL);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_GIC_STATUS, NULL, MTK_DBG_HOOK_BITSTUCK_FAIL);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 		if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
 			kbase_reset_gpu_locked(kbdev);

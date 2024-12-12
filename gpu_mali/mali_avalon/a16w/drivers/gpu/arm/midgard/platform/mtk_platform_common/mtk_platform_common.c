@@ -22,9 +22,9 @@
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG) || IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 #include <platform/mtk_platform_common/mtk_platform_debug.h>
-#endif /* CONFIG_MALI_MTK_DEBUG || CONFIG_MALI_MTK_DEBUG_DUMP*/
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP*/
 
 #if IS_ENABLED(CONFIG_MALI_MTK_PROC_FS)
 #include <linux/proc_fs.h>
@@ -84,6 +84,27 @@ void mtk_common_debug(enum mtk_common_debug_types type, struct kbase_context *kc
 			break;
 		}
 		switch (type) {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		case MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES:
+			mtk_debug_csf_dump_groups_and_queues(kbdev, kctx);
+			break;
+		case MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF:
+			mtk_debug_csf_dump_iterator_hwif(kbdev);
+			break;
+		case MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF_LOCKED:
+			mtk_debug_csf_dump_iterator_hwif_locked(kbdev);
+			break;
+		case MTK_COMMON_DBG_DUMP_INFRA_STATUS:
+			if (!mtk_common_gpufreq_bringup())
+				mtk_debug_dump_infra_status(kbdev);
+			break;
+		case MTK_COMMON_DBG_DUMP_GIC_STATUS:
+			mtk_debug_dump_gic_status(kbdev);
+			break;
+		case MTK_COMMON_DBG_DUMP_PM_STATUS:
+			mtk_debug_dump_pm_status(kbdev);
+			break;
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP*/
 		default:
 			dev_info(kbdev->dev, "@%s: unsupported type (%d)", __func__, type);
 			break;
@@ -308,6 +329,10 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev)
 	if (IS_ERR_OR_NULL(kbdev))
 		return;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	mtk_debug_csf_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
 	mtk_debug_sleep_mode_debugfs_init(kbdev);
 }
 
@@ -345,6 +370,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	mtk_common_procfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_PROC_FS */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	mtk_debug_dump_infra_status_init();
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
 	mutex_init(&kbdev->register_check_lock);
 	mutex_init(&kbdev->mmu_debug_info_lock);
@@ -368,6 +397,10 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_PROC_FS)
 	mtk_common_procfs_term(kbdev);
 #endif /* CONFIG_MALI_MTK_PROC_FS */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	mtk_debug_dump_infra_status_term();
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
 	mutex_destroy(&kbdev->register_check_lock);

@@ -56,8 +56,12 @@
 #include <linux/delay.h>
 #include <linux/version_compat_defs.h>
 #include <mali_kbase_config_defaults.h>
-#define MALI_MAX_DEFAULT_FIRMWARE_NAME_LEN ((size_t)20)
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+#include "platform/mtk_platform_common.h"
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
+#define MALI_MAX_DEFAULT_FIRMWARE_NAME_LEN ((size_t)20)
 static char default_fw_name[MALI_MAX_DEFAULT_FIRMWARE_NAME_LEN] = "mali_csffw.bin";
 module_param_string(fw_name, default_fw_name, sizeof(default_fw_name), 0644);
 MODULE_PARM_DESC(fw_name, "firmware image");
@@ -395,8 +399,14 @@ static void wait_for_firmware_boot(struct kbase_device *kbdev)
 	 */
 	remaining = wait_event_timeout(kbdev->csf.event_wait, kbdev->csf.interrupt_received == true,
 				       wait_timeout);
-	if (!remaining)
+	if (!remaining) {
 		dev_err(kbdev->dev, "Timed out waiting for fw boot completion");
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_FWBOOT_TIMEOUT);
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_FWBOOT_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+	}
+
 	kbdev->csf.interrupt_received = false;
 }
 
@@ -441,6 +451,12 @@ static int wait_ready(struct kbase_device *kbdev)
 
 	dev_err(kbdev->dev,
 		"AS_ACTIVE bit stuck for MCU AS. Might be caused by unstable GPU clk/pwr or faulty system");
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_BITSTUCK_FAIL);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_BITSTUCK_FAIL);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_BITSTUCK_FAIL);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
 		kbase_reset_gpu_locked(kbdev);
@@ -1591,6 +1607,10 @@ static int wait_for_global_request_with_timeout(struct kbase_csf_fw_io *fw_io, u
 			 "[%llu] Timeout (%d ms) waiting for global request %x to complete",
 			 kbase_backend_get_cycle_cnt(kbdev), timeout_ms, req_mask);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_GLOBALREQUEST_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
 		return -ETIMEDOUT;
 	}
 
@@ -2090,8 +2110,17 @@ static void kbase_csf_firmware_reload_worker(struct work_struct *work)
 
 	/* Reload just the data sections from firmware binary image */
 	err = reload_fw_image(kbdev);
-	if (err)
+	if (err) {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		dev_info(kbdev->dev, "Reload of FW had failed, MCU won't be re-enabled !!\n");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Reload of FW had failed, MCU won't be re-enabled !!\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_FWRELOAD_FAIL);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		return;
+	}
 
 	kbase_csf_tl_reader_reset(&kbdev->timeline->csf_tl_reader);
 

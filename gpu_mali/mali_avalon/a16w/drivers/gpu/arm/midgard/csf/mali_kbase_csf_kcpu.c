@@ -36,6 +36,10 @@
 #include "mali_kbase_fence.h"
 #include "mali_kbase_sync.h"
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
 static DEFINE_SPINLOCK(kbase_csf_fence_lock);
 #endif
 

@@ -31,6 +31,10 @@
 #include <mmu/mali_kbase_mmu_internal.h>
 #include <mmu/mali_kbase_mmu_faults_decoder.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
 void kbase_mmu_get_as_setup(struct kbase_mmu_table *mmut, struct kbase_mmu_setup *const setup)
 {
 	/* Set up the required caching policies at the correct indices
@@ -133,6 +137,10 @@ void kbase_mmu_report_mcu_as_fault_and_reset(struct kbase_device *kbdev, struct 
 			fault_source_id_internal_requester_get_str(kbdev, source_id, access_type));
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_MMU_UNEXPECTEDPAGEFAULT);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
 	kbase_debug_csf_fault_notify(kbdev, NULL, DF_GPU_PAGE_FAULT);
 
 	/* Report MMU fault for all address spaces (except MCU_AS_NR) */
@@ -202,6 +210,10 @@ void kbase_gpu_report_bus_fault_and_kill(struct kbase_context *kctx, struct kbas
 			fault_source_id_internal_requester_get_str(kbdev, source_id, access_type),
 			kctx->pid);
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, kctx, MTK_DBG_HOOK_MMU_BUSFAULT);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	err = kbase_reset_gpu_try_prevent(kbdev);
 	if (!err) {
@@ -637,6 +649,13 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx, struct kbase_as
 		dump_mmu_teardown_records(kbdev, fault->addr, kctx);
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, kctx, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_ENOP_METADATA, NULL, MTK_DBG_HOOK_MMU_UNHANDLEDPAGEFAULT);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	err = kbase_reset_gpu_try_prevent(kbdev);
 	if (!err) {
