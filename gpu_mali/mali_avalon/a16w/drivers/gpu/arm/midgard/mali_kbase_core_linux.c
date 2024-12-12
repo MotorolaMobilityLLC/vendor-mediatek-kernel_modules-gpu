@@ -1071,10 +1071,6 @@ static int kbase_api_mem_alloc_ex(struct kbase_context *kctx,
 
 		flags |= (BASE_MEM_SAME_VA | BASE_MEM_CACHED_CPU | BASE_MEM_COHERENT_SYSTEM);
 	}
-#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
-	if (alloc_ex->in.have_pbha_hint)
-		flags |= BASE_MEM_FLAGS_PBHA_HINT_MASK;
-#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
 	reg = kbase_mem_alloc(kctx, alloc_ex->in.va_pages, alloc_ex->in.commit_pages,
