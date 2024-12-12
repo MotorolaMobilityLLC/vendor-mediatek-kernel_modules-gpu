@@ -113,6 +113,10 @@
 /* Explicitly defining this blocked_reason code as SB_WAIT for clarity */
 #define CS_STATUS_BLOCKED_ON_SB_WAIT CS_STATUS_BLOCKED_REASON_REASON_WAIT
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+static int g_api_sync_flag = 6;
+#endif
+
 static int scheduler_group_schedule(struct kbase_queue_group *group);
 static void remove_group_from_idle_wait(struct kbase_queue_group *const group);
 static void insert_group_to_runnable(struct kbase_csf_scheduler *const scheduler,
@@ -5374,7 +5378,12 @@ static void gpu_idle_worker(struct work_struct *work)
 	if (ged_gpu_apo_support() == APO_2_0_NORMAL_SUPPORT)
 		kbdev->dev->power.autosuspend_delay = (int)ged_get_apo_autosuspend_delay_ms();
 #endif
-
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+	if (kbdev->ptp_update_in_progress == true)
+		kbdev->dev->power.autosuspend_delay = 0;
+	else
+		kbdev->dev->power.autosuspend_delay = (int)ged_get_apo_autosuspend_delay_ms();
+#endif
 	scheduler_is_idle_suspendable = scheduler_idle_suspendable(kbdev);
 	if (scheduler_is_idle_suspendable) {
 		KBASE_KTRACE_ADD(kbdev, SCHEDULER_GPU_IDLE_WORKER_HANDLING_START, NULL,
@@ -7317,6 +7326,22 @@ static void wait_for_mcu_sleep_after_idle_stress_test(struct kbase_device *kbdev
 #define KTHREAD_WAIT_TIMEOUT MAX_SCHEDULE_TIMEOUT - 1
 #endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+static void update_api_sync_flag(struct kbase_device *kbdev)
+{
+	int temp_api_sync_flag = 0;
+
+	temp_api_sync_flag = get_api_sync_flag();
+
+	if (((g_api_sync_flag == 6 && temp_api_sync_flag == 7) ||
+		(g_api_sync_flag == 7 && temp_api_sync_flag == 6)) &&
+		g_api_sync_flag != temp_api_sync_flag) {
+		g_api_sync_flag = temp_api_sync_flag;
+		kbdev->ptp_update_in_progress = true;
+	}
+}
+#endif
+
 static int kbase_csf_scheduler_kthread(void *data)
 {
 	struct kbase_device *const kbdev = data;
@@ -7348,7 +7373,14 @@ static int kbase_csf_scheduler_kthread(void *data)
 		}
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST)
-		if (ged_gpu_power_stress_test_enable()==1){
+#if IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+		update_api_sync_flag(kbdev);
+
+		if ((ged_gpu_power_stress_test_enable() == 1) ||
+			(kbdev->ptp_update_in_progress == true)) {
+#else
+		if (ged_gpu_power_stress_test_enable() == 1) {
+#endif
 			struct kbase_pm_backend_data *backend = &kbdev->pm.backend;
 
 			if(backend->mcu_state == KBASE_MCU_ON){

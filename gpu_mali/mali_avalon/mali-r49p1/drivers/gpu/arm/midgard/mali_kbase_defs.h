@@ -1279,6 +1279,10 @@ struct kbase_device {
 
 	struct kbase_backend_time backend_time;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+	bool ptp_update_in_progress;
+#endif
+
 	bool cache_clean_in_progress;
 	u32 cache_clean_queued;
 	wait_queue_head_t cache_clean_wait;
