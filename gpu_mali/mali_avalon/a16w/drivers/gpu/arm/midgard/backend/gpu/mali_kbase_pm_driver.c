@@ -2487,12 +2487,14 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 								tiler_present, ACTION_PWROFF);
 					} else
 #endif
+					{
 						/* Powering off the L2 will also power off the tiler. */
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 						mtk_common_ged_dvfs_write_sysram_last_commit_dual();
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 						kbase_pm_invoke(kbdev, KBASE_PM_CORE_L2, l2_present,
 								ACTION_PWROFF);
+					}
 				} else
 					/* If L2 cache is powered then we must flush it
 					 * before we power off the GPU. Normally this
