@@ -47,6 +47,10 @@
 #include <linux/version_compat_defs.h>
 #include <mali_kbase_mem_flags.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
+#include <soc/mediatek/emi.h>
+#endif /* CONFIG_MALI_MTK_MGMM */
+
 /* Static key used to determine if large pages are enabled or not */
 static DEFINE_STATIC_KEY_FALSE(large_pages_static_key);
 
@@ -284,8 +288,16 @@ int kbase_mem_init(struct kbase_device *kbdev)
 	if (likely(!err)) {
 		struct kbase_mem_pool_group_config mem_pool_defaults;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
+		/*
+		 * mGMM contains kbdev-wide pool, disable kbdev-mem_pool if mGMM enabled
+		 */
+		kbase_mem_pool_group_config_set_max_size(&mem_pool_defaults,
+							 (mtk_emicen_get_rk_cnt() == 2) ? 0x0 : KBASE_MEM_POOL_MAX_SIZE_KBDEV);
+#else /* CONFIG_MALI_MTK_MGMM */
 		kbase_mem_pool_group_config_set_max_size(&mem_pool_defaults,
 							 KBASE_MEM_POOL_MAX_SIZE_KBDEV);
+#endif /* CONFIG_MALI_MTK_MGMM */
 
 		err = kbase_mem_pool_group_init(&kbdev->mem_pools, kbdev, &mem_pool_defaults, NULL);
 		if (likely(!err))

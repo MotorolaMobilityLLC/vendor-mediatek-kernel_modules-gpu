@@ -210,6 +210,10 @@ struct memory_group_manager_ops {
 	bool (*mgm_get_import_memory_cached_access_permitted)(
 		struct memory_group_manager_device *mgm_dev,
 		struct memory_group_manager_import_data *import_data);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
+	size_t (*mgm_mtk_cache_pool_size)(struct memory_group_manager_device *mgm_dev);
+#endif /* CONFIG_MALI_MTK_MGMM */
 };
 
 /**
