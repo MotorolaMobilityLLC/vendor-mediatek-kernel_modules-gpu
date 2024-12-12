@@ -2444,14 +2444,13 @@ int RawProcessStatsPrintElements(OSDI_IMPL_ENTRY *psEntry, void *pvData)
 	DLLIST_NODE *psNode, *psNext;
 
 	DIPrintf(psEntry,
-	         "%s,%s,%s,%s,%s,%s,%s\n",
+	         "%s,%s,%s,%s,%s,%s\n",
 	         "PID",
 	         "MemoryUsageKMalloc",           // PVRSRV_PROCESS_STAT_TYPE_KMALLOC
 	         "MemoryUsageAllocPTMemoryUMA",  // PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_UMA
 	         "MemoryUsageAllocPTMemoryLMA",  // PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_LMA
 	         "MemoryUsageAllocGPUMemLMA",    // PVRSRV_PROCESS_STAT_TYPE_ALLOC_LMA_PAGES
-	         "MemoryUsageAllocGPUMemUMA",    // PVRSRV_PROCESS_STAT_TYPE_ALLOC_UMA_PAGES
-	         "MemoryUsageDmaBufImport");     // PVRSRV_PROCESS_STAT_TYPE_DMA_BUF_IMPORT
+	         "MemoryUsageAllocGPUMemUMA");    // PVRSRV_PROCESS_STAT_TYPE_ALLOC_UMA_PAGES
 
 	OSLockAcquire(g_psLinkedListLock);
 
@@ -2463,14 +2462,13 @@ int RawProcessStatsPrintElements(OSDI_IMPL_ENTRY *psEntry, void *pvData)
 			DIPrintf(psEntry,
 			         "%d,%"IMG_INT64_FMTSPECd",%"IMG_INT64_FMTSPECd","
 			         "%"IMG_INT64_FMTSPECd",%"IMG_INT64_FMTSPECd","
-			         "%"IMG_INT64_FMTSPECd",%"IMG_INT64_FMTSPECd"\n",
+			         "%"IMG_INT64_FMTSPECd"\n",
 			         psProcessStats->pid,
 			         psProcessStats->i64StatValue[PVRSRV_PROCESS_STAT_TYPE_KMALLOC],
 			         psProcessStats->i64StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_UMA],
 			         psProcessStats->i64StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_LMA],
 			         psProcessStats->i64StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_LMA_PAGES],
-			         psProcessStats->i64StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_UMA_PAGES],
-			         psProcessStats->i64StatValue[PVRSRV_PROCESS_STAT_TYPE_DMA_BUF_IMPORT]);
+			         psProcessStats->i64StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_UMA_PAGES]);
 		}
 	}
 
