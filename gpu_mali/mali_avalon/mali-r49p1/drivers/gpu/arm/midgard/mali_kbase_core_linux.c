@@ -2400,7 +2400,7 @@ static ssize_t dvfs_hint_26m_perf_cnting_store(struct device *dev, struct device
 {
 	struct kbase_device *kbdev;
 	int ret;
-	int dvfs_hint_26m_perf_cnting;
+	int dvfs_hint_26m_perf_cnting = 0;
 
 	kbdev = to_kbase_device(dev);
 	if (!kbdev)
@@ -2434,7 +2434,7 @@ static ssize_t ipa_enable_store(struct device *dev, struct device_attribute *att
 {
 	struct kbase_device *kbdev;
 	int ret;
-	int ipa_enable;
+	int ipa_enable = 0;
 
 	kbdev = to_kbase_device(dev);
 	if (!kbdev)
