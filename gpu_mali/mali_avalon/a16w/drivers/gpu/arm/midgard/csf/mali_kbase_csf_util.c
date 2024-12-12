@@ -177,13 +177,28 @@ void kbasep_printer_buffer_flush(struct kbasep_printer *kbpr)
 
 		switch (kbpr->type) {
 		case KBASEP_PRINT_TYPE_DEV_INFO:
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+			// MTK have special macro
+			dev_info(kbpr->kbdev->dev, "%s", buffer);
+#else
 			dev_info(kbpr->kbdev->dev, buffer);
+#endif /* CONFIG_MALI_MTK_COMMON */
 			break;
 		case KBASEP_PRINT_TYPE_DEV_WARN:
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+			// MTK have special macro
+			dev_warn(kbpr->kbdev->dev, "%s", buffer);
+#else
 			dev_warn(kbpr->kbdev->dev, buffer);
+#endif /* CONFIG_MALI_MTK_COMMON */
 			break;
 		case KBASEP_PRINT_TYPE_DEV_ERR:
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+			// MTK have special macro
+			dev_err(kbpr->kbdev->dev, "%s", buffer);
+#else
 			dev_err(kbpr->kbdev->dev, buffer);
+#endif /* CONFIG_MALI_MTK_COMMON */
 			break;
 		default:
 			pr_err("printer not supported");

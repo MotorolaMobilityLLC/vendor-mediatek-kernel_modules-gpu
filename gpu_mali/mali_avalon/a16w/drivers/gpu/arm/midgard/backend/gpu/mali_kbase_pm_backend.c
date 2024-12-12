@@ -421,7 +421,7 @@ static void kbase_pm_gpu_poweroff_wait_wq(struct work_struct *data)
 
 static void kbase_pm_l2_clock_slow(struct kbase_device *kbdev)
 {
-#if defined(CONFIG_MALI_MIDGARD_DVFS)
+#if defined(CONFIG_MALI_MIDGARD_DVFS) && !defined(CONFIG_MALI_DEVFREQ) /* MTK_INLINE */
 	struct clk *clk = kbdev->clocks[0];
 #endif
 
@@ -463,7 +463,7 @@ static void kbase_pm_l2_clock_slow(struct kbase_device *kbdev)
 
 static void kbase_pm_l2_clock_normalize(struct kbase_device *kbdev)
 {
-#if defined(CONFIG_MALI_MIDGARD_DVFS)
+#if defined(CONFIG_MALI_MIDGARD_DVFS) && !defined(CONFIG_MALI_DEVFREQ) /* MTK_INLINE */
 	struct clk *clk = kbdev->clocks[0];
 #endif
 

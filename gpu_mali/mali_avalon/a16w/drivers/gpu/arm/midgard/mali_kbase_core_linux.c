@@ -6111,10 +6111,14 @@ static const struct dev_pm_ops kbase_pm_ops = {
 };
 
 #if IS_ENABLED(CONFIG_OF)
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+static const struct of_device_id kbase_dt_ids[] = { { .compatible = "arm,mali-valhall" },
+#else
 static const struct of_device_id kbase_dt_ids[] = { { .compatible = "arm,malit6xx" },
 						    { .compatible = "arm,mali-midgard" },
 						    { .compatible = "arm,mali-bifrost" },
 						    { .compatible = "arm,mali-valhall" },
+#endif /* CONFIG_MALI_MTK_COMMON */
 						    { /* sentinel */ } };
 MODULE_DEVICE_TABLE(of, kbase_dt_ids);
 #endif

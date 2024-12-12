@@ -809,6 +809,14 @@ static int parse_memory_setup_entry(struct kbase_device *kbdev,
 		return 0;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+	if (protected_mode) {
+		/* Use small prot/normal pages */
+		force_small_page = true;
+		dev_info(kbdev->dev, "Set force_small_page of prot mem when fw init");
+	}
+#endif /* CONFIG_MALI_MTK_COMMON */
+
 	num_pages = (virtual_end - virtual_start) >> PAGE_SHIFT;
 
 retry_alloc:

@@ -1,0 +1,265 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (c) 2022 MediaTek Inc.
+ */
+
+#include <mali_kbase.h>
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
+#include <linux/sysfs.h>
+#include <linux/string.h>
+#include <platform/mtk_platform_common.h>
+#include <mtk_gpufreq.h>
+#include <ged_dvfs.h>
+#include <ged_base.h>
+#include <ged_type.h>
+
+#if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
+#include <mt-plat/aee.h>
+#endif /* CONFIG_MTK_AEE_FEATURE */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_PROC_FS)
+#include <linux/proc_fs.h>
+
+/* name of the proc root dir */
+#define	PROC_ROOT "mtk_mali"
+static struct proc_dir_entry *proc_root;
+#endif /* CONFIG_MALI_MTK_PROC_FS */
+
+
+static bool mfg_powered;
+static DEFINE_MUTEX(mfg_pm_lock);
+static DEFINE_MUTEX(common_debug_lock);
+
+static struct kbase_device *mali_kbdev;
+
+struct kbase_device *mtk_common_get_kbdev(void)
+{
+	return mali_kbdev;
+}
+
+bool mtk_common_pm_is_mfg_active(void)
+{
+	return mfg_powered;
+}
+
+void mtk_common_pm_mfg_active(void)
+{
+	mutex_lock(&mfg_pm_lock);
+	mfg_powered = true;
+	mutex_unlock(&mfg_pm_lock);
+}
+
+void mtk_common_pm_mfg_idle(void)
+{
+	mutex_lock(&mfg_pm_lock);
+	mfg_powered = false;
+	mutex_unlock(&mfg_pm_lock);
+}
+
+void mtk_common_debug(enum mtk_common_debug_types type, struct kbase_context *kctx, u64 hook_point)
+{
+	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return;
+
+	if (type == MTK_COMMON_DBG_DUMP_DB_BY_SETTING)
+	{
+		return;
+	}
+
+	lockdep_off();
+	do {
+		if (!mutex_trylock(&common_debug_lock)) {
+			pr_info("[%s]lock held, bypass debug dump", __func__);
+			break;
+		}
+		switch (type) {
+		default:
+			dev_info(kbdev->dev, "@%s: unsupported type (%d)", __func__, type);
+			break;
+		}
+		mutex_unlock(&common_debug_lock);
+	} while (false);
+	lockdep_on();
+}
+
+int mtk_common_gpufreq_bringup(void)
+{
+	static int bringup = -1;
+
+	if (bringup == -1) {
+#if IS_ENABLED(CONFIG_MTK_GPUFREQ_V2)
+		bringup = gpufreq_bringup();
+#else
+		bringup = mt_gpufreq_bringup();
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+	}
+
+	return bringup;
+}
+
+int mtk_common_gpufreq_commit(int opp_idx)
+{
+	int ret = -1;
+
+	mutex_lock(&mfg_pm_lock);
+	if (opp_idx >= 0 && mtk_common_pm_is_mfg_active()) {
+#if IS_ENABLED(CONFIG_MTK_GPUFREQ_V2)
+		ret = mtk_common_gpufreq_bringup() ?
+			-1 : gpufreq_commit(TARGET_DEFAULT, opp_idx);
+#else
+		ret = mtk_common_gpufreq_bringup() ?
+			-1 : mt_gpufreq_target(opp_idx, KIR_POLICY);
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+	}
+	mutex_unlock(&mfg_pm_lock);
+
+	return ret;
+}
+
+int mtk_common_gpufreq_dual_commit(int gpu_oppidx, int stack_oppidx)
+{
+	int ret = -1;
+
+	mutex_lock(&mfg_pm_lock);
+	if (stack_oppidx >= 0 && mtk_common_pm_is_mfg_active()) {
+#if IS_ENABLED(CONFIG_MTK_GPUFREQ_V2)
+		ret = mtk_common_gpufreq_bringup() ?
+			-1 : gpufreq_dual_commit(gpu_oppidx, stack_oppidx);
+#else
+		ret = mtk_common_gpufreq_bringup() ?
+			-1 : mt_gpufreq_target(stack_oppidx, KIR_POLICY);
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+	}
+	mutex_unlock(&mfg_pm_lock);
+
+	return ret;
+}
+
+int mtk_common_ged_dvfs_get_last_commit_idx(void)
+{
+	return -1;
+}
+
+int mtk_common_ged_dvfs_get_last_commit_top_idx(void)
+{
+	return -1;
+}
+
+int mtk_common_ged_dvfs_get_last_commit_stack_idx(void)
+{
+	return -1;
+}
+unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_idx(void)
+{
+	return -1;
+}
+
+unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_top_idx(void)
+{
+	return -1;
+}
+
+unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_stack_idx(void)
+{
+	return -1;
+}
+
+unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_dual(void) {
+		return -1;
+}
+
+unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_idx_test(int commit_idx) {
+	return -1;
+}
+
+unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_top_idx_test(int commit_idx)
+{
+	return -1;
+}
+
+unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_stack_idx_test(int commit_idx)
+{
+	return -1;
+}
+
+unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_dual_test(int top_idx, int stack_idx)
+{
+	return -1;
+}
+
+int mtk_common_ged_dvfs_update_step_size(int low_step, int med_step, int high_step)
+{
+	return -1;
+}
+
+void mtk_common_get_system_timer_and_record(struct kbase_device *kbdev)
+{
+	return;
+}
+
+int mtk_common_ged_pwr_hint(int pwr_hint)
+{
+	return 0;
+}
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+static void mtk_common_procfs_init(struct kbase_device *kbdev)
+{
+	if (IS_ERR_OR_NULL(kbdev))
+		return;
+
+  	proc_root = proc_mkdir(PROC_ROOT, NULL);
+  	if (!proc_root) {
+		dev_info(kbdev->dev, "@%s: Cann't create /proc/%s", __func__, PROC_ROOT);
+  		return;
+  	}
+}
+
+static void mtk_common_procfs_term(struct kbase_device *kbdev)
+{
+	if (IS_ERR_OR_NULL(kbdev))
+		return;
+
+	proc_root = NULL;
+	remove_proc_entry(PROC_ROOT, NULL);
+}
+#endif /* CONFIG_MALI_MTK_PROC_FS */
+
+int mtk_common_device_init(struct kbase_device *kbdev)
+{
+	if (IS_ERR_OR_NULL(kbdev)) {
+		dev_info(kbdev->dev, "@%s: invalid kbdev", __func__);
+		return -1;
+	}
+
+	mali_kbdev = kbdev;
+
+	if (mtk_platform_pm_init(kbdev)) {
+		dev_info(kbdev->dev, "@%s: Failed to init Platform PM", __func__);
+		return -1;
+	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_PROC_FS)
+	mtk_common_procfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_PROC_FS */
+
+	return 0;
+}
+
+void mtk_common_device_term(struct kbase_device *kbdev)
+{
+	if (IS_ERR_OR_NULL(kbdev)) {
+		dev_info(kbdev->dev, "@%s: invalid kbdev", __func__);
+		return;
+	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_PROC_FS)
+	mtk_common_procfs_term(kbdev);
+#endif /* CONFIG_MALI_MTK_PROC_FS */
+
+	mtk_platform_pm_term(kbdev);
+}
+
