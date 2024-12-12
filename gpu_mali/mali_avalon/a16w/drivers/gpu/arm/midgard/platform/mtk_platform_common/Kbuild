@@ -39,3 +39,7 @@ endif ## CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG ##
 ifeq ($(CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET),y)
     mali_kbase-y += $(curr)/mtk_platform_whitebox_directly_hard_reset.o
 endif ## CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET ##
+
+ifeq ($(CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER),y)
+    mali_kbase-y += $(curr)/mtk_platform_whitebox_fault_worker.o
+endif ## CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER ##
