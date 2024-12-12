@@ -2616,7 +2616,7 @@ static void kbase_mmu_progress_migration_on_insert(struct tagged_addr phys,
 	struct page *phys_page = as_page(phys);
 	struct kbase_page_metadata *page_md = kbase_page_private(phys_page);
 
-	if (!IS_ENABLED(CONFIG_PAGE_MIGRATION_SUPPORT))
+	if (!kbase_is_page_migration_enabled())
 		return;
 
 	spin_lock(&page_md->migrate_lock);
@@ -2653,7 +2653,7 @@ static void kbase_mmu_progress_migration_on_teardown(struct kbase_device *kbdev,
 {
 	size_t i;
 
-	if (!IS_ENABLED(CONFIG_PAGE_MIGRATION_SUPPORT))
+	if (!kbase_is_page_migration_enabled())
 		return;
 
 	for (i = 0; i < requested_nr; i++) {
@@ -4162,7 +4162,7 @@ int kbase_mmu_migrate_pgd_page(struct tagged_addr old_pgd_phys, struct tagged_ad
 	int check_state, ret = 0;
 
 	/* If page migration support is not compiled in, return with fault */
-	if (!IS_ENABLED(CONFIG_PAGE_MIGRATION_SUPPORT))
+	if (!kbase_is_page_migration_enabled())
 		return -EINVAL;
 	/* Due to the hard binding of mmu_command_instr with kctx_id via kbase_mmu_hw_op_param,
 	 * here we skip the no kctx case, which is only used with MCU's mmut.
@@ -4300,7 +4300,7 @@ int kbase_mmu_migrate_data_page(struct tagged_addr old_phys, struct tagged_addr 
 	unsigned int i;
 
 	/* If page migration support is not compiled in, return with fault */
-	if (!IS_ENABLED(CONFIG_PAGE_MIGRATION_SUPPORT))
+	if (!kbase_is_page_migration_enabled())
 		return -EINVAL;
 	/* Due to the hard binding of mmu_command_instr with kctx_id via kbase_mmu_hw_op_param,
 	 * here we skip the no kctx case, which is only used with MCU's mmut.

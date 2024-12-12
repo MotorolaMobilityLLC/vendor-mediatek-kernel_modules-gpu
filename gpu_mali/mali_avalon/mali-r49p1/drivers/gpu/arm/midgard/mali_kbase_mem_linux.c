@@ -3111,7 +3111,7 @@ static void kbase_vmap_phy_pages_migrate_count_increment(struct tagged_addr *pag
 {
 	size_t i;
 
-	if (!IS_ENABLED(CONFIG_PAGE_MIGRATION_SUPPORT))
+	if (!kbase_is_page_migration_enabled())
 		return;
 
 	for (i = 0; i < page_count; i++) {
@@ -3163,7 +3163,7 @@ static void kbase_vunmap_phy_pages_migrate_count_decrement(struct tagged_addr *p
 {
 	size_t i;
 
-	if (!IS_ENABLED(CONFIG_PAGE_MIGRATION_SUPPORT))
+	if (!kbase_is_page_migration_enabled())
 		return;
 
 	for (i = 0; i < page_count; i++) {
