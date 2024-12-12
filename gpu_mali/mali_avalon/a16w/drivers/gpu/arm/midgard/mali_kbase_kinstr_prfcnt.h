@@ -199,4 +199,8 @@ int kbase_kinstr_prfcnt_setup(struct kbase_kinstr_prfcnt_context *kinstr_ctx,
 int kbasep_kinstr_populate_prfcnt_enum_list(const struct kbase_hwcnt_metadata *metadata,
 					    struct prfcnt_enum_item *item_array, size_t array_size);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_HWCNT_HINT)
+void hwcnt_hint(bool is_init);
+#endif /* CONFIG_MALI_MTK_HWCNT_HINT */
+
 #endif /* _KBASE_KINSTR_PRFCNT_H_ */

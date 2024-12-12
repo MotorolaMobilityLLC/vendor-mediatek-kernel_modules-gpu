@@ -862,6 +862,9 @@ int kbasep_kinstr_prfcnt_cmd(struct kbase_kinstr_prfcnt_client *cli,
 
 	switch (control_cmd->cmd) {
 	case PRFCNT_CONTROL_CMD_START:
+#if IS_ENABLED(CONFIG_MALI_MTK_HWCNT_HINT)
+		hwcnt_hint(true);
+#endif /* CONFIG_MALI_MTK_HWCNT_HINT */
 		ret = kbasep_kinstr_prfcnt_client_start(cli, control_cmd->user_data);
 		break;
 	case PRFCNT_CONTROL_CMD_STOP:
@@ -882,6 +885,44 @@ int kbasep_kinstr_prfcnt_cmd(struct kbase_kinstr_prfcnt_client *cli,
 
 	return ret;
 }
+
+#if IS_ENABLED(CONFIG_MALI_MTK_HWCNT_HINT)
+void hwcnt_hint(bool is_init)
+{
+	u32 csg_nr;
+	bool need_delay = false;
+	struct kbase_device *kbdev = kbase_find_device(-1);
+	if(kbdev == NULL){
+		return;
+	}
+
+	kbase_csf_scheduler_lock(kbdev);
+	for (csg_nr = 0; csg_nr < kbdev->csf.global_iface.group_num; csg_nr++) {
+		struct kbase_queue_group *const group =
+		kbdev->csf.scheduler.csg_slots[csg_nr].resident_group;
+
+		if (!group)
+			continue;
+
+		struct base_csf_notification const
+			error = { .type = BASE_CSF_NOTIFICATION_HWCNT,
+			  .payload = {
+				  .csg_error = {
+					  .handle = group->handle,
+					  .error = {
+						  .error_type =
+							  BASE_NOTIFICATION_HWCNT,
+					  } } } };
+		kbase_csf_event_add_error(group->kctx, &group->error_fatal, &error);
+		kbase_event_wakeup(group->kctx);
+		need_delay = true;
+	}
+	kbase_csf_scheduler_unlock(kbdev);
+	kbase_release_device(kbdev);
+	if (is_init && need_delay)
+		msleep(300);
+}
+#endif /* CONFIG_MALI_MTK_HWCNT_HINT */
 
 static int kbasep_kinstr_prfcnt_get_sample(struct kbase_kinstr_prfcnt_client *cli,
 					   struct prfcnt_sample_access *sample_access)
@@ -1019,6 +1060,10 @@ static long kbasep_kinstr_prfcnt_hwcnt_reader_ioctl(struct file *filp, unsigned 
 	case _IOC_NR(KBASE_IOCTL_KINSTR_PRFCNT_PUT_SAMPLE): {
 		struct prfcnt_sample_access sample_access;
 		int err;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_HWCNT_HINT)
+		hwcnt_hint(false);
+#endif /* CONFIG_MALI_MTK_HWCNT_HINT */
 
 		err = copy_from_user(&sample_access, uarg, sizeof(sample_access));
 		if (err)
