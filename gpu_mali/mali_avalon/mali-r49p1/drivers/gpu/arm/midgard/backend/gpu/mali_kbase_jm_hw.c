@@ -950,9 +950,8 @@ static void kbasep_reset_timeout_worker(struct work_struct *data)
 		const u32 timeout_us =
 			kbase_get_timeout_ms(kbdev, KBASE_CLEAN_CACHE_TIMEOUT) * USEC_PER_MSEC;
 		/* Ensure that L2 is not transitioning when we send the reset command */
-		const int err = read_poll_timeout_atomic(kbase_pm_get_trans_cores, val, !val, 0,
-							 timeout_us, false, kbdev,
-							 KBASE_PM_CORE_L2);
+		const int err = kbase_reg_poll64_timeout(kbdev, GPU_CONTROL_ENUM(L2_PWRTRANS), val,
+							 !val, 0, timeout_us, false);
 
 		WARN(err, "L2 power transition timed out while trying to reset\n");
 	}

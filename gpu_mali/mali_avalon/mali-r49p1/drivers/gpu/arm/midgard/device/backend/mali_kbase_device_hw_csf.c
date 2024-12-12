@@ -219,12 +219,13 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 			 * cases so timeouts are tolerable.
 			 */
 			u32 mcu_status;
-			int err = read_poll_timeout_atomic(
-				kbase_reg_read32, mcu_status,
-				MCU_STATUS_VALUE_GET(mcu_status) != MCU_STATUS_VALUE_ENABLED, 1,
+			const u32 timeout_us =
 				kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_SOI_HALT_TIMEOUT) *
-					USEC_PER_MSEC,
-				false, kbdev, GPU_CONTROL_ENUM(MCU_STATUS));
+				USEC_PER_MSEC;
+			int err = kbase_reg_poll32_timeout(
+				kbdev, GPU_CONTROL_ENUM(MCU_STATUS), mcu_status,
+				MCU_STATUS_VALUE_GET(mcu_status) != MCU_STATUS_VALUE_ENABLED, 1,
+				timeout_us, false);
 			if (unlikely(err))
 				dev_warn(kbdev->dev, "MCU hasn't halted after automatic sleep");
 
