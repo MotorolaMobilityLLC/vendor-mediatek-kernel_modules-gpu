@@ -42,6 +42,30 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH := y
         CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE := y
     endif ## mt6991 ##
+
+    ifeq ($(MTK_PLATFORM_VERSION),mt6993)
+        MTK_GPU_VERSION := $(LOCAL_MTK_GPU_VERSION)
+        MTK_PLATFORM := $(MTK_PLATFORM_VERSION)
+
+        # *** Arm CONFIG ***
+        CONFIG_MALI_CSF_SUPPORT := y
+        CONFIG_MALI_REAL_HW := y
+        CONFIG_MALI_DEBUG := y
+        CONFIG_MALI_MIDGARD_DVFS := y
+        CONFIG_MALI_DEVFREQ := y
+        CONFIG_MALI_FENCE_DEBUG := y
+        CONFIG_LARGE_PAGE_SUPPORT := y
+        CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD := y
+
+        # *** MTK CONFIG ***
+        CONFIG_MALI_MTK_BRINGUP := n
+        CONFIG_MALI_MTK_SYSFS := y
+        CONFIG_MALI_MTK_PROC_FS := y
+        CONFIG_MALI_MTK_DEBUG_FS := y
+        CONFIG_MALI_MTK_PROTECTED_PATCH := n
+        CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH := y
+        CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE := n
+    endif ## mt6993 ##
 endif
 
 # make $(src) as absolute path if it is not already, by prefixing $(srctree)
