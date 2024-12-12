@@ -2456,6 +2456,49 @@ end:
 }
 KBASE_EXPORT_TEST_API(kbase_csf_firmware_set_gpu_idle_hysteresis_time);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SOI_DEBUG)
+
+bool kbase_csf_firmware_get_sleep_on_idle(struct kbase_device *kbdev)
+{
+	unsigned long flags;
+	bool enabled;
+
+	kbase_csf_scheduler_spin_lock(kbdev, &flags);
+	enabled = kbase_pm_fw_sleep_on_idle_allowed(kbdev);
+	kbase_csf_scheduler_spin_unlock(kbdev, flags);
+
+	return enabled;
+}
+
+u32 kbase_csf_firmware_set_sleep_on_idle(struct kbase_device *kbdev, bool enable)
+{
+
+	if (kbase_reset_gpu_prevent_and_wait(kbdev)) {
+		dev_warn(kbdev->dev,
+			 "Failed to prevent GPU reset when updating sleep_on_idle feature");
+		return kbase_pm_fw_sleep_on_idle_allowed(kbdev);
+	}
+
+	if (enable == true)
+		set_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE, &kbdev->pm.backend.gpu_sleep_allowed);
+	else
+		clear_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE, &kbdev->pm.backend.gpu_sleep_allowed);
+
+	kbase_csf_scheduler_pm_active(kbdev);
+	if (kbase_csf_scheduler_killable_wait_mcu_active(kbdev)) {
+		kbase_csf_scheduler_pm_idle(kbdev);
+		kbase_reset_gpu_allow(kbdev);
+		return enable;
+	}
+
+	kbase_csf_scheduler_pm_idle(kbdev);
+	kbase_reset_gpu_allow(kbdev);
+	dev_dbg(kbdev->dev, "CSF set sleep on idle value: 0x%.8x", enable);
+
+	return enable;
+}
+#endif /* defined(CONFIG_MALI_MTK_SOI_DEBUG)*/
+
 static u32 convert_dur_to_core_pwroff_count(struct kbase_device *kbdev, const u64 dur_ns,
 					    u32 *no_modifier)
 {
