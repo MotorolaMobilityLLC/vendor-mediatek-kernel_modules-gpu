@@ -37,6 +37,11 @@
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+#include <ged_mali_event.h>
+#include <platform/mtk_platform_common/mtk_platform_mali_event.h>
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+
 #if MALI_USE_CSF
 /**
  * mmu_has_flush_skip_pgd_levels() - Check if the GPU has the feature
@@ -208,8 +213,12 @@ static int wait_ready(struct kbase_device *kbdev, unsigned int as_nr)
 		BUG_ON(1);
 #endif /* CONFIG_MALI_MTK_TRIGGER_KE */
 
-	if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
+	if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+		ged_mali_event_update_gpu_reset_nolock(GPU_RESET_MMU_WAIT_READY_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 		kbase_reset_gpu_locked(kbdev);
+	}
 
 	return -ETIMEDOUT;
 }
@@ -336,8 +345,12 @@ static int apply_hw_issue_GPU2019_3901_wa(struct kbase_device *kbdev, u32 *mmu_c
 				"wait_cores_power_trans_complete fail, try to do reset\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			if (kbase_prepare_to_reset_gpu_locked(kbdev,
-							      RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
+							      RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+				ged_mali_event_update_gpu_reset_nolock(GPU_RESET_HW_ISSUE_2019_3901_WA);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 				kbase_reset_gpu_locked(kbdev);
+			}
 			return ret;
 		}
 

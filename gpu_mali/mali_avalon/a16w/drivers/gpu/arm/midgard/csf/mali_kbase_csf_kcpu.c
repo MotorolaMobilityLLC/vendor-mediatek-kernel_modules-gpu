@@ -44,6 +44,11 @@
 #include <platform/mtk_platform_common/mtk_platform_qinspect_recovery.h>
 #endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+#include <ged_mali_event.h>
+#include <platform/mtk_platform_common/mtk_platform_mali_event.h>
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+
 #if IS_ENABLED(CONFIG_SYNC_FILE)
 #include "mali_kbase_fence.h"
 #include "mali_kbase_sync.h"

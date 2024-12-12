@@ -36,6 +36,11 @@
 #include <hw_access/mali_kbase_hw_access_regmap_legacy.h>
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+#include <ged_mali_event.h>
+#include <platform/mtk_platform_common/mtk_platform_mali_event.h>
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+
 enum kbasep_soft_reset_status {
 	RESET_SUCCESS = 0,
 	SOFT_RESET_FAILED,
@@ -711,6 +716,10 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 #else /* CONFIG_MALI_MTK_LOG_BUFFER */
 		dev_err(kbdev->dev, "Reset complete");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+		ged_mali_event_notify_gpu_reset_done();
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+		dev_err(kbdev->dev, "Reset complete");
 	}
 	return 0;
 err:

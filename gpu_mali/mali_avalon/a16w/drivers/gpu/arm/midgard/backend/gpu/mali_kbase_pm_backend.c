@@ -49,6 +49,11 @@
 #include <ged_dvfs.h>
 #endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING*/
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+#include <ged_mali_event.h>
+#include <platform/mtk_platform_common/mtk_platform_mali_event.h>
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+
 static void kbase_pm_gpu_poweroff_wait_wq(struct work_struct *data);
 static void kbase_pm_hwcnt_disable_worker(struct work_struct *data);
 static void kbase_pm_gpu_clock_control_worker(struct work_struct *data);
@@ -307,6 +312,9 @@ static void wait_for_mmu_fault_handling_in_gpu_poweroff_wait_wq(struct kbase_dev
 				"Wait for fault handling timed-out in gpu_poweroff_wait_wq");
 			if (kbase_prepare_to_reset_gpu(kbdev,
 						       RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+				ged_mali_event_update_gpu_reset_nolock(GPU_RESET_WAIT_MMU_FAULT_IN_POWOFF_WAIT_WQ);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 				kbase_reset_gpu(kbdev);
 				reset_triggered = true;
 			}

@@ -75,6 +75,11 @@
 #include "platform/mtk_platform_common.h"
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+#include <ged_mali_event.h>
+#include <platform/mtk_platform_common/mtk_platform_mali_event.h>
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+
 #define MALI_MAX_DEFAULT_FIRMWARE_NAME_LEN ((size_t)20)
 static char default_fw_name[MALI_MAX_DEFAULT_FIRMWARE_NAME_LEN] = "mali_csffw.bin";
 module_param_string(fw_name, default_fw_name, sizeof(default_fw_name), 0644);
@@ -485,8 +490,12 @@ static int wait_ready(struct kbase_device *kbdev)
 		BUG_ON(1);
 #endif /* CONFIG_MALI_MTK_TRIGGER_KE */
 
-	if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
+	if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+		ged_mali_event_update_gpu_reset_nolock(GPU_RESET_CSF_WAIT_READY_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 		kbase_reset_gpu_locked(kbdev);
+	}
 
 	return -ETIMEDOUT;
 }
@@ -3285,8 +3294,12 @@ int kbase_csf_wait_protected_mode_enter(struct kbase_device *kbdev)
 	}
 
 	if (unlikely(err)) {
-		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
+		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+			ged_mali_event_update_gpu_reset_nolock(GPU_RESET_PMODE_ENTER_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 			kbase_reset_gpu(kbdev);
+		}
 	}
 
 	KBASE_TLSTREAM_AUX_PROTECTED_ENTER_END(kbdev, kbdev);

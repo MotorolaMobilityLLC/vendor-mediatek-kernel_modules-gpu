@@ -151,7 +151,6 @@
 #include "platform/mtk_platform_common/mtk_platform_dvfs_hint_26m_perf_cnting_ex.h"
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
-
 #if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
 #include <platform/mtk_platform_common/mtk_platform_qinspect_recovery.h>
 #endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
@@ -169,6 +168,11 @@ struct v1_data *gpu_info_ref;
 #if defined(CONFIG_MALI_MTK_GPU_BM_CSF)
 #include <ged_gpu_bm.h>
 #endif /* CONFIG_MALI_MTK_GPU_BM_CSF */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+#include <ged_mali_event.h>
+#include <platform/mtk_platform_common/mtk_platform_mali_event.h>
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 
 #define KERNEL_SIDE_DDK_VERSION_STRING "K:" MALI_RELEASE_NAME "(GPL)"
 

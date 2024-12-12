@@ -34,6 +34,11 @@
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+#include <ged_mali_event.h>
+#include <platform/mtk_platform_common/mtk_platform_mali_event.h>
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+
 /**
  * kbase_report_gpu_fault - Report a GPU fault of the device.
  *
@@ -72,8 +77,12 @@ static void kbase_gpu_fault_interrupt(struct kbase_device *kbdev)
 			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 				"GPU bus fault triggering gpu-reset ...\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-			if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
+			if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+				ged_mali_event_update_gpu_reset_nolock(GPU_RESET_BUS_FAULT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 				kbase_reset_gpu(kbdev);
+			}
 		} else {
 			/* Handle Bus fault */
 			if (kbase_mmu_bus_fault_interrupt(kbdev, status, as_nr)) {
@@ -140,14 +149,22 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 			kbase_debug_csf_fault_notify(kbdev, scheduler->active_protm_grp->kctx,
 						     DF_GPU_PROTECTED_FAULT);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+			ged_mali_event_update_pmode_flag_nolock(DEVICE_LOST_PMODE_FAULT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+
 			scheduler->active_protm_grp->faulted = true;
 			kbase_csf_add_group_fatal_error(scheduler->active_protm_grp, &err_payload);
 			kbase_event_wakeup(scheduler->active_protm_grp->kctx);
 		}
 		kbase_csf_scheduler_spin_unlock(kbdev, flags);
 
-		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))
+		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+			ged_mali_event_update_gpu_reset_nolock(GPU_RESET_PMODE_FAULT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 			kbase_reset_gpu(kbdev);
+		}
 
 		/* Defer the clearing to the GPU reset sequence */
 		val &= ~GPU_PROTECTED_FAULT;
