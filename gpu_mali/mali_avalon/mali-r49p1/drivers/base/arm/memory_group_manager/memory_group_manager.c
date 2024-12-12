@@ -1054,6 +1054,11 @@ static struct page *example_mgm_alloc_page(struct memory_group_manager_device *m
 						rank = (*pbRank0) ? 0 : 1;
 						p = mtk_fetch_page(data, order, rank);
 					}
+					if (!p) {
+						if (order == SP_ORDER) {
+							p = alloc_pages(gfp_mask, order);
+						}
+					}
 				}
 			} else
 				p = alloc_pages(gfp_mask, order);
