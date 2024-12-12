@@ -2412,7 +2412,7 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 #if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
 	if (fence_signal_command_timeout_counter == 4 || fence_signal_command_timeout_counter == 5
 		|| fence_signal_command_timeout_counter == 6 || fence_signal_command_timeout_counter == 7
-		|| fence_signal_command_timeout_counter == 7 || fence_signal_command_timeout_counter == 9) {
+		|| fence_signal_command_timeout_counter == 8 || fence_signal_command_timeout_counter == 9) {
 		mutex_lock(&recovery_lock);
 #if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
 		if (fence_signal_command_timeout_counter == 4) {
