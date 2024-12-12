@@ -62,9 +62,13 @@
 
 #include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+#include <ged_dvfs.h>
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING*/
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP) || IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 #include <platform/mtk_platform_common.h>
-#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP || CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 
 #ifdef CONFIG_MALI_CORESTACK
 bool corestack_driver_control = true;
@@ -2246,7 +2250,9 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 						backend->pwr_cntl_delegated = true;
 					}
 #endif
-
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+					mtk_common_ged_dvfs_write_sysram_last_commit_dual();
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 					kbase_pm_invoke(kbdev, KBASE_PM_CORE_L2, l2_present,
 							ACTION_PWRON);
 				}
@@ -2450,6 +2456,9 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 					} else
 #endif
 						/* Powering off the L2 will also power off the tiler. */
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+						mtk_common_ged_dvfs_write_sysram_last_commit_dual();
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 						kbase_pm_invoke(kbdev, KBASE_PM_CORE_L2, l2_present,
 								ACTION_PWROFF);
 				} else
@@ -4759,6 +4768,9 @@ int kbase_pm_init_hw(struct kbase_device *kbdev, unsigned int flags)
 	}
 #endif
 	kbdev->protected_mode = false;
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+	ged_dvfs_write_sysram_protm_exit();
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING */
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, irq_flags);
 
 	if (err)

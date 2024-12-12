@@ -39,6 +39,9 @@
 #include <tl/mali_kbase_tracepoints.h>
 #include "mali_kbase_csf_mcu_shared_reg.h"
 #include <linux/version_compat_defs.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)||IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+#include <ged_dvfs.h>
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 #include <mali_kbase_io.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
@@ -3291,7 +3294,9 @@ static inline void check_protm_enter_req_complete(struct kbase_device *kbdev, u3
 	dev_dbg(kbdev->dev, "Protected mode entry interrupt received");
 
 	kbdev->protected_mode = true;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+	ged_dvfs_write_sysram_protm_enter();
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING */
 	kbase_ipa_protection_mode_switch_event(kbdev);
 	kbase_ipa_control_protm_entered(kbdev);
 	kbase_hwcnt_backend_csf_protm_entered(&kbdev->hwcnt_gpu_iface);
@@ -3337,6 +3342,9 @@ static inline int process_protm_exit(struct kbase_device *kbdev, u32 glb_ack)
 
 	if (!WARN_ON(!kbdev->protected_mode)) {
 		kbdev->protected_mode = false;
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+		ged_dvfs_write_sysram_protm_exit();
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING */
 		kbase_ipa_control_protm_exited(kbdev);
 		kbase_hwcnt_backend_csf_protm_exited(&kbdev->hwcnt_gpu_iface);
 	}

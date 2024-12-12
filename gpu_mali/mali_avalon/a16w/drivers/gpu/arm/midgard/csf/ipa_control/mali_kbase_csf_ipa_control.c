@@ -25,6 +25,20 @@
 #include "mali_kbase_csf_ipa_control.h"
 #include <mali_kbase_io.h>
 #include <platform/mtk_platform_utils.h> /* MTK_INLINE */
+#include <mtk_gpufreq.h>
+
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+#include "mali_kbase_csf_ipa_control_ex.h"
+extern void MTKGPUFreq_change_notify(u32 clk_idx, u32 gpufreq);
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+#include "platform/mtk_platform_common/mtk_platform_dvfs_hint_26m_perf_cnting.h"
+#include "platform/mtk_platform_common/mtk_platform_dvfs_hint_26m_perf_cnting_ex.h"
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING */
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_READ_SOC_TIMER)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_READ_SOC_TIMER */
+#endif
 
 /*
  * Status flags from the STATUS register of the IPA Control interface.
@@ -45,7 +59,12 @@
 /*
  * Number of timer events per second.
  */
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+#define TIMER_EVENTS_PER_SECOND ((u32)6000 / IPA_CONTROL_TIMER_DEFAULT_VALUE_MS)
+#else
 #define TIMER_EVENTS_PER_SECOND ((u32)1000 / IPA_CONTROL_TIMER_DEFAULT_VALUE_MS)
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 /*
  * Number of bits used to configure a performance counter in SELECT registers.
@@ -196,6 +215,10 @@ static inline void calc_prfcnt_delta(struct kbase_device *kbdev,
 	} else {
 		delta_value = raw_value - prfcnt->latest_raw_value;
 	}
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	prfcnt->accumulated_raw_diff += delta_value;
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 	delta_value *= prfcnt->scaling_factor;
 
@@ -257,7 +280,19 @@ static void kbase_ipa_ctrl_rate_change_worker(struct work_struct *data)
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 	if (!kbdev->pm.backend.gpu_ready) {
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+		u32 clk_rate_hz = (u32)atomic_read(&listener_data->rate);
+		dev_dbg(kbdev->dev,
+				"%s: backup clk rate:%u change while gpu power off", __func__,
+				clk_rate_hz);
+
+		/* Backup clk rate value and update timer at next power on */
+		spin_lock(&ipa_ctrl->lock);
+		ipa_ctrl->cur_gpu_rate = clk_rate_hz;
+		spin_unlock(&ipa_ctrl->lock);
+#else
 		dev_err(kbdev->dev, "%s: GPU frequency cannot change while GPU is off", __func__);
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 		return;
 	}
@@ -292,6 +327,26 @@ static void kbase_ipa_ctrl_rate_change_worker(struct work_struct *data)
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 }
 
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+		IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+static
+int kbase_ipa_control_rate_change_notify_ex(struct kbase_device *kbdev,
+					       u32 clk_index, u32 clk_rate_hz)
+{
+
+	struct kbase_ipa_control *ipa_ctrl = &kbdev->csf.ipa_control;
+	struct kbase_ipa_control_listener_data *listener_data =
+		ipa_ctrl->rtm_listener_data;
+	unsigned long flags;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	kbase_ipa_control_rate_change_notify(&listener_data->listener,
+					     clk_index, clk_rate_hz * 1000);
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+	return 0;
+}
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
+
 void kbase_ipa_control_init(struct kbase_device *kbdev)
 {
 	struct kbase_ipa_control *ipa_ctrl = &kbdev->csf.ipa_control;
@@ -299,6 +354,7 @@ void kbase_ipa_control_init(struct kbase_device *kbdev)
 	struct kbase_ipa_control_listener_data *listener_data;
 	size_t i;
 	unsigned long flags;
+	unsigned int curr_top_freq = 0;
 
 	for (i = 0; i < KBASE_IPA_CORE_TYPE_NUM; i++) {
 		ipa_ctrl->blocks[i].num_available_counters = KBASE_IPA_CONTROL_NUM_BLOCK_COUNTERS;
@@ -335,6 +391,13 @@ void kbase_ipa_control_init(struct kbase_device *kbdev)
 	if (listener_data)
 		kbase_clk_rate_trace_manager_subscribe_no_lock(clk_rtm, &listener_data->listener);
 	spin_unlock_irqrestore(&clk_rtm->lock, flags);
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	mtk_common_rate_change_notify_fp = kbase_ipa_control_rate_change_notify_ex;
+	curr_top_freq = gpufreq_get_cur_freq(TARGET_GPU);
+	MTKGPUFreq_change_notify(0, curr_top_freq);
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
+
 }
 KBASE_EXPORT_TEST_API(kbase_ipa_control_init);
 
@@ -767,7 +830,17 @@ int kbase_ipa_control_query(struct kbase_device *kbdev, const void *client, u64 
 		/* Return all the accumulated difference */
 		values[i] = prfcnt->accumulated_diff;
 		prfcnt->accumulated_diff = 0;
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+		values[i + session->num_prfcnts] = prfcnt->accumulated_raw_diff;
+		prfcnt->accumulated_raw_diff = 0;
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 	}
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+		IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY) && \
+		IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_READ_SOC_TIMER)
+		mtk_common_get_system_timer_and_record(kbdev);
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY && CONFIG_MALI_MTK_GPU_DVFS_READ_SOC_TIMER*/
 
 	if (protected_time) {
 		u64 time_now = ktime_get_raw_ns();
@@ -847,6 +920,13 @@ void kbase_ipa_control_handle_gpu_power_on(struct kbase_device *kbdev)
 
 	/* GPU should have become ready for use when this function gets called */
 	WARN_ON(!kbdev->pm.backend.gpu_ready);
+
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY) && \
+	IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+	mtk_dvfs_hint_26m_setting();
+	gpu_power_status = true;
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY && CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING*/
 
 	/* Interrupts are already disabled and interrupt state is also saved */
 	spin_lock(&ipa_ctrl->lock);
@@ -957,8 +1037,6 @@ void kbase_ipa_control_protm_entered(struct kbase_device *kbdev)
 	struct kbase_ipa_control *ipa_ctrl = &kbdev->csf.ipa_control;
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
-
-
 	ipa_ctrl->protm_start = ktime_get_raw_ns();
 }
 
@@ -970,7 +1048,6 @@ void kbase_ipa_control_protm_exited(struct kbase_device *kbdev)
 	u32 status;
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
-
 
 	for (i = 0; i < KBASE_IPA_CONTROL_MAX_SESSIONS; i++) {
 		struct kbase_ipa_control_session *session = &ipa_ctrl->sessions[i];
