@@ -25,7 +25,7 @@
 #include <linux/platform_device.h>
 #include <linux/version.h>
 #include <linux/module.h>
-#if IS_ENABLED(CONFIG_DEBUG_FS)
+#if IS_ENABLED(CONFIG_DEBUG_FS) || IS_ENABLED(CONFIG_MALI_MTK_MGMM)
 #include <linux/debugfs.h>
 #include <linux/version_compat_defs.h>
 #endif
