@@ -3535,6 +3535,10 @@ static void kbase_pm_timed_out(struct kbase_device *kbdev, const char *timeout_m
 	mtk_kbase_pm_timed_out_mcu_transition_check(kbdev);
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 #endif /* CONFIG_MALI_MTK_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)
+	if (kbdev->exception_mask & (1u << EXCEPTION_PM_TIMED_OUT))
+		BUG_ON(1);
+#endif /* CONFIG_MALI_MTK_TRIGGER_KE */
 
 	dev_err(kbdev->dev, "Sending reset to GPU - all running jobs will be lost\n");
 	if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR))

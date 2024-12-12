@@ -772,6 +772,14 @@ struct kbase_mmu_debug_info {
 };
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)
+enum exception_type {
+	EXCEPTION_BIT_STUCK = 0,
+	EXCEPTION_PM_TIMED_OUT = 1,
+	EXCEPTION_RESET_FAILED = 2,
+};
+#endif /* CONFIG_MALI_MTK_TRIGGER_KE */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
 enum mmu_dbg_log_config {
 	MMU_DBG_CFG_LOG_DIS = 0,
@@ -1440,6 +1448,10 @@ struct kbase_device {
 	struct mutex mmu_debug_info_lock;
 	size_t mmu_debug_info_head;
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)
+	u32 exception_mask;
+#endif /* CONFIG_MALI_MTK_TRIGGER_KE */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
 	u32 mmu_dbg_config_value;
