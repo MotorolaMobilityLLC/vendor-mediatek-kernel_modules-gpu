@@ -47,6 +47,15 @@
 #include <linux/of_device.h>
 #endif /* CONFIG_MALI_MTK_GPU_IOMMU */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP)
+#include <linux/dma-buf.h>
+#include <linux/dma-heap.h>
+#if IS_ENABLED(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && IS_ENABLED(CONFIG_MTK_GZ_KREE)
+#include <trusted_mem_api.h>
+#include <mtk_heap.h>
+#endif /* CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM && CONFIG_MTK_GZ_KREE */
+#endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP */
+
 /* Size of a bitfield element in bytes */
 #define BITFIELD_ELEM_SIZE sizeof(u64)
 
@@ -77,7 +86,209 @@ struct simple_pma_device {
 	size_t rmem_size;
 	size_t num_free_pages;
 	spinlock_t rmem_lock;
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP)
+	struct dma_buf_info heap_dma_info;
+#endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP */
 };
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP)
+static phys_addr_t alloc_sec_dma_heap(struct simple_pma_device *const epma_dev, size_t pma_size, struct dma_buf_info *dma_info)
+{
+	struct dma_heap *heap = NULL;
+	struct dma_buf *buf = NULL;
+	struct dma_buf_attachment *buf_attachment = NULL;
+	struct sg_table *sgt = NULL;
+	struct scatterlist *s = NULL;
+	int i = 0;
+	phys_addr_t pma_base = 0;
+	uint64_t phy_addr = 0;
+	u64 sec_handle = 0;
+	const char heap_name[] = "mtk_prot_page-uncached";
+	//TODO try svp_page or prot_page
+	// mtk_prot_page-uncached mtk_svp_page-uncached mtk_svp_region-aligned mtk_prot_region-aligned
+
+	(void)sgt;
+	heap = dma_heap_find(heap_name);
+	if (!heap) {
+		dev_err(epma_dev->dev, "failed to find heap %s\n", heap_name);
+		return 0;
+	}
+	buf = dma_heap_buffer_alloc(heap, pma_size, 0, 0);
+	if (!buf) {
+		dev_err(epma_dev->dev, "failed to allocate buffer\n");
+		return 0;
+	}
+	buf_attachment = dma_buf_attach(buf, epma_dev->dev);
+	if (!buf_attachment) {
+		dev_err(epma_dev->dev, "failed to attach buffer\n");
+		return 0;
+	}
+
+#if IS_ENABLED(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && IS_ENABLED(CONFIG_MTK_GZ_KREE)
+	sec_handle = dmabuf_to_secure_handle(buf);
+
+	if (sec_handle && is_support_secure_handle(buf)) {
+		// For region base sec mem
+		// use trusted_mem api
+#if IS_ENABLED(CONFIG_ARM_FFA_TRANSPORT)
+		trusted_mem_ffa_query_pa(&sec_handle, &phy_addr);
+#else
+		trusted_mem_api_query_pa(0, 0, 0, NULL, &sec_handle, NULL, 0, 0, &phy_addr);
+#endif
+	} else {
+		// For page base sec mem
+		// use sg_dma_address to get PA
+#if (KERNEL_VERSION(6, 1, 55) <= LINUX_VERSION_CODE)
+		sgt = dma_buf_map_attachment_unlocked(buf_attachment, DMA_BIDIRECTIONAL);
+#else
+		sgt = dma_buf_map_attachment(buf_attachment, DMA_BIDIRECTIONAL);
+#endif
+		if (IS_ERR_OR_NULL(sgt)) {
+			dev_err(epma_dev->dev, "failed to get sg table\n");
+			return 0;
+		}
+		if(sgt->sgl != NULL){
+			phy_addr = sg_dma_address(sgt->sgl);
+			/*for_each_sg(sgt->sgl, s, sgt->nents, i) {
+				phy_addr = sg_phys(s);
+			}*/
+		} else {
+			dev_err(epma_dev->dev, "failed to get pa from sgl\n");
+			return 0;
+		}
+	}
+
+	pma_base = phy_addr;
+	dev_vdbg(epma_dev->dev, "pma:base=%llx,size=%zu,heap=%s\n",
+			(unsigned long long) pma_base, pma_size, heap_name);
+#else
+#if (KERNEL_VERSION(6, 1, 55) <= LINUX_VERSION_CODE)
+	sgt = dma_buf_map_attachment_unlocked(buf_attachment, DMA_BIDIRECTIONAL);
+#else
+	sgt = dma_buf_map_attachment(buf_attachment, DMA_BIDIRECTIONAL);
+#endif
+	if (sgt == NULL) {
+		dev_err(epma_dev->dev, "failed to get sg table\n");
+		return 0;
+	}
+	if(sgt->sgl != NULL){
+		pma_base = sg_dma_address(sgt->sgl);
+	} else {
+		dev_err(epma_dev->dev, "failed to get pa from sgl\n");
+		return 0;
+	}
+	dev_vdbg(epma_dev->dev, "pma:base=%llx,size=%zu,heap_name=%s\n",
+		(unsigned long long) pma_base, pma_size, heap_name);
+#endif
+	if(dma_info != NULL)
+	{
+		dma_info->buf = buf;
+		dma_info->buf_attachment = buf_attachment;
+		dma_info->sgt = sgt;
+	}
+
+	return pma_base;
+}
+
+static struct protected_memory_allocation *simple_pma_alloc_dma_page(
+	struct protected_memory_allocator_device *pma_dev, unsigned int order)
+{
+	size_t num_pages_to_alloc;
+	struct simple_pma_device *const epma_dev =
+		container_of(pma_dev, struct simple_pma_device, pma_dev);
+	struct protected_memory_allocation *pma;
+
+	num_pages_to_alloc = (size_t)1 << order;
+
+	dev_vdbg(epma_dev->dev, "%s(pma_dev=%px, order=%u\n",
+		__func__, (void *)pma_dev, order);
+
+	pma = devm_kzalloc(epma_dev->dev, sizeof(*pma), GFP_KERNEL);
+	if (!pma) {
+		dev_err(epma_dev->dev, "Failed to alloc pma struct");
+		return NULL;
+	}
+
+	pma->pa = alloc_sec_dma_heap(epma_dev, num_pages_to_alloc<<PAGE_SHIFT, &(pma->dma_info));
+	pma->order = order;
+
+	if (pma->pa == 0) {
+		devm_kfree(epma_dev->dev, pma);
+		dev_err(epma_dev->dev, "Failed to get pma pa");
+		return NULL;
+	}
+
+	if (order > 0) {
+		dev_err(epma_dev->dev, "pma:base=%llx, order=%u\n",
+			(unsigned long long) pma->pa, order);
+	}
+
+	return pma;
+}
+
+static phys_addr_t simple_pma_get_dma_phys_addr(
+	struct protected_memory_allocator_device *pma_dev,
+	struct protected_memory_allocation *pma)
+{
+	struct simple_pma_device *const epma_dev =
+		container_of(pma_dev, struct simple_pma_device, pma_dev);
+
+	if (!pma) {
+		dev_err(epma_dev->dev, "Failed to get pma struct");
+		return 0;
+	}
+
+	dev_vdbg(epma_dev->dev, "%s(pma_dev=%px, pma=%px, pa=%llx\n",
+		__func__, (void *)pma_dev, (void *)pma,
+		(unsigned long long)pma->pa);
+	return pma->pa;
+}
+
+static void simple_pma_free_dma_page(
+	struct protected_memory_allocator_device *pma_dev,
+	struct protected_memory_allocation *pma)
+{
+	struct dma_buf *buf;
+	struct dma_buf_attachment *buf_attachment;
+	struct sg_table *sgt;
+	struct simple_pma_device *const epma_dev =
+		container_of(pma_dev, struct simple_pma_device, pma_dev);
+
+	if (!pma) {
+		dev_err(epma_dev->dev, "Failed to get pma struct");
+		return;
+	}
+
+	buf = pma->dma_info.buf;
+	buf_attachment = pma->dma_info.buf_attachment;
+	sgt = pma->dma_info.sgt;
+
+	dev_vdbg(epma_dev->dev, "%s(pma_dev=%px, pma=%px, pa=%llx\n",
+		__func__, (void *)pma_dev, (void *)pma,
+		(unsigned long long)pma->pa);
+
+	if (sgt) {
+		dma_buf_unmap_attachment(buf_attachment, sgt, DMA_BIDIRECTIONAL);
+	}
+	if (buf_attachment) {
+		dma_buf_detach(buf, buf_attachment);
+	}
+	if (buf) {
+		dma_buf_put(buf);
+	}
+	devm_kfree(epma_dev->dev, pma);
+}
+
+static void pma_alloc_test(struct protected_memory_allocator_device *pma_dev)
+{
+	struct simple_pma_device *const epma_dev =
+		container_of(pma_dev, struct simple_pma_device, pma_dev);
+	struct protected_memory_allocation *pma = simple_pma_alloc_dma_page(pma_dev, 3);
+	phys_addr_t pa = simple_pma_get_dma_phys_addr(pma_dev, pma);
+	dev_err(epma_dev->dev, "pma_alloc_test: phy_addr=%llx\n", (unsigned long long) pa);
+	simple_pma_free_dma_page(pma_dev, pma);
+}
+#endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP */
 
 /**
  * ALLOC_PAGES_BITFIELD_ARR_SIZE() - Number of elements in array
@@ -679,6 +890,9 @@ static int mtk_protected_memory_allocator_probe(struct platform_device *pdev)
 	size_t alloc_bitmap_pages_arr_size;
 	uint32_t gpr_id, gmpu_table_size, psize, pma_version;
 	uint64_t GPR_target_64;
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP_2MB)
+	struct protected_memory_allocation *pma;
+#endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP_2MB */
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IOMMU)
 	uint32_t dis_init_gpu_iommu = 0;
 #endif /* CONFIG_MALI_MTK_GPU_IOMMU */
@@ -711,7 +925,26 @@ static int mtk_protected_memory_allocator_probe(struct platform_device *pdev)
 	}
 
 	of_property_read_u32(np, "pma-version", &pma_version);
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP)
+	of_node_put(np);
+	epma_dev = devm_kzalloc(&pdev->dev, sizeof(*epma_dev), GFP_KERNEL);
+	if (!epma_dev)
+		return -ENOMEM;
 
+	epma_dev->pma_dev.ops.pma_alloc_page = simple_pma_alloc_dma_page;
+	epma_dev->pma_dev.ops.pma_get_phys_addr = simple_pma_get_dma_phys_addr;
+	epma_dev->pma_dev.ops.pma_free_page = simple_pma_free_dma_page;
+	epma_dev->pma_dev.owner = THIS_MODULE;
+	epma_dev->dev = &pdev->dev;
+
+	platform_set_drvdata(pdev, &epma_dev->pma_dev);
+	dev_info(&pdev->dev,
+		"Protected memory allocator probed successfully\n");
+
+	//pma_alloc_test(&epma_dev->pma_dev);
+	if (dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(44))) //TODO DMA_BIT_MASK(kbdev->gpu_props.mmu.pa_bits), dma_set_mask_and_coherent or dma_set_mask
+		return -ENOMEM;
+#else
 	if(pma_version == 2)
 	{
 		if( 0 != get_gpueb_gpr_val_v2(gpr_id, &GPR_target_64))
@@ -774,6 +1007,7 @@ static int mtk_protected_memory_allocator_probe(struct platform_device *pdev)
 			((1ULL << extra_pages) - 1) <<
 			(PAGES_PER_BITFIELD_ELEM - extra_pages);
 	}
+#endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP */
 
 	platform_set_drvdata(pdev, &epma_dev->pma_dev);
 	dev_info(&pdev->dev,
