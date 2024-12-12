@@ -684,10 +684,13 @@ struct kbase_mmu_mode const *kbase_mmu_mode_get_aarch64(void);
 #define DEVNAME_SIZE 16
 
 #if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+#ifndef JOB_STATUS_QOS
+#define JOB_STATUS_QOS
 struct job_status_qos {
 	phys_addr_t phyaddr;
 	size_t size;
 };
+#endif
 #endif /* CONFIG_MALI_MTK_GPU_BM_JM */
 
 /**
