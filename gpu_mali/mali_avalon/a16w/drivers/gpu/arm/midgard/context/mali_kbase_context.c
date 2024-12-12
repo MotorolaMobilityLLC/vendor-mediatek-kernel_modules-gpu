@@ -186,6 +186,12 @@ int kbase_context_common_init(struct kbase_context *kctx)
 
 	init_waitqueue_head(&kctx->event_queue);
 
+#if !MALI_USE_CSF
+	atomic_set(&kctx->event_closed, false);
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_BM_JM)
+	atomic_set(&kctx->jctx.work_id, 0);
+#endif
+#endif
 	kbase_gpu_vm_lock(kctx);
 	bitmap_copy(kctx->cookies, &cookies_mask, BITS_PER_LONG);
 	kbase_gpu_vm_unlock(kctx);

@@ -558,6 +558,9 @@ struct kbase_jd_atom {
 
 	wait_queue_head_t completed;
 	enum kbase_jd_atom_state status;
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+	int work_id;
+#endif
 	unsigned int slot_nr;
 
 	u32 atom_flags;
@@ -723,6 +726,10 @@ struct kbase_jd_context {
 	u32 *tb;
 	u32 job_nr;
 	size_t tb_wrap_offset;
+
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+	atomic_t work_id;
+#endif
 
 	struct list_head jit_atoms_head;
 	struct list_head jit_pending_alloc;
