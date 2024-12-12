@@ -29,9 +29,16 @@
 #include <mali_kbase_gpuprops_private_types.h>
 #include <mali_kbase_io.h>
 
+#if IS_ENABLED(CONFIG_MTK_GPUFREQ_V2)
+#include <mtk_gpufreq.h>
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+
 int kbase_backend_gpuprops_get(struct kbase_device *kbdev, struct kbasep_gpuprops_regdump *regdump)
 {
 	uint i;
+#if IS_ENABLED(CONFIG_MTK_GPUFREQ_V2) && !IS_ENABLED(CONFIG_MTK_GPU_LEGACY)
+	uint shader_present = 0;
+#endif /* CONFIG_MTK_GPUFREQ_V2 && CONFIG_MTK_GPU_LEGACY */
 
 	/* regdump is zero intiialized, individual entries do not need to be explicitly set */
 	regdump->gpu_id = KBASE_REG_READ(kbdev, GPU_CONTROL_ENUM(GPU_ID));
@@ -41,7 +48,19 @@ int kbase_backend_gpuprops_get(struct kbase_device *kbdev, struct kbasep_gpuprop
 #if IS_ENABLED(CONFIG_MALI_MTK_BRINGUP)
 	/* FPGA 1 core */
 	regdump->shader_present &= 0x1;
-#endif /* CONFIG_MALI_MTK_BRINGUP  */
+#else
+#if IS_ENABLED(CONFIG_MTK_GPUFREQ_V2) && !IS_ENABLED(CONFIG_MTK_GPU_LEGACY)
+	shader_present = gpufreq_get_shader_present();
+	if (shader_present &&
+		((regdump->shader_present | shader_present) == regdump->shader_present)) {
+		regdump->shader_present &= shader_present;
+	} else {
+		pr_info("%s,illegal shader present , HW: 0x%llx, SW: 0x%x\n",
+			__func__, regdump->shader_present, shader_present);
+		BUG_ON(1);
+	}
+#endif /* CONFIG_MTK_GPUFREQ_V2 && CONFIG_MTK_GPU_LEGACY */
+#endif /* CONFIG_MALI_MTK_BRINGUP */
 
 	regdump->tiler_present = kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(TILER_PRESENT));
 	regdump->l2_present = kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(L2_PRESENT));
@@ -113,6 +132,10 @@ int kbase_backend_gpuprops_get(struct kbase_device *kbdev, struct kbasep_gpuprop
 int kbase_backend_gpuprops_get_curr_config(struct kbase_device *kbdev,
 					   struct kbase_current_config_regdump *curr_config_regdump)
 {
+#if IS_ENABLED(CONFIG_MTK_GPUFREQ_V2) && !IS_ENABLED(CONFIG_MTK_GPU_LEGACY)
+	uint shader_present = 0;
+#endif /* CONFIG_MTK_GPUFREQ_V2 && CONFIG_MTK_GPU_LEGACY */
+
 	if (WARN_ON(!kbdev) || WARN_ON(!curr_config_regdump))
 		return -EINVAL;
 
@@ -124,6 +147,18 @@ int kbase_backend_gpuprops_get_curr_config(struct kbase_device *kbdev,
 #if IS_ENABLED(CONFIG_MALI_MTK_BRINGUP)
 	/* FPGA 1 core */
 	curr_config_regdump->shader_present &= 0x1;
+#else
+#if IS_ENABLED(CONFIG_MTK_GPUFREQ_V2) && !IS_ENABLED(CONFIG_MTK_GPU_LEGACY)
+	shader_present = gpufreq_get_shader_present();
+	if (shader_present &&
+		((curr_config_regdump->shader_present | shader_present) == curr_config_regdump->shader_present)) {
+		curr_config_regdump->shader_present &= shader_present;
+	} else {
+		pr_info("%s,illegal shader present , HW: 0x%llx, SW: 0x%x\n",
+			__func__, curr_config_regdump->shader_present, shader_present);
+		BUG_ON(1);
+	}
+#endif /* CONFIG_MTK_GPUFREQ_V2 && CONFIG_MTK_GPU_LEGACY */
 #endif /* CONFIG_MALI_MTK_BRINGUP */
 
 	curr_config_regdump->l2_present = kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(L2_PRESENT));

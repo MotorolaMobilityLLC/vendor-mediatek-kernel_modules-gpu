@@ -55,6 +55,10 @@
 static struct proc_dir_entry *proc_root;
 #endif /* CONFIG_MALI_MTK_PROC_FS */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_GOVERNOR)
+#include <platform/mtk_platform_common/mtk_platform_devfreq_governor.h>
+#endif /* CONFIG_MALI_MTK_DEVFREQ_GOVERNOR */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
 #include <platform/mtk_platform_common/mtk_platform_whitebox_force_hard_reset.h>
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
@@ -683,6 +687,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 		return -1;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_GOVERNOR)
+	mtk_devfreq_governor_init(kbdev);
+#endif /* CONFIG_MALI_MTK_DEVFREQ_GOVERNOR */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_init(kbdev);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
@@ -776,6 +784,10 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 		dev_info(kbdev->dev, "@%s: invalid kbdev", __func__);
 		return;
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_GOVERNOR)
+	mtk_devfreq_governor_term(kbdev);
+#endif /* CONFIG_MALI_MTK_DEVFREQ_GOVERNOR */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_term(kbdev);
