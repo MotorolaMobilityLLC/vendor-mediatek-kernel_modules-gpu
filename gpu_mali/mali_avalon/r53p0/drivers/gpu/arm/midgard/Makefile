@@ -83,7 +83,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE := n
         CONFIG_MALI_MTK_KBASE_TRACE_DEBUG := y
         CONFIG_MALI_MTK_KBASE_THREAD_DEBUG := y
-        CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG := y
+        CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG := n
         CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME := y
         CONFIG_MALI_MTK_GLB_PWROFF_TIMEOUT := y
         CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH := y
@@ -245,7 +245,7 @@ ccflags-y += -I$(KO_CODE_PATH)/include
 subdir-ccflags-y += -I$(KO_CODE_PATH)/include
 
 # Driver version string which is returned to userspace via an ioctl
-MALI_RELEASE_NAME ?= '"r52p0-00eac0"'
+MALI_RELEASE_NAME ?= '"r53p0-00eac0"'
 # Set up defaults if not defined by build system
 ifeq ($(CONFIG_MALI_DEBUG), y)
     MALI_UNIT_TEST = 1
@@ -382,8 +382,6 @@ mali_kbase-y += \
     mali_kbase_io.o
 
 mali_kbase-$(CONFIG_DEBUG_FS) += mali_kbase_pbha_debugfs.o
-
-mali_kbase-$(CONFIG_MALI_CINSTR_GWT) += mali_kbase_gwt.o
 
 mali_kbase-$(CONFIG_SYNC_FILE) += \
     mali_kbase_fence_ops.o \

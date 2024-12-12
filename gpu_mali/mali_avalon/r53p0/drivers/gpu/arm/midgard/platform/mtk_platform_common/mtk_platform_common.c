@@ -305,7 +305,7 @@ void mtk_common_debug(enum mtk_common_debug_types type, struct kbase_context *kc
 #if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
 		case MTK_COMMON_DBG_DUMP_FULL_DB:
 			dev_info(kbdev->dev, "trigger gpu full DB dump");
-#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG) && IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 			if (diagnosis_dump_mask & MTK_DBG_COMMON_DUMP_ENABLE_GROUPS_QUEUES) {
 				mtk_debug_csf_dump_groups_and_queues(kbdev, kctx);
 			}

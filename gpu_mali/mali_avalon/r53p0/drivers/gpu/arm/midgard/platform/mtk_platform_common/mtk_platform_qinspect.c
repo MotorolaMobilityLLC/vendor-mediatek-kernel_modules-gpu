@@ -1294,7 +1294,7 @@ static struct mtk_qinspect_cqs_wait_on *mtk_qinspect_query_internal_cqs_wait_it_
 	do {
 		/* search current queue_group */
 		if (wait_it->queue_group) {
-			while (wait_it->gpu_queue_idx < MAX_SUPPORTED_STREAMS_PER_GROUP) {
+			while (wait_it->gpu_queue_idx < BASEP_GPU_QUEUE_PER_QUEUE_GROUP_MAX) {
 				queue = wait_it->queue_group->bound_queues[wait_it->gpu_queue_idx++];
 				if (!queue || queue == wait_it->gpu_queue)
 					continue;
@@ -1593,7 +1593,7 @@ void mtk_qinspect_query_internal_shared_sb_wait_it_init(enum mtk_qinspect_queue_
 		wait_it->gpu_queue_idx = 0;
 		break;
 	default:
-		wait_it->gpu_queue_idx = MAX_SUPPORTED_STREAMS_PER_GROUP;
+		wait_it->gpu_queue_idx = BASEP_GPU_QUEUE_PER_QUEUE_GROUP_MAX;
 		break;
 	}
 }
@@ -1604,7 +1604,7 @@ struct mtk_qinspect_shared_sb_wait_on *mtk_qinspect_query_internal_shared_sb_wai
 	struct kbase_queue *queue;
 	struct mtk_qinspect_shared_sb_wait_on *wait_on;
 
-	while (wait_it->gpu_queue_idx < MAX_SUPPORTED_STREAMS_PER_GROUP) {
+	while (wait_it->gpu_queue_idx < BASEP_GPU_QUEUE_PER_QUEUE_GROUP_MAX) {
 		queue = wait_it->queue_group->bound_queues[wait_it->gpu_queue_idx++];
 		if (!queue || queue == wait_it->gpu_queue)
 			continue;
