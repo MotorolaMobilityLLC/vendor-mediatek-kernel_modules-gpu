@@ -20,16 +20,10 @@ static void pm_status_print(struct kbase_device *kbdev, const char *fmt, ...)
 	va_end(args);
 
 	if (ret > 0) {
-#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
-		if (kbdev->is_reset_triggered_by_fence_timeout)
-			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED, "%s", buffer);
-		else
-			dev_info(kbdev->dev, "%s", buffer);
-#else /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
-		dev_info(kbdev->dev, "%s", buffer);
-#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "%s", buffer);
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_DEFERRED_WHEN_RESET, "%s", buffer);
+#else /* CONFIG_MALI_MTK_LOG_BUFFER */
+		dev_info(kbdev->dev, "%s", buffer);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 }

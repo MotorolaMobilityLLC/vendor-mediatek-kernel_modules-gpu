@@ -181,9 +181,8 @@ void kbasep_printer_buffer_flush(struct kbasep_printer *kbpr)
 		}
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbpr->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "%s", buffer);
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-
+		mtk_logbuffer_type_print(kbpr->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_DEFERRED, "%s", buffer);
+#else /* CONFIG_MALI_MTK_LOG_BUFFER */
 		switch (kbpr->type) {
 		case KBASEP_PRINT_TYPE_DEV_INFO:
 #if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
@@ -212,6 +211,7 @@ void kbasep_printer_buffer_flush(struct kbasep_printer *kbpr)
 		default:
 			pr_err("printer not supported");
 		}
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 }
 

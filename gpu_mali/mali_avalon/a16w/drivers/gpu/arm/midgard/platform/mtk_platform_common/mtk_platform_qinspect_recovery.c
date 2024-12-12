@@ -30,19 +30,11 @@
 #define MTK_QINSPECT_ARRYA_SIZE 256
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
 #define mtk_qinspect_log(fmt, args...) \
 	do { \
 		mtk_logbuffer_type_print(g_kctx->kbdev, MTK_LOGBUFFER_TYPE_DEFERRED | MTK_LOGBUFFER_TYPE_CRITICAL, \
 		TAG fmt "\n", ##args); \
 	} while (0)
-#else /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
-#define mtk_qinspect_log(fmt, args...) \
-	do { \
-		dev_info(g_kctx->kbdev->dev, TAG fmt, ##args); \
-		mtk_logbuffer_type_print(g_kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL, TAG fmt "\n", ##args); \
-	} while (0)
-#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 #else
 #define mtk_qinspect_log(fmt, args...) \
 	do { \

@@ -4646,19 +4646,11 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		hrtimer_cancel(&rtdata.timer);
 		destroy_hrtimer_on_stack(&rtdata.timer);
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
-		if (kbdev->is_reset_triggered_by_fence_timeout) {
-			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
-				"GPU soft reset completed\n");
-		} else {
-			dev_info(kbdev->dev, "GPU soft reset completed");
-		}
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_DEFERRED_WHEN_RESET,
+			"GPU soft reset completed\n");
 #else /* CONFIG_MALI_MTK_LOG_BUFFER */
 		dev_info(kbdev->dev, "GPU soft reset completed");
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL,
-			"GPU soft reset completed\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		return 0;

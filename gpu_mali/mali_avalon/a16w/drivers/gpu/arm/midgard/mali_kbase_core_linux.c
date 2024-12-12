@@ -1840,27 +1840,19 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 	}
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 	if (fence_wait->time_in_microseconds == 2000 || fence_wait->time_in_microseconds == 3000) {
-#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
-		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
-			"ctx:%d_%d cpu queue:%llx Internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u\n",
-			kctx->tgid, kctx->id, fence_wait->queue,
-			fence_wait->time_in_microseconds,
-			fence_wait->flags,
-			fence_wait->pid);
-#else /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
-		dev_info(kctx->kbdev->dev, "ctx:%d_%d cpu queue:%llx Internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u",
-			kctx->tgid, kctx->id, fence_wait->queue,
-			fence_wait->time_in_microseconds,
-			fence_wait->flags,
-			fence_wait->pid);
-#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_DEFERRED,
 			 "ctx:%d_%d cpu queue:%llx Internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u\n",
 	         kctx->tgid, kctx->id, fence_wait->queue,
 	         fence_wait->time_in_microseconds,
 	         fence_wait->flags,
 	         fence_wait->pid);
+#else /* CONFIG_MALI_MTK_LOG_BUFFER */
+		dev_info(kctx->kbdev->dev, "ctx:%d_%d cpu queue:%llx Internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u",
+			kctx->tgid, kctx->id, fence_wait->queue,
+			fence_wait->time_in_microseconds,
+			fence_wait->flags,
+			fence_wait->pid);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		if (kctx->kbdev->scheduler_kthread_exec_begin_time > kctx->kbdev->scheduler_kthread_exec_end_time) {
 			s64 blocked_time = ktime_to_ms(ktime_sub(ktime_get(), kctx->kbdev->scheduler_kthread_exec_begin_time));
@@ -1896,53 +1888,40 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET)
 	if (fence_wait->time_in_microseconds == 3000) {
 		if (kbase_prepare_to_reset_gpu(kctx->kbdev, RESET_FLAGS_NONE)) {
-#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
-			mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_DEFERRED,
 					"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Trigger GPU reset\n",
 					kctx->tgid, kctx->id, fence_wait->queue,
 					fence_wait->time_in_microseconds);
-			kctx->kbdev->is_reset_triggered_by_fence_timeout = true;
-#else /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
+#else /* CONFIG_MALI_MTK_LOG_BUFFER */
 			dev_info(kctx->kbdev->dev, "ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Trigger GPU reset",
 						kctx->tgid, kctx->id, fence_wait->queue,
 						fence_wait->time_in_microseconds);
-#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-					"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Trigger GPU reset\n",
-					kctx->tgid, kctx->id, fence_wait->queue,
-					fence_wait->time_in_microseconds);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
 			ged_mali_event_update_gpu_reset_nolock(GPU_RESET_INTERNAL_FENCE_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 			kbase_reset_gpu(kctx->kbdev);
 		} else {
-#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
-			mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
-					"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Other threads are already resetting the GPU\n",
-					kctx->tgid, kctx->id, fence_wait->queue,
-					fence_wait->time_in_microseconds);
-#else /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_DEFERRED,
+				"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Other threads are already resetting the GPU\n",
+				kctx->tgid, kctx->id, fence_wait->queue,
+				fence_wait->time_in_microseconds);
+#else /* CONFIG_MALI_MTK_LOG_BUFFER */
 			dev_info(kctx->kbdev->dev, "ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Other threads are already resetting the GPU",
 					 kctx->tgid, kctx->id, fence_wait->queue,
 					 fence_wait->time_in_microseconds);
-#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-					"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Other threads are already resetting the GPU\n",
-					kctx->tgid, kctx->id, fence_wait->queue,
-					fence_wait->time_in_microseconds);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		}
 	}
 
-#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	if (fence_wait->time_in_microseconds == 5000) {
 		/* Log the 2s, 3s timeout dump */
 		mtk_logbuffer_dump_to_dev_and_clear(kctx->kbdev, MTK_LOGBUFFER_TYPE_DEFERRED);
 	}
-#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #endif /* CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET */
 #if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
@@ -1951,7 +1930,7 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 		fence_wait->time_in_microseconds == 8000 || fence_wait->time_in_microseconds == 9000) &&
 		(fence_wait->queue != 0)) {
 		mutex_lock(&recovery_lock);
-#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		if (fence_wait->time_in_microseconds == 4000) {
 			mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
 						"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Trigger cross queue sync recovery\n",
@@ -1961,14 +1940,13 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 				"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Trigger cross queue sync recovery",
 				kctx->tgid, kctx->id, fence_wait->queue, fence_wait->time_in_microseconds);
 		}
-#else /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
-		dev_info(kctx->kbdev->dev,
-			"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Trigger cross queue sync recovery",
-			kctx->tgid, kctx->id, fence_wait->queue, fence_wait->time_in_microseconds);
-#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+
 		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Trigger cross queue sync recovery\n",
+			kctx->tgid, kctx->id, fence_wait->queue, fence_wait->time_in_microseconds);
+#else /* CONFIG_MALI_MTK_LOG_BUFFER */
+		dev_info(kctx->kbdev->dev,
+			"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Trigger cross queue sync recovery",
 			kctx->tgid, kctx->id, fence_wait->queue, fence_wait->time_in_microseconds);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		mtk_qinspect_recovery(kctx, QINSPECT_CPU_QUEUE, &fence_wait->queue);
