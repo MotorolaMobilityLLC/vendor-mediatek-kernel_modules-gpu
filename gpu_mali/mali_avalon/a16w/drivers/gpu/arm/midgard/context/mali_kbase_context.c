@@ -192,6 +192,11 @@ int kbase_context_common_init(struct kbase_context *kctx)
 
 	kctx->id = (u32)atomic_add_return(1, &(kctx->kbdev->ctx_num)) - 1;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT)
+	if (kctx->kbdev->mem_whitebox_debug == true)
+		dev_err(kctx->kbdev->dev, "[pid:%d] kbase_create_context", kctx->tgid);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT */
+
 	mutex_lock(&kctx->kbdev->kctx_list_lock);
 	err = kbase_insert_kctx_to_process(kctx);
 	mutex_unlock(&kctx->kbdev->kctx_list_lock);

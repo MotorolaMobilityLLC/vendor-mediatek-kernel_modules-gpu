@@ -1410,6 +1410,13 @@ no_new_partial:
 	else if (nr_pages_to_account < nr_pages_requested)
 		new_page_count = mem_account_dec(kctx, nr_pages_requested - nr_pages_to_account);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT)
+	if (kctx->kbdev->mem_whitebox_debug == true) {
+		dev_err(kctx->kbdev->dev, "[pid:%d] nr_pages_requested: %lu, new_page_count: %d, nr_pages_to_account: %lu, kctx->used_pages: %10u\n",
+			kctx->tgid, nr_pages_requested, new_page_count, nr_pages_to_account, atomic_read(&(kctx->used_pages)));
+	}
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT */
+
 	KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
 
 done:

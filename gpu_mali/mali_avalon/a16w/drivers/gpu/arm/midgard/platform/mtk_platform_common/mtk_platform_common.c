@@ -65,6 +65,10 @@ static struct proc_dir_entry *proc_root;
 #include <platform/mtk_platform_common/mtk_platform_whitebox_fault_worker.h>
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT)
+#include <platform/mtk_platform_common/mtk_platform_whitebox_memory_footprint.h>
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT */
+
 static bool mfg_powered;
 static DEFINE_MUTEX(mfg_pm_lock);
 static DEFINE_MUTEX(common_debug_lock);
@@ -614,6 +618,10 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER */
 
 	mtk_debug_sleep_mode_debugfs_init(kbdev);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT)
+	mtk_whitebox_memory_footprint_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT */
 }
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
@@ -659,6 +667,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	mutex_init(&kbdev->mmu_debug_info_lock);
 	kbdev->mmu_debug_info_head = 0;
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT)
+	kbdev->mem_whitebox_debug = false;
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT */
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	mtk_dvfs_init(kbdev);
