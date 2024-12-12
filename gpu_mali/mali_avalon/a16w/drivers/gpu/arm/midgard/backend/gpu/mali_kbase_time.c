@@ -435,3 +435,13 @@ disable_registers:
 
 	return err;
 }
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+u64 kbase_backend_get_timestamp(struct kbase_device *kbdev)
+{
+	if (!kbase_io_is_gpu_powered(kbdev))
+		return 0;
+
+	return kbase_reg_read64_coherent(kbdev, GPU_CONTROL_ENUM(TIMESTAMP));
+}
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */

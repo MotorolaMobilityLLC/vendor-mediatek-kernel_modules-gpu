@@ -4,6 +4,10 @@ curr := platform/mtk_platform_common
 
 mali_kbase-y += $(curr)/mtk_platform_common.o
 
+ifeq ($(CONFIG_MALI_MTK_LOG_BUFFER),y)
+    mali_kbase-y += $(curr)/mtk_platform_logbuffer.o
+endif ## CONFIG_MALI_MTK_LOG_BUFFER ##
+
 ccflags-y += -I$(srctree)/drivers/devfreq/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/perf_common/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/tinysys_scmi/

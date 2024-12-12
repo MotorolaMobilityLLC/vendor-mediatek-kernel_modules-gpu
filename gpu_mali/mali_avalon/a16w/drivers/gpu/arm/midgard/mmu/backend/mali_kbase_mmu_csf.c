@@ -594,7 +594,7 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx, struct kbase_as
 			"pid: %d\n",
 			as_no, fault->addr, reason_str, status, exception_type,
 			kbase_gpu_exception_name(exception_type), access_type,
-			kbase_gpu_access_type_name(status), source_id, kctx->pid);
+			kbase_gpu_access_type_name(kbdev, status), source_id, kctx->pid);
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"\nctx_id: %d_%d, pid: %d\n"

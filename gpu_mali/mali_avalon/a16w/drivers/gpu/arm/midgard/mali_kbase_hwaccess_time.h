@@ -184,6 +184,17 @@ unsigned int kbase_get_timeout_ms(struct kbase_device *kbdev, enum kbase_timeout
  */
 u64 kbase_backend_get_cycle_cnt(struct kbase_device *kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+/**
+ * kbase_backend_get_timestamp - Reads the GPU timestamp
+ *
+ * @kbdev: Instance of a GPU platform device that implements a CSF interface.
+ *
+ * Return: Snapshot of the GPU timestamp register.
+ */
+u64 kbase_backend_get_timestamp(struct kbase_device *kbdev);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 /**
  * kbase_arch_timer_get_cntfrq - Get system timestamp counter frequency.
  *

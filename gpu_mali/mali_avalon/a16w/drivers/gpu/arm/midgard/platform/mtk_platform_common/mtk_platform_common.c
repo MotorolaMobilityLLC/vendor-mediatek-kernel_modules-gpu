@@ -18,6 +18,10 @@
 #include <mt-plat/aee.h>
 #endif /* CONFIG_MTK_AEE_FEATURE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_PROC_FS)
 #include <linux/proc_fs.h>
 
@@ -216,12 +220,20 @@ static void mtk_common_procfs_init(struct kbase_device *kbdev)
 		dev_info(kbdev->dev, "@%s: Cann't create /proc/%s", __func__, PROC_ROOT);
   		return;
   	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_procfs_init(kbdev, proc_root);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 }
 
 static void mtk_common_procfs_term(struct kbase_device *kbdev)
 {
 	if (IS_ERR_OR_NULL(kbdev))
 		return;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_procfs_term(kbdev, proc_root);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	proc_root = NULL;
 	remove_proc_entry(PROC_ROOT, NULL);
@@ -318,6 +330,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 		return -1;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_init(kbdev);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_PROC_FS)
 	mtk_common_procfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_PROC_FS */
@@ -337,6 +353,10 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 		dev_info(kbdev->dev, "@%s: invalid kbdev", __func__);
 		return;
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_term(kbdev);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_PROC_FS)
 	mtk_common_procfs_term(kbdev);

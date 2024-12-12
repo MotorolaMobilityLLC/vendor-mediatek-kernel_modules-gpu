@@ -74,6 +74,10 @@
 #include "platform/mtk_platform_utils.h"
 #endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 /** Number of milliseconds before we time out on a GPU soft/hard reset */
 #define RESET_TIMEOUT 500
 
@@ -1418,6 +1422,15 @@ struct kbase_device {
 
 	struct notifier_block oom_notifier_block;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	struct mtk_logbuffer_info logbuf_regular;
+	struct mtk_logbuffer_info logbuf_critical;
+	struct mtk_logbuffer_info logbuf_exception;
+#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
+	struct mtk_logbuffer_info logbuf_deferred;
+	bool is_reset_triggered_by_fence_timeout;
+#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	struct kbase_mem_migrate mem_migrate;
 
