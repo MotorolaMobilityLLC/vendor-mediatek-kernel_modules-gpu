@@ -219,11 +219,13 @@ int kbase_hwaccess_pm_init(struct kbase_device *kbdev)
 	if ((kbdev->gpu_props.gpu_id.arch_major > 11) ||
 	    ((kbdev->gpu_props.gpu_id.arch_major == 11) &&
 	     (kbdev->gpu_props.gpu_id.arch_minor >= 8) && (kbdev->gpu_props.gpu_id.arch_rev >= 10)))
-#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+#if !IS_ENABLED(CONFIG_MALI_MTK_SOI)
+		// CONFIG_MALI_MTK_SOI=n : clear bit
+		// MTK need clear the bit
 		clear_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE, &kbdev->pm.backend.gpu_sleep_allowed);
 #else
 		set_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE, &kbdev->pm.backend.gpu_sleep_allowed);
-#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
+#endif /* CONFIG_MALI_MTK_SOI */
 
 #endif
 
