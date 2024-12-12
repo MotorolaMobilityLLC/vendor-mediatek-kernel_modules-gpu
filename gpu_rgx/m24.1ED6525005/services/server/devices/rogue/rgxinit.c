@@ -1925,11 +1925,19 @@ PVRSRV_ERROR RGXLoadAndGetFWData(PVRSRV_DEVICE_NODE *psDeviceNode,
 	eErr = OSLoadFirmware(psDeviceNode, pszLoadedFwStr, OS_FW_VERIFY_FUNCTION, ppsRGXFW);
 	if (eErr == PVRSRV_ERROR_NOT_FOUND)
 	{
-		pszLoadedFwStr = aszFWpFilenameStr;
+#if defined(MTK_MINI_PORTING)
+	pszLoadedFwStr = RGX_FW_FILENAME;
+#else
+ 	pszLoadedFwStr = aszFWFilenameStr;
+#endif
 		eErr = OSLoadFirmware(psDeviceNode, pszLoadedFwStr, OS_FW_VERIFY_FUNCTION, ppsRGXFW);
 		if (eErr == PVRSRV_ERROR_NOT_FOUND)
 		{
+#if defined(MTK_MINI_PORTING)
 			pszLoadedFwStr = RGX_FW_FILENAME;
+#else
+			pszLoadedFwStr = aszFWFilenameStr;
+#endif
 			eErr = OSLoadFirmware(psDeviceNode, pszLoadedFwStr, OS_FW_VERIFY_FUNCTION, ppsRGXFW);
 			if (eErr == PVRSRV_ERROR_NOT_FOUND)
 			{

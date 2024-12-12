@@ -281,6 +281,9 @@ int PVRSRVDriverInit(void)
 	MTKMFGSystemInit();
 #endif
 
+#if defined(MTK_DEBUG_PROC_PRINT)
+	MTKPP_Init();
+#endif
 	return 0;
 }
 
@@ -304,6 +307,10 @@ void PVRSRVDriverDeinit(void)
 #endif
 
 	PVRSRVCommonDriverDeInit();
+
+#if defined(MTK_DEBUG_PROC_PRINT)
+	MTKPP_Deinit();
+#endif
 
 #if defined(MTK_MINI_PORTING)
 	MTKMFGSystemDeInit();

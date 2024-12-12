@@ -792,7 +792,11 @@ typedef struct _PVRSRV_RGXDEV_INFO_
 	 * line has been asserted and clears it if so */
 	IMG_BOOL (*pfnRGXAckIrq) (struct _PVRSRV_RGXDEV_INFO_ *psDevInfo);
 
+#if defined(MTK_MINI_PORTING)
+	spinlock_t				sGPUUtilLock;
+#else
 	POS_LOCK				hGPUUtilLock;
+#endif /* MTK_MINI_PORTING */
 
 	/* Register configuration */
 	RGX_REG_CONFIG			sRegConfig;
