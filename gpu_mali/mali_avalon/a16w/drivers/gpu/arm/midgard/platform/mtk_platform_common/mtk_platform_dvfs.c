@@ -45,7 +45,7 @@ static unsigned int current_util_mcu;
 #define UTIL_3D_ID       3
 #define UTIL_ITER_ID     4
 #define UTIL_MCU_ID      5
-#define UTIL_IRQ_ID      6
+#define UTIL_TILER_ID    6
 #define UTIL_SC_COMP_ID  7
 #define UTIL_l2ext_ID    8
 #elif IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE)
@@ -181,7 +181,7 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 	util_ex->util_iter_raw      = utilisation[UTIL_ITER_ID + NUM_PERF_COUNTERS];
 	util_ex->util_mcu_raw       = utilisation[UTIL_MCU_ID + NUM_PERF_COUNTERS];
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)
-	util_ex->util_irq_raw       = utilisation[UTIL_IRQ_ID + NUM_PERF_COUNTERS];
+	util_ex->util_tiler_raw     = utilisation[UTIL_TILER_ID + NUM_PERF_COUNTERS];
 	util_ex->util_sc_comp_raw   = utilisation[UTIL_SC_COMP_ID + NUM_PERF_COUNTERS];
 	util_ex->util_l2ext_raw     = utilisation[UTIL_l2ext_ID + NUM_PERF_COUNTERS];
 #endif /* CONFIG_MALI_MTK_GPU_DVFS_ASYNC */
