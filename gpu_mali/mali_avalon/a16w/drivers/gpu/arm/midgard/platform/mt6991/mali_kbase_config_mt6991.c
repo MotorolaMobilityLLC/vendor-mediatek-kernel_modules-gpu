@@ -450,9 +450,6 @@ static void pm_callback_runtime_gpu_idle(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
 	int ret_warn = 0;
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
-#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
-	int temp_autosuspend_delay_ms = 0;
-#endif
 	dev_dbg(kbdev->dev, "%s", __func__);
 
 	lockdep_assert_held(&kbdev->pm.lock);
@@ -472,31 +469,6 @@ static void pm_callback_runtime_gpu_idle(struct kbase_device *kbdev)
 
 	mtk_common_ged_dvfs_write_sysram_last_commit_top_idx();
 	mtk_common_ged_dvfs_write_sysram_last_commit_dual();
-
-#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
-if (ged_gpu_apo_support() == APO_2_0_NORMAL_SUPPORT) {
-	temp_autosuspend_delay_ms = kbdev->dev->power.autosuspend_delay;
-	/* If MCU IN SLEEP, autosuspend delay is not allowed to set zero. */
-	if (kbdev->pm.backend.mcu_state == KBASE_MCU_IN_SLEEP) {
-		if ((temp_autosuspend_delay_ms == 0) && (gAutosuspend_delay_ms == 0)) {
-			gAutosuspend_delay_ms = GED_APO_AUTOSUSPEND_DELAY_MS;
-			ged_gpu_autosuspend_timeout_notify(gAutosuspend_delay_ms);
-			pm_runtime_set_autosuspend_delay(kbdev->dev, gAutosuspend_delay_ms);
-		} else if (temp_autosuspend_delay_ms != 0) {
-			if (gAutosuspend_delay_ms != temp_autosuspend_delay_ms) {
-				gAutosuspend_delay_ms = temp_autosuspend_delay_ms;
-				ged_gpu_autosuspend_timeout_notify(gAutosuspend_delay_ms);
-				pm_runtime_set_autosuspend_delay(kbdev->dev, gAutosuspend_delay_ms);
-			}
-		}
-	} else if (gAutosuspend_delay_ms != temp_autosuspend_delay_ms) {
-		gAutosuspend_delay_ms = temp_autosuspend_delay_ms;
-		ged_gpu_autosuspend_timeout_notify(gAutosuspend_delay_ms);
-		pm_runtime_set_autosuspend_delay(kbdev->dev, gAutosuspend_delay_ms);
-	}
-	ged_dvfs_gpu_clock_switch_notify(GED_SLEEP);
-}
-#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	ged_dvfs_gpu_clock_switch_notify(GED_SLEEP);
@@ -623,8 +595,6 @@ int mtk_platform_pm_init(struct kbase_device *kbdev)
 	} else
 		dev_info(kbdev->dev, "Sleep mode: No dts property setting, default disabled");
 
-	ged_set_apo_legacy(GED_APO_LEGACY_VER2);
-	dev_info(kbdev->dev, "APO_LEGACY: %d", (int)ged_get_apo_legacy());
 	gpu_dvfs_status_reset_footprint();
 
 	dev_info(kbdev->dev, "GPU PM Callback - Initialize Done");
