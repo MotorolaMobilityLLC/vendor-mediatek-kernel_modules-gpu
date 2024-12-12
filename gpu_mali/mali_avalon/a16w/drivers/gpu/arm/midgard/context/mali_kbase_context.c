@@ -177,6 +177,9 @@ int kbase_context_common_init(struct kbase_context *kctx)
 	}
 
 	mutex_init(&kctx->reg_lock);
+#if IS_ENABLED(CONFIG_MALI_MTK_KCPUQ_PRIORITZED)
+	atomic_set(&kctx->prioritized, 1);
+#endif /* CONFIG_MALI_MTK_KCPUQ_PRIORITZED */
 
 	spin_lock_init(&kctx->mem_partials_lock);
 	INIT_LIST_HEAD(&kctx->mem_partials);
