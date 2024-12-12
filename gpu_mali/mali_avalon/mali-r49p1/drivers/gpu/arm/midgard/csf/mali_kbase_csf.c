@@ -1793,21 +1793,11 @@ void kbase_csf_ctx_handle_fault(struct kbase_context *kctx, struct kbase_fault *
 	int gr;
 	bool reported = false;
 	struct base_gpu_queue_group_error err_payload;
-	int err;
-	struct kbase_device *kbdev;
 
 	if (WARN_ON(!kctx))
 		return;
 
 	if (WARN_ON(!fault))
-		return;
-
-	kbdev = kctx->kbdev;
-	err = kbase_reset_gpu_try_prevent(kbdev);
-	/* Regardless of whether reset failed or is currently happening, exit
-	 * early
-	 */
-	if (err)
 		return;
 
 	err_payload =
@@ -1817,16 +1807,16 @@ void kbase_csf_ctx_handle_fault(struct kbase_context *kctx, struct kbase_fault *
 									  .status = fault->status,
 								  } } };
 
-	mutex_lock(&kctx->csf.lock);
+	lockdep_assert_held(&kctx->csf.lock);
 
 	for (gr = 0; gr < MAX_QUEUE_GROUP_NUM; gr++) {
 		struct kbase_queue_group *const group = kctx->csf.queue_groups[gr];
 
 		if (group && group->run_state != KBASE_CSF_GROUP_TERMINATED) {
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-			dev_info(kbdev->dev, "Terminate ctx %d_%d, group %d, kbase_csf_ctx_handle_fault", group->kctx->tgid, group->kctx->id, group->handle);
+			dev_info(kctx->kbdev->dev, "Terminate ctx %d_%d, group %d, kbase_csf_ctx_handle_fault", group->kctx->tgid, group->kctx->id, group->handle);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 				"Terminate ctx %d_%d, group %d, kbase_csf_ctx_handle_fault\n", group->kctx->tgid, group->kctx->id, group->handle);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
@@ -1842,12 +1832,8 @@ void kbase_csf_ctx_handle_fault(struct kbase_context *kctx, struct kbase_fault *
 		}
 	}
 
-	mutex_unlock(&kctx->csf.lock);
-
 	if (reported)
 		kbase_event_wakeup(kctx);
-
-	kbase_reset_gpu_allow(kbdev);
 }
 
 void kbase_csf_ctx_term(struct kbase_context *kctx)

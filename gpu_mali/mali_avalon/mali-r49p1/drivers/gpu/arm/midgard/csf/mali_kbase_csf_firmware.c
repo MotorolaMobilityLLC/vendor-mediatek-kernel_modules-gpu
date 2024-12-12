@@ -1639,7 +1639,9 @@ static void handle_internal_firmware_fatal(struct kbase_device *const kbdev)
 	for (as = 0; as < kbdev->nr_hw_address_spaces; as++) {
 		unsigned long flags;
 		struct kbase_context *kctx;
-		struct kbase_fault fault;
+		struct kbase_fault fault = (struct kbase_fault) {
+			.status = GPU_EXCEPTION_TYPE_SW_FAULT_1,
+		};
 
 		if (as == MCU_AS_NR)
 			continue;
@@ -1659,15 +1661,15 @@ static void handle_internal_firmware_fatal(struct kbase_device *const kbdev)
 			continue;
 		}
 
-		fault = (struct kbase_fault){
-			.status = GPU_EXCEPTION_TYPE_SW_FAULT_1,
-		};
-
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
 		tgid = kctx->tgid;
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
-
-		kbase_csf_ctx_handle_fault(kctx, &fault);
+		if (!kbase_reset_gpu_try_prevent(kbdev)) {
+			mutex_lock(&kctx->csf.lock);
+			kbase_csf_ctx_handle_fault(kctx, &fault);
+			mutex_unlock(&kctx->csf.lock);
+			kbase_reset_gpu_allow(kbdev);
+		}
 		kbase_ctx_sched_release_ctx_lock(kctx);
 	}
 
