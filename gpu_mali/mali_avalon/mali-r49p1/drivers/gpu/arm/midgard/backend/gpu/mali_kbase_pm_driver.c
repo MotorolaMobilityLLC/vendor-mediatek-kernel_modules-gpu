@@ -66,6 +66,10 @@
 #include <linux/delay.h>
 #endif
 
+#ifdef CONFIG_MALI_MTK_SHADER_PWR_CTL_WA
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_SHADER_PWR_CTL_WA */
+
 #include <linux/of.h>
 #if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
 #include <platform/mtk_platform_common.h>
@@ -442,6 +446,14 @@ static void kbase_pm_invoke(struct kbase_device *kbdev, enum kbase_pm_core_type 
 {
 	u32 reg;
 
+#ifdef CONFIG_MALI_MTK_SHADER_PWR_CTL_WA
+	u64 shaders_trans = 0;
+	u64 shaders_ready = 0;
+	int clksrc = 0;
+	unsigned long flags;
+	int delay_count = 0;
+#endif /* CONFIG_MALI_MTK_SHADER_PWR_CTL_WA */
+
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
 	reg = core_type_to_reg(kbdev, core_type, action);
@@ -494,6 +506,22 @@ static void kbase_pm_invoke(struct kbase_device *kbdev, enum kbase_pm_core_type 
 			}
 	}
 
+#ifdef CONFIG_MALI_MTK_SHADER_PWR_CTL_WA
+	/*	enum g_clock_source_enum  {
+	 *	CLOCK_MAIN = 0,
+	 *	CLOCK_SUB,
+	 *	CLOCK_SUB2,
+	 *};
+	 */
+	if (core_type == KBASE_PM_CORE_SHADER &&
+		(action == ACTION_PWRON || action == ACTION_PWROFF)) {
+		//clksrc = 1;  /* CLOCK_SUB: 218.4MHz */
+		clksrc = 2;  /* CLOCK_SUB2: 26MHz */
+		mtk_set_gpufreq_clock_parking_lock(&flags);
+		mtk_set_gpufreq_clock_parking(clksrc);
+	}
+#endif /* CONFIG_MALI_MTK_SHADER_PWR_CTL_WA */
+
 	if (kbase_dummy_job_wa_enabled(kbdev) && action == ACTION_PWRON &&
 	    core_type == KBASE_PM_CORE_SHADER &&
 	    !(kbdev->dummy_job_wa.flags & KBASE_DUMMY_JOB_WA_FLAG_LOGICAL_SHADER_POWER)) {
@@ -501,6 +529,28 @@ static void kbase_pm_invoke(struct kbase_device *kbdev, enum kbase_pm_core_type 
 	}
 	else
 		kbase_reg_write64(kbdev, reg, cores);
+
+#ifdef CONFIG_MALI_MTK_SHADER_PWR_CTL_WA
+	if (core_type == KBASE_PM_CORE_SHADER &&
+		(action == ACTION_PWRON || action == ACTION_PWROFF)) {
+
+		/* Wait for shader transition done */
+		do {
+			udelay(10);
+			delay_count++;
+			dev_dbg(kbdev->dev, "delay_count: %d\n", delay_count);
+
+			shaders_trans = kbase_pm_get_trans_cores(kbdev, KBASE_PM_CORE_SHADER);
+			shaders_ready = kbase_pm_get_ready_cores(kbdev, KBASE_PM_CORE_SHADER);
+
+			shaders_trans &= ~shaders_ready;
+		} while (shaders_trans);
+
+		clksrc = 0;  /* CLOCK_MAIN: 1150MHz */
+		mtk_set_gpufreq_clock_parking(clksrc);
+		mtk_set_gpufreq_clock_parking_unlock(&flags);
+	}
+#endif /* CONFIG_MALI_MTK_SHADER_PWR_CTL_WA */
 }
 
 /**
