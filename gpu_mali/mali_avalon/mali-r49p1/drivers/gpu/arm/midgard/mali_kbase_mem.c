@@ -44,11 +44,6 @@
 #include <mmu/mali_kbase_mmu.h>
 #include <mali_kbase_trace_gpu_mem.h>
 #include <linux/version_compat_defs.h>
-#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
-#include <mtk_heap.h>
-#include <slbc_ops.h>
-#include <linux/memory_group_manager.h>
-#endif
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MGMM) || \
 	IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
@@ -2178,9 +2173,6 @@ KBASE_EXPORT_TEST_API(kbase_free_phy_pages_helper_locked);
 void kbase_mem_kref_free(struct kref *kref)
 {
 	struct kbase_mem_phy_alloc *alloc;
-#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
-	int gid = 0;
-#endif
 
 	alloc = container_of(kref, struct kbase_mem_phy_alloc, kref);
 
@@ -2238,14 +2230,7 @@ void kbase_mem_kref_free(struct kref *kref)
 #endif
 			kbase_remove_dma_buf_usage(alloc->imported.umm.kctx, alloc);
 		}
-#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
-		/* GPU only GID is controlled along with power flow */
-		gid = dma_buf_get_gid(alloc->imported.umm.dma_buf);
-		if (gid == slbc_gid_val(ID_GPU_W)) {
-			slbc_invalidate(ID_GPU_W,gid);
-			slbc_gid_release(ID_GPU_W,gid);
-		}
-#endif
+
 		dma_buf_detach(alloc->imported.umm.dma_buf, alloc->imported.umm.dma_attachment);
 		dma_buf_put(alloc->imported.umm.dma_buf);
 		break;

@@ -51,8 +51,6 @@
 #if IS_ENABLED(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && IS_ENABLED(CONFIG_MTK_GZ_KREE) && IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
 #include <trusted_mem_api.h>
 #include <mtk_heap.h>
-#elif IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
-#include <mtk_heap.h>
 #endif /* CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM && CONFIG_MTK_GZ_KREE && CONFIG_MALI_MTK_PROTECTED_PATCH */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
@@ -1601,10 +1599,6 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx, in
 	bool shared_zone = false;
 	bool need_sync = false;
 	int group_id;
-#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
-	int gid = 0;
-	struct slbc_gid_data slbc_data = {0x51ca11ca,0,0,0,0,0,0,0,0};
-#endif
 
 	/* 64-bit address range is the max */
 	if (*va_pages > (U64_MAX / PAGE_SIZE))
@@ -1613,9 +1607,7 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx, in
 	dma_buf = dma_buf_get(fd);
 	if (IS_ERR_OR_NULL(dma_buf))
 		return NULL;
-#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
-	gid = dma_buf_get_gid(dma_buf);
-#endif
+
 	dma_attachment = dma_buf_attach(dma_buf, kctx->kbdev->dev);
 	if (IS_ERR_OR_NULL(dma_attachment)) {
 		dma_buf_put(dma_buf);
@@ -1675,13 +1667,6 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx, in
 	}
 
 	group_id = get_umm_memory_group_id(kctx, dma_buf);
-#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
-	/* GPU only GID is controlled along with power flow */
-	if (gid == slbc_gid_val(ID_GPU_W)) {
-		slbc_gid_request(ID_GPU_W,&gid,&slbc_data);
-		slbc_validate(ID_GPU_W,gid);
-	}
-#endif
 
 	reg->gpu_alloc = kbase_alloc_create(kctx, *va_pages, KBASE_MEM_TYPE_IMPORTED_UMM, group_id);
 	if (IS_ERR_OR_NULL(reg->gpu_alloc))
