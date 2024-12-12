@@ -27,6 +27,10 @@ ifeq ($(CONFIG_MALI_MTK_DEBUG_DUMP),y)
     mali_kbase-y += $(curr)/mtk_platform_debug_dump_queue_data.o
 endif ## CONFIG_MALI_MTK_DEBUG_DUMP ##
 
+ifeq ($(CONFIG_MALI_MTK_MMAP_LOGGING),y)
+    mali_kbase-y += $(curr)/mtk_platform_debug_mmap_logging_debugfs.o
+endif ## CONFIG_MALI_MTK_MMAP_LOGGING ##
+
 ccflags-y += -I$(srctree)/drivers/devfreq/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/perf_common/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/tinysys_scmi/
