@@ -1385,6 +1385,7 @@ struct kbase_csf_scheduler {
 #define CSHWIF1_IRQ_ACTIVE_IDX (54)
 #define COMPUTE_ACTIVE_IDX (22)
 #define L2_EXT_READ_IDX (29)
+#define VCACHE_HIT_IDX (26)
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 /*

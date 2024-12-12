@@ -195,11 +195,11 @@ int kbasep_pm_metrics_init(struct kbase_device *kbdev)
 	/* *
 	 * add 3 counters for dvfs async ratio
 	 * */
-	// 054:CSHWCounters.CSHWIF1_IRQ_ACTIVE
+	// 026:TilerCounters.VCACHE_HIT
 	perf_counter[6].scaling_factor = GPU_ACTIVE_SCALING_FACTOR;
 	perf_counter[6].gpu_norm	   = true;
-	perf_counter[6].type		   = KBASE_IPA_CORE_TYPE_CSHW;
-	perf_counter[6].idx 		   = CSHWIF1_IRQ_ACTIVE_IDX;
+	perf_counter[6].type		   = KBASE_IPA_CORE_TYPE_TILER;
+	perf_counter[6].idx 		   = VCACHE_HIT_IDX;
 
 	// 022:SCCounters.COMPUTE_ACTIVE
 	perf_counter[7].scaling_factor = GPU_ACTIVE_SCALING_FACTOR;
