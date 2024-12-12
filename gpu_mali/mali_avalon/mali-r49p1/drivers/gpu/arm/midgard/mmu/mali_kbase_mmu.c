@@ -4880,6 +4880,212 @@ fail_free:
 KBASE_EXPORT_TEST_API(kbase_mmu_dump);
 #endif /* CONFIG_MALI_VECTOR_DUMP */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MMU_DUMP)
+size_t kbasep_mmu_dump_level_size(struct kbase_device *kbdev, phys_addr_t pgd, int level,
+				    struct kbase_mmu_table *mmu)
+{
+	phys_addr_t target_pgd;
+	u64 *pgd_page;
+	int i;
+	size_t size = KBASE_MMU_PAGE_ENTRIES * sizeof(u64) + sizeof(u64);
+	size_t dump_size;
+	struct kbase_mmu_mode const *mmu_mode;
+
+	if (WARN_ON(mmu == NULL))
+		return 0;
+	lockdep_assert_held(&(mmu->mmu_lock));
+
+	mmu_mode = kbdev->mmu_mode;
+
+	pgd_page = kbase_kmap(pfn_to_page(PFN_DOWN(pgd)));
+	if (!pgd_page) {
+		dev_warn(kbdev->dev, "%s: kmap failure", __func__);
+		return 0;
+	}
+
+
+	if (level < MIDGARD_MMU_BOTTOMLEVEL) {
+		for (i = 0; i < KBASE_MMU_PAGE_ENTRIES; i++) {
+			if (mmu_mode->pte_is_valid(pgd_page[i], level)) {
+				target_pgd = mmu_mode->pte_to_phy_addr(
+					kbdev->mgm_dev->ops.mgm_pte_to_original_pte(
+						kbdev->mgm_dev, MGM_DEFAULT_PTE_GROUP, level,
+						pgd_page[i]));
+
+				dump_size = kbasep_mmu_dump_level_size(kbdev, target_pgd, level + 1,
+								  mmu);
+				if (!dump_size) {
+					dev_warn(kbdev->dev, "[GPUMMU] return 0, dump_size = %u", (unsigned int) dump_size);
+					kbase_kunmap(pfn_to_page(PFN_DOWN(pgd)), pgd_page);
+					return 0;
+				}
+				size += dump_size;
+			}
+		}
+	}
+
+	kbase_kunmap(pfn_to_page(PFN_DOWN(pgd)), pgd_page);
+
+	return size;
+}
+
+size_t kbasep_mmu_dump_table_size(struct kbase_device *kbdev, int level, struct kbase_mmu_table *mmu)
+{
+	size_t size = 0;
+
+	if(mmu == NULL) return 0;
+
+	mutex_lock(&mmu->mmu_lock);
+	size = kbasep_mmu_dump_level_size(kbdev, mmu->pgd, MIDGARD_MMU_TOPLEVEL, mmu);
+	mutex_unlock(&mmu->mmu_lock);
+
+	return size;
+}
+
+static size_t kbasep_mmu_dump_level_mtk(struct kbase_device *kbdev, phys_addr_t pgd, int level,
+				    char **const buffer, size_t *size_left, struct kbase_mmu_table *mmu)
+{
+	phys_addr_t target_pgd;
+	u64 *pgd_page;
+	int i;
+	size_t size = KBASE_MMU_PAGE_ENTRIES * sizeof(u64) + sizeof(u64);
+	size_t dump_size;
+	struct kbase_mmu_mode const *mmu_mode;
+
+	if (WARN_ON(mmu == NULL))
+		return 0;
+	lockdep_assert_held(&(mmu->mmu_lock));
+
+	mmu_mode = kbdev->mmu_mode;
+
+	pgd_page = kbase_kmap(pfn_to_page(PFN_DOWN(pgd)));
+	if (!pgd_page) {
+		dev_warn(kbdev->dev, "%s: kmap failure", __func__);
+		return 0;
+	}
+
+
+	if (*size_left >= size) {
+		/* A modified physical address that contains
+		 * the page table level
+		 */
+		u64 m_pgd = pgd | (u64)level;
+		//dev_err(kbdev->dev, "[GPUMMU] dump ok (pgd | level = %llx)", m_pgd);
+
+		/* Put the modified physical address in the output buffer */
+		memcpy(*buffer, &m_pgd, sizeof(m_pgd));
+		*buffer += sizeof(m_pgd);
+
+		/* Followed by the page table itself */
+		memcpy(*buffer, pgd_page, sizeof(u64) * KBASE_MMU_PAGE_ENTRIES);
+		*buffer += sizeof(u64) * KBASE_MMU_PAGE_ENTRIES;
+
+		*size_left -= size;
+	} else {
+		dev_warn(kbdev->dev, "[GPUMMU] dump failed, size = %u, pgd | level = %llx", (unsigned int) size, (u64) (pgd | (u64)level) );
+	}
+
+	if (level < MIDGARD_MMU_BOTTOMLEVEL) {
+		for (i = 0; i < KBASE_MMU_PAGE_ENTRIES; i++) {
+			if (mmu_mode->pte_is_valid(pgd_page[i], level)) {
+				target_pgd = mmu_mode->pte_to_phy_addr(
+					kbdev->mgm_dev->ops.mgm_pte_to_original_pte(
+						kbdev->mgm_dev, MGM_DEFAULT_PTE_GROUP, level,
+						pgd_page[i]));
+
+				dump_size = kbasep_mmu_dump_level_mtk(kbdev, target_pgd, level + 1,
+								  buffer, size_left, mmu);
+				if (!dump_size) {
+					dev_warn(kbdev->dev, "[GPUMMU] return 0, dump_size = %u", (unsigned int) dump_size);
+					kbase_kunmap(pfn_to_page(PFN_DOWN(pgd)), pgd_page);
+					return 0;
+				}
+				size += dump_size;
+			}
+		}
+	}
+
+	kbase_kunmap(pfn_to_page(PFN_DOWN(pgd)), pgd_page);
+
+	return size;
+}
+
+void *kbase_mmu_dump_mtk(struct kbase_device *kbdev, struct kbase_context *kctx, size_t nr_pages, size_t *ret_size)
+{
+	void *kaddr;
+	size_t size_left;
+	struct kbase_mmu_table *target_mmu;
+
+	if (nr_pages == 0) {
+		/* can't dump in a 0 sized buffer, early out */
+		return NULL;
+	}
+
+	target_mmu = (kctx) ? &kctx->mmu : &kbdev->csf.mcu_mmu; // dump kctx mmu or csf mmu
+
+	size_left = nr_pages * PAGE_SIZE;
+
+	if (WARN_ON(size_left == 0))
+		return NULL;
+	kaddr = vmalloc_user(size_left);
+
+	mutex_lock(&target_mmu->mmu_lock);
+
+	if (kaddr) {
+		u64 end_marker = 0xFFULL;
+		char *buffer;
+		char *mmu_dump_buffer;
+		u64 config[3];
+		size_t dump_size, size = 0;
+		struct kbase_mmu_setup as_setup;
+
+		buffer = (char *)kaddr;
+		mmu_dump_buffer = buffer;
+
+		kbdev->mmu_mode->get_as_setup(target_mmu, &as_setup);
+		config[0] = as_setup.transtab;
+		config[1] = as_setup.memattr;
+		config[2] = as_setup.transcfg;
+		memcpy(buffer, &config, sizeof(config));
+		mmu_dump_buffer += sizeof(config);
+		size_left -= sizeof(config);
+		size += sizeof(config);
+
+		dev_info(kbdev->dev, "[GPUMMU] start dump, size_left = %u", (unsigned int) size_left);
+		dump_size = kbasep_mmu_dump_level_mtk(kbdev, target_mmu->pgd, MIDGARD_MMU_TOPLEVEL,
+						  &mmu_dump_buffer, &size_left, target_mmu);
+
+		if (!dump_size)
+			goto fail_exit;
+
+		size += dump_size;
+
+		/* Add on the size for the end marker */
+		size += sizeof(u64);
+		*ret_size = size;
+
+		if (size > (nr_pages * PAGE_SIZE)) {
+			/* The buffer isn't big enough - return without end_marker
+			 */
+			goto fail_exit;
+		}
+
+		/* Add the end marker */
+		memcpy(mmu_dump_buffer, &end_marker, sizeof(u64));
+	}
+
+	mutex_unlock(&target_mmu->mmu_lock);
+	return kaddr;
+
+fail_exit:
+	*ret_size = nr_pages * PAGE_SIZE;
+	dev_err(kbdev->dev, "%s: The buffer isn't big enough - return without end_marker \n", __func__);
+	mutex_unlock(&target_mmu->mmu_lock);
+	return kaddr;
+}
+KBASE_EXPORT_TEST_API(kbase_mmu_dump_mtk);
+#endif /* CONFIG_MALI_MTK_MMU_DUMP */
+
 void kbase_mmu_bus_fault_worker(struct work_struct *data)
 {
 	struct kbase_as *faulting_as;
