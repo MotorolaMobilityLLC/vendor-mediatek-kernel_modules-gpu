@@ -686,6 +686,16 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 				__func__, kbdev->exception_mask);
 #endif /* CONFIG_MALI_MTK_TRIGGER_KE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_RESET_DEBUG)
+	kbdev->reset_exception_mask = 0;
+	if (!of_property_read_u32(kbdev->dev->of_node, "reset-exception-mask", &kbdev->reset_exception_mask))
+		dev_info(kbdev->dev, "@%s: reset_exception_mask=0x%x",
+				__func__, kbdev->reset_exception_mask);
+	else
+		dev_info(kbdev->dev, "@%s: no dts property setting, default reset_exception_mask=0x%x",
+				__func__, kbdev->reset_exception_mask);
+#endif /* CONFIG_MALI_MTK_GPU_RESET_DEBUG */
+
 	return 0;
 }
 
