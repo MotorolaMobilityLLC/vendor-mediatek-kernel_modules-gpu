@@ -40,6 +40,14 @@
 #include <platform/mtk_platform_common.h>
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET)
+#include <mali_kbase_reset_gpu.h>
+#endif /* CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
+#include <platform/mtk_platform_common/mtk_platform_qinspect_recovery.h>
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
+
 static DEFINE_SPINLOCK(kbase_csf_fence_lock);
 #endif
 
