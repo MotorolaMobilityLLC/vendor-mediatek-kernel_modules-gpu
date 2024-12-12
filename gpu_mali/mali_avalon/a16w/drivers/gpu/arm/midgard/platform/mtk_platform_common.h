@@ -111,4 +111,11 @@ void mtk_platform_pm_term(struct kbase_device *kbdev);
 bool mtk_common_whitebox_missing_doorbell_enable(void);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+#define REQ_DSU_POWER_ON (1)
+#define REQ_DSU_POWER_OFF (0)
+#define GPUACP_SMC_OP_CPUPM_PWR (1)
+void mtk_platform_cpu_cache_request(struct kbase_device *kbdev, int request, enum kbase_l2_core_state l2_state);
+#endif
+
 #endif /* __MTK_PLATFORM_COMMON_H__ */

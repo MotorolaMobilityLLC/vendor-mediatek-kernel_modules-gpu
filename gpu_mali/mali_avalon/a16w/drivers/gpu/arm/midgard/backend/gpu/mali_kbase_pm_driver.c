@@ -59,6 +59,9 @@
 #endif
 
 #include <linux/of.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_DEBUG */
 
 #include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
@@ -2228,6 +2231,10 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 				kbase_pm_l2_config_override(kbdev);
 				kbase_pbha_write_settings(kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+				mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_ON, backend->l2_state);
+#endif /* CONFIG_MALI_MTK_ACP_DSU_REQ */
+
 				/* If Host is controlling the power for shader
 				 * cores, then it also needs to control the
 				 * power for Tiler.
@@ -2516,6 +2523,9 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 				backend->l2_force_off_after_mcu_halt = false;
 			}
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+			mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_OFF, backend->l2_state);
+#endif /* CONFIG_MALI_MTK_ACP_DSU_REQ */
 			/* L2 is now powered off */
 			backend->l2_state = KBASE_L2_OFF;
 
@@ -2533,6 +2543,9 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 #if MALI_USE_CSF
 				backend->l2_force_off_after_mcu_halt = false;
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+				mtk_platform_cpu_cache_request(kbdev, REQ_DSU_POWER_OFF, backend->l2_state);
+#endif /* CONFIG_MALI_MTK_ACP_DSU_REQ */
 				backend->l2_state = KBASE_L2_OFF;
 			}
 

@@ -85,6 +85,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_GPU_RESET_DEBUG := y
         CONFIG_MALI_MTK_FIX_TIMEOUT_WHITELIST := y
         CONFIG_MALI_SCMI_ENABLE := n
+        CONFIG_MALI_MTK_ACP_DSU_REQ := y
     endif ## mt6991 ##
 
     ifeq ($(MTK_PLATFORM_VERSION),mt6993)
@@ -141,6 +142,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_GPU_RESET_DEBUG := n
         CONFIG_MALI_MTK_FIX_TIMEOUT_WHITELIST := y
         CONFIG_MALI_SCMI_ENABLE := n
+        CONFIG_MALI_MTK_ACP_DSU_REQ := n
     endif ## mt6993 ##
 endif
 

@@ -59,6 +59,12 @@ static int gInit_autosuspend_delay_ms = KBASE_PLATFORM_SUSPEND_DELAY;
 static int gAutosuspend_delay_ms = 0;
 #endif /* CONFIG_MALI_MTK_AUTOSUSPEND_DELAY,CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+static int gIsDsuRequested = 0;
+spinlock_t g_dsu_request_lock;
+#endif /* CONFIG_MALI_MTK_ACP_DSU_REQ */
+
 DEFINE_MUTEX(g_mfg_lock);
 
 enum gpu_dvfs_status_step {
@@ -599,6 +605,10 @@ int mtk_platform_pm_init(struct kbase_device *kbdev)
 	if (IS_ERR_OR_NULL(kbdev))
 		return -1;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+	spin_lock_init(&g_dsu_request_lock);
+#endif /* CONFIG_MALI_MTK_ACP_DSU_REQ */
+
 	if (!of_property_read_u32(np, "sleep-mode-enable", &sleep_mode_enable)) {
 		dev_info(kbdev->dev, "Sleep mode %s", (sleep_mode_enable)? "enabled": "disabled");
 
@@ -631,3 +641,83 @@ void mtk_platform_pm_term(struct kbase_device *kbdev)
 		return;
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+static const char *kbase_l2_core_state_to_string(enum kbase_l2_core_state state)
+{
+	const char *const strings[] = {
+#define KBASEP_L2_STATE(n) #n,
+#include "mali_kbase_pm_l2_states.h"
+#undef KBASEP_L2_STATE
+	};
+	if (WARN_ON((size_t)state >= ARRAY_SIZE(strings)))
+		return "Bad level 2 cache state";
+	else
+		return strings[state];
+}
+#endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
+void mtk_platform_cpu_cache_request(struct kbase_device *kbdev, int request, enum kbase_l2_core_state l2_state)
+{
+	struct arm_smccc_res res;
+	unsigned long flags;
+	bool is_ace_lite = (kbdev->gpu_props.coherency_mode == COHERENCY_ACE_LITE);
+
+	spin_lock_irqsave(&g_dsu_request_lock, flags);
+	if (request == REQ_DSU_POWER_ON && l2_state == KBASE_L2_OFF)
+	{
+		if (gIsDsuRequested == 0 && is_ace_lite)
+		{
+			/* Call smc into security mode */
+			/* Check result in trusted zone */
+			arm_smccc_smc(
+				MTK_SIP_KERNEL_GPUEB_CONTROL,  /* a0 */
+				GPUACP_SMC_OP_CPUPM_PWR,       /* a1 */
+				REQ_DSU_POWER_ON,	       /* a2 */
+				0, 0, 0, 0, 0, &res);
+			gIsDsuRequested++;
+		}
+		else if (is_ace_lite)
+		{
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"%s Duplicated request to DSU power on, unexpected ref count %d \n",
+				__func__, gIsDsuRequested);
+#endif
+			BUG_ON(1);
+		}
+	}
+	else if (request == REQ_DSU_POWER_OFF && (l2_state == KBASE_L2_PEND_OFF || l2_state ==  KBASE_L2_RESET_WAIT))
+	{
+		if (gIsDsuRequested != 0 && is_ace_lite)
+		{
+			/* Call smc into security mode */
+			/* Check result in trusted zone */
+			arm_smccc_smc(
+				MTK_SIP_KERNEL_GPUEB_CONTROL,  /* a0 */
+				GPUACP_SMC_OP_CPUPM_PWR,       /* a1 */
+				REQ_DSU_POWER_OFF,	       /* a2 */
+				0, 0, 0, 0, 0, &res);
+			gIsDsuRequested--;
+		}
+		else if (is_ace_lite)
+		{
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"%s Duplicated request to DSU power off, unexpected ref count: %d , l2 state: %s\n",
+				__func__, gIsDsuRequested, kbase_l2_core_state_to_string(l2_state));
+#endif
+		}
+	}
+	else
+	{
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			 mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"%s Unsupported request %d , l2 state: %s \n",
+				__func__, request, kbase_l2_core_state_to_string(l2_state));
+#endif
+		BUG_ON(1);
+	}
+	spin_unlock_irqrestore(&g_dsu_request_lock, flags);
+}
+#endif
