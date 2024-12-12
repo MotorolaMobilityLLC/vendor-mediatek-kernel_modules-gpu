@@ -1909,7 +1909,10 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 				 * resumption.
 				 */
 				disable_gpu_idle_timer_no_db(kbdev);
-
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
+				KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_WAKEUP(
+					kbdev, kbase_backend_get_cycle_cnt(kbdev));
+#endif /* IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG) */
 				/* Set the state to ACTIVE before waking up MCU */
 				if (kbdev->pm.backend.has_host_pwr_iface)
 					kbase_csf_firmware_set_glb_state_active(kbdev);
