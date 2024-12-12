@@ -57,6 +57,8 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_PROTECTED_PATCH := y
         CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH := y
         CONFIG_MALI_MTK_WHITEBOX_MCU := y
+        CONFIG_MALI_PMU_LP4 := n
+        CONFIG_MALI_PMU_CPB128 := y
         CONFIG_MALI_MTK_MGMM := y
         CONFIG_MALI_MTK_MEMTRACK := y
         CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING := y
@@ -129,6 +131,8 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_KE_DUMP_FWLOG := n
         CONFIG_MALI_MTK_PROTECTED_PATCH := n
         CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH := y
+	CONFIG_MALI_PMU_LP4 := n
+        CONFIG_MALI_PMU_CPB128 := y
         CONFIG_MALI_MTK_MGMM := n
         CONFIG_MALI_MTK_MEMTRACK := n
         CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING := n
@@ -329,6 +333,7 @@ mali_kbase-y += \
     mali_kbase_hw.o \
     mali_kbase_debug.o \
     mali_kbase_gpu_memory_debugfs.o \
+    mali_kbase_gator_api.o \
     mali_kbase_mem_linux.o \
     mali_kbase_core_linux.o \
     mali_kbase_mem_profile_debugfs.o \

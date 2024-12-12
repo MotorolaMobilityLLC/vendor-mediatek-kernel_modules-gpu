@@ -48,6 +48,12 @@ ifeq ($(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING),y)
     mali_kbase-y += $(curr)/mtk_platform_dvfs_hint_26m_perf_cnting.o
 endif ## CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING ##
 
+ifeq ($(CONFIG_MTK_GPU_SWPM_SUPPORT),y)
+    mali_kbase-y += $(curr)/mtk_gpu_power_model_sspm_ipi.o
+    mali_kbase-y += $(curr)/mtk_ltr_pmu.o
+    mali_kbase-y += $(curr)/mtk_mfg_counter.o
+endif ## CONFIG_MTK_GPU_SWPM_SUPPORT ##
+
 ifeq ($(CONFIG_MALI_MTK_DEBUG_DUMP),y)
     mali_kbase-y += $(curr)/mtk_platform_debug_dump_csg.o
     mali_kbase-y += $(curr)/mtk_platform_debug_dump_cpu.o
