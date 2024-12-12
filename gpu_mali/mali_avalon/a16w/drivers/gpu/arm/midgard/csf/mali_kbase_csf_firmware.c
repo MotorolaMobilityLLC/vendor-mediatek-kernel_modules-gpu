@@ -2427,9 +2427,31 @@ int kbase_csf_firmware_early_init(struct kbase_device *kbdev)
 		return -EINVAL;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GLB_PWROFF_TIMEOUT)
+	struct device_node *node;
+	int gpu_glb_time = DEFAULT_GLB_PWROFF_TIMEOUT_NS;
+	u32 no_modifier = 0;
+#endif /* CONFIG_MALI_MTK_GLB_PWROFF_TIMEOUT */
 	init_waitqueue_head(&kbdev->csf.event_wait);
 
 	kbase_csf_firmware_reset_mcu_core_pwroff_time(kbdev);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GLB_PWROFF_TIMEOUT)
+	node = of_find_compatible_node(NULL, NULL, "arm,mali-valhall");
+	if (node) {
+		if (!of_property_read_u32(node, "default-glb-pwroff-timeout-us",
+			&gpu_glb_time))
+			kbdev->csf.mcu_core_pwroff_dur_ns = gpu_glb_time * 1000;
+
+		kbdev->csf.mcu_core_pwroff_dur_count = convert_dur_to_core_pwroff_count(
+				kbdev, gpu_glb_time * 1000, &no_modifier);
+		kbdev->csf.mcu_core_pwroff_dur_count_no_modifier = no_modifier;
+	}
+	dev_info(
+			kbdev->dev,
+			"Core Off: %lluns\n", kbdev->csf.mcu_core_pwroff_dur_ns);
+#endif /* CONFIG_MALI_MTK_GLB_PWROFF_TIMEOUT */
+
 	INIT_LIST_HEAD(&kbdev->csf.firmware_interfaces);
 	INIT_LIST_HEAD(&kbdev->csf.firmware_config);
 	INIT_LIST_HEAD(&kbdev->csf.firmware_timeline_metadata);
@@ -2462,14 +2484,32 @@ int kbase_csf_firmware_late_init(struct kbase_device *kbdev)
 				 THREAD_FEATURES_IMPLEMENTATION_TECHNOLOGY_SOFTWARE) ?
 			      CSG_SUSPEND_TIMEOUT_FPGA_MS :
 			      CSG_SUSPEND_TIMEOUT_MS;
+#if IS_ENABLED(CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME)
+	struct device_node *node;
+	int gpu_idle_time = FIRMWARE_IDLE_HYSTERESIS_TIME_NS;
+#endif /* CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME */
 
 	kbdev->csf.gpu_idle_hysteresis_ns = FIRMWARE_IDLE_HYSTERESIS_TIME_NS;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME)
+	node = of_find_compatible_node(NULL, NULL, "arm,mali-valhall");
+	if (node) {
+		if (!of_property_read_u32(node, "firmware-idle-hysteresis-time-ms",
+			&gpu_idle_time))
+			kbdev->csf.gpu_idle_hysteresis_ns = gpu_idle_time * 1000000;
+		else if (!of_property_read_u32(node, "firmware-idle-hysteresis-time-us",
+			&gpu_idle_time))
+			kbdev->csf.gpu_idle_hysteresis_ns = gpu_idle_time * 1000;
+	}
+#endif /* CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME */
 
 #ifdef KBASE_PM_RUNTIME
 	if (kbase_pm_gpu_sleep_allowed(kbdev))
 		kbdev->csf.gpu_idle_hysteresis_ns /= FIRMWARE_IDLE_HYSTERESIS_GPU_SLEEP_SCALER;
 #endif
+#if !IS_ENABLED(CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME)
 	WARN_ON(!kbdev->csf.gpu_idle_hysteresis_ns);
+#endif /* CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME */
 	kbdev->csf.gpu_idle_dur_count =
 		convert_dur_to_idle_count(kbdev, kbdev->csf.gpu_idle_hysteresis_ns, &no_modifier);
 	kbdev->csf.gpu_idle_dur_count_no_modifier = no_modifier;

@@ -1241,6 +1241,10 @@ struct kbase_csf_scheduler {
 	atomic_t pending_kcpuq_works;
 	spinlock_t kcpuq_work_queues_lock;
 	struct list_head kcpuq_work_queues;
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+	unsigned int apo_support;
+	struct hrtimer apo_idle_timer;
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 	atomic_t pending_tick_work;
 	atomic_t pending_tock_work;
 	atomic_t pending_gpu_idle_work;

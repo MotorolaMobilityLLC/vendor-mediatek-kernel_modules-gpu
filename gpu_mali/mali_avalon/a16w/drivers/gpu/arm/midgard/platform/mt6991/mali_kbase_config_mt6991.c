@@ -39,6 +39,16 @@
 
 /* KBASE_PLATFORM_SUSPEND_DELAY, the ms for autosuspend timeout */
 #define KBASE_PLATFORM_SUSPEND_DELAY (100) /* ms */
+#if IS_ENABLED(CONFIG_MALI_MTK_AUTOSUSPEND_DELAY)
+#define KBASE_PLATFORM_MAX_SUSPEND_DELAY (25) /* ms */
+#define KBASE_PLATFORM_MIN_SUSPEND_DELAY (10) /* ms */
+#endif /* CONFIG_MALI_MTK_AUTOSUSPEND_DELAY */
+#if IS_ENABLED(CONFIG_MALI_MTK_AUTOSUSPEND_DELAY) || IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+#include <ged_kpi.h>
+#include <ged_notify_sw_vsync.h>
+static int gInit_autosuspend_delay_ms = KBASE_PLATFORM_SUSPEND_DELAY;
+static int gAutosuspend_delay_ms = 0;
+#endif /* CONFIG_MALI_MTK_AUTOSUSPEND_DELAY,CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 
 DEFINE_MUTEX(g_mfg_lock);
 
@@ -330,11 +340,26 @@ static void pm_callback_runtime_gpu_idle(struct kbase_device *kbdev)
 
 static int kbase_device_runtime_init(struct kbase_device *kbdev)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_AUTOSUSPEND_DELAY)
+	struct device_node *np = kbdev->dev->of_node;
+#endif /* CONFIG_MALI_MTK_AUTOSUSPEND_DELAY */
 	int ret = 0;
 
 	dev_dbg(kbdev->dev, "%s\n", __func__);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_AUTOSUSPEND_DELAY)
+	if (!of_property_read_u32(np, "autosuspend-delay-ms", &gInit_autosuspend_delay_ms))
+		dev_info(kbdev->dev, "AutoSuspend Delay: %dms", gInit_autosuspend_delay_ms);
+	else {
+		dev_info(kbdev->dev, "AutoSuspend Delay: No dts property setting, default %dms",
+			gInit_autosuspend_delay_ms);
+	}
+
+	pm_runtime_set_autosuspend_delay(kbdev->dev, gInit_autosuspend_delay_ms);
+	gAutosuspend_delay_ms = gInit_autosuspend_delay_ms;
+#else
 	pm_runtime_set_autosuspend_delay(kbdev->dev, KBASE_PLATFORM_SUSPEND_DELAY);
+#endif /* CONFIG_MALI_MTK_AUTOSUSPEND_DELAY */
 
 	pm_runtime_use_autosuspend(kbdev->dev);
 
