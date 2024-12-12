@@ -1974,15 +1974,30 @@ void kbase_csf_ctx_term(struct kbase_context *kctx)
 		struct kbase_queue_group *group = kctx->csf.queue_groups[i];
 
 		if (group) {
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 			/* Drain a pending protected mode request if any */
-			kbase_csf_scheduler_wait_for_kthread_pending_work(
-				group->kctx->kbdev, &group->pending_protm_event_work);
+			kbase_csf_scheduler_wait_for_kthread_pending_work(group->kctx->kbdev,
+									&group->pending_protm_event_work);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+			WARN_ON(atomic_read(&group->pending_protm_event_work) != 0 || !list_empty(&group->protm_event_work));
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+#else
+			cancel_work_sync(&group->protm_event_work);
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 		}
 	}
 
-	/* Drain pending SYNC_UPDATE work if any */
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
+	/* Drain a pending SYNC_UPDATE work if any */
 	kbase_csf_scheduler_wait_for_kthread_pending_work(kctx->kbdev,
 							  &kctx->csf.pending_sync_update);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	WARN_ON(atomic_read(&kctx->csf.pending_sync_update) != 0 || !list_empty(&kctx->csf.sched.sync_update_work));
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+#else
+	cancel_work_sync(&kctx->csf.sched.sync_update_work);
+	destroy_workqueue(kctx->csf.sched.sync_update_wq);
+#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 
 	/* Now that all queue groups have been terminated, there can be no
 	 * more OoM or timer event interrupts but there can be inflight work
