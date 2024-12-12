@@ -119,12 +119,12 @@ static phys_addr_t alloc_sec_dma_heap(struct simple_pma_device *const epma_dev, 
 		return 0;
 	}
 	buf = dma_heap_buffer_alloc(heap, pma_size, 0, 0);
-	if (!buf) {
+	if (IS_ERR_OR_NULL(buf)) {
 		dev_err(epma_dev->dev, "failed to allocate buffer\n");
 		return 0;
 	}
 	buf_attachment = dma_buf_attach(buf, epma_dev->dev);
-	if (!buf_attachment) {
+	if (IS_ERR_OR_NULL(buf_attachment)) {
 		dev_err(epma_dev->dev, "failed to attach buffer\n");
 		return 0;
 	}
