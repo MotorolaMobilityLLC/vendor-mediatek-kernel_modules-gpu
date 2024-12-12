@@ -868,7 +868,7 @@ end:
 	return hysteresis_val;
 }
 
-#if IS_ENABLED(CONFIG_MALI_MTK_SOI)
+#if IS_ENABLED(CONFIG_MALI_MTK_SOI_DEBUG)
 
 bool kbase_csf_firmware_get_sleep_on_idle(struct kbase_device *kbdev)
 {
@@ -911,7 +911,7 @@ u32 kbase_csf_firmware_set_sleep_on_idle(struct kbase_device *kbdev, bool enable
 }
 KBASE_EXPORT_TEST_API(kbase_csf_firmware_set_sleep_on_idle);
 
-#endif /* defined(CONFIG_MALI_MTK_SOI)*/
+#endif /* defined(CONFIG_MALI_MTK_SOI_DEBUG)*/
 
 static u32 convert_dur_to_core_pwroff_count(struct kbase_device *kbdev, const u64 dur_ns,
 					    u32 *no_modifier)
