@@ -37,6 +37,13 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_PROC_FS)
 #include <linux/proc_fs.h>
 
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+#include <platform/mtk_platform_common/mtk_platform_dvfs.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+#include <platform/mtk_platform_common/mtk_platform_dvfs_hint_26m_perf_cnting.h>
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING */
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
+
 /* name of the proc root dir */
 #define	PROC_ROOT "mtk_mali"
 static struct proc_dir_entry *proc_root;
@@ -348,64 +355,131 @@ int mtk_common_gpufreq_dual_commit(int gpu_oppidx, int stack_oppidx)
 
 int mtk_common_ged_dvfs_get_last_commit_idx(void)
 {
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	return (int)ged_dvfs_get_last_commit_idx();
+#else
 	return -1;
+#endif
 }
 
 int mtk_common_ged_dvfs_get_last_commit_top_idx(void)
 {
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	return (int)ged_dvfs_get_last_commit_top_idx();
+#else
 	return -1;
+#endif
 }
 
 int mtk_common_ged_dvfs_get_last_commit_stack_idx(void)
 {
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	return (int)ged_dvfs_get_last_commit_stack_idx();
+#else
 	return -1;
+#endif
 }
 unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_idx(void)
 {
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	return (unsigned long)ged_dvfs_write_sysram_last_commit_idx();
+#else
 	return -1;
+#endif
 }
 
 unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_top_idx(void)
 {
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	return (unsigned long)ged_dvfs_write_sysram_last_commit_top_idx();
+#else
 	return -1;
+#endif
 }
 
 unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_stack_idx(void)
 {
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	return (unsigned long)ged_dvfs_write_sysram_last_commit_stack_idx();
+#else
 	return -1;
+#endif
 }
 
 unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_dual(void) {
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+		return (unsigned long)ged_dvfs_write_sysram_last_commit_dual();
+#else
 		return -1;
+#endif
 }
 
 unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_idx_test(int commit_idx) {
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	return (unsigned long)ged_dvfs_write_sysram_last_commit_idx_test(commit_idx);
+#else
 	return -1;
+#endif
 }
 
 unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_top_idx_test(int commit_idx)
 {
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	return (unsigned long)ged_dvfs_write_sysram_last_commit_top_idx_test(commit_idx);
+#else
 	return -1;
+#endif
 }
 
 unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_stack_idx_test(int commit_idx)
 {
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	return (unsigned long)ged_dvfs_write_sysram_last_commit_stack_idx_test(commit_idx);
+#else
 	return -1;
+#endif
 }
 
 unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_dual_test(int top_idx, int stack_idx)
 {
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	return (unsigned long)ged_dvfs_write_sysram_last_commit_dual_test(top_idx, stack_idx);
+#else
 	return -1;
+#endif
 }
 
 int mtk_common_ged_dvfs_update_step_size(int low_step, int med_step, int high_step)
 {
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	return ged_dvfs_update_step_size(low_step, med_step, high_step);
+#else
 	return -1;
+#endif
 }
 
 void mtk_common_get_system_timer_and_record(struct kbase_device *kbdev)
 {
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY) && \
+	IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_READ_SOC_TIMER)
+	u64 system_time_tmp = 0;
+	bool gpu_ready;
+
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
+	gpu_ready = kbdev->pm.backend.gpu_ready;
+
+	if (gpu_ready) {
+		kbase_backend_get_gpu_time_norequest(kbdev, NULL, &system_time_tmp, NULL);
+		ged_dvfs_record_soc_timer(system_time_tmp);
+	}
+
 	return;
+#else
+	return;
+#endif
+
 }
 
 int mtk_common_ged_pwr_hint(int pwr_hint)
@@ -428,12 +502,19 @@ static void mtk_common_procfs_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_procfs_init(kbdev, proc_root);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	mtk_dvfs_procfs_init(kbdev, proc_root);
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 }
 
 static void mtk_common_procfs_term(struct kbase_device *kbdev)
 {
 	if (IS_ERR_OR_NULL(kbdev))
 		return;
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	mtk_dvfs_procfs_term(kbdev, proc_root);
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_procfs_term(kbdev, proc_root);
@@ -579,6 +660,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	kbdev->mmu_debug_info_head = 0;
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	mtk_dvfs_init(kbdev);
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET)
 	mtk_whitebox_force_hard_reset_init();
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET */
@@ -618,6 +703,10 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_PROC_FS)
 	mtk_common_procfs_term(kbdev);
 #endif /* CONFIG_MALI_MTK_PROC_FS */
+
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	mtk_dvfs_term(kbdev);
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	mtk_debug_dump_infra_status_term();

@@ -45,6 +45,9 @@
 #include <mali_kbase_dummy_job_wa.h>
 #include <backend/gpu/mali_kbase_irq_internal.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+#include <ged_dvfs.h>
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING*/
 
 static void kbase_pm_gpu_poweroff_wait_wq(struct work_struct *data);
 static void kbase_pm_hwcnt_disable_worker(struct work_struct *data);
@@ -1001,6 +1004,9 @@ void kbase_pm_handle_gpu_lost(struct kbase_device *kbdev)
 		/* Update kbase status */
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 		kbdev->protected_mode = false;
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+		ged_dvfs_write_sysram_protm_exit();
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING */
 		kbase_pm_update_state(kbdev);
 
 		/* Cancel any pending HWC dumps */
@@ -1036,6 +1042,9 @@ void kbase_pm_handle_gpu_lost(struct kbase_device *kbdev)
 		/* Clear all jobs running on the GPU */
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 		kbdev->protected_mode = false;
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+		ged_dvfs_write_sysram_protm_exit();
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING */
 		kbase_backend_reset(kbdev, &end_timestamp);
 		kbase_pm_metrics_update(kbdev, NULL);
 		kbase_pm_update_state(kbdev);

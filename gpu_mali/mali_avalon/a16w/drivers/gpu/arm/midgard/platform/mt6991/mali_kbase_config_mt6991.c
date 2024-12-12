@@ -34,6 +34,15 @@
 #include <ged_notify_sw_vsync.h>
 #endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
 
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY) && \
+	IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+#include <platform/mtk_platform_common/mtk_platform_dvfs_hint_26m_perf_cnting.h>
+#include "platform/mtk_platform_common/mtk_platform_dvfs_hint_26m_perf_cnting_ex.h"
+#define TOP_BASE		(0x48500000)
+#define DVFS_TOP_BASE		(0x48530000)
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY && CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING*/
+
 /* KBASE_PLATFORM_DEBUG_ENABLE, 1 for debug log enable, 0 for disable */
 #define KBASE_PLATFORM_DEBUG_ENABLE  (0)
 
@@ -106,6 +115,9 @@ static int pm_callback_power_on_nolock(struct kbase_device *kbdev)
 
 	if (!gpufreq_power_ctrl_enable()) {
 		mtk_common_pm_mfg_active();
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+		ged_dvfs_gpu_clock_switch_notify(GED_POWER_ON);
+#endif
 		return 0;
 	}
 
@@ -131,6 +143,10 @@ static int pm_callback_power_on_nolock(struct kbase_device *kbdev)
 
 	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_3);
 
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	ged_dvfs_gpu_clock_switch_notify(GED_POWER_ON);
+#endif
+
 	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_4);
 
 	return 2;
@@ -155,12 +171,23 @@ static void pm_callback_power_off_nolock(struct kbase_device *kbdev)
 	mtk_common_ged_pwr_hint(0); /* Off mode */
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	ged_dvfs_gpu_clock_switch_notify(GED_POWER_OFF);
+#endif
+
 	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_6);
 
 	/* set a flag to disable GPU DVFS */
 	mtk_common_pm_mfg_idle();
 
 	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_7);
+
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY) && \
+	IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+	g_before_power_off_counter += mtk_dvfs_hint_26m_prfcnt_query(SELECT_UNION_ITER_MCU);
+	gpu_power_status = false;
+#endif
 
 	/* on,off/ SWCG(BG3D)/ MTCMOS/ BUCK */
 	if (gpufreq_power_control(GPU_PWR_OFF) < 0) {
@@ -404,6 +431,11 @@ static void pm_callback_runtime_gpu_active(struct kbase_device *kbdev)
 	KBASE_PLATFORM_LOGD("pm_runtime_get returned %d", error);
 
 	kbdev->pm.runtime_active = true;
+
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	ged_dvfs_gpu_clock_switch_notify(GED_POWER_ON);
+#endif
+
 }
 
 static void pm_callback_runtime_gpu_idle(struct kbase_device *kbdev)
@@ -432,7 +464,9 @@ static void pm_callback_runtime_gpu_idle(struct kbase_device *kbdev)
 	mtk_common_ged_dvfs_write_sysram_last_commit_top_idx();
 	mtk_common_ged_dvfs_write_sysram_last_commit_dual();
 
-
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	ged_dvfs_gpu_clock_switch_notify(GED_SLEEP);
+#endif
 	pm_runtime_mark_last_busy(kbdev->dev);
 	pm_runtime_put_autosuspend(kbdev->dev);
 	kbdev->pm.runtime_active = false;
@@ -554,6 +588,9 @@ int mtk_platform_pm_init(struct kbase_device *kbdev)
 	gpu_dvfs_status_reset_footprint();
 
 	dev_info(kbdev->dev, "GPU PM Callback - Initialize Done");
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+	mtk_dvfs_hint_26m_init(kbdev,TOP_BASE,DVFS_TOP_BASE);
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING */
 
 	return 0;
 }

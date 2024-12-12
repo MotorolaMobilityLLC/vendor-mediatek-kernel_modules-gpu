@@ -1326,6 +1326,17 @@ struct kbase_csf_scheduler {
 
 /* Index of the GPU_ACTIVE counter within the CSHW counter block */
 #define GPU_ACTIVE_CNT_IDX (4)
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+#define ITER_TILER_ACTIVE_IDX (16)
+#define ITER_COMP_ACTIVE_IDX  (24)
+#define ITER_FRAG_ACTIVE_IDX  (32)
+#define ITER_ITER_ACTIVE_IDX  (6)
+#define MCU_ACTIVE_IDX  (5)
+#define CSHWIF1_IRQ_ACTIVE_IDX (54)
+#define COMPUTE_ACTIVE_IDX (22)
+#define L2_EXT_READ_IDX (29)
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 /*
  * Maximum number of sessions that can be managed by the IPA Control component.
@@ -1389,6 +1400,10 @@ struct kbase_ipa_control_prfcnt {
 	u64 latest_raw_value;
 	u64 scaling_factor;
 	u64 accumulated_diff;
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	u64 accumulated_raw_diff;
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 	enum kbase_ipa_core_type type;
 	u8 select_idx;
 	bool gpu_norm;
