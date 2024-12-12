@@ -72,6 +72,10 @@ ifeq ($(CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER),y)
     mali_kbase-y += $(curr)/mtk_platform_whitebox_fault_worker.o
 endif ## CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER ##
 
+ifeq ($(CONFIG_MALI_MTK_MEMTRACK),y)
+    mali_kbase-y += $(curr)/mtk_platform_memtrack.o
+endif ## CONFIG_MALI_MTK_MEMTRACK ##
+
 ifeq ($(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT),y)
     mali_kbase-y += $(curr)/mtk_platform_whitebox_memory_footprint.o
 endif ## CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT ##

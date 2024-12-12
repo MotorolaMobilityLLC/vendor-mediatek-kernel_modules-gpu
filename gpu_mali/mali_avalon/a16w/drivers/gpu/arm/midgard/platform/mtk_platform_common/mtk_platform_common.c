@@ -69,6 +69,10 @@ static struct proc_dir_entry *proc_root;
 #include <platform/mtk_platform_common/mtk_platform_whitebox_fault_worker.h>
 #endif /* CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
+#include <platform/mtk_platform_common/mtk_platform_memtrack.h>
+#endif /* CONFIG_MALI_MTK_MEMTRACK */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT)
 #include <platform/mtk_platform_common/mtk_platform_whitebox_memory_footprint.h>
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT */
@@ -542,6 +546,10 @@ static void mtk_common_procfs_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	mtk_dvfs_procfs_init(kbdev, proc_root);
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
+	mtk_memtrack_procfs_init(kbdev, proc_root);
+#endif /* CONFIG_MALI_MTK_MEMTRACK */
 }
 
 static void mtk_common_procfs_term(struct kbase_device *kbdev)
@@ -555,6 +563,10 @@ static void mtk_common_procfs_term(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_procfs_term(kbdev, proc_root);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
+	mtk_memtrack_procfs_term(kbdev, proc_root);
+#endif /* CONFIG_MALI_MTK_MEMTRACK */
 
 	proc_root = NULL;
 	remove_proc_entry(PROC_ROOT, NULL);
@@ -744,6 +756,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 				__func__, kbdev->exception_mask);
 #endif /* CONFIG_MALI_MTK_TRIGGER_KE */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
+	mtk_memtrack_init(kbdev);
+#endif /* CONFIG_MALI_MTK_MEMTRACK */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_RESET_DEBUG)
 	kbdev->reset_exception_mask = 0;
 	if (!of_property_read_u32(kbdev->dev->of_node, "reset-exception-mask", &kbdev->reset_exception_mask))
@@ -792,6 +808,10 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 	mutex_destroy(&kbdev->register_check_lock);
 	mutex_destroy(&kbdev->mmu_debug_info_lock);
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMTRACK)
+	mtk_memtrack_term(kbdev);
+#endif /* CONFIG_MALI_MTK_MEMTRACK */
 
 	mtk_platform_pm_term(kbdev);
 }
