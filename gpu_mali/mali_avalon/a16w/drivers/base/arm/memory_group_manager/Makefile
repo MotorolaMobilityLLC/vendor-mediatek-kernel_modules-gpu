@@ -28,5 +28,13 @@ obj-m += mali_mgm_$(MTK_PLATFORM_VERSION)_a16w.o
 mali_mgm_$(MTK_PLATFORM_VERSION)_a16w-y := memory_group_manager.o
 
 ccflags-y += -DCONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH
+
+ifeq ($(MTK_PLATFORM_VERSION),mt6991)
+ccflags-y += -DCONFIG_MALI_MTK_MGMM
+endif
+ifeq ($(MTK_PLATFORM_VERSION),mt6993)
+ccflags-n += -DCONFIG_MALI_MTK_MGMM
+endif
+
 endif
 
