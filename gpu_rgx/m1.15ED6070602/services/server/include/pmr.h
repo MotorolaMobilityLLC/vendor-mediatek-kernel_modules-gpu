@@ -773,6 +773,10 @@ void
 PMRDequeueZombieAndRef(PMR *psPMR);
 #endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
 
+
+IMG_BOOL
+PMR_SetExclusiveUse(PMR *psPMR, IMG_BOOL bFlag);
+
 /*
  * PMR_ChangeSparseMemUnlocked()
  *

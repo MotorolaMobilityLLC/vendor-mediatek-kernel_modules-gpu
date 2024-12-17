@@ -46,6 +46,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "rgxdebug.h"
 #include "pvr_notifier.h"
 #include "pvrsrv.h"
+#include "pvrsrv_error.h"
+#include "rgxta3d.h"
 
 /*!
 ******************************************************************************
@@ -180,6 +182,68 @@ PVRSRV_ERROR RGXSetDeviceFlags(PVRSRV_RGXDEV_INFO *psDevInfo,
 const char* RGXStringifyKickTypeDM(RGX_KICK_TYPE_DM eKickTypeDM);
 
 #define RGX_STRINGIFY_KICK_TYPE_DM_IF_SET(bitmask, eKickTypeDM) bitmask & eKickTypeDM ? RGXStringifyKickTypeDM(eKickTypeDM) : ""
+/*************************************************************************/ /*!
+@Function       RGXCalcMListSize
+@Description    Function that calculates the MList Size required for
+                given local and global PB sizes.
+@Input          psDeviceNode The device node.
+@Input          ui64MaxLocalPBSize Maximum local PB size in bytes
+@Input          ui64MaxGlobalPBSize Maximum global PB size in bytes
+
+@Return         IMG_UINT32 Returns size of the mlist in bytes aligned to
+                RGX_BIF_PM_PHYSICAL_PAGE_SIZE.
+*/ /**************************************************************************/
+IMG_UINT32 RGXCalcMListSize(PVRSRV_DEVICE_NODE *psDeviceNode,
+                            IMG_UINT64 ui64MaxLocalPBSize,
+                            IMG_UINT64 ui64MaxGlobalPBSize);
+
+/*************************************************************************/ /*!
+@Function       ValidateFreeListSizes
+@Description    Helper function for RGXCreateHWRTDataSet
+                For the freelist array passed to RGXCreateHWRTDataSet, validate
+                if all global freelists have the same size and if all local
+                freelists have the same size. Return the sizes in output params.
+
+@Output         pui32LocalFLMaxPages Max number of pages for local freelist
+@Output         pui32GlobalFLMaxPages Max number of pages for global freelist
+
+@Return         PVRSRV_ERROR PVRSRV_OK if validation successful.
+                Appropriate error otherwise.
+*/ /**************************************************************************/
+PVRSRV_ERROR ValidateFreeListSizes(RGX_FREELIST* apsFreeLists[RGXFW_MAX_FREELISTS],
+                                   IMG_UINT32*   pui32LocalFLMaxPages,
+                                   IMG_UINT32*   pui32GlobalFLMaxPages);
+
+/*************************************************************************/ /*!
+@Function       AcquireValidateRefCriticalBuffer
+@Description    Helper function for RGXCreateHWRTDataSet
+                Acquire the reservation validate if the underlying PMR is
+                appropriate for use as critical buffer and ref it.
+@Input          psDevNode The device node.
+@Input          psReservation The reservation describing the critical buffer
+@Input          ui64MinSize Minimum size that buffer needs to have
+@Output         ppsPMR Pointer to be written with the PMR on success.
+@Output         psDevVAddr The device vaddress to be written on success.
+
+@Return         PVRSRV_ERROR PVRSRV_OK if validation successful.
+                Appropriate error otherwise.
+*/ /**************************************************************************/
+PVRSRV_ERROR AcquireValidateRefCriticalBuffer(PVRSRV_DEVICE_NODE*     psDevNode,
+                                              DEVMEMINT_RESERVATION2* psReservation,
+                                              IMG_DEVMEM_SIZE_T       ui64MinSize,
+                                              PMR**                   ppsPMR,
+                                              IMG_DEV_VIRTADDR*       psDevVAddr);
+
+
+/*************************************************************************/ /*!
+@Function       UnrefAndReleaseCriticalBuffer
+@Description    Helper function for RGXCreateHWRTDataSet
+                Unref the critical buffer and release the reservation object.
+@Input          psReservation The reservation describing the critical buffer
+
+*/ /**************************************************************************/
+void UnrefAndReleaseCriticalBuffer(DEVMEMINT_RESERVATION2* psReservation);
+
 /******************************************************************************
  End of file (rgxutils.h)
 ******************************************************************************/

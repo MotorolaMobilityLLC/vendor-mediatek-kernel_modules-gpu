@@ -119,8 +119,11 @@ typedef struct _RGX_HWRTDATA_COMMON_COOKIE_
 {
 	DEVMEM_MEMDESC			*psHWRTDataCommonFwMemDesc;
 	RGXFWIF_DEV_VIRTADDR	sHWRTDataCommonFwAddr;
-	IMG_UINT32				ui32RefCount;
 
+	DEVMEMINT_RESERVATION2* psPMStateReservation;
+	DEVMEMINT_RESERVATION2* psPMSecureStateReservation;
+	DEVMEMINT_RESERVATION2* psPMMListsReservation;
+	IMG_UINT32              ui32RefCount;
 } RGX_HWRTDATA_COMMON_COOKIE;
 
 typedef struct _RGX_KM_HW_RT_DATASET_
@@ -233,7 +236,32 @@ typedef struct {
 /* Dump the physical pages of a freelist */
 IMG_BOOL RGXDumpFreeListPageList(RGX_FREELIST *psFreeList);
 
-
+PVRSRV_ERROR RGXCreateHWRTDataSet2(CONNECTION_DATA      *psConnection,
+		PVRSRV_DEVICE_NODE	*psDeviceNode,
+		IMG_DEV_VIRTADDR	sVHeapTableDevVAddr,
+		DEVMEMINT_RESERVATION2  *psPMMListsReservation,
+		DEVMEMINT_RESERVATION2  *psPMStateReservation,
+		DEVMEMINT_RESERVATION2  *psPMSecureStateReservation,
+		RGX_FREELIST	           *apsFreeLists[RGXFW_MAX_FREELISTS],
+		IMG_UINT32                ui32ScreenPixelMax,
+		IMG_UINT64                ui64PPPMultiSampleCtl,
+		IMG_UINT32                ui32TEStride,
+		IMG_DEV_VIRTADDR          sTailPtrsDevVAddr,
+		IMG_UINT32                ui32TPCSize,
+		IMG_UINT32                ui32TEScreen,
+		IMG_UINT32                ui32TEAA,
+		IMG_UINT32                ui32TEMTILE1,
+		IMG_UINT32                ui32TEMTILE2,
+		IMG_UINT32                ui32RgnStride,
+		IMG_UINT32                ui32ISPMergeLowerX,
+		IMG_UINT32                ui32ISPMergeLowerY,
+		IMG_UINT32                ui32ISPMergeUpperX,
+		IMG_UINT32                ui32ISPMergeUpperY,
+		IMG_UINT32                ui32ISPMergeScaleX,
+		IMG_UINT32                ui32ISPMergeScaleY,
+		IMG_UINT16                ui16MaxRTs,
+		RGX_KM_HW_RT_DATASET    **ppsKMHWRTDataSet_0,
+		RGX_KM_HW_RT_DATASET    **ppsKMHWRTDataSet_1);
 
 /* Create HWRTDataSet */
 PVRSRV_ERROR RGXCreateHWRTDataSet(CONNECTION_DATA          *psConnection,

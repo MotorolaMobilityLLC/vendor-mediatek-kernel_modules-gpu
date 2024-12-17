@@ -263,6 +263,20 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
                                            RGX_CR_SOFT_RESET_BIF_JONES_EN | \
                                            RGX_CR_SOFT_RESET_SLC_EN))
 
+#define RGX_MLIST_ENTRY_STRIDE	(4U) /* 4 bytes */
+#define RGX_NUM_PM_ADDR_SPACES	(2U) /* VCE & TE share virtual space and Alist */
+#define RGX_PM_MAX_PB_VIRT_ADDR_SPACE  (IMG_UINT64_C(0x400000000)) /* PM Maximum addressable limit */
+
+
+#define RGX_PM_MAX_RSTATE_SIZE_DWORDS (46U)
+#define RGX_PM_MLIST_BASE_ADDR_MAX_ALIGNSIZE (32U)
+#define RGX_PM_VHEAP_BASE_ADDR_MAX_ALIGNSIZE (32U)
+#define _RGX_PM_RENDERSTATE_BUFFER_SET_MLIST_BASE_ADDR(_ft_,_x_) { ((_ft_)[2] = ((_x_) & (IMG_UINT64_C(0x00000000fffffff0)))); \
+                                                          ((_ft_)[3] = (((_x_) & (IMG_UINT64_C(0xffffffff00000000)))  >>  32)); }
+#define _RGX_PM_RENDERSTATE_BUFFER_SET_VHEAP_BASE_ADDR(_ft_,_x_) { ((_ft_)[6] = ((_x_) & (IMG_UINT64_C(0x00000000fffffff0)))); \
+                                                          ((_ft_)[7] = (((_x_) & (IMG_UINT64_C(0xffffffff00000000)))  >>  32)); }
+
+#define RGX_PM_RENDERSTATE_BASE_ADDR_ALIGNSIZE (32U)
 
 #define RGX_BIF_PM_PHYSICAL_PAGE_ALIGNSHIFT		(12U)
 #define RGX_BIF_PM_PHYSICAL_PAGE_SIZE			(1U << RGX_BIF_PM_PHYSICAL_PAGE_ALIGNSHIFT)
