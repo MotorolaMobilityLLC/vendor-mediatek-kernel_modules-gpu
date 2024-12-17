@@ -47,6 +47,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pvrsrv_error.h"
 #include "device.h"
 #include "mmu_common.h"
+#include "devicemem_server.h"
 #include "rgxdevice.h"
 
 #define RGXMEM_SERVER_MMU_CONTEXT_MAX_NAME 16
@@ -65,6 +66,43 @@ typedef struct _RGXMEM_PROCESS_INFO_
 } RGXMEM_PROCESS_INFO;
 
 typedef struct SERVER_MMU_CONTEXT_TAG SERVER_MMU_CONTEXT;
+
+/*************************************************************************/ /*!
+@Function       RGXServerMMUContextRef
+
+@Description    Increments the reference count on the SERVER_MMU_CONTEXT by one.
+
+                Use this function to prevent the SERVER_MMU_CONTEXT being freed
+                until RGXServerMMUContextUnref is called.
+
+                You should call this function if:
+                 1. You are making use of the SERVER_MMU_CONTEXT and this function
+                    hasn't been called previously in the callstack.
+                 2. You are setting pointer to a SERVER_MMU_CONTEXT into another
+                    object.
+
+                RGXServerMMUContextUnref must be called once the object is no
+                longer going to be read or written to in the current callstack.
+
+@Input          psServerMMUContext  The SERVER_MMU_CONTEXT to be reference counted.
+
+@Return         PVRSRV_ERROR
+*/ /**************************************************************************/
+PVRSRV_ERROR RGXServerMMUContextRef(SERVER_MMU_CONTEXT *psServerMMUContext);
+
+/*************************************************************************/ /*!
+@Function       RGXServerMMUContextUnref
+
+@Description    Decreases the reference count on the SERVER_MMU_CONTEXT by one.
+
+                This should be always called after RGXServerMMUContextRef, once
+                the SERVER_MMU_CONTEXT is no longer being read from or written to.
+
+@Input          psServerMMUContext  The SERVER_MMU_CONTEXT to be reference counted.
+
+@Return         PVRSRV_ERROR
+*/ /**************************************************************************/
+void RGXServerMMUContextUnref(SERVER_MMU_CONTEXT *psServerMMUContext);
 
 IMG_DEV_PHYADDR GetPC(MMU_CONTEXT * psContext);
 
@@ -125,9 +163,10 @@ PVRSRV_ERROR RGXPreKickCacheCommand(PVRSRV_RGXDEV_INFO *psDevInfo,
 									IMG_UINT32 *pui32MMUInvalidateUpdate);
 
 void RGXUnregisterMemoryContext(IMG_HANDLE hPrivData);
-PVRSRV_ERROR RGXRegisterMemoryContext(PVRSRV_DEVICE_NODE	*psDevNode,
-									  MMU_CONTEXT			*psMMUContext,
-									  IMG_HANDLE			*hPrivData);
+PVRSRV_ERROR RGXRegisterMemoryContext(PVRSRV_DEVICE_NODE *psDevNode,
+									  MMU_CONTEXT *psMMUContext,
+									  DEVMEMINT_CTX *psDevMemCtx,
+									  IMG_HANDLE *hPrivData);
 
 DEVMEM_MEMDESC *RGXGetFWMemDescFromMemoryContextHandle(IMG_HANDLE hPriv);
 
