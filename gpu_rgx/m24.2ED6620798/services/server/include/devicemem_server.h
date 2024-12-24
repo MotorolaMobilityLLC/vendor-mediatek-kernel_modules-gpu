@@ -58,8 +58,6 @@ typedef struct _DEVMEMINT_CTX_EXPORT_ DEVMEMINT_CTX_EXPORT;
 typedef struct _DEVMEMINT_HEAP_ DEVMEMINT_HEAP;
 
 typedef struct _DEVMEMINT_RESERVATION_ DEVMEMINT_RESERVATION;
-
-typedef struct _DEVMEMINT_MAPPING_ DEVMEMINT_MAPPING;
 typedef struct _DEVMEMXINT_RESERVATION_ DEVMEMXINT_RESERVATION;
 typedef struct _DEVMEMINT_PF_NOTIFY_ DEVMEMINT_PF_NOTIFY;
 
@@ -143,6 +141,20 @@ PVRSRV_ERROR
 DevmemIntCtxDestroy(DEVMEMINT_CTX *psDevmemCtx);
 
 /*
+ * DevmemIntCtxRef()
+ *
+ * Increases the reference count on the given DEVMEMINT_CTX by one.
+ */
+PVRSRV_ERROR DevmemIntCtxRef(DEVMEMINT_CTX *psDevmemCtx);
+
+/*
+ * DevmemIntCtxUnref()
+ *
+ * Decreases the reference count on the given DEVMEMINT_CTX by one.
+ */
+void DevmemIntCtxUnref(DEVMEMINT_CTX *psDevmemCtx);
+
+/*
  * DevmemIntHeapCreate()
  *
  * Creates a new heap in this device memory context.  This will cause a call
@@ -169,6 +181,7 @@ DevmemIntHeapCreate(DEVMEMINT_CTX *psDevmemCtx,
                     IMG_UINT32 uiHeapConfigIndex,
                     IMG_UINT32 uiHeapIndex,
                     DEVMEMINT_HEAP **ppsDevmemHeapPtr);
+
 /*
  * DevmemIntHeapDestroy()
  *
@@ -195,6 +208,10 @@ DevmemIntHeapGetBaseAddr(DEVMEMINT_HEAP *psDevmemHeap);
  *              If you call DevmemIntReserveRange() (and the call succeeds)
  *              then you are promising that you shall later call DevmemIntUnreserveRange()
  *
+ * @Input       psConnectionData    The connection data from the bridge. Used
+ *                                  to determine where the call to this function
+ *                                  originated from.
+ * @Input       psDeviceNode        The device node (unused).
  * @Input       psDevmemHeap        The virtual heap the DevVAddr is within.
  * @Input       sReservationVAddr   The first virtual address of the range.
  * @Input       uiVirtualSize       The number of bytes in the virtual range.
@@ -204,7 +221,9 @@ DevmemIntHeapGetBaseAddr(DEVMEMINT_HEAP *psDevmemHeap);
  * @Return      PVRSRV_ERROR
 */ /**************************************************************************/
 PVRSRV_ERROR
-DevmemIntReserveRange(DEVMEMINT_HEAP *psDevmemHeap,
+DevmemIntReserveRange(CONNECTION_DATA *psConnectionData,
+                      PVRSRV_DEVICE_NODE *psDeviceNode,
+                      DEVMEMINT_HEAP *psDevmemHeap,
                       IMG_DEV_VIRTADDR sReservationVAddr,
                       IMG_DEVMEM_SIZE_T uiVirtualSize,
                       PVRSRV_MEMALLOCFLAGS_T uiFlags,
@@ -251,6 +270,32 @@ DevmemIntUnreserveRange(DEVMEMINT_RESERVATION *psDevmemReservation);
 PVRSRV_ERROR
 DevmemIntMapPMR(DEVMEMINT_RESERVATION *psReservation, PMR *psPMR);
 
+#if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
+
+/*************************************************************************/ /*!
+ * @Function    DevmemIntRemapPageInPMR
+ *
+ * @Description Distributes calls to the MMU module to remap a given PMR
+ *              page offset into all associated mappings.
+ *
+ * @Input       psPMR                The PMR to be mapped.
+ * @Input       psMappingListHead    The mapping node list head where nodes are
+ *                                   associated with the PMR via calls to
+ *                                   PMRLinkGPUMapping.
+ *                                   Expected type:
+ *                                   DLLIST_NODE list head from the PMR
+ *                                   (sGpuMappingListHead)
+ * @Input       ui32LogicalPgOffset  The logical page offset into the
+ *                                   PMR and reservation.
+ *
+ * @Return      PVRSRV_ERROR failure code.
+ *              PVRSRV_ERROR_DEVICEMEM_REJECT_REMAP_REQUEST can be returned
+ *              if remap is not possible on the given page offset.
+*/ /**************************************************************************/
+PVRSRV_ERROR
+DevmemIntRemapPageInPMR(PMR *psPMR, DLLIST_NODE *psMappingListHead, IMG_UINT32 ui32LogicalPgOffset);
+#endif
+
 /*************************************************************************/ /*!
  * @Function    DevmemIntUnmapPMR()
  *
@@ -270,6 +315,10 @@ DevmemIntUnmapPMR(DEVMEMINT_RESERVATION *psReservation);
  * @Description Reserve (with DevmemIntReserveRange), and map a virtual range
  *              to a PMR (with DevmemIntMapPMR).
  *
+ * @Input       psConnectionData    The connection data from the bridge. Used
+ *                                  to determine where the call to this function
+ *                                  originated from.
+ * @Input       psDeviceNode        The device node.
  * @Input       psDevmemHeap        The virtual heap DevVAddr is within.
  * @Input       sReservationVAddr   The first virtual address of the range.
  * @Input       uiVirtualSize       The number of bytes in the virtual range.
@@ -280,7 +329,9 @@ DevmemIntUnmapPMR(DEVMEMINT_RESERVATION *psReservation);
  * @Return      PVRSRV_ERROR
 */ /**************************************************************************/
 PVRSRV_ERROR
-DevmemIntReserveRangeAndMapPMR(DEVMEMINT_HEAP *psDevmemHeap,
+DevmemIntReserveRangeAndMapPMR(CONNECTION_DATA *psConnectionData,
+                               PVRSRV_DEVICE_NODE *psDeviceNode,
+                               DEVMEMINT_HEAP *psDevmemHeap,
                                IMG_DEV_VIRTADDR sReservationVAddr,
                                IMG_DEVMEM_SIZE_T uiVirtualSize,
                                PMR *psPMR,
@@ -358,6 +409,8 @@ DevmemXIntUnreserveRange(DEVMEMXINT_RESERVATION *psRsrv);
 /*************************************************************************/ /*!
 @Function       DevmemIntReservationAcquire
 @Description    Acquire a reference to the provided device memory reservation.
+                Prevents releasing of the reservation if external device
+                resource components still require it.
 @Return         IMG_TRUE if referenced and IMG_FALSE in case of error
 */ /**************************************************************************/
 IMG_BOOL
@@ -366,8 +419,8 @@ DevmemIntReservationAcquire(DEVMEMINT_RESERVATION *psDevmemReservation);
 /*************************************************************************/ /*!
 @Function       DevmemIntReservationRelease
 @Description    Release the reference to the provided device memory reservation.
-            If this is the last reference which was taken then the
-                reservation will be freed.
+                Once these references have been released the
+                reservation is allowed to be released from UM.
 @Return         None.
 */ /**************************************************************************/
 void

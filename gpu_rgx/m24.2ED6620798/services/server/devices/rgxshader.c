@@ -308,9 +308,9 @@ PVRSRVTQLoadShaders(PVRSRV_DEVICE_NODE * psDeviceNode)
 	return PVRSRV_OK;
 
 failed_clipmr:
-	PMRUnrefPMR(psDevInfo->hTQCLISharedMem);
+	(void) PMRUnrefPMR(psDevInfo->hTQCLISharedMem);
 failed_uscpmr:
-	PMRUnrefPMR(psDevInfo->hTQUSCSharedMem);
+	(void) PMRUnrefPMR(psDevInfo->hTQUSCSharedMem);
 failed_firmware:
 	OSUnloadFirmware(psShaderFW);
 failed_init:

@@ -178,6 +178,9 @@ RGXGetConfiguredHWPerfCounters_exit:
 	return 0;
 }
 
+static_assert(RGXFWIF_HWPERF_CTRL_BLKS_MAX <= IMG_UINT32_MAX,
+	      "RGXFWIF_HWPERF_CTRL_BLKS_MAX must not be larger than IMG_UINT32_MAX");
+
 static IMG_INT
 PVRSRVBridgeRGXGetEnabledHWPerfBlocks(IMG_UINT32 ui32DispatchTableEntry,
 				      IMG_UINT8 * psRGXGetEnabledHWPerfBlocksIN_UI8,
@@ -200,6 +203,12 @@ PVRSRVBridgeRGXGetEnabledHWPerfBlocks(IMG_UINT32 ui32DispatchTableEntry,
 	IMG_UINT32 ui32BufferSize = 0;
 	IMG_UINT64 ui64BufferSize =
 	    ((IMG_UINT64) psRGXGetEnabledHWPerfBlocksIN->ui32ArrayLen * sizeof(IMG_UINT32)) + 0;
+
+	if (psRGXGetEnabledHWPerfBlocksIN->ui32ArrayLen > RGXFWIF_HWPERF_CTRL_BLKS_MAX)
+	{
+		psRGXGetEnabledHWPerfBlocksOUT->eError = PVRSRV_ERROR_BRIDGE_ARRAY_SIZE_TOO_BIG;
+		goto RGXGetEnabledHWPerfBlocks_exit;
+	}
 
 	psRGXGetEnabledHWPerfBlocksOUT->pui32EnabledBlockIDs =
 	    psRGXGetEnabledHWPerfBlocksIN->pui32EnabledBlockIDs;

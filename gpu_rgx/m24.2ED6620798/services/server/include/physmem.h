@@ -283,6 +283,7 @@ PhysMemValidateMappingTable(IMG_UINT32 ui32TotalNumVirtChunks,
 @Input          ui32NumVirtChunks      Number of virtual chunks.
 @Input          pui32MappingTable      Mapping Table.
 @Input          uiFlags                Allocation flags.
+@Input          uiPid                  PID of current process.
 @Inout          puiLog2AllocPageSize   Log2 of allocation page size.
                                        May be adjusted.
 @Inout          puiSize                Size of the allocation.
@@ -295,6 +296,7 @@ PhysMemValidateParams(PVRSRV_DEVICE_NODE *psDevNode,
                       IMG_UINT32 ui32NumVirtChunks,
                       IMG_UINT32 *pui32MappingTable,
                       PVRSRV_MEMALLOCFLAGS_T uiFlags,
+                      IMG_PID uiPid,
                       IMG_UINT32 *puiLog2AllocPageSize,
                       IMG_DEVMEM_SIZE_T *puiSize);
 

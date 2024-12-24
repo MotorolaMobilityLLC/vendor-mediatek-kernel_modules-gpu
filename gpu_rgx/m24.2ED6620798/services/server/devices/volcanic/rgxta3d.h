@@ -116,16 +116,18 @@ typedef struct _RGX_PMR_NODE_ RGX_PMR_NODE;
 
 typedef struct _RGX_HWRTDATA_COMMON_COOKIE_
 {
-	DEVMEM_MEMDESC			*psHWRTDataCommonFwMemDesc;
-	RGXFWIF_DEV_VIRTADDR	sHWRTDataCommonFwAddr;
-	IMG_UINT32				ui32RefCount;
-
+	DEVMEMINT_RESERVATION* psPMStateReservation;
+	DEVMEMINT_RESERVATION* psPMSecureStateReservation;
+	DEVMEMINT_RESERVATION* psPMMListsReservation;
+	IMG_UINT32             ui32RefCount;
 } RGX_HWRTDATA_COMMON_COOKIE;
 
 typedef struct _RGX_KM_HW_RT_DATASET_
 {
 	/* RGX_RTDATA_CLEANUP_DATA */
 	/* RGXMKIF_NUM_RTDATAS */
+	RGX_HWRTDATA_COMMON_COOKIE* psHWRTDataCommonCookie;
+
 	PVRSRV_DEVICE_NODE *psDeviceNode;
 	RGXFWIF_DEV_VIRTADDR sHWRTDataFwAddr;
 
@@ -231,7 +233,16 @@ typedef struct {
 /* Dump the physical pages of a freelist */
 IMG_BOOL RGXDumpFreeListPageList(RGX_FREELIST *psFreeList);
 
-
+PVRSRV_ERROR RGXCreateHWRTDataSet2(CONNECTION_DATA          *psConnection,
+                                   PVRSRV_DEVICE_NODE       *psDeviceNode,
+                                   IMG_DEV_VIRTADDR         psVHeapTableDevVAddr,
+                                   DEVMEMINT_RESERVATION    *psPMMListsReservation,
+                                   DEVMEMINT_RESERVATION    *psPMStateReservation,
+                                   DEVMEMINT_RESERVATION    *psPMSecureStateReservation,
+                                   RGX_FREELIST             *apsFreeLists[RGXMKIF_NUM_RTDATA_FREELISTS],
+                                   IMG_DEV_VIRTADDR         asTailPtrsDevVAddr[RGXMKIF_NUM_GEOMDATAS],
+                                   IMG_UINT16               ui16MaxRTs,
+                                   RGX_KM_HW_RT_DATASET     *pasKMHWRTDataSet[RGXMKIF_NUM_RTDATAS]);
 
 /* Create HWRTDataSet */
 PVRSRV_ERROR RGXCreateHWRTDataSet(CONNECTION_DATA          *psConnection,

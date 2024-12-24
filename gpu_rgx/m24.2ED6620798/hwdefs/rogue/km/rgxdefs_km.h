@@ -229,6 +229,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 /* PM interactive mode enabled default for all rogue cores */
 #define PM_INTERACTIVE_MODE
 
+#define RGX_MLIST_ENTRY_STRIDE	(4U) /* 4 bytes */
+#define RGX_NUM_PM_ADDR_SPACES	(2U) /* VCE & TE share virtual space and Alist */
+#define RGX_PM_MAX_PB_VIRT_ADDR_SPACE  (IMG_UINT64_C(0x400000000)) /* PM Maximum addressable limit */
+
 #define RGX_BIF_PM_PHYSICAL_PAGE_ALIGNSHIFT		(12U)
 #define RGX_BIF_PM_PHYSICAL_PAGE_SIZE			(1UL << RGX_BIF_PM_PHYSICAL_PAGE_ALIGNSHIFT)
 

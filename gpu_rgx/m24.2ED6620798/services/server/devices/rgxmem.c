@@ -75,6 +75,7 @@ struct SERVER_MMU_CONTEXT_TAG
 	IMG_UINT64 ui64FBSCEntryMask;
 	DLLIST_NODE sNode;
 	PVRSRV_RGXDEV_INFO *psDevInfo;
+	DEVMEMINT_CTX *psDevMemCtx;
 }; /* SERVER_MMU_CONTEXT is typedef-ed in rgxmem.h */
 
 PVRSRV_ERROR RGXInvalidateFBSCTable(PVRSRV_DEVICE_NODE *psDeviceNode,
@@ -534,15 +535,18 @@ void RGXUnregisterMemoryContext(IMG_HANDLE hPrivData)
 /*
  * RGXRegisterMemoryContext
  */
-PVRSRV_ERROR RGXRegisterMemoryContext(PVRSRV_DEVICE_NODE	*psDeviceNode,
-									  MMU_CONTEXT			*psMMUContext,
-									  IMG_HANDLE			*hPrivData)
+PVRSRV_ERROR RGXRegisterMemoryContext(PVRSRV_DEVICE_NODE *psDeviceNode,
+									  MMU_CONTEXT *psMMUContext,
+									  DEVMEMINT_CTX *psDevMemCtx,
+									  IMG_HANDLE *hPrivData)
 {
 	PVRSRV_ERROR			eError;
 	PVRSRV_RGXDEV_INFO		*psDevInfo = psDeviceNode->pvDevice;
 	RGXFWIF_FWMEMCONTEXT	*psFWMemContext;
 	DEVMEM_MEMDESC			*psFWMemContextMemDesc;
 	SERVER_MMU_CONTEXT *psServerMMUContext;
+
+	PVR_ASSERT(psDevMemCtx != NULL);
 
 	if (psDevInfo->psKernelMMUCtx == NULL)
 	{
@@ -564,6 +568,7 @@ PVRSRV_ERROR RGXRegisterMemoryContext(PVRSRV_DEVICE_NODE	*psDeviceNode,
 		psServerMMUContext->psDevInfo = psDevInfo;
 		psServerMMUContext->ui64FBSCEntryMask = 0;
 		psServerMMUContext->sFWMemContextDevVirtAddr.ui32Addr = 0;
+		psServerMMUContext->psDevMemCtx = psDevMemCtx;
 
 		/*
 			Allocate device memory for the firmware memory context for the new
@@ -731,6 +736,18 @@ fail_alloc_fw_ctx:
 fail_alloc_server_ctx:
 	PVR_ASSERT(eError != PVRSRV_OK);
 	return eError;
+}
+
+PVRSRV_ERROR RGXServerMMUContextRef(SERVER_MMU_CONTEXT *psServerMMUContext)
+{
+	PVR_ASSERT(psServerMMUContext != NULL);
+	return DevmemIntCtxRef(psServerMMUContext->psDevMemCtx);
+}
+
+void RGXServerMMUContextUnref(SERVER_MMU_CONTEXT *psServerMMUContext)
+{
+	PVR_ASSERT(psServerMMUContext != NULL);
+	DevmemIntCtxUnref(psServerMMUContext->psDevMemCtx);
 }
 
 DEVMEM_MEMDESC *RGXGetFWMemDescFromMemoryContextHandle(IMG_HANDLE hPriv)

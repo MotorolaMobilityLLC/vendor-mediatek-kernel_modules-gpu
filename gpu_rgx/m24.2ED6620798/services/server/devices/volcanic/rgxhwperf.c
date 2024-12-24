@@ -595,7 +595,7 @@ PVRSRV_ERROR PVRSRVRGXGetEnabledHWPerfBlocks(PVRSRV_DEVICE_NODE *psDevNode,
 				continue;
 			}
 
-			if (ui32LastIdx > ui32ArrayLen)
+			if (ui32LastIdx + 1 > ui32ArrayLen)
 			{
 				PVR_DPF((PVR_DBG_ERROR, "ui32ArrayLen less than the number of enabled blocks."));
 				PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_OUT_OF_MEMORY, Error);

@@ -554,7 +554,8 @@ PVRSRVDebugRequest(PVRSRV_DEVICE_NODE *psDevNode,
 	else
 	{
 		szVerbosityLevel = "unknown";
-		PVR_ASSERT(!"Invalid verbosity level received");
+		PVR_DPF((PVR_DBG_WARNING,
+				 "%s: Invalid verbosity level received", __func__));
 	}
 
 	PVR_DUMPDEBUG_LOG("------------[ PVR DBG: START (%s) ]------------",

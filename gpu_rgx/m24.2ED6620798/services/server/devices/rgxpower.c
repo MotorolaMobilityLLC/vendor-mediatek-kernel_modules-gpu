@@ -553,7 +553,8 @@ PVRSRV_ERROR RGXVzPrePowerState(PVRSRV_DEVICE_NODE		*psDeviceNode,
 									&RGXVzPrePowerState, &RGXVzPostPowerState,
 									psDeviceNode->psDevConfig->pfnPrePowerState,
 									psDeviceNode->psDevConfig->pfnPostPowerState,
-									&RGXForcedIdleRequest, &RGXCancelForcedIdleRequest);
+									&RGXForcedIdleRequest, &RGXCancelForcedIdleRequest,
+									&RGXCancelForcedIdleRequestAsync);
 		}
 		else
 		{
@@ -742,7 +743,7 @@ PVRSRV_ERROR RGXVzPostPowerState(PVRSRV_DEVICE_NODE		*psDeviceNode,
 			 * The original device RGX Pre/Post functions are called from this Vz wrapper. */
 			PVRSRVSetPowerCallbacks(psDeviceNode, psDeviceNode->psPowerDev,
 									&RGXVzPrePowerState, &RGXVzPostPowerState,
-									NULL, NULL, NULL, NULL);
+									NULL, NULL, NULL, NULL, NULL);
 
 			/* AutoVz Host driver reconnecting to running Firmware */
 			if (psDeviceNode->bAutoVzFwIsUp)
@@ -1635,24 +1636,18 @@ PVRSRV_ERROR RGXForcedIdleRequest(PVRSRV_DEVICE_NODE *psDeviceNode, IMG_BOOL bDe
 	return PVRSRV_OK;
 }
 
-/*
-	RGXCancelForcedIdleRequest
-*/
-PVRSRV_ERROR RGXCancelForcedIdleRequest(PVRSRV_DEVICE_NODE *psDeviceNode)
+static PVRSRV_ERROR _RGXSendCancelForceIdleCommand(PVRSRV_DEVICE_NODE *psDeviceNode,
+                                                   IMG_UINT32         *ui32CmdKCCBSlot)
 {
 	PVRSRV_RGXDEV_INFO	*psDevInfo = psDeviceNode->pvDevice;
 	RGXFWIF_KCCB_CMD	sPowCmd;
 	PVRSRV_ERROR		eError = PVRSRV_OK;
-	IMG_UINT32			ui32CmdKCCBSlot;
 	PVRSRV_VZ_RET_IF_MODE(GUEST, DEVNODE, psDeviceNode, PVRSRV_OK);
 
 	eError = SyncPrimSet(psDevInfo->psPowSyncPrim, 0);
-	if (eError != PVRSRV_OK)
-	{
-		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to set Power sync prim",
-				__func__));
-		goto ErrorExit;
-	}
+	PVR_LOG_GOTO_IF_ERROR(eError,
+	                      "SyncPrimSet: Failed to set Power sync prim",
+	                      ErrorExit);
 
 	/* Send the IDLE request to the FW */
 	sPowCmd.eCmdType = RGXFWIF_KCCB_CMD_POW;
@@ -1666,8 +1661,7 @@ PVRSRV_ERROR RGXCancelForcedIdleRequest(PVRSRV_DEVICE_NODE *psDeviceNode)
 	eError = RGXSendCommandAndGetKCCBSlot(psDevInfo,
 	                                      &sPowCmd,
 	                                      PDUMP_FLAGS_NONE,
-	                                      &ui32CmdKCCBSlot);
-
+	                                      ui32CmdKCCBSlot);
 	if (eError != PVRSRV_OK)
 	{
 		PDUMPCOMMENT(psDeviceNode,
@@ -1676,16 +1670,31 @@ PVRSRV_ERROR RGXCancelForcedIdleRequest(PVRSRV_DEVICE_NODE *psDeviceNode)
 		goto ErrorExit;
 	}
 
+ErrorExit:
+	return eError;
+}
+/*
+	RGXCancelForcedIdleRequest
+*/
+PVRSRV_ERROR RGXCancelForcedIdleRequest(PVRSRV_DEVICE_NODE *psDeviceNode)
+{
+	PVRSRV_RGXDEV_INFO	*psDevInfo = psDeviceNode->pvDevice;
+	PVRSRV_ERROR		eError = PVRSRV_OK;
+	IMG_UINT32			ui32CmdKCCBSlot;
+	PVRSRV_VZ_RET_IF_MODE(GUEST, DEVNODE, psDeviceNode, PVRSRV_OK);
+
+	eError = _RGXSendCancelForceIdleCommand(psDeviceNode, &ui32CmdKCCBSlot);
+	PVR_LOG_GOTO_IF_ERROR(eError,
+	                      "_RGXSendCancelForceIdleCommand",
+	                      ErrorExit);
+
 	/* Wait for the firmware to answer. */
 	eError = RGXPollForGPCommandCompletion(psDeviceNode,
 	                              psDevInfo->psPowSyncPrim->pui32LinAddr,
 								  1, 0xFFFFFFFF);
-
-	if (eError != PVRSRV_OK)
-	{
-		PVR_DPF((PVR_DBG_ERROR, "%s: Timeout waiting for cancel idle request", __func__));
-		goto ErrorExit;
-	}
+	PVR_LOG_GOTO_IF_ERROR(eError,
+	                      "RGXPollForGPCommandCompletion: Timeout waiting for cancel idle request",
+	                      ErrorExit);
 
 #if defined(PDUMP)
 	PDUMPCOMMENT(psDeviceNode,
@@ -1702,7 +1711,22 @@ PVRSRV_ERROR RGXCancelForcedIdleRequest(PVRSRV_DEVICE_NODE *psDeviceNode)
 	return eError;
 
 ErrorExit:
-	PVR_DPF((PVR_DBG_ERROR, "%s: Firmware potentially left in forced idle state", __func__));
+	PVR_DPF((PVR_DBG_ERROR, "%s: Firmware potentially left in forced idle state err: %u",
+	         __func__,
+	         eError));
+	return eError;
+}
+
+PVRSRV_ERROR RGXCancelForcedIdleRequestAsync(PVRSRV_DEVICE_NODE *psDeviceNode)
+{
+	PVRSRV_ERROR eError = _RGXSendCancelForceIdleCommand(psDeviceNode, NULL);
+	if (eError != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Firmware potentially left in forced idle state err: %u",
+		         __func__,
+		         eError));
+	}
+
 	return eError;
 }
 

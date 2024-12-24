@@ -268,7 +268,8 @@ static void CacheOpStatsExecLogWrite(CACHEOP_WORK_ITEM *psCacheOpWorkItem)
 								 1,
 								 gsCwq.asStatsExecuted[i32WriteOffset].uiOffset,
 								 &sDevPAddr,
-								 &bValid);
+								 &bValid,
+								 CPU_USE);
 
 		eLockError = PMRUnlockSysPhysAddresses(psCacheOpWorkItem->psPMR);
 		PVR_LOG_IF_ERROR(eLockError, "PMRUnlockSysPhysAddresses");
@@ -1100,6 +1101,9 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 		}
 	}
 
+	/* Lock the PMR while we are obtaining and using phys addrs */
+	PMRLockPMR(psPMR);
+
 	/* We always retrieve PMR data in bulk, up-front if number of pages is within
 	   PMR_MAX_TRANSLATION_STACK_ALLOC limits else we check to ensure that a
 	   dynamic buffer has been allocated to satisfy requests outside limits */
@@ -1113,7 +1117,8 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 									 ui32NumOfPages,
 									 uiPgAlignedStartOffset,
 									 psCpuPhyAddr,
-									 pbValid);
+									 pbValid,
+									 CPU_USE | MAPPING_USE);
 			if (eError == PVRSRV_OK)
 			{
 				bIsPMRInfoValid = IMG_TRUE;
@@ -1149,8 +1154,9 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 										 1,
 										 uiPgAlignedOffset,
 										 psCpuPhyAddr,
-										 pbValid);
-				PVR_LOG_GOTO_IF_ERROR(eError, "PMR_CpuPhysAddr", e0);
+										 pbValid,
+										 CPU_USE | MAPPING_USE);
+				PVR_LOG_GOTO_IF_ERROR(eError, "PMR_CpuPhysAddr", ErrUnlockPMR);
 			}
 			else
 			{
@@ -1159,7 +1165,7 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 										  1,
 										  uiPgAlignedOffset,
 										  pbValid);
-				PVR_LOG_GOTO_IF_ERROR(eError, "PMR_IsOffsetValid", e0);
+				PVR_LOG_GOTO_IF_ERROR(eError, "PMR_IsOffsetValid", ErrUnlockPMR);
 			}
 		}
 
@@ -1188,7 +1194,7 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 													  (void **)&pbCpuVirtAddr,
 													  &uiOutSize,
 													  &hPrivOut);
-				PVR_LOG_GOTO_IF_ERROR(eError, "PMRAcquireSparseKernelMappingData", e0);
+				PVR_LOG_GOTO_IF_ERROR(eError, "PMRAcquireSparseKernelMappingData", ErrUnlockPMR);
 			}
 			else
 			{
@@ -1199,7 +1205,7 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 												(void **)&pbCpuVirtAddr,
 												&uiOutSize,
 												&hPrivOut);
-				PVR_LOG_GOTO_IF_ERROR(eError, "PMRAcquireKernelMappingData", e0);
+				PVR_LOG_GOTO_IF_ERROR(eError, "PMRAcquireKernelMappingData", ErrUnlockPMR);
 			}
 		}
 
@@ -1224,6 +1230,8 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 		}
 	}
 
+ErrUnlockPMR:
+	PMRUnlockPMR(psPMR);
 e0:
 	if (psCpuPhyAddr != asCpuPhyAddr)
 	{

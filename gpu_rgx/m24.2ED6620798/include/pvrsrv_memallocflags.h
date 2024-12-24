@@ -69,7 +69,7 @@ typedef IMG_UINT64 PVRSRV_MEMALLOCFLAGS_T;
  *
  * --- MISC FLAGS         15..20 (9-bits) ---
  * | 15    | 16        | 17  | 18         | 19              | 20      |
- * | Defer | Alloc-Now | SVM | Scratch-Pg | CPU-Cache-Clean | Zero-Pg |
+ * | Defer | Reserved  | SVM | Scratch-Pg | CPU-Cache-Clean | Zero-Pg |
  *
  * --- RI FLAGS  21..23 (3-bits) ---
  * | 21     | 22       | 23        |
@@ -88,8 +88,8 @@ typedef IMG_UINT64 PVRSRV_MEMALLOCFLAGS_T;
  * | Shared-buffer  |
  *
  * --- OS SPECIFIC FLAGS ---
- * | 36             | 37            |
- * | Linux Pref CMA | Linux Movable |
+ * | 36             | 37            | 38              |
+ * | Linux Pref CMA | Linux Movable | Linux Deny Move |
  *
  * --- IPA Policy ---
  * | 53-55      |
@@ -535,8 +535,6 @@ typedef IMG_UINT64 PVRSRV_MEMALLOCFLAGS_T;
     instead deferred until they are first needed, i.e. "on demand".
     When unset, the pages may be allocated at the same time the PMR is created
     or deferred (at the KM/Server's discretion).
-    See also PVRSRV_MEMALLOCFLAG_PHYS_ALLOC_NOW (below). Note that at most one
-    of these two flags may be set.
  */
 #define PVRSRV_MEMALLOCFLAG_DEFER_PHYS_ALLOC			(IMG_UINT64_C(1)<<15)
 /*!
@@ -548,20 +546,10 @@ typedef IMG_UINT64 PVRSRV_MEMALLOCFLAGS_T;
 
 /*! ----- Bit 16
 
-    Indicates when the allocation of physical memory pages backing the PMR
-    is carried out. When set, pages are allocated at PMR creation.
-    When unset, the pages may be allocated at the same time the PMR is created
-    or deferred (at the KM/Server's discretion).
-    See also PVRSRV_MEMALLOCFLAG_DEFER_PHYS_ALLOC (above). Note that at most one
-    of these two flags may be set.
+    This flag is unused but kept for compatibility reasons. Once not a concern
+    the flag can be removed and but reused.
  */
-#define PVRSRV_MEMALLOCFLAG_PHYS_ALLOC_NOW				(IMG_UINT64_C(1)<<16)
-/*!
-  @Description    Macro checking whether the PVRSRV_MEMALLOCFLAG_PHYS_ALLOC_NOW flag is set.
-  @Input  uiFlags Allocation flags.
-  @Return         True if the flag is set, false otherwise
- */
-#define PVRSRV_CHECK_PHYS_ALLOC_NOW(uiFlags)			(((uiFlags) & PVRSRV_MEMALLOCFLAG_PHYS_ALLOC_NOW) != 0U)
+#define PVRSRV_MEMALLOCFLAG_PHYS_RESERVED				(IMG_UINT64_C(1)<<16)
 
 /*! ----- Bit 17
 
@@ -837,17 +825,20 @@ typedef IMG_UINT64 PVRSRV_MEMALLOCFLAGS_T;
  *  *                                                        *
  *  **********************************************************
  *
- * (Bits 36 to 37)
+ * (Bits 36 to 38)
  *
  */
 #define PVRSRV_MEMALLOCFLAG_OS_ALLOCFLAG_OFFSET 36
-#define PVRSRV_MEMALLOCFLAG_OS_ALLOCFLAG_MASK          (IMG_UINT64_C(3) << PVRSRV_MEMALLOCFLAG_OS_ALLOCFLAG_OFFSET)
+#define PVRSRV_MEMALLOCFLAG_OS_ALLOCFLAG_MASK          (IMG_UINT64_C(7) << PVRSRV_MEMALLOCFLAG_OS_ALLOCFLAG_OFFSET)
 
-#define PVRSRV_MEMALLOCFLAG_OS_LINUX_PREFER_CMA         (IMG_UINT64_C(1)<<36)
-#define PVRSRV_CHECK_OS_LINUX_PREFER_CMA(uiFlags)       (((uiFlags) & PVRSRV_MEMALLOCFLAG_OS_LINUX_PREFER_CMA) != 0U)
+#define PVRSRV_MEMALLOCFLAG_OS_LINUX_PREFER_CMA        (IMG_UINT64_C(1)<<36)
+#define PVRSRV_CHECK_OS_LINUX_PREFER_CMA(uiFlags)      (((uiFlags) & PVRSRV_MEMALLOCFLAG_OS_LINUX_PREFER_CMA) != 0U)
 
 #define PVRSRV_MEMALLOCFLAG_OS_LINUX_MOVABLE           (IMG_UINT64_C(1)<<37)
 #define PVRSRV_CHECK_OS_LINUX_MOVABLE(uiFlags)         (((uiFlags) & PVRSRV_MEMALLOCFLAG_OS_LINUX_MOVABLE) != 0U)
+
+#define PVRSRV_MEMALLOCFLAG_OS_LINUX_DENY_MOVE         (IMG_UINT64_C(1)<<38)
+#define PVRSRV_CHECK_OS_LINUX_DENY_MOVE(uiFlags)       (((uiFlags) & PVRSRV_MEMALLOCFLAG_OS_LINUX_DENY_MOVE) != 0U)
 
 /*
  *
@@ -1002,7 +993,6 @@ typedef IMG_UINT64 PVRSRV_MEMALLOCFLAGS_T;
                                             PVRSRV_MEMALLOCFLAGS_GPU_MMUFLAGSMASK | \
                                             PVRSRV_MEMALLOCFLAGS_CPU_MMUFLAGSMASK | \
                                             PVRSRV_MEMALLOCFLAG_DEFER_PHYS_ALLOC | \
-                                            PVRSRV_MEMALLOCFLAG_PHYS_ALLOC_NOW | \
                                             PVRSRV_MEMALLOCFLAG_SPARSE_NO_SCRATCH_BACKING | \
                                             PVRSRV_MEMALLOCFLAG_ZERO_BACKING | \
                                             PVRSRV_MEMALLOCFLAG_VAL_SHARED_BUFFER | \
@@ -1020,7 +1010,6 @@ typedef IMG_UINT64 PVRSRV_MEMALLOCFLAGS_T;
                                             PVRSRV_MEMALLOCFLAGS_GPU_MMUFLAGSMASK | \
                                             PVRSRV_MEMALLOCFLAGS_CPU_MMUFLAGSMASK | \
                                             PVRSRV_MEMALLOCFLAG_DEFER_PHYS_ALLOC | \
-                                            PVRSRV_MEMALLOCFLAG_PHYS_ALLOC_NOW | \
                                             PVRSRV_MEMALLOCFLAG_SPARSE_NO_SCRATCH_BACKING | \
                                             PVRSRV_MEMALLOCFLAG_ZERO_BACKING | \
                                             PVRSRV_MEMALLOCFLAG_VAL_SHARED_BUFFER | \
@@ -1100,9 +1089,10 @@ typedef IMG_UINT64 PVRSRV_MEMALLOCFLAGS_T;
                                                     PVRSRV_MEMALLOCFLAG_ZERO_ON_ALLOC | \
                                                     PVRSRV_MEMALLOCFLAG_POISON_ON_ALLOC | \
                                                     PVRSRV_MEMALLOCFLAG_POISON_ON_FREE | \
-                                                    PVRSRV_MEMALLOCFLAG_PHYS_ALLOC_NOW | \
                                                     PVRSRV_MEMALLOCFLAG_MANDATE_PHYSHEAP | \
                                                     PVRSRV_MEMALLOCFLAG_IPA_POLICY_MASK | \
+                                                    PVRSRV_MEMALLOCFLAG_OS_LINUX_PREFER_CMA | \
+                                                    PVRSRV_MEMALLOCFLAG_OS_LINUX_MOVABLE | \
                                                     PVRSRV_PHYS_HEAP_HINT_MASK)
 #else
 #define PVRSRV_MEMALLOCFLAGS_DEVMEMX_PHYSICAL_MASK (PVRSRV_MEMALLOCFLAGS_CPU_MMUFLAGSMASK | \
@@ -1114,9 +1104,10 @@ typedef IMG_UINT64 PVRSRV_MEMALLOCFLAGS_T;
                                                     PVRSRV_MEMALLOCFLAG_CPU_CACHE_CLEAN | \
                                                     PVRSRV_MEMALLOCFLAG_ZERO_ON_ALLOC | \
                                                     PVRSRV_MEMALLOCFLAG_POISON_ON_ALLOC | \
-                                                    PVRSRV_MEMALLOCFLAG_PHYS_ALLOC_NOW | \
                                                     PVRSRV_MEMALLOCFLAG_MANDATE_PHYSHEAP | \
                                                     PVRSRV_MEMALLOCFLAG_IPA_POLICY_MASK | \
+                                                    PVRSRV_MEMALLOCFLAG_OS_LINUX_PREFER_CMA | \
+                                                    PVRSRV_MEMALLOCFLAG_OS_LINUX_MOVABLE | \
                                                     PVRSRV_PHYS_HEAP_HINT_MASK)
 #endif
 

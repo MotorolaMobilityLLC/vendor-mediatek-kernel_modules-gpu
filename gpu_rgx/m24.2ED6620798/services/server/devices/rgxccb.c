@@ -791,7 +791,6 @@ PVRSRV_ERROR RGXCreateCCB(PVRSRV_RGXDEV_INFO	*psDevInfo,
 					   0,
 					   sizeof(RGXFWIF_CCCB_CTL),
 					   PDUMP_FLAGS_CONTINUOUS);
-	PVR_ASSERT(eError == PVRSRV_OK);
 
 	psClientCCB->ui32HostWriteOffset = 0;
 	psClientCCB->ui32LastPDumpWriteOffset = 0;

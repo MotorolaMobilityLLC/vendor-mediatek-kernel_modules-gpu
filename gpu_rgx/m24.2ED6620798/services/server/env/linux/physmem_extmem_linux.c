@@ -461,8 +461,8 @@ static void _UnmapPage(PMR_WRAP_DATA *psWrapData,
 			PVR_DPF((PVR_DBG_ERROR, "%s: Unable to unmap wrapped extmem "
 			        "page - wrong cached mode flags passed. This may leak "
 			        "memory.", __func__));
-			PVR_ASSERT(!"Found non-cpu cache mode flag when unmapping from "
-			           "the cpu");
+			PVR_DPF((PVR_DBG_ERROR, "Found non-cpu cache mode flag when unmapping from "
+					 "the cpu"));
 		}
 		else
 		{
@@ -980,6 +980,7 @@ PhysmemWrapExtMemOS(CONNECTION_DATA * psConnection,
 	PMR_WRAP_DATA *psPrivData;
 	PMR *psPMR;
 	IMG_UINT uiTotalNumPages = (uiSize >> PAGE_SHIFT);
+	IMG_BOOL bIsPMRDestroyed = IMG_FALSE;
 	IMG_UINT i = 0;
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,0,0))
@@ -1079,11 +1080,15 @@ PhysmemWrapExtMemOS(CONNECTION_DATA * psConnection,
 
 	return PVRSRV_OK;
 e3:
-	PMRUnrefPMR(psPMR);
+	(void) PMRUnrefPMR(psPMR);
+	bIsPMRDestroyed = IMG_TRUE;
 e2:
 	OSFreeMem(pui32MappingTable);
 e1:
-	_WrapExtMemReleasePages(psPrivData);
+	if (!bIsPMRDestroyed)
+	{
+		(void)_WrapExtMemReleasePages(psPrivData);
+	}
 e0:
 	return eError;
 }

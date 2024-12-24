@@ -292,5 +292,20 @@ PVRSRV_ERROR RGXForcedIdleRequest(PPVRSRV_DEVICE_NODE psDeviceNode,
 ******************************************************************************/
 PVRSRV_ERROR RGXCancelForcedIdleRequest(PPVRSRV_DEVICE_NODE psDeviceNode);
 
+/*!
+******************************************************************************
+
+ @Function     RGXCancelForcedIdleRequestAsync
+
+ @Description Send a request to cancel idle to the firmware.
+              Does not wait for response from FW.
+
+ @Input           psDeviceNode : RGX Device Node
+
+ @Return   PVRSRV_ERROR :
+
+******************************************************************************/
+PVRSRV_ERROR RGXCancelForcedIdleRequestAsync(PPVRSRV_DEVICE_NODE psDeviceNode);
+
 
 #endif /* RGXPOWER_H */

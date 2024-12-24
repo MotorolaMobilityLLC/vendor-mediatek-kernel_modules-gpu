@@ -623,7 +623,7 @@ PVRSRV_ERROR RGXHWPerfDataStoreCB(PVRSRV_DEVICE_NODE *psDevInfo)
 				 * via the transport layer CB as this can lead to stream
 				 * corruption. */
 				eError = TLStreamSync(psRgxDevInfo->hHWPerfStream[RGX_HWPERF_L2_STREAM_HWPERF]);
-				PVR_ASSERT(eError == PVRSRV_OK);
+				PVR_LOG_IF_ERROR(eError, "TLStreamSync");
 			}
 		}
 		else
@@ -635,7 +635,7 @@ PVRSRV_ERROR RGXHWPerfDataStoreCB(PVRSRV_DEVICE_NODE *psDevInfo)
 
 	OSLockRelease(psRgxDevInfo->hHWPerfLock);
 
-	PVR_DPF_RETURN_OK;
+	PVR_DPF_RETURN_RC(eError);
 }
 
 

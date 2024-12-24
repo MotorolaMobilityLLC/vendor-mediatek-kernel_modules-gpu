@@ -197,7 +197,7 @@ PVRSRV_ERROR RGXFabricCoherencyTest(const void *hPrivate)
 
 		/* Acquire underlying PMR CpuPA in preparation for cache maintenance */
 		(void) DevmemLocalGetImportHandle(psFabricCohTestBufferMemDesc, (void**)&psPMR);
-		eError = PMR_CpuPhysAddr(psPMR, OSGetPageShift(), 1, 0, &sCpuPhyAddr, &bValid);
+		eError = PMR_CpuPhysAddr(psPMR, OSGetPageShift(), 1, 0, &sCpuPhyAddr, &bValid, CPU_USE);
 		if (eError != PVRSRV_OK || bValid == IMG_FALSE)
 		{
 			PVR_DPF((PVR_DBG_ERROR,

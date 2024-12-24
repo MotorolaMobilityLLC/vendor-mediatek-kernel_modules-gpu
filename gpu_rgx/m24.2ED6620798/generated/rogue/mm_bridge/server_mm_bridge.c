@@ -1411,7 +1411,8 @@ PVRSRVBridgeDevmemIntReserveRange(IMG_UINT32 ui32DispatchTableEntry,
 	UnlockHandle(psConnection->psHandleBase);
 
 	psDevmemIntReserveRangeOUT->eError =
-	    DevmemIntReserveRange(psDevmemServerHeapInt,
+	    DevmemIntReserveRange(psConnection, OSGetDevNode(psConnection),
+				  psDevmemServerHeapInt,
 				  psDevmemIntReserveRangeIN->sAddress,
 				  psDevmemIntReserveRangeIN->uiLength,
 				  psDevmemIntReserveRangeIN->uiFlags, &psReservationInt);
@@ -1521,7 +1522,8 @@ PVRSRVBridgeDevmemIntReserveRangeAndMapPMR(IMG_UINT32 ui32DispatchTableEntry,
 	UnlockHandle(psConnection->psHandleBase);
 
 	psDevmemIntReserveRangeAndMapPMROUT->eError =
-	    DevmemIntReserveRangeAndMapPMR(psDevmemServerHeapInt,
+	    DevmemIntReserveRangeAndMapPMR(psConnection, OSGetDevNode(psConnection),
+					   psDevmemServerHeapInt,
 					   psDevmemIntReserveRangeAndMapPMRIN->sAddress,
 					   psDevmemIntReserveRangeAndMapPMRIN->uiLength,
 					   psPMRInt,
