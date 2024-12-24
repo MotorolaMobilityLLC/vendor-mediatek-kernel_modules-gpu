@@ -625,6 +625,15 @@ PMRWriteBytesExtMem(PMR_IMPL_PRIVDATA pvPriv,
                     size_t uiBufSz,
                     size_t *puiNumBytes)
 {
+	PMR_WRAP_DATA *psWrapData = (PMR_WRAP_DATA*) pvPriv;
+
+	if (!BITMASK_HAS(psWrapData->psVMArea->vm_flags, VM_WRITE))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Attempt to write to read only vma.",
+		                        __func__));
+		return PVRSRV_ERROR_PMR_NOT_PERMITTED;
+	}
+
 	return _CopyBytesExtMem(pvPriv,
 	                        uiOffset,
 	                        pcBuffer,
@@ -906,6 +915,14 @@ static inline PVRSRV_ERROR PhysmemValidateParam( IMG_DEVMEM_SIZE_T uiSize,
 		PVR_DPF((PVR_DBG_ERROR, "Request for GPU coherency but specifying CPU uncached "
 				"Please use CPU cached flags for coherency."));
 		return PVRSRV_ERROR_UNSUPPORTED_CACHE_MODE;
+	}
+
+	if (uiFlags & PVRSRV_MEMALLOCFLAG_DEVICE_FLAGS_MASK)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Device specific flags not supported. "
+		                        "Passed Flags: 0x%"PVRSRV_MEMALLOCFLAGS_FMTSPEC,
+		                        __func__, uiFlags));
+		return PVRSRV_ERROR_INVALID_FLAGS;
 	}
 
 #if !defined(PVRSRV_WRAP_EXTMEM_WRITE_ATTRIB_ENABLE)

@@ -385,7 +385,7 @@ static PVRSRV_ERROR PhysHeapPrintHeapProperties(PHYS_HEAP *psPhysHeap,
 			sGPUPAddr.uiAddr = IMG_UINT64_MAX;
 		}
 
-		PVR_DUMPDEBUG_LOG("0x%p -> PdMs: %s, Type: %s, %s, "
+		PVR_DUMPDEBUG_LOG("0x"IMG_KM_PTR_FMTSPEC" -> PdMs: %s, Type: %s, %s, "
 		                  "CPU PA Base: " CPUPHYADDR_UINT_FMTSPEC", "
 		                  "GPU PA Base: 0x%08"IMG_UINT64_FMTSPECx", "
 		                  "Usage Flags: 0x%08x (%s), Refs: %d, "
@@ -410,7 +410,7 @@ static PVRSRV_ERROR PhysHeapPrintHeapProperties(PHYS_HEAP *psPhysHeap,
 		IMG_CHAR pszSpanString[128] = "\0";
 		void *pvIterHandle = NULL;
 
-		PVR_DUMPDEBUG_LOG("0x%p -> PdMs: %s, Type: %s, %s, "
+		PVR_DUMPDEBUG_LOG("0x"IMG_KM_PTR_FMTSPEC" -> PdMs: %s, Type: %s, %s, "
 		                  "Usage Flags: 0x%08x (%s), Refs: %d, "
 		                  "Free Size: %"IMG_UINT64_FMTSPEC"B, "
 		                  "Total Size: %"IMG_UINT64_FMTSPEC"B Spans:",
@@ -434,7 +434,7 @@ static PVRSRV_ERROR PhysHeapPrintHeapProperties(PHYS_HEAP *psPhysHeap,
 	}
 	else
 	{
-		PVR_DUMPDEBUG_LOG("0x%p -> PdMs: %s, Type: %s, %s, "
+		PVR_DUMPDEBUG_LOG("0x"IMG_KM_PTR_FMTSPEC" -> PdMs: %s, Type: %s, %s, "
 		                  "Usage Flags: 0x%08x (%s), Refs: %d, "
 		                  "Free Size: %"IMG_UINT64_FMTSPEC"B, "
 		                  "Total Size: %"IMG_UINT64_FMTSPEC"B"
