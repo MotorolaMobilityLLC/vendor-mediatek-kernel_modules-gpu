@@ -77,7 +77,7 @@ static PVRSRV_ERROR _AllocSyncPrimitiveBlockpsSyncHandleIntRelease(void *pvData)
 	return eError;
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeAllocSyncPrimitiveBlock(IMG_UINT32 ui32DispatchTableEntry,
 				    IMG_UINT8 * psAllocSyncPrimitiveBlockIN_UI8,
 				    IMG_UINT8 * psAllocSyncPrimitiveBlockOUT_UI8,
@@ -178,10 +178,10 @@ AllocSyncPrimitiveBlock_exit:
 		}
 	}
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_ALLOCSYNCPRIMITIVEBLOCK, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeFreeSyncPrimitiveBlock(IMG_UINT32 ui32DispatchTableEntry,
 				   IMG_UINT8 * psFreeSyncPrimitiveBlockIN_UI8,
 				   IMG_UINT8 * psFreeSyncPrimitiveBlockOUT_UI8,
@@ -216,10 +216,10 @@ PVRSRVBridgeFreeSyncPrimitiveBlock(IMG_UINT32 ui32DispatchTableEntry,
 
 FreeSyncPrimitiveBlock_exit:
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_FREESYNCPRIMITIVEBLOCK, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeSyncPrimSet(IMG_UINT32 ui32DispatchTableEntry,
 			IMG_UINT8 * psSyncPrimSetIN_UI8,
 			IMG_UINT8 * psSyncPrimSetOUT_UI8, CONNECTION_DATA * psConnection)
@@ -267,12 +267,12 @@ SyncPrimSet_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_SYNCPRIMSET, eError);
 }
 
 #if defined(PDUMP)
 
-static IMG_INT
+static size_t
 PVRSRVBridgeSyncPrimPDump(IMG_UINT32 ui32DispatchTableEntry,
 			  IMG_UINT8 * psSyncPrimPDumpIN_UI8,
 			  IMG_UINT8 * psSyncPrimPDumpOUT_UI8, CONNECTION_DATA * psConnection)
@@ -319,7 +319,7 @@ SyncPrimPDump_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_SYNCPRIMPDUMP, eError);
 }
 
 #else
@@ -328,7 +328,7 @@ SyncPrimPDump_exit:
 
 #if defined(PDUMP)
 
-static IMG_INT
+static size_t
 PVRSRVBridgeSyncPrimPDumpValue(IMG_UINT32 ui32DispatchTableEntry,
 			       IMG_UINT8 * psSyncPrimPDumpValueIN_UI8,
 			       IMG_UINT8 * psSyncPrimPDumpValueOUT_UI8,
@@ -379,7 +379,7 @@ SyncPrimPDumpValue_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_SYNCPRIMPDUMPVALUE, eError);
 }
 
 #else
@@ -388,7 +388,7 @@ SyncPrimPDumpValue_exit:
 
 #if defined(PDUMP)
 
-static IMG_INT
+static size_t
 PVRSRVBridgeSyncPrimPDumpPol(IMG_UINT32 ui32DispatchTableEntry,
 			     IMG_UINT8 * psSyncPrimPDumpPolIN_UI8,
 			     IMG_UINT8 * psSyncPrimPDumpPolOUT_UI8, CONNECTION_DATA * psConnection)
@@ -440,7 +440,7 @@ SyncPrimPDumpPol_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_SYNCPRIMPDUMPPOL, eError);
 }
 
 #else
@@ -449,7 +449,7 @@ SyncPrimPDumpPol_exit:
 
 #if defined(PDUMP)
 
-static IMG_INT
+static size_t
 PVRSRVBridgeSyncPrimPDumpCBP(IMG_UINT32 ui32DispatchTableEntry,
 			     IMG_UINT8 * psSyncPrimPDumpCBPIN_UI8,
 			     IMG_UINT8 * psSyncPrimPDumpCBPOUT_UI8, CONNECTION_DATA * psConnection)
@@ -500,7 +500,7 @@ SyncPrimPDumpCBP_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_SYNCPRIMPDUMPCBP, eError);
 }
 
 #else
@@ -510,7 +510,7 @@ SyncPrimPDumpCBP_exit:
 static_assert(PVRSRV_SYNC_NAME_LENGTH <= IMG_UINT32_MAX,
 	      "PVRSRV_SYNC_NAME_LENGTH must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgeSyncAllocEvent(IMG_UINT32 ui32DispatchTableEntry,
 			   IMG_UINT8 * psSyncAllocEventIN_UI8,
 			   IMG_UINT8 * psSyncAllocEventOUT_UI8, CONNECTION_DATA * psConnection)
@@ -619,10 +619,10 @@ SyncAllocEvent_exit:
 #endif
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_SYNCALLOCEVENT, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeSyncFreeEvent(IMG_UINT32 ui32DispatchTableEntry,
 			  IMG_UINT8 * psSyncFreeEventIN_UI8,
 			  IMG_UINT8 * psSyncFreeEventOUT_UI8, CONNECTION_DATA * psConnection)
@@ -636,12 +636,12 @@ PVRSRVBridgeSyncFreeEvent(IMG_UINT32 ui32DispatchTableEntry,
 	    PVRSRVSyncFreeEventKM(psConnection, OSGetDevNode(psConnection),
 				  psSyncFreeEventIN->ui32FWAddr);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_SYNCFREEEVENT, eError);
 }
 
 #if defined(PDUMP)
 
-static IMG_INT
+static size_t
 PVRSRVBridgeSyncCheckpointSignalledPDumpPol(IMG_UINT32 ui32DispatchTableEntry,
 					    IMG_UINT8 * psSyncCheckpointSignalledPDumpPolIN_UI8,
 					    IMG_UINT8 * psSyncCheckpointSignalledPDumpPolOUT_UI8,
@@ -659,7 +659,7 @@ PVRSRVBridgeSyncCheckpointSignalledPDumpPol(IMG_UINT32 ui32DispatchTableEntry,
 	psSyncCheckpointSignalledPDumpPolOUT->eError =
 	    PVRSRVSyncCheckpointSignalledPDumpPolKM(psSyncCheckpointSignalledPDumpPolIN->hFence);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_SYNCCHECKPOINTSIGNALLEDPDUMPPOL, eError);
 }
 
 #else

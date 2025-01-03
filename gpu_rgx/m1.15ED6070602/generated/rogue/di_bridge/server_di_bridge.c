@@ -72,7 +72,7 @@ static PVRSRV_ERROR _DICreateContextpsContextIntRelease(void *pvData)
 	return eError;
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDICreateContext(IMG_UINT32 ui32DispatchTableEntry,
 			    IMG_UINT8 * psDICreateContextIN_UI8,
 			    IMG_UINT8 * psDICreateContextOUT_UI8, CONNECTION_DATA * psConnection)
@@ -235,10 +235,10 @@ DICreateContext_exit:
 #endif
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DICREATECONTEXT, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDIDestroyContext(IMG_UINT32 ui32DispatchTableEntry,
 			     IMG_UINT8 * psDIDestroyContextIN_UI8,
 			     IMG_UINT8 * psDIDestroyContextOUT_UI8, CONNECTION_DATA * psConnection)
@@ -269,13 +269,13 @@ PVRSRVBridgeDIDestroyContext(IMG_UINT32 ui32DispatchTableEntry,
 
 DIDestroyContext_exit:
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DIDESTROYCONTEXT, eError);
 }
 
 static_assert(DI_IMPL_BRG_PATH_LEN <= IMG_UINT32_MAX,
 	      "DI_IMPL_BRG_PATH_LEN must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDIReadEntry(IMG_UINT32 ui32DispatchTableEntry,
 			IMG_UINT8 * psDIReadEntryIN_UI8,
 			IMG_UINT8 * psDIReadEntryOUT_UI8, CONNECTION_DATA * psConnection)
@@ -402,7 +402,7 @@ DIReadEntry_exit:
 #endif
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DIREADENTRY, eError);
 }
 
 static_assert(DI_IMPL_BRG_PATH_LEN <= IMG_UINT32_MAX,
@@ -410,7 +410,7 @@ static_assert(DI_IMPL_BRG_PATH_LEN <= IMG_UINT32_MAX,
 static_assert(DI_IMPL_BRG_PATH_LEN <= IMG_UINT32_MAX,
 	      "DI_IMPL_BRG_PATH_LEN must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDIWriteEntry(IMG_UINT32 ui32DispatchTableEntry,
 			 IMG_UINT8 * psDIWriteEntryIN_UI8,
 			 IMG_UINT8 * psDIWriteEntryOUT_UI8, CONNECTION_DATA * psConnection)
@@ -566,10 +566,10 @@ DIWriteEntry_exit:
 #endif
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DIWRITEENTRY, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDIListAllEntries(IMG_UINT32 ui32DispatchTableEntry,
 			     IMG_UINT8 * psDIListAllEntriesIN_UI8,
 			     IMG_UINT8 * psDIListAllEntriesOUT_UI8, CONNECTION_DATA * psConnection)
@@ -614,7 +614,7 @@ DIListAllEntries_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DILISTALLENTRIES, eError);
 }
 
 /* ***************************************************************************
