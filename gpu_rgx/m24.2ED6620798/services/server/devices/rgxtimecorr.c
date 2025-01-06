@@ -299,7 +299,7 @@ static void _RGXMakeTimeCorrData(PVRSRV_DEVICE_NODE *psDeviceNode, RGXTIMECORR_E
 
 	sTimeCorr.ui64CRTimeStamp = RGXReadHWTimerReg(psDevInfo);
 	sTimeCorr.ui64OSTimeStamp = RGXTimeCorrGetClockns64(psDeviceNode);
-	sTimeCorr.ui32CoreClockSpeed = _RGXGetEstimatedGPUClockSpeed(psDevInfo);
+	sTimeCorr.ui32CoreClockSpeed = _RGXGetSystemLayerGPUClockSpeed(psDeviceNode);
 	sTimeCorr.ui64CRDeltaToOSDeltaKNs = RGXTimeCorrGetConversionFactor(sTimeCorr.ui32CoreClockSpeed);
 
 	if (sTimeCorr.ui64CRDeltaToOSDeltaKNs == 0)
@@ -666,8 +666,16 @@ void RGXTimeCorrBegin(IMG_HANDLE hDevHandle, RGXTIMECORR_EVENT eEvent)
 	RGX_GPU_DVFS_TABLE  *psGpuDVFSTable = psDevInfo->psGpuDVFSTable;
 	PVRSRV_VZ_RETN_IF_MODE(GUEST, DEVNODE, psDeviceNode);
 
-	_RGXGPUFreqCalibrationPeriodStart(psDeviceNode, psGpuDVFSTable);
-	_RGXMakeTimeCorrData(psDeviceNode, eEvent);
+	if (eEvent == RGXTIMECORR_EVENT_DVFS)
+	{
+		_RGXGPUFreqCalibrationPeriodStart(psDeviceNode, psGpuDVFSTable);
+	}
+
+	if (eEvent == RGXTIMECORR_EVENT_POWER ||
+	    eEvent == RGXTIMECORR_EVENT_DVFS)
+	{
+		_RGXMakeTimeCorrData(psDeviceNode, eEvent);
+	}
 }
 
 void RGXTimeCorrEnd(IMG_HANDLE hDevHandle, RGXTIMECORR_EVENT eEvent)
@@ -677,11 +685,14 @@ void RGXTimeCorrEnd(IMG_HANDLE hDevHandle, RGXTIMECORR_EVENT eEvent)
 	RGX_GPU_DVFS_TABLE  *psGpuDVFSTable = psDevInfo->psGpuDVFSTable;
 	PVRSRV_VZ_RETN_IF_MODE(GUEST, DEVNODE, psDeviceNode);
 
-	_RGXGPUFreqCalibrationPeriodStop(psDeviceNode, psGpuDVFSTable);
-
-	if (psGpuDVFSTable->ui64CalibrationOSTimediff >= psGpuDVFSTable->ui32CalibrationPeriod)
+	if (eEvent == RGXTIMECORR_EVENT_DVFS)
 	{
-		_RGXGPUFreqCalibrationCalculate(psDeviceNode, psGpuDVFSTable, eEvent);
+		_RGXGPUFreqCalibrationPeriodStop(psDeviceNode, psGpuDVFSTable);
+
+		if (psGpuDVFSTable->ui64CalibrationOSTimediff >= psGpuDVFSTable->ui32CalibrationPeriod)
+		{
+			_RGXGPUFreqCalibrationCalculate(psDeviceNode, psGpuDVFSTable, eEvent);
+		}
 	}
 
 	if (RGXTIMECORR_EVENT_POWER == eEvent)
