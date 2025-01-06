@@ -2225,13 +2225,15 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 				fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
 
 			pid_struct = find_get_pid(kctx->tgid);
-			task = pid_task(pid_struct, PIDTYPE_PID);
-			if (task && task->group_leader && task->signal) {
-				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_DEFERRED | MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-					"ctx:%d_%d, process_name:%s, exit_state:%lld, signal->flags:%lld\n",
-					kctx->tgid, kctx->id, task->group_leader->comm, (unsigned long long) task->exit_state, (unsigned long long) task->signal->flags);
+			if (pid_struct) {
+				task = pid_task(pid_struct, PIDTYPE_PID);
+				if (task && task->group_leader && task->signal) {
+					mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_DEFERRED | MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+						"ctx:%d_%d, process_name:%s, exit_state:%lld, signal->flags:%lld\n",
+						kctx->tgid, kctx->id, task->group_leader->comm, (unsigned long long) task->exit_state, (unsigned long long) task->signal->flags);
+				}
+				put_pid(pid_struct);
 			}
-			put_pid(pid_struct);
 		} else {
 			if (fence_signal_command_timeout_counter == 5) {
 				/* Log the 2s, 3s timeout dump */
