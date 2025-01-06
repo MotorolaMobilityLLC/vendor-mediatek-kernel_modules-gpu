@@ -2132,6 +2132,8 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 	unsigned int fence_signal_command_timeout_counter;
 	const unsigned int sf_shift_ms = 300;
 	char sf_name[] = "surfaceflinger";
+	struct task_struct *task;
+	struct pid *pid_struct;
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 	mutex_lock(&queue->lock);
@@ -2221,6 +2223,15 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 				fence_signal_command_timeout_ms,
 				fence, info.name,
 				fence->ops->get_driver_name(fence), fence->ops->get_timeline_name(fence));
+
+			pid_struct = find_get_pid(kctx->tgid);
+			task = pid_task(pid_struct, PIDTYPE_PID);
+			if (task && task->group_leader && task->signal) {
+				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_DEFERRED | MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+					"ctx:%d_%d, process_name:%s, exit_state:%lld, signal->flags:%lld\n",
+					kctx->tgid, kctx->id, task->group_leader->comm, (unsigned long long) task->exit_state, (unsigned long long) task->signal->flags);
+			}
+			put_pid(pid_struct);
 		} else {
 			if (fence_signal_command_timeout_counter == 5) {
 				/* Log the 2s, 3s timeout dump */
