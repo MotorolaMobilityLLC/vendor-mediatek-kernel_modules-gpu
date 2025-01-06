@@ -1431,6 +1431,7 @@ static void fence_timeout_callback(struct timer_list *timer)
 	struct dma_fence_array *fence_array;
 	struct dma_fence **fences = NULL;
 	unsigned int i, num_fences;
+	struct kbase_sync_fence_info fence_array_member_info;
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 	if (cmd->type != BASE_KCPU_COMMAND_TYPE_FENCE_WAIT) {
@@ -1527,14 +1528,15 @@ static void fence_timeout_callback(struct timer_list *timer)
 
 				for (i = 0; i < num_fences; i++) {
 					if (fences[i]) {
-						dev_info(kctx->kbdev->dev, "context#seqno:%s dma_fence_array[%d] (driver=%s, timeline=%s) status=%s",
+						kbase_sync_fence_info_get(fences[i], &fence_array_member_info);
+						dev_info(kctx->kbdev->dev, "context#seqno:%s dma_fence_array[%d] (driver=%s, timeline=%s, name=%s) status=%s",
 							info.name, i, fences[i]->ops->get_driver_name(fences[i]), fences[i]->ops->get_timeline_name(fences[i]),
-							dma_fence_is_signaled(fences[i]) ? "signaled" : "not signaled");
+							fence_array_member_info.name, dma_fence_is_signaled(fences[i]) ? "signaled" : "not signaled");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 						mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-							"context#seqno:%s dma_fence_array[%d] (driver=%s, timeline=%s) status=%s\n",
+							"context#seqno:%s dma_fence_array[%d] (driver=%s, timeline=%s, name=%s) status=%s\n",
 							info.name, i, fences[i]->ops->get_driver_name(fences[i]), fences[i]->ops->get_timeline_name(fences[i]),
-							dma_fence_is_signaled(fences[i]) ? "signaled" : "not signaled");
+							fence_array_member_info.name, dma_fence_is_signaled(fences[i]) ? "signaled" : "not signaled");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 							/* Check if fence array include the non signal display fence */
