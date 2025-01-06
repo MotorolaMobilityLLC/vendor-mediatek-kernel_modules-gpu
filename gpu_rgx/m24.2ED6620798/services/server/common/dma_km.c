@@ -461,6 +461,12 @@ DmaTransfer(CONNECTION_DATA *psConnection,
 	{
 		IMG_UINT32 ui32SizeInPages;
 		IMG_UINT32 uiOffsetInPage = puiOffset[i] & (OSGetPageSize() - 1);
+		static_assert(PMR_MAX_SUPPORTED_4K_PAGE_COUNT <= IMG_UINT32_MAX, "Uint32 overflow in dma_km.c");
+
+		PVR_GOTO_IF_INVALID_PARAM((puiSize[i] + uiOffsetInPage) >= puiSize[i], eError, loop_e0);
+		PVR_GOTO_IF_INVALID_PARAM((puiSize[i] + uiOffsetInPage + OSGetPageSize()) >= puiSize[i], eError, loop_e0);
+		PVR_GOTO_IF_INVALID_PARAM(((puiSize[i] + uiOffsetInPage + OSGetPageSize() - 1)) <= PMR_MAX_SUPPORTED_SIZE, eError, loop_e0);
+
 		ui32SizeInPages = (puiSize[i] + uiOffsetInPage + OSGetPageSize() - 1) >> OSGetPageShift();
 
 		psDmaAddr = OSAllocZMem(ui32SizeInPages * sizeof(IMG_DMA_ADDR));

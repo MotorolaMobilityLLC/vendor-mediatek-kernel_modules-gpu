@@ -594,6 +594,7 @@ int PVRSRVDeviceServicesOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 
 fail_connect:
 fail_device_init:
+	psDRMFile->driver_priv = NULL;
 	kfree(psConnectionPriv);
 fail_alloc_connection_priv:
 out:
@@ -700,6 +701,7 @@ fail_pvr_sync_open:
 fail_private_data_init:
 	kfree(psConnection);
 fail_alloc_connection:
+	psDRMFile->driver_priv = NULL;
 	kfree(psConnectionPriv);
 out:
 	return iErr;

@@ -67,7 +67,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * Server-side bridge entry points
  */
 
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXSetBreakpoint(IMG_UINT32 ui32DispatchTableEntry,
 			     IMG_UINT8 * psRGXSetBreakpointIN_UI8,
 			     IMG_UINT8 * psRGXSetBreakpointOUT_UI8, CONNECTION_DATA * psConnection)
@@ -119,10 +119,10 @@ RGXSetBreakpoint_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXSETBREAKPOINT, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXClearBreakpoint(IMG_UINT32 ui32DispatchTableEntry,
 			       IMG_UINT8 * psRGXClearBreakpointIN_UI8,
 			       IMG_UINT8 * psRGXClearBreakpointOUT_UI8,
@@ -170,10 +170,10 @@ RGXClearBreakpoint_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXCLEARBREAKPOINT, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXEnableBreakpoint(IMG_UINT32 ui32DispatchTableEntry,
 				IMG_UINT8 * psRGXEnableBreakpointIN_UI8,
 				IMG_UINT8 * psRGXEnableBreakpointOUT_UI8,
@@ -222,10 +222,10 @@ RGXEnableBreakpoint_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXENABLEBREAKPOINT, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXDisableBreakpoint(IMG_UINT32 ui32DispatchTableEntry,
 				 IMG_UINT8 * psRGXDisableBreakpointIN_UI8,
 				 IMG_UINT8 * psRGXDisableBreakpointOUT_UI8,
@@ -274,10 +274,10 @@ RGXDisableBreakpoint_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXDISABLEBREAKPOINT, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXOverallocateBPRegisters(IMG_UINT32 ui32DispatchTableEntry,
 				       IMG_UINT8 * psRGXOverallocateBPRegistersIN_UI8,
 				       IMG_UINT8 * psRGXOverallocateBPRegistersOUT_UI8,
@@ -295,7 +295,7 @@ PVRSRVBridgeRGXOverallocateBPRegisters(IMG_UINT32 ui32DispatchTableEntry,
 					       psRGXOverallocateBPRegistersIN->ui32TempRegs,
 					       psRGXOverallocateBPRegistersIN->ui32SharedRegs);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXOVERALLOCATEBPREGISTERS, eError);
 }
 
 /* ***************************************************************************
