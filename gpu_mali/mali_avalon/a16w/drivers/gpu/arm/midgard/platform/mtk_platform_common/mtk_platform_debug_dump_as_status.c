@@ -38,6 +38,7 @@ void mtk_debug_dump_as_status_nolock(struct kbase_device *kbdev)
 
 		pid_struct = find_get_pid(kctx->tgid);
 		if (pid_struct != NULL) {
+			rcu_read_lock();
 			task = pid_task(pid_struct, PIDTYPE_PID);
 			if (task && task->group_leader) {
 				dev_info(kbdev->dev, "AS[%d], kctx %d_%d, process_name: %s", as, kctx->tgid, kctx->id, task->group_leader->comm);
@@ -54,6 +55,7 @@ void mtk_debug_dump_as_status_nolock(struct kbase_device *kbdev)
 					as, kctx->tgid, kctx->id, "NULL");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			}
+			rcu_read_unlock();
 			put_pid(pid_struct);
 		} else {
 			dev_info(kbdev->dev, "AS[%d], kctx %d_%d, process_name: %s", as, kctx->tgid, kctx->id, "NULL");

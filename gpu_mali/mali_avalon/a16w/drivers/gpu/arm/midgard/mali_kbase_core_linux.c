@@ -1921,11 +1921,26 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 	if (fence_wait->time_in_microseconds == 2000 || fence_wait->time_in_microseconds == 3000) {
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_DEFERRED,
-			 "ctx:%d_%d cpu queue:%llx Internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u\n",
-	         kctx->tgid, kctx->id, fence_wait->queue,
-	         fence_wait->time_in_microseconds,
-	         fence_wait->flags,
-	         fence_wait->pid);
+			"ctx:%d_%d cpu queue:%llx Internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u\n",
+			kctx->tgid, kctx->id, fence_wait->queue,
+			fence_wait->time_in_microseconds,
+			fence_wait->flags,
+			fence_wait->pid);
+
+		struct task_struct *task;
+		struct pid *pid_struct;
+		pid_struct = find_get_pid(kctx->tgid);
+		if (pid_struct) {
+			rcu_read_lock();
+			task = pid_task(pid_struct, PIDTYPE_PID);
+			if (task && task->group_leader && task->signal) {
+				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_DEFERRED | MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+					"ctx:%d_%d, process_name:%s, exit_state:%lld, signal->flags:%lld\n",
+					kctx->tgid, kctx->id, task->group_leader->comm, (unsigned long long) task->exit_state, (unsigned long long) task->signal->flags);
+			}
+			rcu_read_unlock();
+			put_pid(pid_struct);
+		}
 #else /* CONFIG_MALI_MTK_LOG_BUFFER */
 		dev_info(kctx->kbdev->dev, "ctx:%d_%d cpu queue:%llx Internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u",
 			kctx->tgid, kctx->id, fence_wait->queue,
