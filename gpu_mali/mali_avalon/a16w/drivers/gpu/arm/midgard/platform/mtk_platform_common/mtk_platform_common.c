@@ -854,6 +854,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	mtk_whitebox_missing_doorbell_init();
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+	kbdev->gov_core_mask_disable = 0;
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
+
 	return 0;
 }
 

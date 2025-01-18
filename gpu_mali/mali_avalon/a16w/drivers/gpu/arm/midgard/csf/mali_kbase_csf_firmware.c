@@ -2035,10 +2035,18 @@ static void global_init(struct kbase_device *const kbdev, u64 core_mask)
 	kbasep_enable_rtu(kbdev);
 
 	/* Update shader core allocation enable mask */
-	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT))
+#if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+	&& (kbdev->gov_core_mask_disable == 0)
+#endif
+	)
+	{
 		if (kbase_io_is_gpu_powered(kbdev))
 			kbase_reg_write64(kbdev, GPU_GOVERNOR_ENUM(GOV_CORE_MASK),
 					  kbase_pm_ca_get_gov_core_mask(kbdev));
+	}
+#endif
 
 	enable_endpoints_global(fw_io, core_mask);
 	set_shader_poweroff_timer(fw_io);
@@ -2108,7 +2116,6 @@ static int global_init_on_boot(struct kbase_device *const kbdev)
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	core_mask = kbase_pm_ca_get_core_mask(kbdev);
 	kbdev->csf.firmware_hctl_core_pwr = kbase_pm_no_mcu_core_pwroff(kbdev);
-
 	global_init(kbdev, core_mask);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
