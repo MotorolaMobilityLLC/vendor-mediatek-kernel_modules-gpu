@@ -66,18 +66,18 @@ int kbase_csf_db_valid_init(struct kbase_device *kbdev)
 
 int kbase_csf_db_valid_reset(struct kbase_device *kbdev)
 {
-	unsigned long flags;
+	unsigned long flags, fw_io_flags;
 
 	dbvld_ctx.fw_io = &kbdev->csf.fw_io;
 
 	spin_lock_irqsave(&queue_lock, flags);
 
 	// clear ring buffers
-	kbase_csf_fw_io_open_force(dbvld_ctx.fw_io, &flags);
+	kbase_csf_fw_io_open_force(dbvld_ctx.fw_io, &fw_io_flags);
 	if (dbvld_ctx.fw_io) {
 		clear_ring_queue(0, RING_QUEUE_HSIZE);
 	}
-	kbase_csf_fw_io_close(dbvld_ctx.fw_io, flags);
+	kbase_csf_fw_io_close(dbvld_ctx.fw_io, fw_io_flags);
 
 	dbvld_ctx.ring_queue_ptr = 0;
 	dbvld_ctx.pending_event_count = 0;
