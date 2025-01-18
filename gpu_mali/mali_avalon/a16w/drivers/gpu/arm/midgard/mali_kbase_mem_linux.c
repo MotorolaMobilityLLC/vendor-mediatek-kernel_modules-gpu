@@ -331,6 +331,13 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	dev_dbg(dev, "Allocating %lld va_pages, %lld commit_pages, %lld extension, 0x%llX flags\n",
 		va_pages, commit_pages, extension, *flags);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+	if ((*gpu_va == 0xF0) && !(*flags & BASE_MEM_FIXED)) {
+		have_pbha_hint = true;
+		*gpu_va = 0;
+	}
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
+
 #if MALI_USE_CSF
 	if (!(*flags & BASE_MEM_FIXED))
 		*gpu_va = 0; /* return 0 on failure */
