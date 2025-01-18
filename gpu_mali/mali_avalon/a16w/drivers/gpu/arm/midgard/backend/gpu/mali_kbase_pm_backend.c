@@ -382,6 +382,8 @@ static void pm_handle_power_off(struct kbase_device *kbdev)
 			if (!kbase_pm_clock_off(kbdev)) {
 				dev_err(kbdev->dev, "[KBASE_MCU_OFF]kbase_pm_clock_off failed\n");
 			}
+			wake_up(&kbdev->pm.backend.poweroff_wait);
+			WARN_ON(kbase_io_is_gpu_powered(kbdev));
 		}
 #endif /* CONFIG_MALI_MTK_QUICK_CLOCK_OFF */
 		return;
@@ -1334,6 +1336,8 @@ int kbase_pm_handle_runtime_suspend(struct kbase_device *kbdev)
 			ret = -EBUSY;
 			goto unlock;
 		}
+		wake_up(&kbdev->pm.backend.poweroff_wait);
+		WARN_ON(kbase_io_is_gpu_powered(kbdev));
 #endif /* CONFIG_MALI_MTK_QUICK_CLOCK_OFF */
 	}
 #if !IS_ENABLED(CONFIG_MALI_MTK_QUICK_CLOCK_OFF)
@@ -1355,9 +1359,11 @@ int kbase_pm_handle_runtime_suspend(struct kbase_device *kbdev)
 		ret = -EBUSY;
 		goto unlock;
 	}
-#endif /* CONFIG_MALI_MTK_QUICK_CLOCK_OFF */
+
 	wake_up(&kbdev->pm.backend.poweroff_wait);
 	WARN_ON(kbase_io_is_gpu_powered(kbdev));
+#endif /* CONFIG_MALI_MTK_QUICK_CLOCK_OFF */
+
 	dev_dbg(kbdev->dev, "GPU power down complete");
 
 unlock:
