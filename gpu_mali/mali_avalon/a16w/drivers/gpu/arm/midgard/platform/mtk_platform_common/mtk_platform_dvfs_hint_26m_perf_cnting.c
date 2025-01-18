@@ -162,7 +162,7 @@ int mtk_dvfs_hint_26m_setting(void)
 	unsigned int dvfs_hint_cg, dvfs_hint_cg_en;
 
 	// Enable dvfs hint to count cg event 26m
-	dvfs_hint_dvfs_top_base_reg_write(0x48,0x7F);
+	dvfs_hint_dvfs_top_base_reg_write(0x48,0xFFFFFFFF);
 
 	// event mask[2:0] = reg($DVFS_TOP + 0x44)[2:0]
 	dvfs_hint_dvfs_top_base_reg_write(0x44,0x0007);
