@@ -1507,6 +1507,7 @@ static void fence_timeout_callback(struct timer_list *timer)
 	struct dma_fence_array *fence_array;
 	struct dma_fence **fences = NULL;
 	unsigned int i, num_fences;
+	struct kbase_sync_fence_info fence_array_member_info;
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 	if (cmd->type != BASE_KCPU_COMMAND_TYPE_FENCE_WAIT) {
@@ -1560,18 +1561,22 @@ static void fence_timeout_callback(struct timer_list *timer)
 				for (i = 0; i < num_fences; i++) {
 					if (fences[i]) {
 						if (!dma_fence_is_signaled(fences[i])) {
+							kbase_sync_fence_info_get(fences[i], &fence_array_member_info);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 							mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_DEFERRED,
-								"ctx:%d_%d kcpu queue:%u Command - FENCE_WAIT timeout(%d ms) on fence[%pK] context#seqno:%s[%d] (driver=%s, timeline=%s)\n",
+								"ctx:%d_%d kcpu queue:%u Command - FENCE_WAIT timeout(%d ms) on fence[%pK] context#seqno:%s[%d] (driver=%s, timeline=%s, name=%s)\n",
 								kctx->tgid, kctx->id, kcpu_queue->id,
 								(kcpu_queue->fence_wait_command_timeout_counter * FENCE_WAIT_TIMEOUT_MS),
-								fence, info.name, i, fences[i]->ops->get_driver_name(fences[i]), fences[i]->ops->get_timeline_name(fences[i]));
+								fence, info.name, i, fences[i]->ops->get_driver_name(fences[i]), fences[i]->ops->get_timeline_name(fences[i]),
+								fence_array_member_info.name);
 #else /* CONFIG_MALI_MTK_LOG_BUFFER */
-							dev_info(kctx->kbdev->dev, "ctx:%d_%d kcpu queue:%u Command - FENCE_WAIT timeout(%d ms) on fence[%pK] context#seqno:%s[%d] (driver=%s, timeline=%s)\n",
+							dev_info(kctx->kbdev->dev, "ctx:%d_%d kcpu queue:%u Command - FENCE_WAIT timeout(%d ms) on fence[%pK] context#seqno:%s[%d] (driver=%s, timeline=%s, name=%s)\n",
 								kctx->tgid, kctx->id, kcpu_queue->id,
 								(kcpu_queue->fence_wait_command_timeout_counter * FENCE_WAIT_TIMEOUT_MS),
-								fence, info.name, i, fences[i]->ops->get_driver_name(fences[i]), fences[i]->ops->get_timeline_name(fences[i]));
+								fence, info.name, i, fences[i]->ops->get_driver_name(fences[i]), fences[i]->ops->get_timeline_name(fences[i]),
+								fence_array_member_info.name);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 						}
 
 						/* Check if fence array include the non signal display fence */

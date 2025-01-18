@@ -58,6 +58,12 @@ void mtk_debug_dump_gic_status(struct kbase_device *kbdev)
 			kbase_reg_read32(kbdev, MMU_CONTROL_ENUM(IRQ_RAWSTAT)),
 			kbase_reg_read32(kbdev, MMU_CONTROL_ENUM(IRQ_MASK)),
 			kbase_reg_read32(kbdev, MMU_CONTROL_ENUM(IRQ_STATUS)));
+		if (kbdev->pm.backend.has_host_pwr_iface) {
+			dev_info(kbdev->dev, "PWR_IRQ_RAWSTAT=0x%08x, PWR_IRQ_MASK=0x%08x, PWR_IRQ_STATUS=0x%08x\n",
+				kbase_reg_read32(kbdev, HOST_POWER_ENUM(PWR_IRQ_RAWSTAT)),
+				kbase_reg_read32(kbdev, HOST_POWER_ENUM(PWR_IRQ_MASK)),
+				kbase_reg_read32(kbdev, HOST_POWER_ENUM(PWR_IRQ_STATUS)));
+		}
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev,
 			MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
@@ -77,6 +83,14 @@ void mtk_debug_dump_gic_status(struct kbase_device *kbdev)
 			kbase_reg_read32(kbdev, MMU_CONTROL_ENUM(IRQ_RAWSTAT)),
 			kbase_reg_read32(kbdev, MMU_CONTROL_ENUM(IRQ_MASK)),
 			kbase_reg_read32(kbdev, MMU_CONTROL_ENUM(IRQ_STATUS)));
+		if (kbdev->pm.backend.has_host_pwr_iface) {
+			mtk_logbuffer_type_print(kbdev,
+				MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"PWR_IRQ_RAWSTAT=0x%08x, PWR_IRQ_MASK=0x%08x, PWR_IRQ_STATUS=0x%08x\n",
+				kbase_reg_read32(kbdev, HOST_POWER_ENUM(PWR_IRQ_RAWSTAT)),
+				kbase_reg_read32(kbdev, HOST_POWER_ENUM(PWR_IRQ_MASK)),
+				kbase_reg_read32(kbdev, HOST_POWER_ENUM(PWR_IRQ_STATUS)));
+		}
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
