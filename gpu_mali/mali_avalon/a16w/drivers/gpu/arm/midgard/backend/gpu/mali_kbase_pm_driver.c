@@ -3552,24 +3552,6 @@ static void mtk_kbase_pm_timed_out_mcu_transition_check(struct kbase_device *kbd
 	unsigned int irq;
 	struct kbase_csf_fw_io *fw_io = &kbdev->csf.fw_io;
 
-	/* dump GPU/JOB IRQ */
-	dev_err(kbdev->dev, "GPU_IRQ_RAWSTAT=0x%08x, GPU_IRQ_MASK=0x%08x, GPU_IRQ_STATUS=0x%08x",
-		kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_RAWSTAT)),
-		kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK)),
-		kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_STATUS)));
-	dev_err(kbdev->dev, "JOB_IRQ_RAWSTAT=0x%08x, JOB_IRQ_MASK=0x%08x, JOB_IRQ_STATUS=0x%08x",
-		kbase_reg_read32(kbdev, JOB_CONTROL_ENUM(JOB_IRQ_RAWSTAT)),
-		kbase_reg_read32(kbdev, JOB_CONTROL_ENUM(JOB_IRQ_MASK)),
-		kbase_reg_read32(kbdev, JOB_CONTROL_ENUM(JOB_IRQ_STATUS)));
-
-	/* dump gic information */
-	for (i = 0; i < 3; i++) {
-			// 0: GPU, 1: MMU, 2: JOB
-			irq = irq_of_parse_and_map(kbdev->dev->of_node, i);
-			if (irq)
-				mt_irq_dump_status(irq);
-	}
-
 	/* dump stack */
 	dump_stack();
 
@@ -3845,6 +3827,7 @@ static void kbase_pm_timed_out(struct kbase_device *kbdev, const char *timeout_m
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_PM_TIMEOUT);
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_PM_TIMEOUT);
 	mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_PM_TIMEOUT);
+	mtk_common_debug(MTK_COMMON_DBG_DUMP_GIC_STATUS, NULL, MTK_DBG_HOOK_PM_TIMEOUT);
 #if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
 	mtk_kbase_pm_timed_out_mcu_transition_check(kbdev);
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
