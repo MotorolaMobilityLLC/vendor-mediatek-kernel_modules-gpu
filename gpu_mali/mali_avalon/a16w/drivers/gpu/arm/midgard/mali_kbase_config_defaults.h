@@ -170,6 +170,10 @@ enum {
  */
 #define DEFAULT_REF_TIMEOUT_FREQ_KHZ (100000)
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
+#define KBASE_FUNCTION_EXECUTE_DEBUG_TIMEOUT (70) /* 70ms*/
+#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
+
 /* Waiting timeout for status change acknowledgment, in clock cycles.
  *
  * This is also the default timeout to be used when an invalid timeout
