@@ -1655,9 +1655,30 @@ static int wait_for_global_request_with_timeout(struct kbase_csf_fw_io *fw_io, u
 	const long wait_timeout = kbase_csf_timeout_in_jiffies(timeout_ms);
 	long remaining;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP)
+	{
+		unsigned long timeout_jiffies = msecs_to_jiffies(wait_timeout);
+		unsigned long end_jiffies = jiffies + timeout_jiffies;
+		long __wait_remaining = 0;
+
+		while (time_before(jiffies, end_jiffies)) {
+			if ((global_request_complete(fw_io, req_mask)) || kbase_csf_fw_io_check_status_gpu_suspended(fw_io)) {
+
+				__wait_remaining = end_jiffies - jiffies;
+				if (__wait_remaining <= 0)
+					__wait_remaining = 1;
+				break;
+			}
+			udelay(10);
+		}
+
+		remaining = kbasep_csf_fw_io_handle_wait_result(fw_io, __wait_remaining);
+	}
+#else
 	remaining = kbase_csf_fw_io_wait_event_timeout(fw_io, kbdev->csf.event_wait,
 						       global_request_complete(fw_io, req_mask),
 						       wait_timeout);
+#endif /* CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP*/
 
 	if (!remaining) {
 		dev_warn(kbdev->dev,
@@ -2933,11 +2954,13 @@ int kbase_csf_firmware_load_init(struct kbase_device *kbdev)
 	if (ret != 0)
 		goto err_out;
 
+#if !IS_ENABLED(CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP)
 	ret = kbase_csf_firmware_log_init(kbdev);
 	if (ret != 0) {
 		dev_err(kbdev->dev, "Failed to initialize FW trace (err %d)", ret);
 		goto err_out;
 	}
+#endif /* CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP */
 
 	ret = kbase_csf_firmware_cfg_init(kbdev);
 	if (ret != 0)

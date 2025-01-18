@@ -42,6 +42,10 @@ struct kbase_device;
  */
 int kbase_csf_timeout_init(struct kbase_device *kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP)
+int kbase_csf_timeout_init_sysfs(struct kbase_device *const kbdev);
+#endif /* CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP */
+
 /**
  * kbase_csf_timeout_term - Terminate the progress timeout.
  *
