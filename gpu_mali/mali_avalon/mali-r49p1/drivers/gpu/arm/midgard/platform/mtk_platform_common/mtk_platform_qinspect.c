@@ -168,15 +168,16 @@ static int mtk_qinspect_cpuq_internal_dump(struct kbase_context *kctx, enum mtk_
 	init_completion(&kctx->csf.cpu_queue.dump_cmp);
 	kbase_event_wakeup(kctx);
 #if IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
+	dev_info(kctx->kbdev->dev, "wait cpu queue dump start for Ctx %d_%d", kctx->tgid, kctx->id);
 	mutex_unlock(&kctx->csf.cpu_queue.lock);
 #endif /* CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT*/
 	mutex_unlock(&kctx->csf.lock);
-
 	timeout = wait_for_completion_timeout(&kctx->csf.cpu_queue.dump_cmp, msecs_to_jiffies(3000));
 
 	mutex_lock(&kctx->csf.lock);
 #if IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
 	mutex_lock(&kctx->csf.cpu_queue.lock);
+	dev_info(kctx->kbdev->dev, "wait cpu queue dump end for Ctx %d_%d", kctx->tgid, kctx->id);
 #endif /* CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT*/
 	if (kctx->csf.cpu_queue.buffer) {
 		WARN_ON(atomic_read(&kctx->csf.cpu_queue.dump_req_status) != BASE_CSF_CPU_QUEUE_DUMP_PENDING);
@@ -305,6 +306,7 @@ void mtk_qinspect_cpuq_internal_unload_cpuq(struct kbase_context *kctx)
 #if IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
 	mutex_lock(&kctx->csf.cpu_queue.lock);
 #endif /* CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT*/
+	dev_info(kctx->kbdev->dev, "dump_req_status=%d for Ctx %d_%d", atomic_read(&kctx->csf.cpu_queue.dump_req_status), kctx->tgid, kctx->id);
 	WARN_ON(atomic_read(&kctx->csf.cpu_queue.dump_req_status) != BASE_CSF_CPU_QUEUE_DUMP_DONE);
 	if (kctx->csf.cpu_queue.buffer) {
 		kfree(kctx->csf.cpu_queue.buffer);
