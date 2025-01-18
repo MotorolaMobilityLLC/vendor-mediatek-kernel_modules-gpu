@@ -10,7 +10,3 @@ obj-m += mali_avalon/a16w/drivers/base/arm/memory_group_manager/
 obj-m += mali_avalon/a16w/drivers/base/arm/protected_memory_allocator/
 obj-m += mali_avalon/a16w/drivers/base/arm/dma_buf_test_exporter/
 
-obj-m += mali_avalon/r53p0/drivers/gpu/arm/midgard/
-obj-m += mali_avalon/r53p0/drivers/base/arm/memory_group_manager/
-obj-m += mali_avalon/r53p0/drivers/base/arm/protected_memory_allocator/
-obj-m += mali_avalon/r53p0/drivers/base/arm/dma_buf_test_exporter/
