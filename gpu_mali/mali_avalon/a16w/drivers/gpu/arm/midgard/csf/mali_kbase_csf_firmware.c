@@ -2297,8 +2297,7 @@ void kbase_csf_firmware_trigger_reload(struct kbase_device *kbdev)
 		kbdev->csf.firmware_reload_needed = false;
 		queue_work(system_wq, &kbdev->csf.firmware_reload_work);
 	} else {
-		if (likely(!kbdev->pm.backend.in_reset))
-			kbase_csf_firmware_enable_mcu(kbdev);
+		kbase_csf_firmware_enable_mcu(kbdev);
 	}
 }
 
