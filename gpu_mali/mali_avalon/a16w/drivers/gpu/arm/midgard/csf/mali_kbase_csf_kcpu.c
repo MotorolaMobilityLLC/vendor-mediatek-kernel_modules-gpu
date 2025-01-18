@@ -3249,7 +3249,7 @@ kbase_csf_kcpu_queue_metadata_new(struct kbase_context *kctx, u64 fence_context)
 			__func__, n, MAX_TIMELINE_NAME);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"%s: Invalid timeline name length : %d exceed limit %d", __func__, n, MAX_TIMELINE_NAME);
+			"%s: Invalid timeline name length : %d exceed limit %d\n", __func__, n, MAX_TIMELINE_NAME);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #endif /* CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG */
 		kfree(metadata);
@@ -3312,7 +3312,7 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx, struct kbase_ioctl_kcpu
 			__func__, sizeof(*queue));
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"%s: Allocate kcpu queue (size=%zu) failed.", __func__, sizeof(*queue));
+			"%s: Allocate kcpu queue (size=%zu) failed.\n", __func__, sizeof(*queue));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #endif /* CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG */
 		ret = -ENOMEM;
@@ -3345,7 +3345,7 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx, struct kbase_ioctl_kcpu
 			dev_warn(kctx->kbdev->dev, "%s: Allocate metadata (size=%zu) failed", __func__, sizeof(*metadata));
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 			mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			     "%s: Allocate metadata (size=%zu) failed", __func__, sizeof(*metadata));
+			     "%s: Allocate metadata (size=%zu) failed\n", __func__, sizeof(*metadata));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #endif /* CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG */
 			vfree(queue);
@@ -3369,7 +3369,7 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx, struct kbase_ioctl_kcpu
 		dev_warn(kctx->kbdev->dev, "%s: Fail to allocate workqueue", __func__);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"%s: Fail to allocate workqueue", __func__);
+			"%s: Fail to allocate workqueue\n", __func__);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #endif /* CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG */
 		vfree(queue);

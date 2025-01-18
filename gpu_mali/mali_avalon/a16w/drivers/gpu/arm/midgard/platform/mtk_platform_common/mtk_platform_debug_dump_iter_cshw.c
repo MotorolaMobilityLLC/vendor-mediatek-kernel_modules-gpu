@@ -180,9 +180,9 @@ static void dump_hwif_registers_locked(struct kbase_device *kbdev)
 		dev_err(kbdev->dev, "\n");
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "Register dump of CSHWIF %d", i);
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "Register dump of CSHWIF %d\n", i);
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"CMD_PTR: %llx CMD_PTR_END: %llx STATUS: %x JASID: %x EMUL_INSTR: %llx WAIT_STATUS: %x SB_SET_SEL: %x SB_SEL: %x",
+			"CMD_PTR: %llx CMD_PTR_END: %llx STATUS: %x JASID: %x EMUL_INSTR: %llx WAIT_STATUS: %x SB_SET_SEL: %x SB_SEL: %x\n",
 			cmd_ptr,
 			cmd_ptr_end,
 			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x24)),
@@ -192,7 +192,7 @@ static void dump_hwif_registers_locked(struct kbase_device *kbdev)
 			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x78)),
 			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x7C)));
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"CMD_COUNTER: %x EVT_RAW: %x EVT_IRQ_STATUS: %x EVT_HALT_STATUS: %x FAULT_STATUS: %x FAULT_ADDR: %llx",
+			"CMD_COUNTER: %x EVT_RAW: %x EVT_IRQ_STATUS: %x EVT_HALT_STATUS: %x FAULT_STATUS: %x FAULT_ADDR: %llx\n",
 			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x80)),
 			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x98)),
 			kbase_reg_read(kbdev, CSHWIF_REG(i, 0xA4)),
@@ -200,7 +200,7 @@ static void dump_hwif_registers_locked(struct kbase_device *kbdev)
 			kbase_reg_read(kbdev, CSHWIF_REG(i, 0xB0)),
 			kbase_reg_read(kbdev, CSHWIF_REG(i, 0xB8)) | ((u64)kbase_reg_read(kbdev, CSHWIF_REG(i, 0xBC)) << 32));
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"ITER_COMPUTE: %x ITER_FRAGMENT: %x ITER_TILER: %x",
+			"ITER_COMPUTE: %x ITER_FRAGMENT: %x ITER_TILER: %x\n",
 			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x28)),
 			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x2C)),
 			kbase_reg_read(kbdev, CSHWIF_REG(i, 0x30)));

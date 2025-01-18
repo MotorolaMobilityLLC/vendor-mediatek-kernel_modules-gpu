@@ -276,7 +276,7 @@ void mtk_common_debug(enum mtk_common_debug_types type, struct kbase_context *kc
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"diagnosis hook = 0x%08llx, mode = %llu, mask = 0x%08llx", hook_point, diagnosis_mode, diagnosis_dump_mask);
+			"diagnosis hook = 0x%08llx, mode = %llu, mask = 0x%08llx\n", hook_point, diagnosis_mode, diagnosis_dump_mask);
 #else /* CONFIG_MALI_MTK_LOG_BUFFER */
 		dev_info(kbdev->dev, "diagnosis hook = 0x%08llx, mode = %llu, mask = 0x%08llx", hook_point, diagnosis_mode, diagnosis_dump_mask);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */

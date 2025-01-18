@@ -44,14 +44,14 @@ void mtk_debug_dump_as_status_nolock(struct kbase_device *kbdev)
 				dev_info(kbdev->dev, "AS[%d], kctx %d_%d, process_name: %s", as, kctx->tgid, kctx->id, task->group_leader->comm);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 				mtk_logbuffer_type_print(kbdev,
-					MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "AS[%d], kctx %d_%d, process_name: %s",
+					MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "AS[%d], kctx %d_%d, process_name: %s\n",
 					as, kctx->tgid, kctx->id, task->group_leader->comm);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			} else {
 				dev_info(kbdev->dev, "AS[%d], kctx %d_%d, process_name: %s", as, kctx->tgid, kctx->id, "NULL");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 				mtk_logbuffer_type_print(kbdev,
-					MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "AS[%d], kctx %d_%d, process_name: %s",
+					MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "AS[%d], kctx %d_%d, process_name: %s\n",
 					as, kctx->tgid, kctx->id, "NULL");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			}
@@ -61,7 +61,7 @@ void mtk_debug_dump_as_status_nolock(struct kbase_device *kbdev)
 			dev_info(kbdev->dev, "AS[%d], kctx %d_%d, process_name: %s", as, kctx->tgid, kctx->id, "NULL");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 			mtk_logbuffer_type_print(kbdev,
-				MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "AS[%d], kctx %d_%d, process_name: %s",
+				MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION, "AS[%d], kctx %d_%d, process_name: %s\n",
 				as, kctx->tgid, kctx->id, "NULL");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		}
