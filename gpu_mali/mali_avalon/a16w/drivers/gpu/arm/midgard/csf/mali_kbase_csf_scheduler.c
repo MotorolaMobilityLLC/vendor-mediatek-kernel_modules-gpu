@@ -7691,7 +7691,9 @@ static int kbase_csf_scheduler_kthread(void *data)
 #endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 				if (kbdev->csf.scheduler.state == SCHED_SLEEPING)
 				{
+					mutex_lock(&scheduler->lock);
 					wait_for_mcu_sleep_after_idle_stress_test(kbdev);
+					mutex_unlock(&scheduler->lock);
 					kbdev->pm.backend.exit_gpu_sleep_mode = true;
 					kbase_csf_scheduler_invoke_tick(kbdev);
 				}
@@ -7710,7 +7712,9 @@ static int kbase_csf_scheduler_kthread(void *data)
 
 		handle_pending_sync_update_works(scheduler);
 		handle_pending_protm_requests(scheduler);
+#if !IS_ENABLED(CONFIG_MALI_MTK_KCPUQ_KTHREAD)
 		handle_pending_kcpuq_commands(scheduler);
+#endif
 #endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 		handle_pending_queue_kicks(kbdev);
 
@@ -7784,7 +7788,31 @@ static int kbase_csf_scheduler_kthread(void *data)
 
 	return 0;
 }
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
+#if IS_ENABLED(CONFIG_MALI_MTK_KCPUQ_KTHREAD)
+static int kbase_csf_scheduler_kcpuq_kthread(void *data)
+{
+	struct kbase_device *const kbdev = data;
+	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
 
+	while (scheduler->kcpuq_kthread_running) {
+		if (wait_for_completion_interruptible(&scheduler->kcpuq_kthread_signal) != 0)
+			continue;
+		reinit_completion(&scheduler->kcpuq_kthread_signal);
+
+		handle_pending_kcpuq_commands(scheduler);
+
+		wake_up_all(&scheduler->kcpuq_cmds_completed);
+	}
+
+	/* Wait for the other thread, that signaled the exit, to call kthread_stop() */
+	while (!kthread_should_stop())
+		;
+
+	return 0;
+}
+#endif /* CONFIG_MALI_MTK_KCPUQ_KTHREAD */
+#endif /* !CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 int kbase_csf_scheduler_init(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
@@ -7813,6 +7841,24 @@ int kbase_csf_scheduler_init(struct kbase_device *kbdev)
 		dev_err(kbdev->dev, "Failed to spawn the GPU queue submission worker thread");
 		return -ENOMEM;
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_KCPUQ_KTHREAD)
+	init_completion(&scheduler->kcpuq_kthread_signal);
+	scheduler->kcpuq_kthread_running = true;
+	scheduler->kcpuq_kthread =
+		kthread_run(&kbase_csf_scheduler_kcpuq_kthread, kbdev, "mali-kcpuq-kthread");
+	if (IS_ERR_OR_NULL(scheduler->kcpuq_kthread)) {
+		scheduler->kthread_running = false;
+		complete(&scheduler->kthread_signal);
+		kthread_stop(scheduler->gpuq_kthread);
+		scheduler->gpuq_kthread = NULL;
+
+		kfree(scheduler->csg_slots);
+		scheduler->csg_slots = NULL;
+
+		dev_err(kbdev->dev, "Failed to spawn the KCPU queue execution worker thread");
+		return -ENOMEM;
+	}
+#endif
 #if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
 	sched_setscheduler_nocheck(scheduler->gpuq_kthread, SCHED_FIFO, &param);
 #endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
@@ -7822,6 +7868,12 @@ int kbase_csf_scheduler_init(struct kbase_device *kbdev)
 	scheduler->gpu_metrics_tb =
 		kbase_csf_firmware_get_trace_buffer(kbdev, KBASE_CSFFW_GPU_METRICS_BUF_NAME);
 	if (!scheduler->gpu_metrics_tb) {
+#if IS_ENABLED(CONFIG_MALI_MTK_KCPUQ_KTHREAD)
+		scheduler->kcpuq_kthread_running = false;
+		complete(&scheduler->kcpuq_kthread_signal);
+		kthread_stop(scheduler->kcpuq_kthread);
+		scheduler->kcpuq_kthread = NULL;
+#endif
 		scheduler->kthread_running = false;
 		complete(&scheduler->kthread_signal);
 		kthread_stop(scheduler->gpuq_kthread);
@@ -7894,12 +7946,20 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 	atomic_set(&scheduler->pending_protm_event_works, false);
 	spin_lock_init(&scheduler->protm_event_work_grps_lock);
 	INIT_LIST_HEAD(&scheduler->protm_event_work_grps);
+#if !IS_ENABLED(CONFIG_MALI_MTK_KCPUQ_KTHREAD)
 	atomic_set(&scheduler->pending_kcpuq_works, false);
 	spin_lock_init(&scheduler->kcpuq_work_queues_lock);
 	INIT_LIST_HEAD(&scheduler->kcpuq_work_queues);
+#endif
 	atomic_set(&scheduler->pending_tick_work, false);
 	atomic_set(&scheduler->pending_tock_work, false);
 	atomic_set(&scheduler->pending_gpu_idle_work, 0);
+#if IS_ENABLED(CONFIG_MALI_MTK_KCPUQ_KTHREAD)
+	atomic_set(&scheduler->pending_kcpuq_works, false);
+	spin_lock_init(&scheduler->kcpuq_work_queues_lock);
+	INIT_LIST_HEAD(&scheduler->kcpuq_work_queues);
+	init_waitqueue_head(&scheduler->kcpuq_cmds_completed);
+#endif
 	atomic_set(&scheduler->pending_power_off_work, false);
 #else
 	INIT_WORK(&scheduler->gpu_idle_work, gpu_idle_worker);
@@ -7929,11 +7989,19 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 void kbase_csf_scheduler_term(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_KCPUQ_KTHREAD)
+	if (!IS_ERR_OR_NULL(scheduler->kcpuq_kthread)) {
+		scheduler->kcpuq_kthread_running = false;
+		complete(&scheduler->kcpuq_kthread_signal);
+		kthread_stop(scheduler->kcpuq_kthread);
+		scheduler->kcpuq_kthread = NULL;
+	}
+#endif
 	if (!IS_ERR_OR_NULL(scheduler->gpuq_kthread)) {
 		scheduler->kthread_running = false;
 		complete(&scheduler->kthread_signal);
 		kthread_stop(scheduler->gpuq_kthread);
+		scheduler->gpuq_kthread = NULL;
 	}
 
 	if (kbdev->csf.scheduler.csg_slots) {
@@ -8322,8 +8390,13 @@ void kbase_csf_scheduler_enqueue_kcpuq_work(struct kbase_kcpu_command_queue *que
 #if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
 		mali_kthread_event("queue work", queue, "kcpu_queue_process_worker");
 #endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_KCPUQ_KTHREAD)
+		if (atomic_cmpxchg(&scheduler->pending_kcpuq_works, false, true) == false)
+			complete(&scheduler->kcpuq_kthread_signal)
+#else
 		if (atomic_cmpxchg(&scheduler->pending_kcpuq_works, false, true) == false)
 			complete(&scheduler->kthread_signal);
+#endif
 	}
 	spin_unlock_irqrestore(&scheduler->kcpuq_work_queues_lock, flags);
 }
