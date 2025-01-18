@@ -4782,6 +4782,13 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		reg_offset = GPU_CONTROL_ENUM(GPU_IRQ_MASK);
 		reg_val = RESET_COMPLETED;
 
+#if MALI_USE_CSF
+		if (kbdev->pm.backend.has_host_pwr_iface) {
+			reg_offset = HOST_POWER_ENUM(PWR_IRQ_MASK);
+			reg_val = PWR_IRQ_RESET_COMPLETED;
+		}
+#endif
+
 		/* Unmask the reset complete interrupt only */
 		kbase_reg_write32(kbdev, reg_offset, reg_val);
 
