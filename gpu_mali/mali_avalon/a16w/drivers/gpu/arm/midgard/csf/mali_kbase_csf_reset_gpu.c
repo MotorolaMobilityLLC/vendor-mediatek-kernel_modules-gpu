@@ -879,6 +879,7 @@ bool kbase_prepare_to_reset_gpu_ext(struct kbase_device *kbdev, unsigned int fla
 {
 	int idx = 0;
 	bool need_reset_flag = false;
+	int lock;
 
 	need_reset_flag = __kbase_prepare_to_reset_gpu(kbdev, flags);
 
@@ -887,13 +888,18 @@ bool kbase_prepare_to_reset_gpu_ext(struct kbase_device *kbdev, unsigned int fla
 		for (idx = 0; idx < gpu_reset_entry_size; idx++) {
 			if (kbdev->reset_exception_mask & (1u << idx)) {
 				if (strncmp(func, gpu_reset_entry_name[idx], strlen(func)) == 0) {
+					lock = spin_is_locked(&kbdev->hwaccess_lock);
 					// Add debug dump here
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 					mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_NA);
 					mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_NA);
-					mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, NULL, MTK_DBG_HOOK_NA);
+					if (lock)
+						mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF_LOCKED, NULL, MTK_DBG_HOOK_NA);
+					else
+						mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, NULL, MTK_DBG_HOOK_NA);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
-					kbase_csf_debug_dump_registers(kbdev);
+					if (!lock)
+						kbase_csf_debug_dump_registers(kbdev);
 					kbase_csf_firmware_log_dump_buffer(kbdev);
 					BUG_ON(1);
 				}
