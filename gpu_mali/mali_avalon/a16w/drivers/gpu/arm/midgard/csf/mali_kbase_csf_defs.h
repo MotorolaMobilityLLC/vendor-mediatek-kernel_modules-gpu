@@ -1185,6 +1185,11 @@ struct kbase_csf_mcu_shared_regions {
  *                              have requested protected mode.
  * @protm_event_work_grps:      The list of groups that have requested
  *                              protected mode.
+ * @pending_kcpuq_works:    Indicates that kbase_csf_scheduler_kthread()
+ *                          should process pending KCPU queue works.
+ * @kcpuq_work_queues_lock: Lock protecting the list of KCPU queues that
+ *                          need to be processed.
+ * @kcpuq_work_queues:      The list of KCPU queue that need to be processed
  * @pending_tick_work:      Indicates that kbase_csf_scheduler_kthread() should
  *                          perform a scheduling tick.
  * @pending_tock_work:      Indicates that kbase_csf_scheduler_kthread() should
@@ -1249,20 +1254,6 @@ struct kbase_csf_mcu_shared_regions {
  * @gpuq_kthread:           Dedicated thread primarily used to handle
  *                          latency-sensitive tasks such as GPU queue
  *                          submissions.
- * @kcpuq_kthread_signal:   Used to wake up the kthread that executes KCPU
- *                          commands that belong to prioritized contexts.
- * @kcpuq_kthread_running:  Set to true to indicate that the KCPU queue
- *                          execution thread will handle pending commands.
- * @kcpuq_kthread:          Dedicated thread used to execute KCPU commands
- *                          from prioritized contexts.
- * @pending_kcpuq_works:    Indicates that kbase_csf_scheduler_kcpuq_kthread()
- *                          should process pending KCPU queue works.
- * @kcpuq_work_queues_lock: Lock protecting the list of KCPU queues that
- *                          need to be processed.
- * @kcpuq_work_queues:      The list of KCPU queue that need to be processed.
- * @kcpuq_cmds_completed:   Wait queue for kbase_csf_scheduler_kcpuq_kthread()
- *                          to finish executing all pending prioritized KCPU
- *                          queue commands.
  * @gpu_idle_timer_enabled: Tracks whether the GPU idle timer is enabled or disabled.
  * @fw_soi_enabled:         True if FW Sleep-on-Idle is currently enabled.
  */
@@ -1294,11 +1285,9 @@ struct kbase_csf_scheduler {
 	struct list_head sync_update_work_ctxs;
 	atomic_t pending_protm_event_works;
 	spinlock_t protm_event_work_grps_lock;
-#if !IS_ENABLED(CONFIG_MALI_MTK_KCPUQ_KTHREAD)
 	struct list_head protm_event_work_grps;
 	atomic_t pending_kcpuq_works;
 	spinlock_t kcpuq_work_queues_lock;
-#endif /* !CONFIG_MALI_MTK_KCPUQ_KTHREAD */
 	struct list_head kcpuq_work_queues;
 #endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
@@ -1332,15 +1321,6 @@ struct kbase_csf_scheduler {
 	struct completion kthread_signal;
 	bool kthread_running;
 	struct task_struct *gpuq_kthread;
-#if IS_ENABLED(CONFIG_MALI_MTK_KCPUQ_KTHREAD)
-	struct completion kcpuq_kthread_signal;
-	bool kcpuq_kthread_running;
-	struct task_struct *kcpuq_kthread;
-	atomic_t pending_kcpuq_works;
-	spinlock_t kcpuq_work_queues_lock;
-	struct list_head kcpuq_work_queues;
-	wait_queue_head_t kcpuq_cmds_completed;
-#endif
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
 	/**
 	 *  @gpu_metrics_tb: Handler of firmware trace buffer for gpu_metrics
