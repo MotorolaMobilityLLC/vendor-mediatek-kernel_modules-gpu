@@ -107,6 +107,10 @@ static struct proc_dir_entry *proc_root;
 #include <platform/mtk_platform_common/mtk_platform_upf_counter.h>
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+#include <platform/mtk_platform_common/mtk_platform_extra_fence_debug.h>
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+
 static bool mfg_powered;
 static DEFINE_MUTEX(mfg_pm_lock);
 static DEFINE_MUTEX(common_debug_lock);
@@ -164,6 +168,13 @@ int mtk_common_whitebox_sync_update_test_mode(void)
 	return mtk_whitebox_sync_update_test_mode();
 }
 #endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+int mtk_common_extra_fence_debug_mode(void)
+{
+	return mtk_extra_fence_debug_mode();
+}
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
 #if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
@@ -690,6 +701,9 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE)
 	mtk_whitebox_sync_update_test_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	mtk_extra_fence_debug_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 	mtk_debug_sleep_mode_debugfs_init(kbdev);
 
@@ -793,6 +807,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
 	ged_mali_event_init();
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	mtk_extra_fence_debug_init();
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)
 	kbdev->exception_mask = (1u << EXCEPTION_RESET_FAILED);

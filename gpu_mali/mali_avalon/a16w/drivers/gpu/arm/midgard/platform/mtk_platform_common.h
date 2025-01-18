@@ -118,6 +118,10 @@ void mtk_platform_pm_term(struct kbase_device *kbdev);
 bool mtk_common_whitebox_missing_doorbell_enable(void);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+int mtk_common_extra_fence_debug_mode(void);
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_ACP_DSU_REQ)
 #define REQ_DSU_POWER_ON (1)
 #define REQ_DSU_POWER_OFF (0)

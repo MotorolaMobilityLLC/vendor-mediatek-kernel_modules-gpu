@@ -44,6 +44,10 @@
 #include <platform/mtk_platform_common/mtk_platform_qinspect_recovery.h>
 #endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
 
+#if IS_ENABLED(CONFIG_MALI_FENCE_DEBUG)
+#include <platform/mtk_platform_common/mtk_platform_extra_fence_debug.h>
+#endif /* CONFIG_MALI_FENCE_DEBUG */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
 #include <ged_mali_event.h>
 #include <platform/mtk_platform_common/mtk_platform_mali_event.h>
@@ -2184,6 +2188,7 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 	char sf_name[] = "surfaceflinger";
 	struct task_struct *task;
 	struct pid *pid_struct;
+	bool is_extra_dump_enable = false;
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 	mutex_lock(&queue->lock);
@@ -2254,6 +2259,10 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 	fence_signal_command_timeout_ms =
 		fence_signal_command_timeout_counter * kbase_get_timeout_ms(kctx->kbdev, KCPU_FENCE_SIGNAL_TIMEOUT);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	is_extra_dump_enable = (fence_signal_command_timeout_counter == 1) && (mtk_common_extra_fence_debug_mode() > EXTRA_FENCE_DEBUG_MODE_NONE);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
 	if ((fence_signal_command_timeout_counter == 2) || (fence_signal_command_timeout_counter == 3) ||
 		(fence_signal_command_timeout_counter == 4) || (fence_signal_command_timeout_counter == 5)) {
@@ -2261,9 +2270,9 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 	}
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 
-	/* 3. Have the log and dump when timeout 2s, 3s and every 5Ns */
+	/* 3. Have the log and dump when timeout 2s, 3s and every 5Ns or extra dump is enable*/
 	if ((fence_signal_command_timeout_counter == 2) || (fence_signal_command_timeout_counter == 3)
-		|| ((fence_signal_command_timeout_counter % 5) == 0)) {
+		|| ((fence_signal_command_timeout_counter % 5) == 0) || is_extra_dump_enable) {
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		if (fence_signal_command_timeout_counter < 5) {
 			/* Deferred the log to 5s timeout for analysis */
@@ -2327,8 +2336,9 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 		}
 	}
 
-	/* 4. Dump the group information when timeout 2s, 3s */
-	if ((fence_signal_command_timeout_counter == 2) || (fence_signal_command_timeout_counter == 3)) {
+	/* 4. Dump the group information when timeout 2s, 3s or extra dump is enable */
+	if ((fence_signal_command_timeout_counter == 2) || (fence_signal_command_timeout_counter == 3)
+		|| is_extra_dump_enable) {
 		//kbasep_print(kbpr, "------------------------------------------------\n");
 		//kbasep_print(kbpr, "KCPU Fence signal timeout detected for ctx:%d_%d\n", kctx->tgid, kctx->id);
 		//kbasep_print(kbpr, "------------------------------------------------\n");
