@@ -3289,10 +3289,18 @@ static ssize_t core_mask_show(struct device *dev, struct device_attribute *attr,
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 #if MALI_USE_CSF
-	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)) {
+#if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+		&& (kbdev->gov_core_mask_disable == 0)
+#endif
+	)
+	{
 		ca_mask = kbase_pm_ca_get_gov_core_mask(kbdev);
 		debug_mask = kbase_pm_ca_get_sysfs_gov_core_mask(kbdev);
-	} else {
+	} else
+#endif
+	{
 		ca_mask = kbase_pm_ca_get_core_mask(kbdev);
 		debug_mask = kbase_pm_ca_get_debug_core_mask(kbdev);
 	}
@@ -3359,14 +3367,21 @@ static int core_mask_set(struct kbase_device *kbdev, struct kbase_core_mask *con
 	kbase_pm_lock(kbdev);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
-	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)) {
+#if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+	&& (kbdev->gov_core_mask_disable == 0)
+#endif
+	)
+	{
 		ca_mask = kbdev->pm.backend.ca_gov_cores_enabled;
 		debug_mask = kbase_pm_ca_get_sysfs_gov_core_mask(kbdev);
-	} else {
+	} else
+#endif
+	{
 		ca_mask = kbdev->pm.backend.ca_cores_enabled;
 		debug_mask = kbase_pm_ca_get_debug_core_mask(kbdev);
 	}
-
 	shader_present = kbdev->gpu_props.shader_present;
 
 	if ((new_core_mask & shader_present) != new_core_mask) {
@@ -6743,6 +6758,81 @@ static ssize_t idle_hysteresis_time_ns_show(struct device *dev, struct device_at
 
 static DEVICE_ATTR_RW(idle_hysteresis_time_ns);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+/**
+ * @brief Store whether gov_core_mask should be disabled for the KBase device.
+ *
+ * This function sets the state of gov_core_mask from user input string representation.
+ *
+ * @param dev   Pointer to the device structure.
+ * @param attr  Device attribute pointer (unused).
+ * @param buf   Buffer containing user input string.
+ * @param count Length of the user input buffer.
+ *
+ * @retval >=0 Number of characters processed from the buffer.
+ * @retval <0 Negative error code.
+ */
+
+static ssize_t gov_core_mask_disable_store(struct device *dev, struct device_attribute *attr,
+					  const char *buf, size_t count)
+{
+	struct kbase_device *kbdev;
+	u32 disabled = 0;
+
+	CSTD_UNUSED(attr);
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	if (kstrtou32(buf, 0, &disabled)) {
+		dev_err(kbdev->dev, "Couldn't process gov_core_mask_enable write operation.\n"
+				    "Use format <gov_core_mask_enable>\n");
+		return -EINVAL;
+	}
+
+	kbdev->gov_core_mask_disable = disabled;
+	dev_dbg(kbdev->dev, "gov_core_mask_disable: %d\n",disabled);
+
+	return (ssize_t)count;
+}
+
+/**
+ * @brief Show whether gov_core_mask is disabled for the KBase device.
+ *
+ * This function reads the current state of sleep on idle from the CSF firmware
+ * and returns it as a string representation.
+ *
+ * @param dev  Pointer to the device structure.
+ * @param attr Device attribute pointer (unused).
+ * @param buf  Buffer to store the result string.
+ *
+ * @retval >=0 Number of characters written to the buffer.
+ * @retval <0 Negative error code.
+ */
+
+static ssize_t gov_core_mask_disable_show(struct device *dev, struct device_attribute *attr,
+					 char *const buf)
+{
+	struct kbase_device *kbdev;
+	ssize_t ret;
+	u32 disabled;
+
+	CSTD_UNUSED(attr);
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	disabled = kbdev->gov_core_mask_disable;
+	ret = scnprintf(buf, PAGE_SIZE, "gov_core_mask disable = %u\n", (u32)disabled);
+
+	return ret;
+}
+static DEVICE_ATTR_RW(gov_core_mask_disable);
+
+#endif /* CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG */
+
 /**
  * mcu_shader_pwroff_timeout_show - Get the MCU shader Core power-off time value.
  *
@@ -6921,6 +7011,9 @@ static struct attribute *kbase_attrs[] = {
 #if IS_ENABLED(CONFIG_MALI_MTK_SOI_DEBUG)
 	&dev_attr_sleep_on_idle_enable.attr,
 #endif /* IS_ENABLED(CONFIG_MALI_MTK_SOI_DEBUG) */
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+	&dev_attr_gov_core_mask_disable.attr,
+#endif /* IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG) */
 	&dev_attr_mcu_shader_pwroff_timeout.attr,
 	&dev_attr_mcu_shader_pwroff_timeout_ns.attr,
 #endif /* !MALI_USE_CSF */

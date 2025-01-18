@@ -1530,6 +1530,10 @@ struct kbase_device {
 	u32 reset_exception_mask;
 #endif /* CONFIG_MALI_MTK_GPU_RESET_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+	u32 gov_core_mask_disable;
+#endif /* CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG */
+
 #if MALI_USE_CSF && IS_ENABLED(CONFIG_SYNC_FILE)
 	atomic_t live_fence_metadata;
 #endif

@@ -150,7 +150,13 @@ void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 #if MALI_USE_CSF
-	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)) {
+#if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+	&& (kbdev->gov_core_mask_disable == 0)
+#endif
+	)
+	{
 		/* Requires a validity check to ensure we don't try to set cores we do not have */
 		if ((core_mask & kbdev->gpu_props.shader_present) != core_mask)
 			dev_err(kbdev->dev,
@@ -160,6 +166,7 @@ void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
 			kbase_pm_ca_set_gov_core_mask(kbdev, DEVFREQ_COREMASK, core_mask);
 		goto unlock;
 	}
+#endif
 
 	if (!(core_mask & kbdev->pm.debug_core_mask)) {
 		dev_err(kbdev->dev,

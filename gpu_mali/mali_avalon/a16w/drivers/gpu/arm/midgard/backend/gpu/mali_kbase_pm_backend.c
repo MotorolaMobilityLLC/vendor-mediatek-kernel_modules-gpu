@@ -899,10 +899,18 @@ void kbase_pm_set_debug_core_mask(struct kbase_device *kbdev, u64 new_core_mask)
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 	lockdep_assert_held(&kbdev->pm.lock);
 
-	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)) {
+#if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+	&& (kbdev->gov_core_mask_disable == 0)
+#endif
+	)
+	{
 		kbdev->pm.sysfs_gov_core_mask = new_core_mask;
 		kbase_pm_ca_set_gov_core_mask_nolock(kbdev, SYSFS_COREMASK, new_core_mask);
-	} else {
+	} else
+#endif
+	{
 		kbdev->pm.debug_core_mask = new_core_mask;
 		kbase_pm_update_dynamic_cores_onoff(kbdev);
 	}
