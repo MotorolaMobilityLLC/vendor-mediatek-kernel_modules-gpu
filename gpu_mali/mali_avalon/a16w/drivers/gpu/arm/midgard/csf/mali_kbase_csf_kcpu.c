@@ -2538,14 +2538,8 @@ static int delete_queue(struct kbase_context *kctx, u32 id)
 		 * kbase_csf_scheduler_kthread() if any. By this point the
 		 * queue would be empty so this would be a no-op.
 		 */
-#if IS_ENABLED(CONFIG_MALI_MTK_KCPUQ_KTHREAD)
-		complete(&kctx->kbdev->csf.scheduler.kcpuq_kthread_signal);
-		wait_event(kctx->kbdev->csf.scheduler.kcpuq_cmds_completed,
-			   atomic_read(&queue->pending_kick) == 0);
-#else
 		kbase_csf_scheduler_wait_for_kthread_pending_work(kctx->kbdev,
 								  &queue->pending_kick);
-#endif
 #if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
 		WARN_ON(atomic_read(&queue->pending_kick) != 0 || !list_empty(&queue->high_prio_work));
 #endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
