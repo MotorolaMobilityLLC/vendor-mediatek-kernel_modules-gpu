@@ -96,30 +96,33 @@ static void *mtk_qinspect_gpuq_internal_map_cpu_addr(struct kbase_context *kctx,
 	u64 pfn = gpu_addr >> PAGE_SHIFT;
 	u64 offset;
 	struct page *page;
-	void *cpu_addr;
+	void *cpu_addr = NULL;
 	pgprot_t prot = PAGE_KERNEL;
 
-	reg = kbase_region_tracker_find_region_enclosing_address(kctx, gpu_addr);
-	if (reg == NULL || reg->gpu_alloc == NULL)
-		/* Empty region - ignore */
-		return NULL;
+	kbase_gpu_vm_lock(kctx);
+	do {
+		reg = kbase_region_tracker_find_region_enclosing_address(kctx, gpu_addr);
+		if (reg == NULL || reg->gpu_alloc == NULL)
+			/* Empty region - ignore */
+			break;
 
-	if (reg->flags & KBASE_REG_PROTECTED)
-		/* CPU access to protected memory is forbidden - so
-		 * skip this GPU virtual region.
-		 */
-		return NULL;
+		if (reg->flags & KBASE_REG_PROTECTED)
+			/* CPU access to protected memory is forbidden - so
+			 * skip this GPU virtual region.
+			 */
+			break;
 
-	offset = pfn - reg->start_pfn;
-	if (offset >= reg->gpu_alloc->nents)
-		return NULL;
+		offset = pfn - reg->start_pfn;
+		if (offset >= reg->gpu_alloc->nents)
+			break;
 
-	if (!(reg->flags & KBASE_REG_CPU_CACHED))
-		prot = pgprot_writecombine(prot);
+		if (!(reg->flags & KBASE_REG_CPU_CACHED))
+			prot = pgprot_writecombine(prot);
 
-	page = as_page(reg->gpu_alloc->pages[offset]);
-	cpu_addr = vmap(&page, 1, VM_MAP, prot);
-
+		page = as_page(reg->gpu_alloc->pages[offset]);
+		cpu_addr = vmap(&page, 1, VM_MAP, prot);
+	} while (false);
+	kbase_gpu_vm_unlock(kctx);
 	return cpu_addr;
 }
 
