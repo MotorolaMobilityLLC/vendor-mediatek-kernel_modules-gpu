@@ -2264,8 +2264,7 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
-	if ((fence_signal_command_timeout_counter == 2) || (fence_signal_command_timeout_counter == 3) ||
-		(fence_signal_command_timeout_counter == 4) || (fence_signal_command_timeout_counter == 5)) {
+	if ((fence_signal_command_timeout_counter > 0) && (fence_signal_command_timeout_counter <= 5)) {
 		ged_mali_event_notify_fence_timeout_event(kctx->tgid, FENCE_TYPE_KCPU_QUEUE, fence_signal_command_timeout_counter);
 	}
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
