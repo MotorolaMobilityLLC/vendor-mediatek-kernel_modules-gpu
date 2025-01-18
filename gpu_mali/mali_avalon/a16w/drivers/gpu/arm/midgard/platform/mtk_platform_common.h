@@ -125,4 +125,10 @@ bool mtk_common_whitebox_missing_doorbell_enable(void);
 void mtk_platform_cpu_cache_request(struct kbase_device *kbdev, int request, enum kbase_l2_core_state l2_state);
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+void mtk_common_upf_counter_add(void);
+unsigned long long mtk_common_upf_counter_get(void);
+void mtk_common_upf_counter_reset(void);
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+
 #endif /* __MTK_PLATFORM_COMMON_H__ */

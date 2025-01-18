@@ -657,6 +657,8 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx, struct kbase_as
 		}
 
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+		/* Add the unhandled page fault counter for recording */
+		mtk_common_upf_counter_add();
 		dev_err(kbdev->dev,
 			"[kbase_mmu_report_fault_and_kill] (p-mode %d)\n"
 			"ctx_id: %d_%d, pid: %d\n"
