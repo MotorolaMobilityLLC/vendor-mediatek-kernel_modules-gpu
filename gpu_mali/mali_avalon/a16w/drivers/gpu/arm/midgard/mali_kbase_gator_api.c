@@ -188,8 +188,8 @@ struct kbase_gator_hwcnt_handles *kbase_gator_hwcnt_init(struct kbase_gator_hwcn
 		core_mask >>= 1;
 	}
 
-	/* Calculated dump size must be the same as real dump size */
-	if (WARN_ON(dump_size != metadata->dump_buf_bytes)) {
+	/* Calculated dump size must be larger or the same as real dump size */
+	if (WARN_ON(dump_size < metadata->dump_buf_bytes)) {
 		goto free_layout;
 	}
 	in_out_info->nr_hwc_blocks = i;
