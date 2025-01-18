@@ -4256,14 +4256,13 @@ static ssize_t gpuinfo_show(struct device *dev, struct device_attribute *attr, c
 
 	if (product_model == GPU_ID_PRODUCT_IDRX) {
 		const bool has_rt = gpu_props->gpu_features.ray_traversal;
-		const bool has_ne = gpu_props->gpu_features.neural_engine;
 		const u8 nr_cores = gpu_props->num_cores;
-		bool conformant = (nr_cores >= 10) && has_rt && has_ne;
+		bool conformant = (nr_cores >= 10) && has_rt;
 
 		WARN_ONCE(
 			!conformant,
-			"Nonconforming TDRX-Immortalis: (ID: 0x%x), nr_cores(%u), has_rt(%d), has_ne(%d)\n",
-			product_id, nr_cores, has_rt, has_ne);
+			"Nonconforming TDRX-Immortalis: (ID: 0x%x), nr_cores(%u), has_rt(%d)\n",
+			product_id, nr_cores, has_rt);
 		dev_dbg(kbdev->dev, "GPU ID_Name: %s (ID: 0x%x), nr_cores(%u)\n", product_name,
 			product_id, nr_cores);
 
