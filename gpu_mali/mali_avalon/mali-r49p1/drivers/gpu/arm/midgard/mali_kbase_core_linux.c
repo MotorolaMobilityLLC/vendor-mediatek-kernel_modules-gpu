@@ -228,7 +228,7 @@ static const struct mali_kbase_capability_def kbase_caps_table[MALI_KBASE_NUM_CA
 static struct mutex kbase_probe_mutex;
 #endif
 
-#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM) && !defined(CONFIG_MALI_MTK_BRINGUP)
 static void get_rec_addr(void)
 {
 	int i;
@@ -6827,7 +6827,7 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 #endif
 	} else {
 
-#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM) && !defined(CONFIG_MALI_MTK_BRINGUP)
 		err = mtk_bandwith_resource_init(kbdev);
 		if (err)
 			pr_info("@%s: GPU BM init failed (JM)\n", __func__);
