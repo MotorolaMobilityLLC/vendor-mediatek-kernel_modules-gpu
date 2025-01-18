@@ -7,15 +7,11 @@
 #include <mali_kbase_defs.h>
 #include <mtk_gpufreq.h>
 
-#include <linux/of_irq.h>
-
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include "mtk_platform_logbuffer.h"
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 static char *infra_status_logbuf;
-
-extern void mt_irq_dump_status(unsigned int irq);
 
 void mtk_debug_dump_infra_status_init(void)
 {
@@ -33,7 +29,6 @@ void mtk_debug_dump_infra_status(struct kbase_device *kbdev)
 	const char *delim = "\n";
 	int len = 0;
 	int i = 0;
-	unsigned int irq = 0;
 
 	if (kbase_io_is_gpu_powered(kbdev)) {
 #if defined(CONFIG_MTK_GPUFREQ_V2)
@@ -55,19 +50,5 @@ void mtk_debug_dump_infra_status(struct kbase_device *kbdev)
 #else
 		mt_gpufreq_dump_infra_status();
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
-	}
-}
-
-void mtk_debug_dump_gic_status(struct kbase_device *kbdev)
-{
-	int i = 0;
-	unsigned int irq = 0;
-
-	/* Dump gic information */
-	for (i = 0; i < 3; i++) {
-		/* 0: GPU, 1: MMU, 2: JOB */
-		irq = irq_of_parse_and_map(kbdev->dev->of_node, i);
-		if (irq)
-			mt_irq_dump_status(irq);
 	}
 }
