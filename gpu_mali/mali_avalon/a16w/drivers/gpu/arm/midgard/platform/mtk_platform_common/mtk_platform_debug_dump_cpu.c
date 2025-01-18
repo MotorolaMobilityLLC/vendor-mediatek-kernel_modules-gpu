@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2022 MediaTek Inc.
+ * Copyright (c) 2022-2024 MediaTek Inc.
  */
 
 #include <mali_kbase.h>
@@ -89,7 +89,7 @@ void mtk_debug_csf_dump_cpu_queues(struct kbase_device *kbdev, struct kbase_cont
                 kbase_csf_cpu_queue_dump_needed(kctx));
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
             mtk_log_critical_exception(kbdev, true,
-                "[%d_%d] Timeout waiting for dump completion",
+                "[%d_%d] Failed to wait for completion of dump request",
                 kctx->tgid, kctx->id);
                 mutex_lock(&kctx->csf.lock);
 #if IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
@@ -106,7 +106,8 @@ void mtk_debug_csf_dump_cpu_queues(struct kbase_device *kbdev, struct kbase_cont
             int i;
             int next_str_idx = 0;
 
-            WARN_ON(atomic_read(&kctx->csf.cpu_queue.dump_req_status) != BASE_CSF_CPU_QUEUE_DUMP_PENDING);
+            WARN_ON(atomic_read(&kctx->csf.cpu_queue.dump_req_status) !=
+			BASE_CSF_CPU_QUEUE_DUMP_PENDING);
 
             for (i = 0; i < kctx->csf.cpu_queue.buffer_size; i++) {
                 if (kctx->csf.cpu_queue.buffer[i] == '\n') {
