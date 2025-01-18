@@ -60,6 +60,11 @@
 #include <mali_kbase_config_defaults.h>
 #endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+#include <ged_mali_event.h>
+#include <platform/mtk_platform_common/mtk_platform_mali_event.h>
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+
 /* Threshold used to decide whether to flush full caches or just a physical range */
 #define KBASE_PA_RANGE_THRESHOLD_NR_PAGES 20
 #define MGM_DEFAULT_PTE_GROUP (0)
@@ -1652,6 +1657,14 @@ fault_done:
 	// if worker execute too long, trigger debug message
 	execute_time = ktime_to_ms(ktime_sub(ktime_get(), begin_timestamp));
 	if (execute_time >= KBASE_FUNCTION_EXECUTE_DEBUG_TIMEOUT) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+		u32 meta_data[7] = {
+			(u32)new_pages, (u32)page_fault_try_cnt, (u32)fallback_to_small,
+			(u32)page_fault_try_allocate_time[0], (u32)page_fault_try_allocate_time[1],
+			(u32)memory_grow_time[0], (u32)memory_grow_time[1]
+		};
+		ged_mali_worker_event_notify_callback(kctx->tgid, WORKER_TYPE_MMU_PAGE_FAULT, execute_time, meta_data, 7);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 		dev_err(kbdev->dev, "ctx:%d_%d %s too long! (%llums), request size: %zu pages, meta_info: %u, %d, (%llu, %llu), (%llu, %llu)",
 			kctx->tgid, kctx->id, __func__, execute_time, new_pages, page_fault_try_cnt, fallback_to_small,
 			page_fault_try_allocate_time[0], page_fault_try_allocate_time[1], memory_grow_time[0], memory_grow_time[1]);
