@@ -656,6 +656,7 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	kbdev->csf.firmware_reload_needed = false;
+	kbdev->pm.backend.in_reset = true;
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	cancel_work_sync(&kbdev->csf.firmware_reload_work);
