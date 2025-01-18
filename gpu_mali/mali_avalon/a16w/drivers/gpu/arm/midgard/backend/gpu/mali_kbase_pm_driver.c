@@ -44,6 +44,7 @@
 
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) || IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MCU)
 #include <ged_dvfs.h>
+bool shall_scheduler_sleep = true;
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY || CONFIG_MALI_MTK_WHITEBOX_MCU */
 
 #include <mali_kbase_reset_gpu.h>
@@ -4393,6 +4394,18 @@ bool kbase_pm_clock_off(struct kbase_device *kbdev)
 
 	if (kbdev->pm.backend.callback_power_off)
 		kbdev->pm.backend.callback_power_off(kbdev);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) && !IS_ENABLED(CONFIG_MALI_MTK_DISABLE_SOI)
+	if (ged_get_autosuspend_stress()) {
+		shall_scheduler_sleep = !shall_scheduler_sleep;
+
+		if (shall_scheduler_sleep)
+			ged_set_apo_autosuspend_delay_ms(10);
+		else
+			ged_set_apo_autosuspend_delay_ms(0);
+	}
+#endif
+
 	return true;
 }
 
