@@ -76,6 +76,7 @@ struct mtk_debug_cs_queue_data {
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 int mtk_debug_csf_debugfs_init(struct kbase_device *kbdev);
 int mtk_debug_csf_debugfs_dump_mode(void);
+int mtk_debug_cshw_ctrl_dump_debugfs_init(struct kbase_device *kbdev);
 void mtk_debug_csf_dump_groups_and_queues(struct kbase_device *kbdev, struct kbase_context *kctx);
 void mtk_debug_csf_dump_iterator_hwif(struct kbase_device *kbdev);
 void mtk_debug_csf_dump_iterator_hwif_locked(struct kbase_device *kbdev);

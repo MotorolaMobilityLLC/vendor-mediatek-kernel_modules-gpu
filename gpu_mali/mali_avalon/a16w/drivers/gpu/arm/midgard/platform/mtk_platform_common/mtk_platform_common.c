@@ -645,6 +645,7 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	mtk_debug_csf_debugfs_init(kbdev);
+	mtk_debug_cshw_ctrl_dump_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 #if IS_ENABLED(CONFIG_MALI_MTK_MMAP_LOGGING)
 	mtk_debug_mmap_logging_debugfs_init(kbdev);
