@@ -29,23 +29,107 @@
 #include <backend/gpu/mali_kbase_model_linux.h>
 #include <mali_kbase_dummy_job_wa.h>
 
-int kbase_pm_ca_init(struct kbase_device *kbdev)
-{
 #ifdef CONFIG_MALI_DEVFREQ
+static void pm_init_cores_enabled_mask(struct kbase_device *kbdev)
+{
+ 	struct kbase_pm_backend_data *pm_backend = &kbdev->pm.backend;
+
+ 	if (kbdev->current_core_mask)
+ 		pm_backend->ca_cores_enabled = kbdev->current_core_mask;
+ 	else
+ 		pm_backend->ca_cores_enabled = kbdev->gpu_props.shader_present;
+}
+
+static void pm_init_gov_cores_enabled_mask(struct kbase_device *kbdev)
+{
 	struct kbase_pm_backend_data *pm_backend = &kbdev->pm.backend;
 
 	if (kbdev->current_core_mask)
-		pm_backend->ca_cores_enabled = kbdev->current_core_mask;
+		pm_backend->ca_gov_cores_enabled = kbdev->current_core_mask;
 	else
-		pm_backend->ca_cores_enabled = kbdev->gpu_props.shader_present;
+		pm_backend->ca_gov_cores_enabled = kbdev->gpu_props.shader_present;
+}
 #endif
 
+int kbase_pm_ca_init(struct kbase_device *kbdev)
+{
+#ifdef CONFIG_MALI_DEVFREQ
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT))
+		pm_init_gov_cores_enabled_mask(kbdev);
+
+	pm_init_cores_enabled_mask(kbdev);
+#endif
 	return 0;
 }
 
 void kbase_pm_ca_term(struct kbase_device *kbdev)
 {
 	CSTD_UNUSED(kbdev);
+}
+
+void kbase_pm_ca_set_gov_core_mask_nolock(struct kbase_device *kbdev, enum mask_type core_mask_type,
+					  u64 core_mask)
+{
+	struct kbase_pm_backend_data *pm_backend = &kbdev->pm.backend;
+
+	if (!kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)) {
+		dev_warn(
+			kbdev->dev,
+			"This function requires Kbase to have access to GOV_CORE_MASK register, cannot proceed\n");
+		return;
+	}
+
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
+	/** A value of ZERO means disabling.
+	 * When disabling, store the last used mask for re-enabling
+	 */
+	if (core_mask_type == SYSFS_COREMASK) {
+		if (core_mask != 0)
+			pm_backend->ca_gov_cores_enabled = core_mask;
+		else
+#ifdef CONFIG_MALI_DEVFREQ
+			pm_backend->ca_gov_cores_enabled = kbdev->current_core_mask;
+#else
+			pm_backend->ca_gov_cores_enabled =
+				kbdev->gpu_props.curr_config.shader_present;
+#endif
+	}
+#ifdef CONFIG_MALI_DEVFREQ
+	/* sysfs core mask takes priority over OPP mask when sysfs core mask is set */
+	else if (core_mask_type == DEVFREQ_COREMASK) {
+		if (core_mask == 0) {
+			dev_warn(kbdev->dev,
+				 "Required core_mask cannot be zero when sysfs usage disabled\n");
+			return;
+		}
+		/* if sysfs non-zero then no need to re-write value */
+		if (!(core_mask & kbdev->pm.sysfs_gov_core_mask))
+			return;
+		pm_backend->ca_gov_cores_enabled = core_mask;
+	}
+#endif
+	/** after all checks, write the to GOV_CORE_MASK register if GPU powered,
+	 * otherwise value will be applied on next reboot.
+	 */
+	if (kbase_io_is_gpu_powered(kbdev))
+		kbase_reg_write64(kbdev, GPU_GOVERNOR_ENUM(GOV_CORE_MASK),
+				  pm_backend->ca_gov_cores_enabled);
+}
+
+void kbase_pm_ca_set_gov_core_mask(struct kbase_device *kbdev, enum mask_type core_mask_type,
+				   u64 core_mask)
+{
+	unsigned long flags;
+
+	if (!kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)) {
+		dev_warn(
+			kbdev->dev,
+			"This function requires Kbase to have access to GOV_CORE_MASK register, cannot proceed\n");
+		return;
+	}
+
+	kbase_pm_ca_set_gov_core_mask_nolock(kbdev, core_mask_type, core_mask);
 }
 
 #ifdef CONFIG_MALI_DEVFREQ
@@ -67,17 +151,19 @@ void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
 
 #if MALI_USE_CSF
 	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)) {
-		if (kbase_io_is_gpu_powered(kbdev)) {
-			kbase_reg_write64(kbdev, GPU_GOVERNOR_ENUM(GOV_CORE_MASK),
-					  core_mask & kbdev->pm.debug_core_mask);
-		}
-
+		/* Requires a validity check to ensure we don't try to set cores we do not have */
+		if ((core_mask & kbdev->gpu_props.shader_present) != core_mask)
+			dev_err(kbdev->dev,
+				"core_mask (%llu) must be a subset of the shader present (%llu)",
+				core_mask, kbdev->gpu_props.shader_present);
+		else
+			kbase_pm_ca_set_gov_core_mask(kbdev, DEVFREQ_COREMASK, core_mask);
 		goto unlock;
 	}
 
 	if (!(core_mask & kbdev->pm.debug_core_mask)) {
 		dev_err(kbdev->dev,
-			"OPP core mask 0x%llX does not intersect with debug mask 0x%llX\n",
+			"OPP core mask 0x%llX does not intersect with sysfs debug mask 0x%llX\n",
 			core_mask, kbdev->pm.debug_core_mask);
 		goto unlock;
 	}
@@ -141,6 +227,19 @@ u64 kbase_pm_ca_get_debug_core_mask(struct kbase_device *kbdev)
 }
 KBASE_EXPORT_TEST_API(kbase_pm_ca_get_debug_core_mask);
 
+u64 kbase_pm_ca_get_sysfs_gov_core_mask(struct kbase_device *kbdev)
+{
+	if (!kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)) {
+		dev_warn(
+			kbdev->dev,
+			"This function requires Kbase to have access to GOV_CORE_MASK register, cannot proceed\n");
+		return 0;
+	}
+
+	return kbdev->pm.sysfs_gov_core_mask;
+}
+KBASE_EXPORT_TEST_API(kbase_pm_ca_get_sysfs_gov_core_mask);
+
 u64 kbase_pm_ca_get_core_mask(struct kbase_device *kbdev)
 {
 	u64 debug_core_mask = kbase_pm_ca_get_debug_core_mask(kbdev);
@@ -162,6 +261,14 @@ u64 kbase_pm_ca_get_core_mask(struct kbase_device *kbdev)
 }
 
 KBASE_EXPORT_TEST_API(kbase_pm_ca_get_core_mask);
+
+u64 kbase_pm_ca_get_gov_core_mask(struct kbase_device *kbdev)
+{
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
+	return kbdev->pm.backend.ca_gov_cores_enabled;
+}
+KBASE_EXPORT_TEST_API(kbase_pm_ca_get_gov_core_mask);
 
 u64 kbase_pm_ca_get_instr_core_mask(struct kbase_device *kbdev)
 {

@@ -141,6 +141,8 @@ int kbase_hwaccess_pm_init(struct kbase_device *kbdev)
 	INIT_WORK(&kbdev->pm.backend.gpu_poweroff_wait_work, kbase_pm_gpu_poweroff_wait_wq);
 
 	kbdev->pm.backend.ca_cores_enabled = ~0ull;
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT))
+		kbdev->pm.backend.ca_gov_cores_enabled = ~0ull;
 	kbase_io_clear_status(kbdev->io, KBASE_IO_STATUS_AW_REMOVED);
 	init_waitqueue_head(&kbdev->pm.backend.gpu_in_desired_state_wait);
 
@@ -762,6 +764,8 @@ int kbase_hwaccess_pm_powerup(struct kbase_device *kbdev, unsigned int flags)
 	}
 #if MALI_USE_CSF
 	kbdev->pm.debug_core_mask = kbdev->gpu_props.shader_present;
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT))
+		kbdev->pm.sysfs_gov_core_mask = kbdev->gpu_props.shader_present;
 	spin_lock_irqsave(&kbdev->hwaccess_lock, irq_flags);
 	/* Set the initial value for 'shaders_avail'. It would be later
 	 * modified only from the MCU state machine, when the shader core
@@ -895,8 +899,13 @@ void kbase_pm_set_debug_core_mask(struct kbase_device *kbdev, u64 new_core_mask)
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 	lockdep_assert_held(&kbdev->pm.lock);
 
-	kbdev->pm.debug_core_mask = new_core_mask;
-	kbase_pm_update_dynamic_cores_onoff(kbdev);
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)) {
+		kbdev->pm.sysfs_gov_core_mask = new_core_mask;
+		kbase_pm_ca_set_gov_core_mask_nolock(kbdev, SYSFS_COREMASK, new_core_mask);
+	} else {
+		kbdev->pm.debug_core_mask = new_core_mask;
+		kbase_pm_update_dynamic_cores_onoff(kbdev);
+	}
 }
 KBASE_EXPORT_TEST_API(kbase_pm_set_debug_core_mask);
 #else

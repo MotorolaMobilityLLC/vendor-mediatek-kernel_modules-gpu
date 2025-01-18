@@ -3271,6 +3271,8 @@ static ssize_t core_mask_show(struct device *dev, struct device_attribute *attr,
 {
 	struct kbase_device *kbdev;
 	unsigned long flags;
+	u64 debug_mask;
+	u64 ca_mask;
 	ssize_t ret = 0;
 #if !MALI_USE_CSF
 	size_t i;
@@ -3286,12 +3288,22 @@ static ssize_t core_mask_show(struct device *dev, struct device_attribute *attr,
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 #if MALI_USE_CSF
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)) {
+		ca_mask = kbase_pm_ca_get_gov_core_mask(kbdev);
+		debug_mask = kbase_pm_ca_get_sysfs_gov_core_mask(kbdev);
+	} else {
+		ca_mask = kbase_pm_ca_get_core_mask(kbdev);
+		debug_mask = kbase_pm_ca_get_debug_core_mask(kbdev);
+	}
+
 	ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret), "Current debug core mask : 0x%llX\n",
-			 kbdev->pm.debug_core_mask);
+			debug_mask);
 	ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret),
-			 "Current desired core mask : 0x%llX\n", kbase_pm_ca_get_core_mask(kbdev));
-	ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret),
-			 "Current in use core mask : 0x%llX\n", kbdev->pm.backend.shaders_avail);
+			"Current desired core mask : 0x%llX\n", ca_mask);
+	if (!kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT))
+		ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret),
+				 "Current in use core mask : 0x%llX\n",
+				 kbdev->pm.backend.shaders_avail);
 #else
 	for (i = 0; i < BASE_JM_MAX_NR_SLOTS; i++) {
 		if (PAGE_SIZE < ret)
@@ -3336,6 +3348,8 @@ static int core_mask_parse(struct kbase_device *const kbdev, const char *const b
 static int core_mask_set(struct kbase_device *kbdev, struct kbase_core_mask *const new_mask)
 {
 	u64 new_core_mask = new_mask->new_core_mask;
+	u64 ca_mask;
+	u64 debug_mask;
 	u64 shader_present;
 	unsigned long flags;
 	int ret = 0;
@@ -3343,6 +3357,14 @@ static int core_mask_set(struct kbase_device *kbdev, struct kbase_core_mask *con
 	kbase_csf_scheduler_lock(kbdev);
 	kbase_pm_lock(kbdev);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)) {
+		ca_mask = kbdev->pm.backend.ca_gov_cores_enabled;
+		debug_mask = kbase_pm_ca_get_sysfs_gov_core_mask(kbdev);
+	} else {
+		ca_mask = kbdev->pm.backend.ca_cores_enabled;
+		debug_mask = kbase_pm_ca_get_debug_core_mask(kbdev);
+	}
 
 	shader_present = kbdev->gpu_props.shader_present;
 
@@ -3356,17 +3378,16 @@ static int core_mask_set(struct kbase_device *kbdev, struct kbase_core_mask *con
 			new_core_mask, shader_present);
 		ret = -EINVAL;
 		goto exit;
-	} else if (!(new_core_mask & shader_present & kbdev->pm.backend.ca_cores_enabled)) {
-#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
-		dev_dbg(kbdev->dev,
-#else /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
-		dev_err(kbdev->dev,
-#endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
-			"Invalid requested core mask 0x%llX: No intersection with currently available cores (present = 0x%llX, CA enabled = 0x%llX)",
-			new_core_mask, kbdev->gpu_props.shader_present,
-			kbdev->pm.backend.ca_cores_enabled);
-		ret = -EINVAL;
-		goto exit;
+	} else if (!(new_core_mask & shader_present & ca_mask)) {
+		if (!kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT) ||
+		    (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT) &&
+		     new_core_mask != 0)) {
+			dev_err(kbdev->dev,
+				"Invalid requested core mask 0x%llX: No intersection with currently available cores (present = 0x%llX, CA enabled = 0x%llX)",
+				new_core_mask, kbdev->gpu_props.shader_present, ca_mask);
+			ret = -EINVAL;
+			goto exit;
+		}
 	}
 
 	if (kbase_csf_dev_has_ne(kbdev)) {
@@ -3389,7 +3410,7 @@ static int core_mask_set(struct kbase_device *kbdev, struct kbase_core_mask *con
 		}
 	}
 
-	if (kbdev->pm.debug_core_mask != new_core_mask)
+	if (debug_mask != new_core_mask)
 		kbase_pm_set_debug_core_mask(kbdev, new_core_mask);
 
 exit:

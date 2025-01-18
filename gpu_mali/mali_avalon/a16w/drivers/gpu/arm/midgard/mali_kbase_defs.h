@@ -496,6 +496,8 @@ struct kbase_clk_rate_trace_manager {
  * @resume_wait: Wait queue to wait for the System suspend/resume of GPU device.
  * @debug_core_mask: Bit masks identifying the available shader cores that are
  *                   specified via sysfs. One mask per job slot.
+ * @sysfs_gov_core_mask: Bit masks identifying the available shader cores that are
+ *                       specified via sysfs when writing to GOV_CORE_MASK.
  * @debug_core_mask_all: Bit masks identifying the available shader cores that
  *                       are specified via sysfs.
  * @callback_power_runtime_init: Callback for initializing the runtime power
@@ -524,6 +526,7 @@ struct kbase_pm_device_data {
 
 #if MALI_USE_CSF
 	u64 debug_core_mask;
+        u64 sysfs_gov_core_mask;
 #else
 	/* One mask per job slot. */
 	u64 debug_core_mask[BASE_JM_MAX_NR_SLOTS];
