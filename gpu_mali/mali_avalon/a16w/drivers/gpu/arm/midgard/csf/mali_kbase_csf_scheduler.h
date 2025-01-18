@@ -523,8 +523,8 @@ void kbase_csf_scheduler_enqueue_protm_event_work(struct kbase_queue_group *grou
 
 #if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 /**
- * kbase_csf_scheduler_enqueue_kcpuq_work() - Wake up kbase_csf_scheduler_kthread() to process
- *                                            pending commands for a KCPU queue.
+ * kbase_csf_scheduler_enqueue_kcpuq_work() - Wake up kbase_csf_scheduler_kcpuq_kthread() to
+ *                                            process pending commands for a KCPU queue.
  *
  * @queue: The queue to process pending commands for
  */
