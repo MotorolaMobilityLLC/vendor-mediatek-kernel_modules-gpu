@@ -246,12 +246,12 @@ struct kbase_kcpu_command {
  *				part of kernel API for processing workqueues.
  *				This would be used if the context is not
  *				prioritised, otherwise it would be handled by
- *				kbase_csf_scheduler_kthread().
+ *				kbase_csf_scheduler_kcpuq_kthread().
  * @high_prio_work:		A counterpart to @work, this queue would be
  *				added to a list to be processed by
- *				kbase_csf_scheduler_kthread() if it is
+ *				kbase_csf_scheduler_kcpuq_kthread() if it is
  *				prioritised.
- * @pending_kick:		Indicates that kbase_csf_scheduler_kthread()
+ * @pending_kick:		Indicates that kbase_csf_scheduler_kcpuq_kthread()
  *				should re-evaluate pending commands for this
  *				queue. This would be set to false when the work
  *				is done. This is used mainly for
@@ -299,10 +299,9 @@ struct kbase_kcpu_command_queue {
 	struct kbase_context *kctx;
 	struct kbase_kcpu_command commands[KBASEP_KCPU_QUEUE_SIZE];
 	struct work_struct work;
-#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 	struct list_head high_prio_work;
 	atomic_t pending_kick;
-#else
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 	struct workqueue_struct *wq;
 #endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 	struct work_struct timeout_work;
