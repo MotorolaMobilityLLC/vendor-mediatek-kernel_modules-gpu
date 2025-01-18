@@ -501,6 +501,7 @@ int mtk_logbuffer_init(struct kbase_device *kbdev)
 	struct reserved_mem *rmem = NULL;
 	phys_addr_t rmem_remaining_size = 0;
 	phys_addr_t logbuf_size = 0;
+	phys_addr_t offset;
 
 	if (IS_ERR_OR_NULL(kbdev))
 		return -1;
@@ -527,36 +528,51 @@ int mtk_logbuffer_init(struct kbase_device *kbdev)
 	         __func__, reserved_mem_phys, reserved_mem_size, reserved_mem_virt);
 
 	/* Create a circular buffer for regular logs */
+	offset = 0;
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER_ENLARGE)
+	logbuf_size = 1024 * 2048;
+#else
 	logbuf_size = 1024 * 1024;
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER_ENLARGE */
 	mtk_logbuffer_init_internal(kbdev,
 	                            &kbdev->logbuf_regular,      /* logbuf */
 	                            (uint8_t *)reserved_mem_virt /* rmem_va */,
 	                            (size_t)rmem_remaining_size  /* rmem_size */,
-	                            0                            /* offset */,
+	                            offset                       /* offset */,
 	                            (size_t)logbuf_size          /* size */,
 	                            true                         /* is_circular */,
 	                            "logbuf_regular"             /* name */);
 	rmem_remaining_size -= logbuf_size;
 
 	/* Create a circular buffer for critical logs */
+	offset += logbuf_size;
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER_ENLARGE)
+	logbuf_size = 1024 * 1024;
+#else
 	logbuf_size = 1024 * 512;
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER_ENLARGE */
 	mtk_logbuffer_init_internal(kbdev,
 	                            &kbdev->logbuf_critical,     /* logbuf */
 	                            (uint8_t *)reserved_mem_virt /* rmem_va */,
 	                            (size_t)rmem_remaining_size  /* rmem_size */,
-	                            1024 * 1024                  /* offset */,
+	                            offset                       /* offset */,
 	                            (size_t)logbuf_size          /* size */,
 	                            true                         /* is_circular */,
 	                            "logbuf_critical"            /* name */);
 	rmem_remaining_size -= logbuf_size;
 
 	/* Create a non-circular buffer for exception logs */
+	offset += logbuf_size;
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER_ENLARGE)
+	logbuf_size = 1024 * 1024;
+#else
 	logbuf_size = 1024 * 512;
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER_ENLARGE */
 	mtk_logbuffer_init_internal(kbdev,
 	                            &kbdev->logbuf_exception,    /* logbuf */
 	                            (uint8_t *)reserved_mem_virt /* rmem_virt */,
 	                            (size_t)rmem_remaining_size  /* rmem_size */,
-	                            1024 * 1536                  /* offset */,
+	                            offset                       /* offset */,
 	                            (size_t)logbuf_size          /* size */,
 	                            false                        /* is_circular */,
 	                            "logbuf_exception"           /* name */);
