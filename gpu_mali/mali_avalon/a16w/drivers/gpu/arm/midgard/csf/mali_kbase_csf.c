@@ -3786,16 +3786,29 @@ static void handle_glb_fatal_event(struct kbase_device *kbdev,
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 	dev_warn(kbdev->dev, "MCU encountered unrecoverable error");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		"MCU encountered unrecoverable error\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	if (fatal_status < GLB_FATAL_STATUS_VALUE_COUNT)
 		error_string = glb_fatal_status_errors[fatal_status];
 	else {
 		dev_err(kbdev->dev, "Invalid GLB_FATAL_STATUS (%u)", fatal_status);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Invalid GLB_FATAL_STATUS (%u)\n", fatal_status);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return;
 	}
 
-	if (fatal_status == GLB_FATAL_STATUS_VALUE_OK)
+	if (fatal_status == GLB_FATAL_STATUS_VALUE_OK) {
 		dev_err(kbdev->dev, "GLB_FATAL_STATUS(OK) must be set with proper reason");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"GLB_FATAL_STATUS(OK) must be set with proper reason\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	}
 	else {
 		/* Retrieve GLB_FATAL_INFO from GLB output */
 		const u64 fatal_info =
@@ -3805,6 +3818,12 @@ static void handle_glb_fatal_event(struct kbase_device *kbdev,
 
 		dev_warn(kbdev->dev, "GLB_FATAL_STATUS: %s", error_string);
 		dev_warn(kbdev->dev, "GLB_FATAL_INFO: 0x%llx", fatal_info);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"GLB_FATAL_STATUS: %s\n", error_string);
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"GLB_FATAL_INFO: 0x%llx\n", fatal_info);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		queue_work(system_wq, &kbdev->csf.glb_fatal_work);
 	}
 }
