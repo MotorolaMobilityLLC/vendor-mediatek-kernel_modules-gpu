@@ -374,7 +374,15 @@ static void pm_handle_power_off(struct kbase_device *kbdev)
 		WARN_ON(backend->gpu_idled);
 		backend->callback_power_runtime_gpu_idle(kbdev);
 		backend->gpu_idled = true;
+#if IS_ENABLED(CONFIG_MALI_MTK_QUICK_CLOCK_OFF)
+		mcu_state = kbdev->pm.backend.mcu_state;
+		if (mcu_state == KBASE_MCU_OFF) {
+			if (!kbase_pm_clock_off(kbdev)) {
+				dev_err(kbdev->dev, "[KBASE_MCU_OFF]kbase_pm_clock_off failed\n");
+			}
+		}
 		return;
+#endif /* CONFIG_MALI_MTK_QUICK_CLOCK_OFF */
 	}
 #endif
 
@@ -1290,6 +1298,26 @@ int kbase_pm_handle_runtime_suspend(struct kbase_device *kbdev)
 		ret = pm_handle_mcu_sleep_on_runtime_suspend(kbdev);
 		if (ret)
 			goto unlock;
+#if IS_ENABLED(CONFIG_MALI_MTK_QUICK_CLOCK_OFF)
+		/* Disable interrupts and turn off the GPU clocks */
+		if (!kbase_pm_clock_off(kbdev)) {
+			dev_warn(kbdev->dev,
+				"Failed to turn off GPU clocks on runtime suspend, MMU faults pending");
+
+			WARN_ON(!kbdev->poweroff_pending);
+			/* Previous call to kbase_pm_clock_off() would have disabled
+			* the interrupts and also synchronized with the interrupt
+			* handlers, so more fault work items can't be enqueued.
+			*
+			* Can't wait for the completion of MMU fault work items as
+			* there is a possibility of a deadlock since the fault work
+			* items would do the group termination which requires the
+			* Scheduler lock.
+			*/
+			ret = -EBUSY;
+			goto unlock;
+		}
+#endif /* CONFIG_MALI_MTK_QUICK_CLOCK_OFF */
 	}
 
 	/* Disable interrupts and turn off the GPU clocks */
