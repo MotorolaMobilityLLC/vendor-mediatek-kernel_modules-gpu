@@ -75,6 +75,11 @@
 #include "platform/mtk_platform_common.h"
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) && !IS_ENABLED(CONFIG_MALI_MTK_DISABLE_SOI)
+#include <ged_dvfs.h>
+#include <ged_notify_sw_vsync.h>
+#endif
+
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
 #include <ged_mali_event.h>
 #include <platform/mtk_platform_common/mtk_platform_mali_event.h>
@@ -2127,6 +2132,10 @@ void kbase_csf_firmware_global_reinit(struct kbase_device *kbdev, u64 core_mask)
 
 	kbdev->csf.glb_init_request_pending = true;
 	kbdev->csf.firmware_hctl_core_pwr = kbase_pm_no_mcu_core_pwroff(kbdev);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) && !IS_ENABLED(CONFIG_MALI_MTK_DISABLE_SOI)
+	kbdev->dev->power.autosuspend_delay = (int)ged_get_apo_autosuspend_delay_ms();
+#endif
 	global_init(kbdev, core_mask);
 }
 

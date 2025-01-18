@@ -3922,6 +3922,10 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 						}
 
 						glb_idle_irq_received = true;
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+						if (ged_gpu_apo_support())
+							ged_get_predict_idle_time();
+#endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 						/* Defer handling this IRQ to account for a race condition
 						 * where the idle worker could be executed before we have
 						 * finished handling all pending IRQs (including CSG IDLE

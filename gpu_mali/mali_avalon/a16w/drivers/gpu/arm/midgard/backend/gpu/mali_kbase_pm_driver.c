@@ -2439,6 +2439,9 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 					}
 #endif
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+					if (ged_gpu_apo_support())
+						ged_get_active_time();
+
 					mtk_common_ged_dvfs_write_sysram_last_commit_dual();
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 					kbase_pm_invoke(kbdev, KBASE_PM_CORE_L2, l2_present,
@@ -2646,6 +2649,8 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 					{
 						/* Powering off the L2 will also power off the tiler. */
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+						if (ged_gpu_apo_support())
+							ged_get_idle_time();
 						mtk_common_ged_dvfs_write_sysram_last_commit_dual();
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 						kbase_pm_invoke(kbdev, KBASE_PM_CORE_L2, l2_present,
