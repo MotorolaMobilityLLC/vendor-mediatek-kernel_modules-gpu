@@ -42,6 +42,12 @@
 #include <hwcnt/mali_kbase_hwcnt_virtualizer.h>
 #include <mali_kbase_kinstr_prfcnt.h>
 #include <tl/mali_kbase_timeline.h>
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP)
+#include <csf/mali_kbase_csf_firmware_log.h>
+#include <csf/mali_kbase_csf_timeout.h>
+#endif /* CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP */
+
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
 #include <mali_kbase_gpu_metrics.h>
 #endif
@@ -523,7 +529,14 @@ int kbase_device_firmware_init_once(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_KE_DUMP_FWLOG */
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP)
+	int need_create_sys_file;
+#endif /* CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP */
+
 	mutex_lock(&kbdev->fw_load_lock);
+#if IS_ENABLED(CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP)
+	need_create_sys_file = 0;
+#endif /* CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP */
 
 	if (!kbdev->csf.firmware_inited) {
 		kbase_pm_context_active(kbdev);
@@ -563,9 +576,30 @@ int kbase_device_firmware_init_once(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 out:
 		kbase_pm_context_idle(kbdev);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP)
+		need_create_sys_file = 1;
+#endif /* CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP */
 	}
 
 	mutex_unlock(&kbdev->fw_load_lock);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP)
+	if (ret == 0 && need_create_sys_file == 1) {
+		ret = kbase_csf_firmware_log_init(kbdev);
+		if (ret != 0) {
+			dev_err(kbdev->dev, "Failed to initialize FW trace (err %d)", ret);
+			kbase_csf_firmware_unload_term(kbdev);
+			return ret;
+		}
+
+		ret = kbase_csf_timeout_init_sysfs(kbdev);
+		if (ret != 0) {
+			kbase_csf_firmware_unload_term(kbdev);
+			return ret;
+		}
+	}
+#endif /* CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP */
 
 	return ret;
 }

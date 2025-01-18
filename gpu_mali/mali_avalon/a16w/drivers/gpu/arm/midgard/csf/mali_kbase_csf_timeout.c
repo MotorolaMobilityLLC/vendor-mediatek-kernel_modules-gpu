@@ -165,12 +165,27 @@ int kbase_csf_timeout_init(struct kbase_device *const kbdev)
 	if (err)
 		return err;
 
+#if !IS_ENABLED(CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP)
+	err = sysfs_create_file(&kbdev->dev->kobj, &dev_attr_progress_timeout.attr);
+	if (err)
+		dev_err(kbdev->dev, "SysFS file creation failed\n");
+#endif /* CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP */
+
+	return err;
+}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP)
+int kbase_csf_timeout_init_sysfs(struct kbase_device *const kbdev)
+{
+	int err;
+
 	err = sysfs_create_file(&kbdev->dev->kobj, &dev_attr_progress_timeout.attr);
 	if (err)
 		dev_err(kbdev->dev, "SysFS file creation failed\n");
 
 	return err;
 }
+#endif /* CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP */
 
 void kbase_csf_timeout_term(struct kbase_device *const kbdev)
 {
