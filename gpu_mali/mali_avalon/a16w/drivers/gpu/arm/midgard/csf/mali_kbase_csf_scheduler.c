@@ -7480,7 +7480,7 @@ static void wait_for_mcu_sleep_after_idle_stress_test(struct kbase_device *kbdev
 	unsigned long flags;
 
 	lockdep_assert_held(&kbdev->csf.scheduler.lock);
-	if (WARN_ON_ONCE(kbdev->csf.scheduler.state != SCHED_SLEEPING))
+	if (kbdev->csf.scheduler.state != SCHED_SLEEPING)
 		return;
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
