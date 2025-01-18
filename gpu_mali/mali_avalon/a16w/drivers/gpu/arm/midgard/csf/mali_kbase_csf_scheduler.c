@@ -7098,6 +7098,7 @@ static void check_sync_update_in_sleep_mode(struct kbase_device *kbdev)
 	u32 csg_nr;
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE)
 	unsigned long flags;
+	enum kbase_mcu_state mcu_state;
 	bool is_mcu_need_sleep;
 #endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
 
@@ -7113,10 +7114,13 @@ static void check_sync_update_in_sleep_mode(struct kbase_device *kbdev)
 	if (mtk_common_whitebox_sync_update_test_mode() > SYNC_UPDATE_TEST_MODE_NONE) {
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 		is_mcu_need_sleep = !kbdev->pm.backend.exit_gpu_sleep_mode && !kbdev->pm.active_count;
+		mcu_state = kbdev->pm.backend.mcu_state;
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-		if (!kbase_csf_firmware_mcu_halted(kbdev)) {
+		if (!kbase_csf_firmware_mcu_halted(kbdev) && mcu_state == KBASE_MCU_ON_PEND_SLEEP) {
 			if (is_mcu_need_sleep) {
-				dev_err(kbdev->dev, "FW is not ready during sync update! (%d)", kbdev->pm.backend.mcu_state);
+				dev_err(kbdev->dev, "FW is not ready during sync update!");
+				mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_NA);
+				mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
 			}
 		}
 	}
