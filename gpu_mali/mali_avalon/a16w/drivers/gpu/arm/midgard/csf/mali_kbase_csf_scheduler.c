@@ -7871,6 +7871,7 @@ int kbase_csf_scheduler_init(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
 	sched_setscheduler_nocheck(scheduler->gpuq_kthread, SCHED_FIFO, &param);
+	sched_setscheduler_nocheck(scheduler->kcpuq_kthread, SCHED_FIFO, &param);
 #endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
