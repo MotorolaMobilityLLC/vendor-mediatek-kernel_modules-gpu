@@ -65,6 +65,10 @@
 #include <platform/mtk_platform_common/mtk_platform_mali_event.h>
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
+#include <mali_kbase_config_defaults.h>
+#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
+
 #define CS_REQ_EXCEPTION_MASK (CS_REQ_FAULT_MASK | CS_REQ_FATAL_MASK)
 #define CS_ACK_EXCEPTION_MASK (CS_ACK_FAULT_MASK | CS_ACK_FATAL_MASK)
 
@@ -2382,6 +2386,11 @@ static void kbase_queue_oom_event(struct kbase_queue *const queue)
 	struct kbase_queue_group *group;
 	int slot_num, err;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
+	s64 execute_time;
+	ktime_t begin_timestamp;
+#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
+
 	lockdep_assert_held(&kctx->csf.lock);
 
 	group = get_bound_queue_group(queue);
@@ -2390,7 +2399,18 @@ static void kbase_queue_oom_event(struct kbase_queue *const queue)
 		return;
 	}
 
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
+	begin_timestamp = ktime_get();
+#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
 	kbase_csf_scheduler_lock(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
+	// if lock too long, trigger debug message
+	execute_time = ktime_to_ms(ktime_sub(ktime_get(), begin_timestamp));
+	if (execute_time >= KBASE_FUNCTION_EXECUTE_DEBUG_TIMEOUT) {
+		dev_err(kbdev->dev, "ctx:%d_%d %s csf.scheduler.lock too long! (%llums)", kctx->tgid, kctx->id, __func__, execute_time);
+	}
+#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
 
 	if (queue->oom_track.state != KBASE_CSF_QUEUE_OOM_ERROR_ABORT) {
 		slot_num = kbase_csf_scheduler_group_get_slot(group);
@@ -2450,6 +2470,11 @@ static void oom_event_worker(struct work_struct *data)
 	struct kbase_device *const kbdev = kctx->kbdev;
 	int reset_prevent_err = kbase_reset_gpu_try_prevent(kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
+	s64 execute_time;
+	ktime_t begin_timestamp = ktime_get();
+#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
+
 	mutex_lock(&kctx->csf.lock);
 	if (likely(!reset_prevent_err)) {
 		kbase_queue_oom_event(queue);
@@ -2460,6 +2485,17 @@ static void oom_event_worker(struct work_struct *data)
 	mutex_unlock(&kctx->csf.lock);
 	if (likely(!reset_prevent_err))
 		kbase_reset_gpu_allow(kbdev);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
+	// if worker execute too long, trigger debug message
+	execute_time = ktime_to_ms(ktime_sub(ktime_get(), begin_timestamp));
+	if (execute_time >= KBASE_FUNCTION_EXECUTE_DEBUG_TIMEOUT) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+		ged_mali_worker_event_notify_callback(kctx->tgid, WORKER_TYPE_OOM_EVENT, execute_time, NULL, 0);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+		dev_err(kbdev->dev, "ctx:%d_%d %s too long! (%llums)", kctx->tgid, kctx->id, __func__, execute_time);
+	}
+#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
 }
 
 /**

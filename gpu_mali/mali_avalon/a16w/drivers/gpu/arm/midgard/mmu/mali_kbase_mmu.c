@@ -56,6 +56,15 @@
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
+#include <mali_kbase_config_defaults.h>
+#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+#include <ged_mali_event.h>
+#include <platform/mtk_platform_common/mtk_platform_mali_event.h>
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+
 /* Threshold used to decide whether to flush full caches or just a physical range */
 #define KBASE_PA_RANGE_THRESHOLD_NR_PAGES 20
 #define MGM_DEFAULT_PTE_GROUP (0)
@@ -1125,6 +1134,15 @@ void kbase_mmu_page_fault_worker(struct work_struct *data)
 #endif
 	unsigned long hwaccess_flags;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
+	u32 page_fault_try_cnt = 0;
+	s64 execute_time = 0;
+	s64 page_fault_try_allocate_time[2] = {0, 0};
+	s64 memory_grow_time[2] = {0, 0};
+	ktime_t section_timestamp;
+	ktime_t begin_timestamp = ktime_get();
+#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
+
 	/* Calls to this function are inherently synchronous, with respect to
 	 * MMU operations.
 	 */
@@ -1274,6 +1292,9 @@ void kbase_mmu_page_fault_worker(struct work_struct *data)
 	}
 
 page_fault_retry:
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
+	page_fault_try_cnt += 1;
+#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
 	if (kbase_is_large_pages_enabled() && !fallback_to_small) {
 		/* Preallocate (or re-allocate) memory for the sub-allocation structs if necessary */
 		for (i = 0; i != ARRAY_SIZE(prealloc_sas); ++i) {
@@ -1444,10 +1465,18 @@ page_fault_retry:
 	}
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
+	section_timestamp = ktime_get();
+#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
 	spin_lock(&kctx->mem_partials_lock);
 	grown = page_fault_try_alloc(kctx, region, new_pages, &pages_to_grow, &grow_2mb_pool,
 				     fallback_to_small, prealloc_sas);
 	spin_unlock(&kctx->mem_partials_lock);
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
+	// if fuction execute too long, trigger debug message
+	execute_time = ktime_to_ms(ktime_sub(ktime_get(), section_timestamp));
+	page_fault_try_allocate_time[(int)fallback_to_small] += execute_time;
+#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
 
 	if (grown) {
 		u64 dirty_pgds = 0;
@@ -1557,7 +1586,15 @@ page_fault_retry:
 					(pages_to_grow + ((1u << lp_mem_pool->order) - 1u)) >>
 					lp_mem_pool->order;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
+				section_timestamp = ktime_get();
+#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
 				ret = kbase_mem_pool_grow(lp_mem_pool, pages_to_grow, kctx->task);
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
+				// if fuction execute too long, trigger debug message
+				execute_time = ktime_to_ms(ktime_sub(ktime_get(), section_timestamp));
+				memory_grow_time[(int)fallback_to_small] += execute_time;
+#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
 				/* Retry handling the fault with small pages if required
 				 * number of 2MB pages couldn't be allocated.
 				 */
@@ -1570,8 +1607,15 @@ page_fault_retry:
 			} else {
 				struct kbase_mem_pool *const mem_pool =
 					&kctx->mem_pools.small[group_id];
-
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
+				section_timestamp = ktime_get();
+#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
 				ret = kbase_mem_pool_grow(mem_pool, pages_to_grow, kctx->task);
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
+				// if fuction execute too long, trigger debug message
+				execute_time = ktime_to_ms(ktime_sub(ktime_get(), section_timestamp));
+				memory_grow_time[(int)fallback_to_small] += execute_time;
+#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
 			}
 		}
 		if (ret < 0) {
@@ -1609,6 +1653,23 @@ fault_done:
 
 	atomic_dec(&kbdev->faults_pending);
 	dev_dbg(kbdev->dev, "Leaving page_fault_worker %pK", (void *)data);
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
+	// if worker execute too long, trigger debug message
+	execute_time = ktime_to_ms(ktime_sub(ktime_get(), begin_timestamp));
+	if (execute_time >= KBASE_FUNCTION_EXECUTE_DEBUG_TIMEOUT) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+		u32 meta_data[7] = {
+			(u32)new_pages, (u32)page_fault_try_cnt, (u32)fallback_to_small,
+			(u32)page_fault_try_allocate_time[0], (u32)page_fault_try_allocate_time[1],
+			(u32)memory_grow_time[0], (u32)memory_grow_time[1]
+		};
+		ged_mali_worker_event_notify_callback(kctx->tgid, WORKER_TYPE_MMU_PAGE_FAULT, execute_time, meta_data, 7);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+		dev_err(kbdev->dev, "ctx:%d_%d %s too long! (%llums), request size: %zu pages, meta_info: %u, %d, (%llu, %llu), (%llu, %llu)",
+			kctx->tgid, kctx->id, __func__, execute_time, new_pages, page_fault_try_cnt, fallback_to_small,
+			page_fault_try_allocate_time[0], page_fault_try_allocate_time[1], memory_grow_time[0], memory_grow_time[1]);
+	}
+#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
 }
 
 /**
