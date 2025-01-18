@@ -29,10 +29,6 @@ mt6991_outs = [
     "mt6991/mali_avalon/a16w/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6991_a16w.ko",
     "mt6991/mali_avalon/a16w/drivers/base/arm/dma_buf_test_exporter/mali_dmabuf_test_mt6991_a16w.ko",
     "mt6991/mali_avalon/a16w/drivers/gpu/arm/midgard/mali_kbase_mt6991_a16w.ko",
-    "mt6991/mali_avalon/r53p0/drivers/base/arm/memory_group_manager/mali_mgm_mt6991_r53p0.ko",
-    "mt6991/mali_avalon/r53p0/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6991_r53p0.ko",
-    "mt6991/mali_avalon/r53p0/drivers/base/arm/dma_buf_test_exporter/mali_dmabuf_test_mt6991_r53p0.ko",
-    "mt6991/mali_avalon/r53p0/drivers/gpu/arm/midgard/mali_kbase_mt6991_r53p0.ko",
 ]
 
 mt6993_outs = [
@@ -40,6 +36,10 @@ mt6993_outs = [
     "mt6993/mali_avalon/a16w/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6993_a16w.ko",
     "mt6993/mali_avalon/a16w/drivers/base/arm/dma_buf_test_exporter/mali_dmabuf_test_mt6993_a16w.ko",
     "mt6993/mali_avalon/a16w/drivers/gpu/arm/midgard/mali_kbase_mt6993_a16w.ko",
+    "mt6993/mali_avalon/a16w_porting/drivers/base/arm/memory_group_manager/mali_mgm_mt6993_a16w_porting.ko",
+    "mt6993/mali_avalon/a16w_porting/drivers/base/arm/protected_memory_allocator/mali_prot_alloc_mt6993_a16w_porting.ko",
+    "mt6993/mali_avalon/a16w_porting/drivers/base/arm/dma_buf_test_exporter/mali_dmabuf_test_mt6993_a16w_porting.ko",
+    "mt6993/mali_avalon/a16w_porting/drivers/gpu/arm/midgard/mali_kbase_mt6993_a16w_porting.ko",
 ]
 
 define_mgk_ko(
