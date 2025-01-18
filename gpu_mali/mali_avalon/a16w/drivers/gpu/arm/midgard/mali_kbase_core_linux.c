@@ -2762,34 +2762,6 @@ static ssize_t power_policy_store(struct device *dev, struct device_attribute *a
  */
 static DEVICE_ATTR_RW(power_policy);
 
-
-#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
-/**
- * mmu_dbg_config_show - Get the KBase MMU debug config value.
- *
- * @dev:  The device this sysfs file is for.
- * @attr: The attributes of the sysfs file.
- * @buf:  The output buffer for the sysfs file contents
- *
- * Get value for configuring MMU debug log
- *
- * Return: The number of bytes output to @buf if the
- *         function succeeded. A Negative value on failure.
- */
-static ssize_t mmu_dbg_config_show(struct device *dev, struct device_attribute *attr, char * const buf)
-{
-	struct kbase_device *kbdev = dev_get_drvdata(dev);
-	u32 mmu_dbg_config_value;
-
-	if (!kbdev) {
-		pr_info("[KBASE] Bad kbdev!\n");
-		return -ENODEV;
-	}
-
-	mmu_dbg_config_value = kbdev->mmu_dbg_config_value;
-	return scnprintf(buf, PAGE_SIZE, "%u\n", mmu_dbg_config_value);
-}
-
 #if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
 static ssize_t force_cache_sync_show(struct device *dev, struct device_attribute *attr, char * const buf)
 {
@@ -2825,6 +2797,34 @@ static ssize_t force_cache_sync_store(struct device *dev, struct device_attribut
 }
 static DEVICE_ATTR_RW(force_cache_sync);
 #endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
+
+
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
+/**
+ * mmu_dbg_config_show - Get the KBase MMU debug config value.
+ *
+ * @dev:  The device this sysfs file is for.
+ * @attr: The attributes of the sysfs file.
+ * @buf:  The output buffer for the sysfs file contents
+ *
+ * Get value for configuring MMU debug log
+ *
+ * Return: The number of bytes output to @buf if the
+ *         function succeeded. A Negative value on failure.
+ */
+static ssize_t mmu_dbg_config_show(struct device *dev, struct device_attribute *attr, char * const buf)
+{
+	struct kbase_device *kbdev = dev_get_drvdata(dev);
+	u32 mmu_dbg_config_value;
+
+	if (!kbdev) {
+		pr_info("[KBASE] Bad kbdev!\n");
+		return -ENODEV;
+	}
+
+	mmu_dbg_config_value = kbdev->mmu_dbg_config_value;
+	return scnprintf(buf, PAGE_SIZE, "%u\n", mmu_dbg_config_value);
+}
 
 /**
  * mmu_dbg_config_store - Set the KBase MMU debug config value.
@@ -6945,12 +6945,12 @@ static struct attribute *kbase_attrs[] = {
 	&dev_attr_dvfs_hint_26m_perf_cnting.attr,
 	&dev_attr_ipa_enable.attr,
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY && CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING*/
-#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
-	&dev_attr_force_cache_sync.attr,
-#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
 	&dev_attr_upf_counter.attr,
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
+	&dev_attr_force_cache_sync.attr,
+#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
 	NULL
 };
 
