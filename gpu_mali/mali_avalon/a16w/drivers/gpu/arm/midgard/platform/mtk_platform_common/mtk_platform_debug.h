@@ -97,4 +97,8 @@ void mtk_debug_dump_gic_status(struct kbase_device *kbdev);
 /* Dump pm status */
 void mtk_debug_dump_pm_status(struct kbase_device *kbdev);
 
+/* Dump AS status */
+void mtk_debug_dump_as_status(struct kbase_device *kbdev);
+void mtk_debug_dump_as_status_nolock(struct kbase_device *kbdev);
+
 #endif /* __MTK_PLATFORM_DEBUG_H__ */
