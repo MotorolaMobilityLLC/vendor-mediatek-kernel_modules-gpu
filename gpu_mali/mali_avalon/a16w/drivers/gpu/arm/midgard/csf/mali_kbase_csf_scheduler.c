@@ -3386,10 +3386,6 @@ static void program_csg_slot(struct kbase_queue_group *group, s8 slot, u8 prio)
 
 	/* Enable all interrupts for now */
 	kbase_csf_fw_io_group_write(fw_io, slot, CSG_ACK_IRQ_MASK, ~((u32)0));
-#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
-	if (mtk_common_whitebox_missing_doorbell_enable())
-		kbase_csf_db_valid_pend_event(DOORBELL_CSG_EP_CFG(slot));
-#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 	kbase_csf_fw_io_group_write_mask(fw_io, slot, CSG_REQ, state, CSG_REQ_STATE_MASK);
 	kbase_csf_ring_csg_doorbell(kbdev, slot);
 	kbase_csf_fw_io_close(fw_io, fw_io_flags);
