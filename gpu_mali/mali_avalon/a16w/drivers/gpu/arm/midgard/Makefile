@@ -78,8 +78,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG := y
         CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG_NO_KLOG := y
         CONFIG_MALI_MTK_MMU_DUMP := y
-        CONFIG_MALI_MTK_SOI_DEBUG := y
-        CONFIG_MALI_MTK_DISABLE_SOI := n
+        CONFIG_MALI_MTK_SOI := y
         CONFIG_MALI_MTK_KCPUQ_PRIORITZED := y
         CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE := n
         CONFIG_MALI_MTK_KBASE_TRACE_DEBUG := y
@@ -122,14 +121,13 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_DEVFREQ := y
         CONFIG_MALI_FENCE_DEBUG := y
         CONFIG_LARGE_PAGE_SUPPORT := y
-        CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD := n
+        CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD := y
 
         # *** MTK CONFIG ***
-        CONFIG_MALI_MTK_BRINGUP := y
+        CONFIG_MALI_MTK_BRINGUP := n
         CONFIG_MALI_MTK_LOG_BUFFER := y
         CONFIG_MALI_MTK_FENCE_DEBUG := n
         CONFIG_MALI_MTK_DEBUG_DUMP := n
-        CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT := n
         CONFIG_MALI_MTK_MMAP_LOGGING := n
         CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET := n
         CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG := n
@@ -152,7 +150,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_DEVFREQ_THERMAL := y
         CONFIG_MALI_MTK_GPUEB_IRQ := n
 	CONFIG_MALI_PMU_LP4 := n
-        CONFIG_MALI_PMU_CPB128 := n
+        CONFIG_MALI_PMU_CPB128 := y
         CONFIG_MALI_MTK_MGMM := n
         CONFIG_MALI_MTK_MEMTRACK := n
         CONFIG_MALI_MTK_MEMORY_DEBUG := n
@@ -181,7 +179,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG := n
         CONFIG_MALI_MTK_GPU_RESET_DEBUG := n
         CONFIG_MALI_MTK_FIX_TIMEOUT_WHITELIST := y
-        CONFIG_MALI_MTK_WHITEBOX_SCHEDULER := n
+        CONFIG_MALI_MTK_WHITEBOX_SCHEDULER := y
         CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE := n
         CONFIG_MALI_SCMI_ENABLE := n
         CONFIG_MALI_MTK_ACP_DSU_REQ := n
@@ -247,7 +245,7 @@ ccflags-y += -I$(KO_CODE_PATH)/include
 subdir-ccflags-y += -I$(KO_CODE_PATH)/include
 
 # Driver version string which is returned to userspace via an ioctl
-MALI_RELEASE_NAME ?= '"r53p0-00eac0"'
+MALI_RELEASE_NAME ?= '"r52p0-00eac0"'
 # Set up defaults if not defined by build system
 ifeq ($(CONFIG_MALI_DEBUG), y)
     MALI_UNIT_TEST = 1
@@ -384,6 +382,8 @@ mali_kbase-y += \
     mali_kbase_io.o
 
 mali_kbase-$(CONFIG_DEBUG_FS) += mali_kbase_pbha_debugfs.o
+
+mali_kbase-$(CONFIG_MALI_CINSTR_GWT) += mali_kbase_gwt.o
 
 mali_kbase-$(CONFIG_SYNC_FILE) += \
     mali_kbase_fence_ops.o \
