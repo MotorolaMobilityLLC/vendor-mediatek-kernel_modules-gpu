@@ -362,6 +362,8 @@ union kbase_pm_policy_data {
  *                                     called previously.
  *                                     See &struct kbase_pm_callback_conf.
  * @ca_cores_enabled: Cores that are currently available
+ * @ca_gov_cores_enabled: Final value used for setting GOV_CORE_MASK register.
+ *                        		Depends on sysfs-core-mask and devfreq-core-mask.
  * @apply_hw_issue_TITANHW_2938_wa: Indicates if the workaround for KBASE_HW_ISSUE_TITANHW_2938
  *                                  needs to be applied when unmapping memory from GPU.
  * @mcu_state: The current state of the micro-control unit, only applicable
@@ -534,7 +536,7 @@ struct kbase_pm_backend_data {
 	void (*callback_power_runtime_gpu_active)(struct kbase_device *kbdev);
 
 	u64 ca_cores_enabled;
-
+        u64 ca_gov_cores_enabled;
 #if MALI_USE_CSF
 	bool apply_hw_issue_TITANHW_2938_wa;
 	enum kbase_mcu_state mcu_state;

@@ -1697,9 +1697,7 @@ static void set_global_request(struct kbase_csf_fw_io *fw_io, u32 const req_mask
 	kbase_csf_fw_io_global_write_mask(fw_io, GLB_REQ, glb_req, req_mask);
 }
 
-static void enable_endpoints_global(struct kbase_csf_fw_io *fw_io,
-
-				    u64 const shader_core_mask)
+static void enable_endpoints_global(struct kbase_csf_fw_io *fw_io, u64 const shader_core_mask)
 {
 	kbase_csf_fw_io_assert_opened(fw_io);
 
@@ -2037,6 +2035,11 @@ static void global_init(struct kbase_device *const kbdev, u64 core_mask)
 	kbasep_enable_rtu(kbdev);
 
 	/* Update shader core allocation enable mask */
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT))
+		if (kbase_io_is_gpu_powered(kbdev))
+			kbase_reg_write64(kbdev, GPU_GOVERNOR_ENUM(GOV_CORE_MASK),
+					  kbase_pm_ca_get_gov_core_mask(kbdev));
+
 	enable_endpoints_global(fw_io, core_mask);
 	set_shader_poweroff_timer(fw_io);
 
@@ -2105,9 +2108,9 @@ static int global_init_on_boot(struct kbase_device *const kbdev)
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	core_mask = kbase_pm_ca_get_core_mask(kbdev);
 	kbdev->csf.firmware_hctl_core_pwr = kbase_pm_no_mcu_core_pwroff(kbdev);
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	global_init(kbdev, core_mask);
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	ret = wait_for_global_request(&kbdev->csf.fw_io, request_mask);
 
@@ -2155,9 +2158,6 @@ void kbase_csf_firmware_update_core_attr(struct kbase_device *kbdev, bool update
 {
 	struct kbase_csf_fw_io *fw_io = &kbdev->csf.fw_io;
 	unsigned long flags, fw_io_flags;
-
-	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT))
-		core_mask = U64_MAX;
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
