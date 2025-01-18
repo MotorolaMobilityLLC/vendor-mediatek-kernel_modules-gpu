@@ -301,6 +301,12 @@ void mtk_common_debug(enum mtk_common_debug_types type, struct kbase_context *kc
 		case MTK_COMMON_DBG_DUMP_PM_STATUS:
 			mtk_debug_dump_pm_status(kbdev);
 			break;
+		case MTK_COMMON_DBG_DUMP_AS_STATUS:
+			mtk_debug_dump_as_status(kbdev);
+			break;
+		case MTK_COMMON_DBG_DUMP_AS_STATUS_NOLOCK:
+			mtk_debug_dump_as_status_nolock(kbdev);
+			break;
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP*/
 #if IS_ENABLED(CONFIG_MALI_MTK_DIAGNOSIS_MODE)
 		case MTK_COMMON_DBG_DUMP_FULL_DB:
@@ -639,6 +645,7 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	mtk_debug_csf_debugfs_init(kbdev);
+	mtk_debug_cshw_ctrl_dump_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 #if IS_ENABLED(CONFIG_MALI_MTK_MMAP_LOGGING)
 	mtk_debug_mmap_logging_debugfs_init(kbdev);
