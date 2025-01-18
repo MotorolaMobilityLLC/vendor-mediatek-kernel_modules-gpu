@@ -27,9 +27,10 @@ void mtk_debug_csf_dump_cpu_queues(struct kbase_device *kbdev, struct kbase_cont
     if (pid_struct) {
         rcu_read_lock();
         task = pid_task(pid_struct, PIDTYPE_PID);
-        if (task && (task->exit_state == EXIT_ZOMBIE || task->exit_state == EXIT_DEAD)) {
+        if (task && ((task->exit_state == EXIT_ZOMBIE) || (task->exit_state == EXIT_DEAD) || (task->__state & TASK_FROZEN))) {
             mtk_log_critical_exception(kbdev, true,
-                "[%d_%d] Bypass CPU queue dump, event thread already in zombie or dead state", kctx->tgid, kctx->id);
+                "[%d_%d] Bypass CPU queue dump, event thread already in state:0x%llx, exit_state:0x%llx",
+                kctx->tgid, kctx->id, (unsigned long long) task->__state, (unsigned long long) task->exit_state);
             rcu_read_unlock();
             put_pid(pid_struct);
             return;

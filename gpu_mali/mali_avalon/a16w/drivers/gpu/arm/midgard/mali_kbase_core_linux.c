@@ -1935,8 +1935,9 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 			task = pid_task(pid_struct, PIDTYPE_PID);
 			if (task && task->group_leader && task->signal) {
 				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_DEFERRED | MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-					"ctx:%d_%d, process_name:%s, exit_state:%lld, signal->flags:%lld\n",
-					kctx->tgid, kctx->id, task->group_leader->comm, (unsigned long long) task->exit_state, (unsigned long long) task->signal->flags);
+					"ctx:%d_%d, process_name:%s, state:0x%llx, exit_state:0x%llx, signal->flags:%lld\n",
+					kctx->tgid, kctx->id, task->group_leader->comm, (unsigned long long) task->__state,
+					(unsigned long long) task->exit_state, (unsigned long long) task->signal->flags);
 			}
 			rcu_read_unlock();
 			put_pid(pid_struct);
