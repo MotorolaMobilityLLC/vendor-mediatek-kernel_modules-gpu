@@ -69,6 +69,7 @@ enum kbase_csffw_tl_msg_id {
 	CSFFW_TL_EVENT_ITER_STATE_CHANGE,
 	CSFFW_TL_EVENT_CS_ACQUIRE_ITER,
 	CSFFW_TL_EVENT_CS_RELEASE_ITER,
+	CSFFW_TL_EVENT_BOOT_START,
 	CSFFW_TRACEPOINT_COUNT,
 };
 
@@ -179,20 +180,19 @@ enum kbase_tl_iter_status {
 	 * resumption step 2 (PAUSED->ENABLED)
 	 */
 	CSFFW_ITER_ENABLING,
-	/** Iterator is being paused during resumption step 1
-	 * (DISABLED->PAUSED) or optional suspension step 1.5 (HALTED->PAUSED)
-	 * or optional preemption step 1.5 (HALTED->PAUSED)
-	 */
+	/** Iterator is being paused during resumption step 1 (DISABLED->PAUSED) */
 	CSFFW_ITER_PAUSING,
-	/** Iterator is being halted during suspension step 1 (ENABLED->HALTED)
-	 * or preemption step 1 (ENABLED->HALTED)
-	 */
+	/** Iterator is PAUSED. */
+	CSFFW_ITER_PAUSED,
+	/* TODO GPUFW-2002: Update usage. */
+	/* Currently unused. */
 	CSFFW_ITER_HALTING,
-	/** Iterator is HALTED. It is used during exclusive scheduling enabling/disabling transition only. */
+	/* TODO GPUFW-2002: Update usage, or remove. */
+	/** Iterator is HALTED. Currently unused. */
 	CSFFW_ITER_HALTED,
 	/** Iterator is being disabled during suspension step 2
-	 * (HALTED/PAUSED->DISABLED) or termination (ENABLED->DISABLED) or
-	 * preemption step 2 (HALTED/PAUSED->DISABLED)
+	 * (PAUSED->DISABLED) or termination (ENABLED->DISABLED) or
+	 * preemption step 2 (PAUSED->DISABLED)
 	 */
 	CSFFW_ITER_DISABLING,
 };
@@ -202,6 +202,7 @@ static const char *tl_iter_status_strings[] = {
 	"ENABLED",
 	"ENABLING",
 	"PAUSING",
+	"PAUSED",
 	"HALTING",
 	"HALTED",
 	"DISABLING",
