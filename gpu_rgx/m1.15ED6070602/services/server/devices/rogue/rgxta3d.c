@@ -2290,7 +2290,6 @@ PVRSRV_ERROR RGXDestroyFreeList(RGX_FREELIST *psFreeList)
 	PVR_ASSERT(psFreeList->ui32CurrentFLPages == 0);
 
 	UnrefAndReleaseCriticalBuffer(psFreeList->psFreeListReservation);
-  
 	/* free Freelist */
 	OSFreeMem(psFreeList);
 
