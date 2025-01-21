@@ -512,6 +512,10 @@ typedef struct _PVRSRV_DEVICE_NODE_
 	IMG_UINT64              ui64nMISR;           /*!< Number of MISR calls made */
 #endif
 
+#if defined(PVRSRV_MAX_REAL_TIME_CONTEXTS) && (PVRSRV_MAX_REAL_TIME_CONTEXTS > 1)
+	IMG_UINT32              *pui32RTContextCount;
+#endif
+
 	IMG_UINT32              ui32RGXLog2Non4KPgSize; /* Page size of Non4k heap in log2 form */
 
 	DLLIST_NODE             sCleanupThreadWorkList; /*!< List of work for the cleanup thread associated with the device */
