@@ -526,6 +526,9 @@ typedef struct _PVRSRV_DEVICE_NODE_
 	IMG_UINT32              uiPMRZombieCount;     /*!< Number of elements in the list */
 	IMG_UINT32              uiPMRZombieCountInCleanup; /*!< Number of elements in cleanup items */
 #endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
+#if defined(PVRSRV_MAX_REAL_TIME_CONTEXTS) && (PVRSRV_MAX_REAL_TIME_CONTEXTS > 1)
+	IMG_UINT32              *pui32RTContextCount;
+#endif
 } PVRSRV_DEVICE_NODE;
 
 /*

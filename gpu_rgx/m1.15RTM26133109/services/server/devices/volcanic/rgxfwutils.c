@@ -912,6 +912,8 @@ static PVRSRV_ERROR _CheckPriority(PVRSRV_RGXDEV_INFO *psDevInfo,
 	{
 		DLLIST_NODE *psNode, *psNext;
 
+		OSWRLockAcquireRead(psDevInfo->hCommonCtxtListLock);
+
 		dllist_foreach_node(&psDevInfo->sCommonCtxtListHead, psNode, psNext)
 		{
 			RGX_SERVER_COMMON_CONTEXT *psThisContext =
@@ -937,6 +939,7 @@ static PVRSRV_ERROR _CheckPriority(PVRSRV_RGXDEV_INFO *psDevInfo,
 #if defined(PVRSRV_MAX_REAL_TIME_CONTEXTS) && (PVRSRV_MAX_REAL_TIME_CONTEXTS > 1)
 		psDevInfo->psDeviceNode->pui32RTContextCount[eRequestor]++;
 #endif
+		OSWRLockReleaseRead(psDevInfo->hCommonCtxtListLock);
 	}
 
 	return eError;
