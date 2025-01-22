@@ -739,6 +739,14 @@ PVRSRV_ERROR
 PMRGetUID(PMR *psPMR,
           IMG_UINT64 *pui64UID);
 
+#if defined(PVRSRV_ENABLE_GPU_MEMORY_INFO)
+/* PMRGetSerialNum()
+ *
+ * Used by procfs code to retrieve a PMR serial number
+ * */
+IMG_UINT64 PMRGetSerialNum(PMR *psPMR);
+#endif
+
 #if defined(SUPPORT_PMR_DEFERRED_FREE)
 /*
  * PMR_IsZombie()
