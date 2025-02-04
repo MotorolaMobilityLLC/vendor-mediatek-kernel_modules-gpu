@@ -1917,6 +1917,13 @@ PMRLocalImportPMR(PMR *psPMR,
 	return PVRSRV_OK;
 }
 
+#if defined(PVRSRV_ENABLE_GPU_MEMORY_INFO)
+IMG_UINT64 PMRGetSerialNum(PMR *psPMR)
+{
+	return psPMR != NULL ? psPMR->uiSerialNum : (IMG_UINT64) -1ULL;
+}
+#endif
+
 inline IMG_UINT64
 PMRInternalGetUID(PMR *psPMR)
 {
