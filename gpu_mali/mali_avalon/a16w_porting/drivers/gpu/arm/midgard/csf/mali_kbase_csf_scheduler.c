@@ -5555,7 +5555,9 @@ static void gpu_idle_worker(struct work_struct *work)
 	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
 	bool scheduler_is_idle_suspendable = false;
 	bool all_groups_suspended = false;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+	int tmp_ast = 0;
+#endif
 #if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 	WARN_ON_ONCE(atomic_read(&scheduler->pending_gpu_idle_work) == 0);
 #endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
@@ -5582,16 +5584,28 @@ static void gpu_idle_worker(struct work_struct *work)
 	}
 #endif
 
-#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) && IS_ENABLED(CONFIG_MALI_MTK_DISABLE_SOI)
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+	tmp_ast = (int) ged_get_apo_autosuspend_delay_ms();
 	if ((ged_gpu_apo_support() == APO_2_0_NORMAL_SUPPORT) || (ged_get_apo_autosuspend_delay_ctrl()))
-		kbdev->dev->power.autosuspend_delay = (int)ged_get_apo_autosuspend_delay_ms();
+#if !IS_ENABLED(CONFIG_MALI_MTK_DISABLE_SOI)
+		/* Update autosuspend_delay setting if ast setting > 0, otherwise it
+		 * must be updated on next power on sequence to fit FW SOI feature.
+		 */
+		if (tmp_ast > 0)
+			kbdev->dev->power.autosuspend_delay = tmp_ast;
+#else
+		kbdev->dev->power.autosuspend_delay = tmp_ast;
 #endif
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
 	if (kbdev->api_sync_update_in_progress == true)
 		kbdev->dev->power.autosuspend_delay = 0;
-#if IS_ENABLED(CONFIG_MALI_MTK_DISABLE_SOI)
+#if !IS_ENABLED(CONFIG_MALI_MTK_DISABLE_SOI)
+	else if (tmp_ast > 0)
+		kbdev->dev->power.autosuspend_delay = tmp_ast;
+#else
 	else
-		kbdev->dev->power.autosuspend_delay = (int)ged_get_apo_autosuspend_delay_ms();
+		kbdev->dev->power.autosuspend_delay = tmp_ast;
+#endif
 #endif
 #endif
 	scheduler_is_idle_suspendable = scheduler_idle_suspendable(kbdev);
@@ -7857,6 +7871,7 @@ int kbase_csf_scheduler_init(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
 	sched_setscheduler_nocheck(scheduler->gpuq_kthread, SCHED_FIFO, &param);
+	sched_setscheduler_nocheck(scheduler->kcpuq_kthread, SCHED_FIFO, &param);
 #endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)

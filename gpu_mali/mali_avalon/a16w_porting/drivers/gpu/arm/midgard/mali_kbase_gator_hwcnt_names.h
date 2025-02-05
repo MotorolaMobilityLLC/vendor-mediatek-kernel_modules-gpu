@@ -31,4 +31,6 @@
 
 #include "mali_kbase_gator_hwcnt_names_tkrx.h"
 
+#include "mali_kbase_gator_hwcnt_names_tdrx.h"
+
 #endif

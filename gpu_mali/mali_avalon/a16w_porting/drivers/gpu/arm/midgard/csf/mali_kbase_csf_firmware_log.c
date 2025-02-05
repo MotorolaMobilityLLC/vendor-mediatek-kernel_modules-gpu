@@ -562,6 +562,10 @@ void kbase_csf_firmware_log_dump_buffer(struct kbase_device *kbdev)
 			*pnewline = 0;
 
 			dev_err(kbdev->dev, "FW> %s", p);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"FW> %s\n", p);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 			p = pnewline + 1;
 		}
@@ -577,6 +581,10 @@ void kbase_csf_firmware_log_dump_buffer(struct kbase_device *kbdev)
 		} else {
 			/* Print abnormally long string without newlines */
 			dev_err(kbdev->dev, "FW> %s", buf);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"FW> %s\n", buf);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			p = buf;
 		}
 	}
@@ -585,6 +593,10 @@ void kbase_csf_firmware_log_dump_buffer(struct kbase_device *kbdev)
 		/* Null-terminate and print last unfinished string */
 		*p = 0;
 		dev_err(kbdev->dev, "FW> %s", buf);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"FW> %s\n", buf);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 
 	atomic_set(&fw_log->busy, 0);

@@ -83,6 +83,12 @@ const char * const *kbase_gator_hwcnt_init_names(uint32_t *total_counters)
 		hardware_counters = hardware_counters_mali_tKRx;
 		count = ARRAY_SIZE(hardware_counters_mali_tKRx);
 		break;
+	case GPU_ID_PRODUCT_IDRX:
+	case GPU_ID_PRODUCT_TDRX:
+	case GPU_ID_PRODUCT_LDRX:
+		hardware_counters = hardware_counters_mali_tDRx;
+		count = ARRAY_SIZE(hardware_counters_mali_tDRx);
+		break;
 	default:
 		hardware_counters = NULL;
 		count = 0;
@@ -182,8 +188,8 @@ struct kbase_gator_hwcnt_handles *kbase_gator_hwcnt_init(struct kbase_gator_hwcn
 		core_mask >>= 1;
 	}
 
-	/* Calculated dump size must be the same as real dump size */
-	if (WARN_ON(dump_size != metadata->dump_buf_bytes)) {
+	/* Calculated dump size must be larger or the same as real dump size */
+	if (WARN_ON(dump_size < metadata->dump_buf_bytes)) {
 		goto free_layout;
 	}
 	in_out_info->nr_hwc_blocks = i;
