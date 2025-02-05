@@ -1826,7 +1826,7 @@ static int kbase_kcpu_fence_force_signal_process(struct kbase_kcpu_command_queue
 #endif
 
 	/* dma_fence refcount needs to be decreased to release it. */
-	dma_fence_put(fence_info->fence);
+	kbase_fence_put(fence_info->fence);
 	fence_info->fence = NULL;
 
 	return ret;
@@ -1869,6 +1869,8 @@ static void kcpu_force_signal_fence(struct kbase_kcpu_command_queue *kcpu_queue)
 			/* set ETIMEDOUT error flag before signal the fence*/
 			dma_fence_set_error_helper(fence, -ETIMEDOUT);
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+
+			kbase_fence_put(fence);
 
 			/* force signal fence */
 			status =
@@ -2091,6 +2093,8 @@ static int kbasep_kcpu_fence_signal_init(struct kbase_kcpu_command_queue *kcpu_q
 		goto fd_flags_fail;
 	}
 
+	__module_get(THIS_MODULE);
+	kcpu_fence->module = THIS_MODULE;
 	fence->basep.fd = *fd;
 
 	current_command->type = BASE_KCPU_COMMAND_TYPE_FENCE_SIGNAL;

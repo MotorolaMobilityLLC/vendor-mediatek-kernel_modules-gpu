@@ -189,12 +189,6 @@ int kbase_context_common_init(struct kbase_context *kctx)
 
 	init_waitqueue_head(&kctx->event_queue);
 
-#if !MALI_USE_CSF
-	atomic_set(&kctx->event_closed, false);
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_BM_JM)
-	atomic_set(&kctx->jctx.work_id, 0);
-#endif
-#endif
 	kbase_gpu_vm_lock(kctx);
 	bitmap_copy(kctx->cookies, &cookies_mask, BITS_PER_LONG);
 	kbase_gpu_vm_unlock(kctx);
@@ -223,6 +217,7 @@ int kbase_context_common_init(struct kbase_context *kctx)
 		}
 	}
 
+	kctx->offslot_ts = 0;
 	return err;
 }
 
@@ -316,13 +311,30 @@ void kbase_context_common_term(struct kbase_context *kctx)
 
 int kbase_context_mem_pool_group_init(struct kbase_context *kctx)
 {
-	return kbase_mem_pool_group_init(&kctx->mem_pools, kctx->kbdev,
-					 &kctx->kbdev->mem_pool_defaults, &kctx->kbdev->mem_pools);
+	size_t const small_max_size = KBASE_MEM_POOL_MAX_SIZE_KCTX;
+	size_t const large_max_size = small_max_size >> (KBASE_MEM_POOL_2MB_PAGE_TABLE_ORDER -
+							 KBASE_MEM_POOL_SMALL_PAGE_TABLE_ORDER);
+	return kbase_mem_pool_group_init(&kctx->mem_pools, kctx->kbdev, small_max_size,
+					 large_max_size, NULL);
 }
 
 void kbase_context_mem_pool_group_term(struct kbase_context *kctx)
 {
 	kbase_mem_pool_group_term(&kctx->mem_pools);
+}
+
+int kbase_context_pgd_mem_pool_init(struct kbase_context *kctx)
+{
+	int err = kbase_mem_pool_init_no_reclaim(&kctx->pgd_mem_pool,
+						 BASE_PGD_MEM_POOL_MAX_SIZE_KBDEV,
+						 KBASE_MEM_POOL_SMALL_PAGE_TABLE_ORDER, 0,
+						 kctx->kbdev);
+	return err;
+}
+
+void kbase_context_pgd_mem_pool_term(struct kbase_context *kctx)
+{
+	kbase_mem_pool_term(&kctx->pgd_mem_pool);
 }
 
 int kbase_context_mmu_init(struct kbase_context *kctx)

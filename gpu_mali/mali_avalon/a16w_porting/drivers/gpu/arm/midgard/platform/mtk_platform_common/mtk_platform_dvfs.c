@@ -136,7 +136,6 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
                                     unsigned int *pui32Idle)
 #endif
 {
-#if MALI_USE_CSF
 	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
 #if IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE)
 	struct GpuUtilization_Ex *util_ex =
@@ -216,62 +215,6 @@ void mtk_common_cal_gpu_utilization(unsigned int *pui32Loading,
 		current_util_iter    = utilisation[4];
 		current_util_mcu     = utilisation[5];
 	}
-#else // MALI_USE_CSF
-
-	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
-	int utilisation, util_gl_share;
-	int util_cl_share[2];
-	int busy;
-	struct kbasep_pm_metrics *diff;
-#if IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE)
-	struct GpuUtilization_Ex *util_ex = (struct GpuUtilization_Ex *) Util_Ex;
-#endif
-	unsigned long long delta_time;
-
-	KBASE_DEBUG_ASSERT(kbdev != NULL);
-
-	diff = &kbdev->pm.backend.metrics.dvfs_diff;
-
-	kbase_pm_get_dvfs_metrics(kbdev, &kbdev->pm.backend.metrics.dvfs_last, diff);
-
-	delta_time = max(diff->time_busy + diff->time_idle, 1u);
-	utilisation = (100 * diff->time_busy) / delta_time;
-	busy = max(diff->busy_gl + diff->busy_cl[0] + diff->busy_cl[1], 1u);
-	util_gl_share = (100 * diff->busy_gl) / busy;
-	util_cl_share[0] = (100 * diff->busy_cl[0]) / busy;
-	util_cl_share[1] = (100 * diff->busy_cl[1]) / busy;
-
-#if IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE)
-	util_ex->util_active = utilisation;
-	util_ex->util_3d = (100 * diff->busy_gl_plus[0]) / delta_time;
-	util_ex->util_ta = (100 * (diff->busy_gl_plus[1]+diff->busy_gl_plus[2])) /
-		delta_time;
-	util_ex->util_compute = (100 * (diff->busy_cl[0]+diff->busy_cl[1])) /
-		delta_time;
-	util_ex->delta_time = delta_time << 8;   // 8 = KBASE_PM_TIME_SHIFT
-#endif
-
-	if (pui32Loading)
-		*pui32Loading = utilisation;
-
-	if (pui32Idle)
-		*pui32Idle = 100 - utilisation;
-
-	if (utilisation < 0 || util_gl_share < 0 ||
-	    util_cl_share[0] < 0 || util_cl_share[1] < 0) {
-		utilisation = 0;
-		util_gl_share = 0;
-		util_cl_share[0] = 0;
-		util_cl_share[1] = 0;
-	} else {
-		current_util_active = utilisation;
-		current_util_3d = (100 * diff->busy_gl_plus[0]) / delta_time;
-		current_util_ta = (100 * (diff->busy_gl_plus[1]+diff->busy_gl_plus[2])) /
-			delta_time;
-		current_util_compute = (100 * (diff->busy_cl[0]+diff->busy_cl[1])) /
-			delta_time;
-	}
-#endif /* MALI_USE_CSF */
 }
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
@@ -293,7 +236,7 @@ void MTKGPUFreq_change_notify(u32 clk_idx, u32 gpufreq)
 
 /* only work if CSF exit */
 void mtk_set_gpu_idle_time(unsigned int val){
-#if MALI_USE_CSF && IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_TEST)
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_TEST)
 		struct kbase_device *kbdev;
 
 		kbdev = (struct kbase_device *)mtk_common_get_kbdev();
