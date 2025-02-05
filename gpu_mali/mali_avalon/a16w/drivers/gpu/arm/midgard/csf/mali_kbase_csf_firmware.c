@@ -2328,11 +2328,18 @@ void kbase_csf_firmware_reload_completed(struct kbase_device *kbdev)
 	version = get_firmware_version(kbdev);
 
 	if (version != kbdev->csf.global_iface.version) {
-		dev_err(kbdev->dev, "Version check failed in firmware reboot.");
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		dev_err(kbdev->dev, "Version (%u) check failed with recorded version (%u) in firmware reboot.",
+			version, kbdev->csf.global_iface.version);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"Version check failed in firmware reboot.\n");
+			"Version (%u) check failed with recorded version (%u) in firmware reboot.\n",
+			version, kbdev->csf.global_iface.version);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#else /* CONFIG_MALI_MTK_DEBUG_DUMP */
+		dev_err(kbdev->dev, "Version check failed in firmware reboot.");
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
 	}
 
 	KBASE_KTRACE_ADD(kbdev, CSF_FIRMWARE_REBOOT, NULL, 0u);
