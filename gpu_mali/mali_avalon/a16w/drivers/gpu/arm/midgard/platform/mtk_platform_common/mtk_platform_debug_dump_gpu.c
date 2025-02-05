@@ -1447,11 +1447,11 @@ void mtk_debug_csf_csg_active_dump_group(struct kbase_queue_group *const group,
 */
         if (kbdev->gpu_props.gpu_id.product_model >= GPU_ID_MODEL_MAKE(14, 0)) {
             mtk_log_critical_exception(kbdev, true,
-                "[%d_%d] GroupID, CSG NR, CSG Prio, Run State, Priority, C_EP(Alloc/Req), F_EP(Alloc/Req), T_EP(Alloc/Req), Exclusive, Idle, JASID",
+                "[%d_%d] GroupID, CSG NR, CSG Prio, Run State, Priority, C_EP(Alloc/Req), F_EP(Alloc/Req), T_EP(Alloc/Req), JASID, Exclusive, Idle",
                 group->kctx->tgid,
                 group->kctx->id);
                 mtk_log_critical_exception(kbdev, true,
-                "[%d_%d] %7d, %6d, %8d, %9d, %8d, %11d/%3d, %11d/%3d, %11d/%3d, %9c, %4c, %5u",
+                "[%d_%d] %7d, %6d, %8d, %9d, %8d, %11d/%3d, %11d/%3d, %11d/%3d, %5u, %9c, %4c",
                 group->kctx->tgid,
                 group->kctx->id,
                 group->handle,
@@ -1469,16 +1469,16 @@ void mtk_debug_csf_csg_active_dump_group(struct kbase_queue_group *const group,
                 //CSG_STATUS_EP_REQ_NEURAL_EP_GET(ep_r),
                 //group->comp_pri_threshold,
                 //group->comp_pri_ratio,
+                group->kctx->as_nr,
                 exclusive,
-                idle,
-                group->kctx->as_nr);
+                idle);
         } else {
             mtk_log_critical_exception(kbdev, true,
-                "[%d_%d] GroupID, CSG NR, CSG Prio, Run State, Priority, C_EP(Alloc/Req), F_EP(Alloc/Req), T_EP(Alloc/Req), Exclusive, Idle, JASID",
+                "[%d_%d] GroupID, CSG NR, CSG Prio, Run State, Priority, C_EP(Alloc/Req), F_EP(Alloc/Req), T_EP(Alloc/Req), JASID, Exclusive, Idle",
                 group->kctx->tgid,
                 group->kctx->id);
                 mtk_log_critical_exception(kbdev, true,
-                    "[%d_%d] %7d, %6d, %8d, %9d, %8d, %11d/%3d, %11d/%3d, %11d/%3d, %9c, %4c, %5u",
+                    "[%d_%d] %7d, %6d, %8d, %9d, %8d, %11d/%3d, %11d/%3d, %11d/%3d, %5u, %9c, %4c",
                 group->kctx->tgid,
                 group->kctx->id,
                 group->handle, group->csg_nr, slot_priority, group->run_state,
@@ -1488,9 +1488,9 @@ void mtk_debug_csf_csg_active_dump_group(struct kbase_queue_group *const group,
                 CSG_STATUS_EP_REQ_FRAGMENT_EP_GET(ep_r),
                 CSG_STATUS_EP_CURRENT_TILER_EP_GET(ep_c),
                 CSG_STATUS_EP_REQ_TILER_EP_GET(ep_r),
+                group->kctx->as_nr,
                 exclusive,
-                idle,
-                group->kctx->as_nr);
+                idle);
         }
     } else {
         mtk_log_critical_exception(kbdev, true,
