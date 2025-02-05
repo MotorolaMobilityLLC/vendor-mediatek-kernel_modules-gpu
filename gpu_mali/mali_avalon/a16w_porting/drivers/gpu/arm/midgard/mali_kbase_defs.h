@@ -688,16 +688,6 @@ struct kbase_mmu_mode const *kbase_mmu_mode_get_aarch64(void);
 
 #define DEVNAME_SIZE 16
 
-#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
-#ifndef JOB_STATUS_QOS
-#define JOB_STATUS_QOS
-struct job_status_qos {
-	phys_addr_t phyaddr;
-	size_t size;
-};
-#endif
-#endif /* CONFIG_MALI_MTK_GPU_BM_JM */
-
 /**
  * enum kbase_devfreq_work_type - The type of work to perform in the devfreq
  *                                suspend/resume worker.
@@ -1411,10 +1401,6 @@ struct kbase_device {
 
 	struct notifier_block oom_notifier_block;
 
-#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
-	struct job_status_qos job_status_addr;
-	struct v1_data* v1;
-#endif /* CONFIG_MALI_MTK_GPU_BM_JM */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	struct mtk_logbuffer_info logbuf_regular;
 	struct mtk_logbuffer_info logbuf_critical;
