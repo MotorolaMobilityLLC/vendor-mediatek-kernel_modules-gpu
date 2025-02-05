@@ -165,14 +165,13 @@ void kbase_reset_gpu_assert_failed_or_prevented(struct kbase_device *kbdev);
  * - false - Another thread is performing a reset, kbase_reset_gpu should
  *           not be called.
  */
-#if (MALI_USE_CSF) && \
-	IS_ENABLED(CONFIG_MALI_MTK_GPU_RESET_DEBUG)
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_RESET_DEBUG)
 #define kbase_prepare_to_reset_gpu_locked(kbdev, flags) \
 		(kbase_prepare_to_reset_gpu_ext_locked(kbdev, flags, __FILE__, __FUNCTION__))
 bool kbase_prepare_to_reset_gpu_ext_locked(struct kbase_device *kbdev, unsigned int flags, const char* file, const char* func);
 #else
 bool kbase_prepare_to_reset_gpu_locked(struct kbase_device *kbdev, unsigned int flags);
-#endif /* MALI_USE_CSF && CONFIG_MALI_MTK_GPU_RESET_DEBUG */
+#endif /* CONFIG_MALI_MTK_GPU_RESET_DEBUG */
 
 /**
  * kbase_prepare_to_reset_gpu - Prepare for resetting the GPU.
@@ -184,14 +183,13 @@ bool kbase_prepare_to_reset_gpu_locked(struct kbase_device *kbdev, unsigned int 
  * - false - Another thread is performing a reset, kbase_reset_gpu should
  *           not be called.
  */
-#if (MALI_USE_CSF) && \
-	IS_ENABLED(CONFIG_MALI_MTK_GPU_RESET_DEBUG)
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_RESET_DEBUG)
 #define kbase_prepare_to_reset_gpu(kbdev, flags) \
 		(kbase_prepare_to_reset_gpu_ext(kbdev, flags, __FILE__, __FUNCTION__))
 bool kbase_prepare_to_reset_gpu_ext(struct kbase_device *kbdev, unsigned int flags, const char* file, const char* func);
 #else
 bool kbase_prepare_to_reset_gpu(struct kbase_device *kbdev, unsigned int flags);
-#endif /* MALI_USE_CSF && CONFIG_MALI_MTK_GPU_RESET_DEBUG */
+#endif /* CONFIG_MALI_MTK_GPU_RESET_DEBUG */
 
 /**
  * kbase_reset_gpu - Reset the GPU

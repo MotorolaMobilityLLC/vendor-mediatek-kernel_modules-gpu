@@ -988,7 +988,6 @@ void kbase_ipa_control_handle_gpu_reset_post(struct kbase_device *kbdev)
 }
 KBASE_EXPORT_TEST_API(kbase_ipa_control_handle_gpu_reset_post);
 
-#ifdef KBASE_PM_RUNTIME
 void kbase_ipa_control_handle_gpu_sleep_enter(struct kbase_device *kbdev)
 {
 	lockdep_assert_held(&kbdev->hwaccess_lock);
@@ -1022,7 +1021,6 @@ void kbase_ipa_control_handle_gpu_sleep_exit(struct kbase_device *kbdev)
 	}
 }
 KBASE_EXPORT_TEST_API(kbase_ipa_control_handle_gpu_sleep_exit);
-#endif
 
 #if MALI_UNIT_TEST
 void kbase_ipa_control_rate_change_notify_test(struct kbase_device *kbdev, u32 clk_index,
@@ -1043,6 +1041,8 @@ void kbase_ipa_control_protm_entered(struct kbase_device *kbdev)
 	struct kbase_ipa_control *ipa_ctrl = &kbdev->csf.ipa_control;
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
+
+
 	ipa_ctrl->protm_start = ktime_get_raw_ns();
 }
 
@@ -1054,6 +1054,7 @@ void kbase_ipa_control_protm_exited(struct kbase_device *kbdev)
 	u32 status;
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
+
 
 	for (i = 0; i < KBASE_IPA_CONTROL_MAX_SESSIONS; i++) {
 		struct kbase_ipa_control_session *session = &ipa_ctrl->sessions[i];

@@ -1224,6 +1224,19 @@ static u64 example_mgm_update_gpu_pte(struct memory_group_manager_device *const 
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
 	pte |= ((u64)group_id << PTE_PBHA_SHIFT) & PTE_PBHA_MASK;
 #endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
+
+	/* If a page is mapped uncached on the CPU but cached on the GPU, it will be considered to
+	 * have Mismatched Memory Attributes (MMA), and the MMA_VIOLATION bit will be set in the
+	 * pte_flags argument.
+	 *
+	 * If the system requires consistent memory attributes external to the GPU, system
+	 * integrators must allocate one of the PBHA values (range 1-15) for this feature, and
+	 * specify the value either via the mma-wa-id devicetree property or via the mma_wa_id
+	 * module parameter, which is then passed into this function via the pbha_id parameter. The
+	 * GPU will continue to use cached transactions internally, but use non-cacheable
+	 * transactions externally. Note that system integrators may choose not to set the PBHA
+	 *  value here if their system does not require it.
+	 */
 	if (pte_flags & BIT(MMA_VIOLATION)) {
 		pr_warn_once("MMA violation! Applying PBHA override workaround to PTE\n");
 		pte |= ((u64)pbha_id << PTE_PBHA_SHIFT) & PTE_PBHA_MASK;

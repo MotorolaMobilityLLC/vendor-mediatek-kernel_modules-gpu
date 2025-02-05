@@ -18,11 +18,7 @@
 #include <linux/scmi_protocol.h>
 #include <linux/module.h>
 #include "platform/mtk_platform_common.h"
-
-
-#if MALI_USE_CSF
 #include "csf/mali_kbase_csf_firmware.h"
-#endif
 
 static int init_flag;
 struct kbase_device *kbdev;

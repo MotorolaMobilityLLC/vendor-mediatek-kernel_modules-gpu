@@ -308,7 +308,10 @@ void mtk_qinspect_cpuq_internal_unload_cpuq(struct kbase_context *kctx)
 #if IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
 	mutex_lock(&kctx->csf.cpu_queue.lock);
 #endif /* CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT*/
-	WARN_ON(atomic_read(&kctx->csf.cpu_queue.dump_req_status) != BASE_CSF_CPU_QUEUE_DUMP_DONE);
+	if (atomic_read(&kctx->csf.cpu_queue.dump_req_status) != BASE_CSF_CPU_QUEUE_DUMP_DONE) {
+		qinspect_err(kctx->kbdev,
+			"[qinspect] perhaps it has expected, dump_req_status=%d for Ctx %d_%d", atomic_read(&kctx->csf.cpu_queue.dump_req_status), kctx->tgid, kctx->id);
+        }
 	if (kctx->csf.cpu_queue.buffer) {
 		kfree(kctx->csf.cpu_queue.buffer);
 		kctx->csf.cpu_queue.buffer = NULL;
