@@ -2068,6 +2068,26 @@ void kbase_csf_ctx_term(struct kbase_context *kctx)
 	mutex_destroy(&kctx->csf.lock);
 }
 
+/**
+ * handle_fw_unrecovery() - Handler for FW being unrecoverable
+ *
+ * @kbdev:     Instance of a GPU platform device that implements a CSF interface.
+ *
+ * This function is called when FW becomes unrecoverable.
+ * It will set flag indicating FW recoverable state,
+ * and wake up wait queues potentially pending on FW response.
+ *
+ */
+static void handle_fw_unrecovery(struct kbase_device *kbdev)
+{
+	if (!WARN(kbdev->csf.firmware_unrecoverable,
+		  "firmware_unrecoverable is not yet cleared\n")) {
+		kbdev->csf.firmware_unrecoverable = true;
+		wake_up_all(&kbdev->csf.event_wait);
+		wake_up_all(&kbdev->pm.backend.gpu_in_desired_state_wait);
+	}
+}
+
 int kbase_csf_cs_get_pending_oom(struct kbase_device *kbdev, struct kbase_queue *queue,
 				 int const slot_id)
 {
@@ -2996,6 +3016,7 @@ static void handle_fatal_event(struct kbase_queue *const queue, u32 group_id, u3
 		}
 
 	if (cs_fatal_exception_type == CS_FATAL_EXCEPTION_TYPE_FIRMWARE_INTERNAL_ERROR) {
+		handle_fw_unrecovery(kbdev);
 		if (dump_oops_in_dmesg)
 			kbase_csf_firmware_log_dump_buffer(kbdev);
 		if (dump_ktrace_in_dmesg)
@@ -4005,6 +4026,8 @@ exit:
 static void handle_glb_fatal(struct kbase_device *const kbdev)
 {
 	int as;
+
+	handle_fw_unrecovery(kbdev);
 
 	for (as = 0; as < kbdev->nr_hw_address_spaces; as++) {
 		unsigned long flags;

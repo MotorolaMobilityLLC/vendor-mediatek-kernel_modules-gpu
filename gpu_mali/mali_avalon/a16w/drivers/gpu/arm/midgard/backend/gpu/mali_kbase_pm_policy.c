@@ -288,12 +288,13 @@ static int policy_change_wait_for_L2_off(struct kbase_device *kbdev)
 	 * for host control of shader cores.
 	 */
 #if KERNEL_VERSION(4, 13, 1) <= LINUX_VERSION_CODE
-	remaining = wait_event_killable_timeout(kbdev->pm.backend.gpu_in_desired_state_wait,
-						kbdev->pm.backend.l2_state == KBASE_L2_OFF,
-						timeout);
+	remaining = kbase_csf_wait_event_killable_timeout(
+		kbdev, kbdev->pm.backend.gpu_in_desired_state_wait,
+		kbdev->pm.backend.l2_state == KBASE_L2_OFF, timeout);
 #else
-	remaining = wait_event_timeout(kbdev->pm.backend.gpu_in_desired_state_wait,
-				       kbdev->pm.backend.l2_state == KBASE_L2_OFF, timeout);
+	remaining = kbase_csf_wait_event_timeout(kbdev, kbdev->pm.backend.gpu_in_desired_state_wait,
+						 kbdev->pm.backend.l2_state == KBASE_L2_OFF,
+						 timeout);
 #endif
 
 	if (!remaining) {
