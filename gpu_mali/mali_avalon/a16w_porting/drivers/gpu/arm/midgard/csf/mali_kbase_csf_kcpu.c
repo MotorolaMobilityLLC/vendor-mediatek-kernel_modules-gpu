@@ -2341,6 +2341,12 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 					"ctx_%d_%d scheduler kthread was blocked (%llu ms), state=0x%x\n", kctx->tgid, kctx->id, blocked_time, state);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+				// 0x2: uninterruptible-sleep
+				if (state == 0x2 && scheduler->gpuq_kthread) {
+					mtk_common_print_backtrace_for_task(kctx->kbdev, scheduler->gpuq_kthread);
+				}
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 			}
 		}
 	}
