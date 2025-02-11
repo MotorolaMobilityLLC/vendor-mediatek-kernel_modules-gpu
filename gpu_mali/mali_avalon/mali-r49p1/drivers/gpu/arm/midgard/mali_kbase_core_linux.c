@@ -2861,9 +2861,10 @@ static void save_mmu_table_user_info(struct kbase_device *kbdev,
 	memcpy(dst->group_leader_comm, group_leader_comm, TASK_COMM_LEN);
 	memcpy(dst->comm, comm, TASK_COMM_LEN);
 
-	if(mmu_table_addr)
+	if(mmu_table_addr) {
 		table = (u64 *) mmu_table_addr;
 		dev_info(kbdev->dev, "[GPUMMU] as_setup: transtab 0x%llx, memattr 0x%llx, transcfg 0x%llx,\n", table[0], table[1], table[2]);
+	}
 }
 
 static void free_all_dump_mmu_table(struct kbase_device *kbdev)
@@ -2949,23 +2950,24 @@ static void dump_mmu_table_all(struct kbase_device *kbdev)
 		return;
 	}
 	list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
-		if(kctx == NULL) continue;
+		if(kctx != NULL) {
 		// Dump GPU MMU table for each kctx (per-process)
-		nr_pages = 2;
-		nr_pages += kbasep_mmu_dump_table_size(kbdev, MIDGARD_MMU_TOPLEVEL, &kctx->mmu) >> PAGE_SHIFT; //(nr_pages * PAGE_SIZE)
-		//dev_info(kbdev->dev, "[GPUMMU] start dump, dump_target_size = %u", (unsigned int) dump_target_size);
-		void *kaddr = kbase_mmu_dump_mtk(kbdev, kctx, nr_pages, &copy_size);
-		// Show pid, process name, AS value
-		unsigned int as_no = (kctx->as_nr != KBASEP_AS_NR_INVALID) ? kbdev->as[kctx->as_nr].number : 0xFF;
-		dev_info(kbdev->dev, "[GPUMMU] i = %u ", i);
+			nr_pages = 2;
+			nr_pages += kbasep_mmu_dump_table_size(kbdev, MIDGARD_MMU_TOPLEVEL, &kctx->mmu) >> PAGE_SHIFT; //(nr_pages * PAGE_SIZE)
+			//dev_info(kbdev->dev, "[GPUMMU] start dump, dump_target_size = %u", (unsigned int) dump_target_size);
+			void *kaddr = (void *) kbase_mmu_dump_mtk(kbdev, kctx, nr_pages, &copy_size);
+			// Show pid, process name, AS value
+			unsigned int as_no = (kctx->as_nr != KBASEP_AS_NR_INVALID) ? kbdev->as[kctx->as_nr].number : 0xFF;
+			dev_info(kbdev->dev, "[GPUMMU] i = %u ", i);
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
-		save_mmu_table_user_info(kbdev, mmu_table_user_arr + i, kaddr, copy_size, as_no, kctx->as_nr,
+			save_mmu_table_user_info(kbdev, mmu_table_user_arr + i, kaddr, copy_size, as_no, kctx->as_nr,
 								kctx->id, kctx->tgid, kctx->pid, kctx->group_leader_comm, kctx->comm);
 #else
-		save_mmu_table_user_info(kbdev, mmu_table_user_arr + i, kaddr, copy_size, as_no, kctx->as_nr,
+			save_mmu_table_user_info(kbdev, mmu_table_user_arr + i, kaddr, copy_size, as_no, kctx->as_nr,
 								kctx->id, kctx->tgid, kctx->pid, kctx->comm, kctx->comm);
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
-		i++;
+			i++;
+                }
 	}
 	mutex_unlock(&kbdev->kctx_list_lock);
 #if MALI_USE_CSF
