@@ -3016,6 +3016,7 @@ static ssize_t core_mask_show(struct device *dev, struct device_attribute *attr,
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
 #if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
 	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
 #if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
@@ -3031,6 +3032,15 @@ static ssize_t core_mask_show(struct device *dev, struct device_attribute *attr,
 		ca_mask = kbase_pm_ca_get_core_mask(kbdev);
 		debug_mask = kbase_pm_ca_get_debug_core_mask(kbdev);
 	}
+#else
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)) {
+		ca_mask = kbase_pm_ca_get_gov_core_mask(kbdev);
+		debug_mask = kbase_pm_ca_get_sysfs_gov_core_mask(kbdev);
+	} else {
+		ca_mask = kbase_pm_ca_get_core_mask(kbdev);
+		debug_mask = kbase_pm_ca_get_debug_core_mask(kbdev);
+	}
+#endif
 
 	ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret), "Current debug core mask : 0x%llX\n",
 			 debug_mask);
@@ -3080,6 +3090,7 @@ static int core_mask_set(struct kbase_device *kbdev, struct kbase_core_mask *con
 	kbase_pm_lock(kbdev);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
 #if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
 	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
 #if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
@@ -3095,6 +3106,15 @@ static int core_mask_set(struct kbase_device *kbdev, struct kbase_core_mask *con
 		ca_mask = kbdev->pm.backend.ca_cores_enabled;
 		debug_mask = kbase_pm_ca_get_debug_core_mask(kbdev);
 	}
+#else
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)) {
+		ca_mask = kbdev->pm.backend.ca_gov_cores_enabled;
+		debug_mask = kbase_pm_ca_get_sysfs_gov_core_mask(kbdev);
+	} else {
+		ca_mask = kbdev->pm.backend.ca_cores_enabled;
+		debug_mask = kbase_pm_ca_get_debug_core_mask(kbdev);
+	}
+#endif
 
 	shader_present = kbdev->gpu_props.shader_present;
 
@@ -5290,7 +5310,7 @@ static ssize_t gov_core_mask_disable_show(struct device *dev, struct device_attr
 		return -ENODEV;
 
 	disabled = kbdev->gov_core_mask_disable;
-	ret = scnprintf(buf, PAGE_SIZE, "gov_core_mask disable = %u\n", (u32)disabled);
+	ret = scnprintf(buf, PAGE_SIZE, "gov_core_mask disable = %u\n", disabled);
 
 	return ret;
 }

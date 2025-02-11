@@ -204,9 +204,29 @@ void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
 		down_write(&kbdev->csf.mmu_sync_sem);
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
+#if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+	if (kbdev->gov_core_mask_disable == 0)
+#endif
+	{
+		err = kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT) ?
+					set_core_mask_gov(kbdev, core_mask) :
+					set_core_mask_legacy(kbdev, core_mask);
+	}
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+	else
+		err = set_core_mask_legacy(kbdev, core_mask);
+#endif
+#else
+		err = set_core_mask_legacy(kbdev, core_mask);
+#endif
+#else
 	err = kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT) ?
-			    set_core_mask_gov(kbdev, core_mask) :
-			    set_core_mask_legacy(kbdev, core_mask);
+			set_core_mask_gov(kbdev, core_mask) :
+			set_core_mask_legacy(kbdev, core_mask);
+#endif
+
 	if (mmu_sync_needed)
 		up_write(&kbdev->csf.mmu_sync_sem);
 
