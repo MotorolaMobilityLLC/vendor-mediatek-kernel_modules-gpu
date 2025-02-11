@@ -1065,8 +1065,9 @@ static bool scheduler_protm_wait_quit(struct kbase_device *kbdev)
 	/* No need to check FW I/O status, because FW is always responsive during
 	 * protected mode exit.
 	 */
-	remaining = wait_event_timeout(kbdev->csf.event_wait,
-				       !kbase_csf_scheduler_protected_mode_in_use(kbdev), wt);
+	remaining = kbase_csf_wait_event_timeout(kbdev, kbdev->csf.event_wait,
+						 !kbase_csf_scheduler_protected_mode_in_use(kbdev),
+						 wt);
 
 	if (unlikely(!remaining)) {
 		struct kbase_queue_group *group = kbdev->csf.scheduler.active_protm_grp;
@@ -7097,11 +7098,11 @@ static void wait_for_mcu_sleep_before_sync_update_check(struct kbase_device *kbd
 		return;
 
 	/* Wait until MCU enters sleep state or there is a pending GPU reset */
-	if (!wait_event_timeout(kbdev->pm.backend.gpu_in_desired_state_wait,
-				kbase_csf_firmware_mcu_halted(kbdev) ||
-					kbdev->pm.backend.exit_gpu_sleep_mode ||
-					!kbase_reset_gpu_is_not_pending(kbdev),
-				timeout))
+	if (!kbase_csf_wait_event_timeout(kbdev, kbdev->pm.backend.gpu_in_desired_state_wait,
+					  kbase_csf_firmware_mcu_halted(kbdev) ||
+						  kbdev->pm.backend.exit_gpu_sleep_mode ||
+						  !kbase_reset_gpu_is_not_pending(kbdev),
+					  timeout))
 		dev_warn(kbdev->dev, "Wait for MCU sleep timed out");
 }
 
@@ -7871,7 +7872,6 @@ int kbase_csf_scheduler_init(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
 	sched_setscheduler_nocheck(scheduler->gpuq_kthread, SCHED_FIFO, &param);
-	sched_setscheduler_nocheck(scheduler->kcpuq_kthread, SCHED_FIFO, &param);
 #endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
