@@ -32,6 +32,12 @@ else
 	ccflags-y += -include $(RGX_TOP)/include/config_kernel_user_$(MTK_PLATFORM).h
 endif
 
+ifeq ($(PVR_ARCH),rogue)
+ ccflags-y += -DPVR_ARCH_ROGUE
+else ifeq ($(PVR_ARCH),volcanic)
+ ccflags-y += -DPVR_ARCH_VOLCANIC
+endif
+
 ccflags-y += \
 	-D__linux__ $(OPTIM) -g \
 	-fno-strict-aliasing \
@@ -188,9 +194,9 @@ ifeq ($(PVRSRV_ENABLE_PVR_ION_STATS),1)
 		services/server/env/linux/pvr_ion_stats.o
 endif
 
-
+ifneq (, $(filter 1,$(PVRSRV_TRACE_ROGUE_EVENTS) $(PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD)))
 	pvrsrvkm_$(MTK_PLATFORM)-$(CONFIG_EVENT_TRACING) += services/server/env/linux/pvr_gputrace.o
-
+endif
 
 $(info [GPU_DEBUG] PVRSRV_TRACE_ROGUE_EVENTS = $(PVRSRV_TRACE_ROGUE_EVENTS))
 $(info [GPU_DEBUG] PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD=$(PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD))
@@ -505,10 +511,11 @@ ccflags-y += \
 	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek \
 	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/ged/include \
 	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mt-plat \
-	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpufreq/v2_legacy/include \
+	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpufreq/v2/include \
 	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpufreq/ \
 	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpu_bm \
-	-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat
+	-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat \
+	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpueb/include
 
 ifneq ($(filter $(CONFIG_MTK_GPU_SUPPORT),y m),)
 	obj-m += pvrsrvkm_$(MTK_PLATFORM).o
