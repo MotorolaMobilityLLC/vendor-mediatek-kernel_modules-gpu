@@ -605,24 +605,33 @@ TRACE_EVENT(mali_kthread_event,
 
 #if IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG)
 TRACE_EVENT(tracing_mark_write_tl,
-	TP_PROTO(const char *fmt, va_list *va),
-	TP_ARGS(fmt, va),
+	TP_PROTO(const char *buffer),
+	TP_ARGS(buffer),
 	TP_STRUCT__entry(
-		__vstring(vstr, fmt, va)
+		__string(buffer, buffer)
 	),
 	TP_fast_assign(
-		__assign_vstr(vstr, fmt, va);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0))
+		__assign_str(buffer, buffer);
+#else
+		__assign_str(buffer);
+#endif
 	),
-	TP_printk("%s", __get_str(vstr))
+	TP_printk("%s", __get_str(buffer))
 );
 
 #ifndef __TRACE_MALI_GET_TL_VSRTING__
 #define __TRACE_MALI_GET_TL_VSRTING__
+#define TL_LOG_BUFFER_ENTRY_SIZE 256
 static inline void kbase_tl_systrace(const char *fmt, ...)
 {
+	uint8_t buffer[TL_LOG_BUFFER_ENTRY_SIZE];
 	va_list args;
 	va_start(args, fmt);
-	trace_tracing_mark_write_tl(fmt, &args);
+	int ret = vsnprintf(buffer, sizeof(buffer), fmt, args);
+	if (ret >= 0) {
+		trace_tracing_mark_write_tl(buffer);
+	}
 	va_end(args);
 }
 #endif /* __TRACE_MALI_GET_TL_VSRTING__ */
