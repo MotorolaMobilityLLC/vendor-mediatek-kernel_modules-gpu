@@ -577,6 +577,8 @@ static void global_init(struct kbase_device *const kbdev, u64 core_mask)
 	struct kbase_csf_fw_io *fw_io = &kbdev->csf.fw_io;
 	unsigned long flags, fw_io_flags;
 
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 	if (kbase_csf_fw_io_open(fw_io, &fw_io_flags)) {
 		dev_warn(kbdev->dev, "MCU unresponsive during global init");
