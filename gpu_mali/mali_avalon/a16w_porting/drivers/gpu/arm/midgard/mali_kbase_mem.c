@@ -55,10 +55,6 @@
 #include <platform/mtk_platform_common/mtk_platform_debug.h>
 #endif /* CONFIG_MALI_MTK_MMAP_LOGGING */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
-#include <soc/mediatek/emi.h>
-#endif /* CONFIG_MALI_MTK_MGMM */
-
 /* Static key used to determine if large pages are enabled or not */
 static DEFINE_STATIC_KEY_FALSE(large_pages_static_key);
 
@@ -315,8 +311,12 @@ int kbase_mem_init(struct kbase_device *kbdev)
 						      KBASE_MEM_POOL_SMALL_PAGE_TABLE_ORDER),
 					     KBASE_MEM_POOL_2MB_PAGE_TABLE_ORDER, 0, kbdev);
 
-	if (likely(!err))
+	if (likely(!err)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+		kbdev->jit_reclaim_timeout_ms = JIT_RECLAIM_DEFAULT_TIMEOUT_MS;
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 		return err;
+	}
 
 	kbase_mem_pool_term(&kbdev->fw_mem_pools.small);
 term_kbase_pgd_mem_pool:
