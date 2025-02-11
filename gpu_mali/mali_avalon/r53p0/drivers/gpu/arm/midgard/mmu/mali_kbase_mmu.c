@@ -4920,7 +4920,7 @@ void *kbase_mmu_dump_mtk(struct kbase_device *kbdev, struct kbase_context *kctx,
 
 	size_left = nr_pages * PAGE_SIZE;
 
-	if (WARN_ON(size_left == 0))
+	if (size_left == 0)
 		return NULL;
 	kaddr = (void *) vmalloc_user(size_left);
 
