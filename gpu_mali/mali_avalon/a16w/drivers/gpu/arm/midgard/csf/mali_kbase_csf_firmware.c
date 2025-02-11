@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2018-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1655,9 +1655,30 @@ static int wait_for_global_request_with_timeout(struct kbase_csf_fw_io *fw_io, u
 	const long wait_timeout = kbase_csf_timeout_in_jiffies(timeout_ms);
 	long remaining;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP)
+	{
+		unsigned long timeout_jiffies = msecs_to_jiffies(wait_timeout);
+		unsigned long end_jiffies = jiffies + timeout_jiffies;
+		long __wait_remaining = 0;
+
+		while (time_before(jiffies, end_jiffies)) {
+			if ((global_request_complete(fw_io, req_mask)) || kbase_csf_fw_io_check_status_gpu_suspended(fw_io)) {
+
+				__wait_remaining = end_jiffies - jiffies;
+				if (__wait_remaining <= 0)
+					__wait_remaining = 1;
+				break;
+			}
+			udelay(10);
+		}
+
+		remaining = kbasep_csf_fw_io_handle_wait_result(fw_io, __wait_remaining);
+	}
+#else
 	remaining = kbase_csf_fw_io_wait_event_timeout(fw_io, kbdev->csf.event_wait,
 						       global_request_complete(fw_io, req_mask),
 						       wait_timeout);
+#endif /* CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP*/
 
 	if (!remaining) {
 		dev_warn(kbdev->dev,
@@ -2026,6 +2047,8 @@ static void global_init(struct kbase_device *const kbdev, u64 core_mask)
 	struct kbase_csf_fw_io *fw_io = &kbdev->csf.fw_io;
 	unsigned long flags, fw_io_flags;
 
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 	if (kbase_csf_fw_io_open(fw_io, &fw_io_flags)) {
 		dev_warn(kbdev->dev, "MCU unresponsive during global init");
@@ -2297,9 +2320,7 @@ void kbase_csf_firmware_trigger_reload(struct kbase_device *kbdev)
 		kbdev->csf.firmware_reload_needed = false;
 		queue_work(system_wq, &kbdev->csf.firmware_reload_work);
 	} else {
-		/* MCU shall not boot while reset is in progress */
 		if (likely(!kbdev->pm.backend.in_reset))
-			/* MCU warm boot requested. */
 			kbase_csf_firmware_enable_mcu(kbdev);
 	}
 }
@@ -2328,18 +2349,11 @@ void kbase_csf_firmware_reload_completed(struct kbase_device *kbdev)
 	version = get_firmware_version(kbdev);
 
 	if (version != kbdev->csf.global_iface.version) {
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-		dev_err(kbdev->dev, "Version (%u) check failed with recorded version (%u) in firmware reboot.",
-			version, kbdev->csf.global_iface.version);
+		dev_err(kbdev->dev, "Version check failed in firmware reboot.");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			"Version (%u) check failed with recorded version (%u) in firmware reboot.\n",
-			version, kbdev->csf.global_iface.version);
+			"Version check failed in firmware reboot.\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-#else /* CONFIG_MALI_MTK_DEBUG_DUMP */
-		dev_err(kbdev->dev, "Version check failed in firmware reboot.");
-#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
-
 	}
 
 	KBASE_KTRACE_ADD(kbdev, CSF_FIRMWARE_REBOOT, NULL, 0u);
@@ -2942,11 +2956,13 @@ int kbase_csf_firmware_load_init(struct kbase_device *kbdev)
 	if (ret != 0)
 		goto err_out;
 
+#if !IS_ENABLED(CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP)
 	ret = kbase_csf_firmware_log_init(kbdev);
 	if (ret != 0) {
 		dev_err(kbdev->dev, "Failed to initialize FW trace (err %d)", ret);
 		goto err_out;
 	}
+#endif /* CONFIG_MALI_MTK_FIX_FW_INIT_MIGHT_SLEEP */
 
 	ret = kbase_csf_firmware_cfg_init(kbdev);
 	if (ret != 0)

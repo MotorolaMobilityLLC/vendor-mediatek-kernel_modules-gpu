@@ -104,8 +104,9 @@ void kbase_pm_ca_set_gov_core_mask_nolock(struct kbase_device *kbdev, enum mask_
 			return;
 		}
 		/* if sysfs non-zero then no need to re-write value */
-		if (!(core_mask & kbdev->pm.sysfs_gov_core_mask))
+		if (kbdev->pm.sysfs_gov_core_mask)
 			return;
+
 		pm_backend->ca_gov_cores_enabled = core_mask;
 	}
 #endif
@@ -129,50 +130,49 @@ void kbase_pm_ca_set_gov_core_mask(struct kbase_device *kbdev, enum mask_type co
 		return;
 	}
 
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	kbase_pm_ca_set_gov_core_mask_nolock(kbdev, core_mask_type, core_mask);
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 }
 
 #ifdef CONFIG_MALI_DEVFREQ
-void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
+static int set_core_mask_gov(struct kbase_device *kbdev, u64 core_mask)
+{
+	if (!kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)) {
+		dev_warn(
+			kbdev->dev,
+			"This function requires Kbase to have access to GOV_CORE_MASK register, cannot proceed\n");
+		return -EIO;
+	}
+
+	/* Requires a validity check to ensure we don't try to set cores we do not have */
+	if ((core_mask & kbdev->gpu_props.shader_present) != core_mask) {
+		dev_err(kbdev->dev,
+			"core_mask (%llu) must be a subset of the shader present (%llu)", core_mask,
+			kbdev->gpu_props.shader_present);
+		return -EINVAL;
+	}
+
+	kbase_pm_ca_set_gov_core_mask(kbdev, DEVFREQ_COREMASK, core_mask);
+
+	return 0;
+}
+
+static int set_core_mask_legacy(struct kbase_device *kbdev, u64 core_mask)
 {
 	struct kbase_pm_backend_data *pm_backend = &kbdev->pm.backend;
-	unsigned long flags;
-#if MALI_USE_CSF
 	u64 old_core_mask = 0;
-	bool mmu_sync_needed = false;
+	unsigned long flags;
 
-	if (!IS_ENABLED(CONFIG_MALI_NO_MALI) &&
-	    kbase_hw_has_issue(kbdev, KBASE_HW_ISSUE_GPU2019_3901)) {
-		mmu_sync_needed = true;
-		down_write(&kbdev->csf.mmu_sync_sem);
-	}
-#endif
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 #if MALI_USE_CSF
-#if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
-	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
-#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
-	&& (kbdev->gov_core_mask_disable == 0)
-#endif
-	)
-	{
-		/* Requires a validity check to ensure we don't try to set cores we do not have */
-		if ((core_mask & kbdev->gpu_props.shader_present) != core_mask)
-			dev_err(kbdev->dev,
-				"core_mask (%llu) must be a subset of the shader present (%llu)",
-				core_mask, kbdev->gpu_props.shader_present);
-		else
-			kbase_pm_ca_set_gov_core_mask(kbdev, DEVFREQ_COREMASK, core_mask);
-		goto unlock;
-	}
-#endif
-
 	if (!(core_mask & kbdev->pm.debug_core_mask)) {
 		dev_err(kbdev->dev,
 			"OPP core mask 0x%llX does not intersect with sysfs debug mask 0x%llX\n",
 			core_mask, kbdev->pm.debug_core_mask);
-		goto unlock;
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+		return -EINVAL;
 	}
 
 	old_core_mask = pm_backend->ca_cores_enabled;
@@ -181,13 +181,15 @@ void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
 		dev_err(kbdev->dev,
 			"OPP core mask 0x%llX does not intersect with debug mask 0x%llX\n",
 			core_mask, kbdev->pm.debug_core_mask_all);
-		goto unlock;
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+		return -EINVAL;
 	}
 
 	if (kbase_dummy_job_wa_enabled(kbdev)) {
 		dev_err_once(kbdev->dev,
 			     "Dynamic core scaling not supported as dummy job WA is enabled");
-		goto unlock;
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+		return -EINVAL;
 	}
 #endif /* MALI_USE_CSF */
 	pm_backend->ca_cores_enabled = core_mask;
@@ -206,20 +208,48 @@ void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
 				 old_core_mask, core_mask);
 		}
 	}
-
-	if (mmu_sync_needed)
-		up_write(&kbdev->csf.mmu_sync_sem);
 #endif
 
-	dev_dbg(kbdev->dev, "Devfreq policy : new core mask=%llX\n", pm_backend->ca_cores_enabled);
+	return 0;
+}
 
-	return;
-unlock:
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
+{
+	bool mmu_sync_needed = false;
+	int err;
+
+#if MALI_USE_CSF
+	if (!IS_ENABLED(CONFIG_MALI_NO_MALI) &&
+	    kbase_hw_has_issue(kbdev, KBASE_HW_ISSUE_GPU2019_3901)) {
+		mmu_sync_needed = true;
+		down_write(&kbdev->csf.mmu_sync_sem);
+	}
+#endif
+
+#if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+		&& (kbdev->gov_core_mask_disable == 0)
+#endif
+	)
+	{
+		err = kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT) ?
+				    set_core_mask_gov(kbdev, core_mask) :
+				    set_core_mask_legacy(kbdev, core_mask);
+	}
+	else
+		err = set_core_mask_legacy(kbdev, core_mask);
+#else
+	err = set_core_mask_legacy(kbdev, core_mask);
+#endif
+
 #if MALI_USE_CSF
 	if (mmu_sync_needed)
 		up_write(&kbdev->csf.mmu_sync_sem);
 #endif
+
+	if (!err)
+		dev_dbg(kbdev->dev, "Devfreq policy : new core mask=%llX\n", core_mask);
 }
 KBASE_EXPORT_TEST_API(kbase_devfreq_set_core_mask);
 #endif
@@ -266,7 +296,6 @@ u64 kbase_pm_ca_get_core_mask(struct kbase_device *kbdev)
 	return kbdev->gpu_props.curr_config.shader_present & debug_core_mask;
 #endif
 }
-
 KBASE_EXPORT_TEST_API(kbase_pm_ca_get_core_mask);
 
 u64 kbase_pm_ca_get_gov_core_mask(struct kbase_device *kbdev)
