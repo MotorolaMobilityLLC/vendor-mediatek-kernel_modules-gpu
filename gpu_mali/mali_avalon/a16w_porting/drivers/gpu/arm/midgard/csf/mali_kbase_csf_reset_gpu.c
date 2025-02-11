@@ -565,6 +565,9 @@ kbase_csf_reset_gpu_once(struct kbase_device *kbdev, bool firmware_inited, bool 
 	err = kbase_pm_init_hw(kbdev, 0);
 
 	mutex_unlock(&kbdev->pm.lock);
+
+	kbdev->csf.firmware_unrecoverable = false;
+
 #if IS_ENABLED(CONFIG_MALI_MTK_RESET_RELOAD_ON_FW)
 	if (kbdev->pm.backend.fw_reload_on_reset_worker == true)
 	{

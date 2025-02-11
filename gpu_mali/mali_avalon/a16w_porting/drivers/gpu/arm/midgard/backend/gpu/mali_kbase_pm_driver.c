@@ -3195,13 +3195,13 @@ int kbase_pm_wait_for_l2_powered(struct kbase_device *kbdev)
 
 	/* Wait for cores */
 #if KERNEL_VERSION(4, 13, 1) <= LINUX_VERSION_CODE
-	remaining = wait_event_killable_timeout(kbdev->pm.backend.gpu_in_desired_state_wait,
-						kbase_pm_is_in_desired_state_with_l2_powered(kbdev),
-						(long)timeout);
+	remaining = kbase_csf_wait_event_killable_timeout(
+		kbdev, kbdev->pm.backend.gpu_in_desired_state_wait,
+		kbase_pm_is_in_desired_state_with_l2_powered(kbdev), (long)timeout);
 #else
-	remaining = wait_event_timeout(kbdev->pm.backend.gpu_in_desired_state_wait,
-				       kbase_pm_is_in_desired_state_with_l2_powered(kbdev),
-				       (long)timeout);
+	remaining = kbase_csf_wait_event_timeout(
+		kbdev, kbdev->pm.backend.gpu_in_desired_state_wait,
+		kbase_pm_is_in_desired_state_with_l2_powered(kbdev), (long)timeout);
 #endif
 
 	if (!remaining) {
@@ -3230,18 +3230,20 @@ static int pm_wait_for_desired_state(struct kbase_device *kbdev, bool killable_w
 	/* Wait for cores */
 #if KERNEL_VERSION(4, 13, 1) <= LINUX_VERSION_CODE
 	if (killable_wait)
-		remaining = wait_event_killable_timeout(kbdev->pm.backend.gpu_in_desired_state_wait,
-							kbase_pm_is_in_desired_state(kbdev) ||
-								kbase_io_is_aw_removed(kbdev),
-							timeout);
+		remaining = kbase_csf_wait_event_killable_timeout(
+			kbdev, kbdev->pm.backend.gpu_in_desired_state_wait,
+			kbase_pm_is_in_desired_state(kbdev) ||
+				kbase_io_is_aw_removed(kbdev),
+			timeout);
 #else
 	killable_wait = false;
 #endif
 	if (!killable_wait)
-		remaining = wait_event_timeout(kbdev->pm.backend.gpu_in_desired_state_wait,
-					       kbase_pm_is_in_desired_state(kbdev) ||
-						       kbase_io_is_aw_removed(kbdev),
-					       timeout);
+		remaining = kbase_csf_wait_event_timeout(
+			kbdev, kbdev->pm.backend.gpu_in_desired_state_wait,
+			kbase_pm_is_in_desired_state(kbdev) ||
+				kbase_io_is_aw_removed(kbdev),
+			timeout);
 	if (!remaining) {
 		kbase_pm_timed_out(kbdev, "Wait for power transition timed out");
 		err = -ETIMEDOUT;
@@ -3304,11 +3306,12 @@ int kbase_pm_wait_for_cores_down_scale(struct kbase_device *kbdev)
 
 	/* Wait for core mask update to complete  */
 #if KERNEL_VERSION(4, 13, 1) <= LINUX_VERSION_CODE
-	remaining = wait_event_killable_timeout(kbdev->pm.backend.gpu_in_desired_state_wait,
-						core_mask_update_done(kbdev), timeout);
+	remaining = kbase_csf_wait_event_killable_timeout(
+		kbdev, kbdev->pm.backend.gpu_in_desired_state_wait, core_mask_update_done(kbdev),
+		timeout);
 #else
-	remaining = wait_event_timeout(kbdev->pm.backend.gpu_in_desired_state_wait,
-				       core_mask_update_done(kbdev), timeout);
+	remaining = kbase_csf_wait_event_timeout(kbdev, kbdev->pm.backend.gpu_in_desired_state_wait,
+						 core_mask_update_done(kbdev), timeout);
 #endif
 
 	if (!remaining) {
@@ -3359,17 +3362,18 @@ static int pm_wait_for_poweroff_work_complete(struct kbase_device *kbdev, bool k
 
 #if KERNEL_VERSION(4, 13, 1) <= LINUX_VERSION_CODE
 	if (killable_wait)
-		remaining = wait_event_killable_timeout(kbdev->pm.backend.poweroff_wait,
-							!is_poweroff_wait_in_progress(kbdev) ||
-								kbase_io_is_aw_removed(kbdev),
-							timeout);
+		remaining = kbase_csf_wait_event_killable_timeout(
+			kbdev, kbdev->pm.backend.poweroff_wait,
+			!is_poweroff_wait_in_progress(kbdev) ||
+			kbase_io_is_aw_removed(kbdev),
+			timeout);
 #else
 	killable_wait = false;
 #endif
 
 	if (!killable_wait)
-		remaining = wait_event_timeout(kbdev->pm.backend.poweroff_wait,
-					       !is_poweroff_wait_in_progress(kbdev), timeout) ||
+		remaining = kbase_csf_wait_event_timeout(kbdev, kbdev->pm.backend.poweroff_wait,
+							 !is_poweroff_wait_in_progress(kbdev),timeout) ||
 			    kbase_io_is_aw_removed(kbdev);
 	if (!remaining) {
 		kbase_pm_timed_out(kbdev, "Wait for poweroff work timed out");

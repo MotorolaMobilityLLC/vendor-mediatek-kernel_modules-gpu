@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2018-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1844,6 +1844,7 @@ struct kbase_csf_user_reg {
  *                          the mcu_core_pwroff timeout feature is disabled
  *                          (i.e. configured 0 in the register field). If
  *                          false, the control is delegated to the MCU.
+ * @firmware_unrecoverable: Flag for indicating that firmware is unrecoverable.
  * @firmware_reload_work:   Work item for facilitating the procedural actions
  *                          on reloading the firmware.
  * @glb_init_request_pending: Flag to indicate that Global requests have been
@@ -1934,6 +1935,7 @@ struct kbase_csf_device {
 	bool firmware_reload_needed;
 	bool firmware_full_reload_needed;
 	bool firmware_hctl_core_pwr;
+	bool firmware_unrecoverable;
 	struct work_struct firmware_reload_work;
 	bool glb_init_request_pending;
 	struct work_struct glb_fatal_work;
@@ -2001,5 +2003,90 @@ struct kbase_as {
 	struct kbase_fault gf_data;
 	struct kbase_mmu_setup current_setup;
 };
+
+/**
+ * kbase_csf_wait_event_timeout_helper - Check condition and FW unresponding,
+ * and return values via variables for further use.
+ * @kbdev: KBase device.
+ * @condition: C expression for the event to wait for
+ * @unrec_value: Return value of firmware_unrecoverable
+ * @con_value: Return value of condition
+ *
+ * To avoid inconsistent firmware_unrecoverable reading in the case of it
+ * changing right after wait_event_timeout() due to GPU reset, value of condition
+ * and firmware_unrecoverable is stored when calling wait_event_timeout().
+ *
+ * Return: true if either FW unresponding or condition met, otherwise false.
+ */
+#define kbase_csf_wait_event_timeout_helper(kbdev, condition, unrec_value, con_value) \
+	({                                                                            \
+		bool __ret;                                                           \
+		unrec_value = kbdev->csf.firmware_unrecoverable;                      \
+		con_value = (condition);                                              \
+		__ret = unrec_value || con_value;                                     \
+		__ret;                                                                \
+	})
+
+/**
+ * kbase_csf_wait_event_timeout - Wait until condition gets true, timeout occurs,
+ * or FW is unresponsive.
+ * @kbdev: KBase device.
+ * @wq_head:   The waitqueue to wait on.
+ * @condition: C expression for the event to wait for
+ * @timeout:   Timeout, in jiffies
+ *
+ * If the event depends on FW, there is a chance to skip wait when FW is unresponsive.
+ * The rest of the functionalities is equal to wait_event_timeout().
+ *
+ * Return: Same as wait_event_timeout().
+ * In the case of condition not met and FW unresponsive, treat it as timed out by returning 0.
+ */
+#define kbase_csf_wait_event_timeout(kbdev, wq_head, condition, timeout)                         \
+	({                                                                                       \
+		bool __unrecoverable = false;                                                    \
+		bool __condition = false;                                                        \
+		long __ret = wait_event_timeout(                                                 \
+			wq_head,                                                                 \
+			kbase_csf_wait_event_timeout_helper(kbdev, (condition), __unrecoverable, \
+							    __condition),                        \
+			timeout);                                                                \
+		if (__ret > 0 && __unrecoverable) {                                              \
+			__ret = 0;                                                               \
+			dev_warn(kbdev->dev, "Immediate time out for unresponsive FW");          \
+		}                                                                                \
+		__ret;                                                                           \
+	})
+
+/**
+ * kbase_csf_wait_event_killable_timeout - Wait until condition gets true, timeout occurs,
+ * FW is unresponsive or interrupted by a kill signal.
+ * @kbdev: KBase device.
+ * @wq_head:   The waitqueue to wait on.
+ * @condition: C expression for the event to wait for
+ * @timeout:   Timeout, in jiffies
+ *
+ * If the event depends on FW, there is a chance to skip wait when FW is unresponsive.
+ * The rest of the functionalities is equal to wait_event_killable_timeout().
+ *
+ * Return: Same as wait_event_killable_timeout().
+ * In the case of condition not met and FW unresponsive, treat it as timed out by returning 0.
+ */
+#if KERNEL_VERSION(4, 13, 1) <= LINUX_VERSION_CODE
+#define kbase_csf_wait_event_killable_timeout(kbdev, wq_head, condition, timeout)              \
+	({                                                                                     \
+		bool __unrecoverable = false;                                                  \
+		bool __condition = false;                                                      \
+		long __ret = wait_event_killable_timeout(                                      \
+			wq_head,                                                               \
+			kbase_csf_wait_event_timeout_helper(kbdev, condition, __unrecoverable, \
+							    __condition),                      \
+			timeout);                                                              \
+		if (__ret > 0 && __unrecoverable) {                                            \
+			__ret = 0;                                                             \
+			dev_warn(kbdev->dev, "Immediate time out for unresponsive FW");        \
+		}                                                                              \
+		__ret;                                                                         \
+	})
+#endif
 
 #endif /* _KBASE_CSF_DEFS_H_ */
