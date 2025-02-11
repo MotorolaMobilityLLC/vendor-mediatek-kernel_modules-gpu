@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -255,12 +255,13 @@ static int policy_change_wait_for_L2_off(struct kbase_device *kbdev)
 	 * for host control of shader cores.
 	 */
 #if KERNEL_VERSION(4, 13, 1) <= LINUX_VERSION_CODE
-	remaining = wait_event_killable_timeout(kbdev->pm.backend.gpu_in_desired_state_wait,
-						kbdev->pm.backend.l2_state == KBASE_L2_OFF,
-						timeout);
+	remaining = kbase_csf_wait_event_killable_timeout(
+		kbdev, kbdev->pm.backend.gpu_in_desired_state_wait,
+		kbdev->pm.backend.l2_state == KBASE_L2_OFF, timeout);
 #else
-	remaining = wait_event_timeout(kbdev->pm.backend.gpu_in_desired_state_wait,
-				       kbdev->pm.backend.l2_state == KBASE_L2_OFF, timeout);
+	remaining = kbase_csf_wait_event_timeout(kbdev, kbdev->pm.backend.gpu_in_desired_state_wait,
+						 kbdev->pm.backend.l2_state == KBASE_L2_OFF,
+						 timeout);
 #endif
 
 	if (!remaining) {
