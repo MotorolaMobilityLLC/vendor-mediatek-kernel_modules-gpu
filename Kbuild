@@ -22,6 +22,9 @@ endif
 ifneq ($(wildcard $(KO_CODE_PATH)/mt6993),)
         obj-m += mt6993/
 endif
+ifneq ($(wildcard $(KO_CODE_PATH)/mt6895),)
+        obj-m += mt6895/
+endif
 endif
 endif
 endif
