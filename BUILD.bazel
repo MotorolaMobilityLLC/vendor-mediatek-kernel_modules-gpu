@@ -42,6 +42,11 @@ mt6993_outs = [
     "mt6993/mali_avalon/a16w_porting/drivers/gpu/arm/midgard/mali_kbase_mt6993_a16w_porting.ko",
 ]
 
+mt6855_outs = [
+     "mt6855/m24.2ED6620798/pvrsrvkm_mt6855.ko",
+]
+
+
 define_mgk_ko(
     name = "gpu_mt6789",
     srcs = glob(["**"]),
@@ -65,5 +70,13 @@ define_mgk_ko(
     srcs = glob(["**"]),
     outs = (
     mt6768_outs if glob(["mt6768/*"]) else []
+    ),
+)
+
+define_mgk_ko(
+    name = "gpu_mt6855",
+    srcs = glob(["**"]),
+    outs = (
+    mt6855_outs if glob(["mt6855/*"]) else []
     ),
 )

@@ -80,6 +80,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 #endif
 
+/* The Android kernel common has removed the tracing_on symbol. Ftrace are
+ * managed by the clients. DDK ensures the PVR trace functions remain enabled
+ * while features are available.
+ */
+#if 1
+#define TRACE_ON()
+#else
+#define TRACE_ON() tracing_on()
+#endif
+
 /******************************************************************************
  Module internal implementation
 ******************************************************************************/
@@ -449,7 +459,7 @@ void PVRGpuTraceInitIfEnabled(PVRSRV_DEVICE_NODE *psDeviceNode)
 		{
 			/* this enables FTrace globally (if not enabled nothing will appear
 			 * in the FTrace buffer) */
-			tracing_on();
+			TRACE_ON();
 		}
 	}
 }
@@ -1365,7 +1375,7 @@ static PVRSRV_ERROR _GpuTraceSetEnabledCallback(
 		{
 			/* this enables FTrace globally (if not enabled nothing will appear
 			 * in the FTrace buffer) */
-			tracing_on();
+			TRACE_ON();
 		}
 
 		/*  The HWPerf supplier is activated here,
