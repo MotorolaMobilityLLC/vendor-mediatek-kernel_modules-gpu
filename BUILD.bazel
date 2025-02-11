@@ -1,4 +1,6 @@
 load("//build/bazel_mgk_rules:mgk_ko.bzl", "define_mgk_ko")
+load("@mgk_info//:kernel_version.bzl","kernel_version",)
+
 
 package(
     default_visibility = [
@@ -71,6 +73,9 @@ define_mgk_ko(
     ) + (
         mt6895_outs if glob(["mt6895/*"]) else []
     ),
+    deps =
+        (["//kernel_device_modules-{}/drivers/gpu/mediatek/gpu_pdma:mtk_gpu_pdma_mt6991".format(kernel_version)] if glob(["mt6991/*"]) else []) +
+        (["//kernel_device_modules-{}/drivers/gpu/mediatek/gpu_pdma:mtk_gpu_pdma_mt6993".format(kernel_version)] if glob(["mt6993/*"]) else []),
 )
 
 define_mgk_ko(
