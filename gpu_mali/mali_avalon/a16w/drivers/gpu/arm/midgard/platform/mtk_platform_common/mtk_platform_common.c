@@ -8,6 +8,9 @@
 #include <linux/seq_file.h>
 #include <linux/sysfs.h>
 #include <linux/string.h>
+#include <linux/sched.h>
+#include <linux/stacktrace.h>
+#include <linux/kallsyms.h>
 #include <platform/mtk_platform_common.h>
 #include <mtk_gpufreq.h>
 #include <ged_dvfs.h>
@@ -904,5 +907,46 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_MEMTRACK */
 
 	mtk_platform_pm_term(kbdev);
+}
+
+void mtk_common_print_backtrace_for_task(struct kbase_device *kbdev, struct task_struct *task)
+{
+#ifdef CONFIG_STACKTRACE
+	unsigned long stacks[32];
+	unsigned int nr_entries;
+	int i;
+
+	if (IS_ERR_OR_NULL(kbdev))
+		return;
+
+	nr_entries = stack_trace_save_tsk(task, stacks, ARRAY_SIZE(stacks), 0);
+
+	if (nr_entries <= 0) {
+		dev_err(kbdev->dev, "Failed to retrieve stack trace: %d\n", nr_entries);
+		return;
+	}
+
+	dev_err(kbdev->dev, "Backtrace for task %s (pid: %d):", task->comm, task->pid);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Backtrace for task %s (pid: %d):\n", task->comm, task->pid);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	for (i = 0; i < nr_entries; i++) {
+		unsigned long addr = stacks[i];
+		char sym[KSYM_SYMBOL_LEN];
+
+		sprint_symbol(sym, addr);
+		dev_err(kbdev->dev, "%d: [<%p>] %s", i, (void *)addr, sym);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"%d: [<%p>] %s\n", i, (void *)addr, sym);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	}
+#else
+	if (IS_ERR_OR_NULL(kbdev))
+		return;
+
+	dev_err(kbdev->dev, "kernel config of STACKTRACE is disabled\n");
+#endif /* CONFIG_STACKTRACE */
 }
 
