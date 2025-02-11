@@ -104,7 +104,7 @@ void kbase_pm_ca_set_gov_core_mask_nolock(struct kbase_device *kbdev, enum mask_
 			return;
 		}
 		/* if sysfs non-zero then no need to re-write value */
-		if (kbdev->pm.sysfs_gov_core_mask)
+		if (!(core_mask & kbdev->pm.sysfs_gov_core_mask))
 			return;
 
 		pm_backend->ca_gov_cores_enabled = core_mask;
