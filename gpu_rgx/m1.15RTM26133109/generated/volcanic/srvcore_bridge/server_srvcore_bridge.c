@@ -684,7 +684,7 @@ GetMultiCoreInfo_exit:
 #endif
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return offsetof(PVRSRV_BRIDGE_OUT_EVENTOBJECTWAITTIMEOUT, eError);
+	return offsetof(PVRSRV_BRIDGE_OUT_GETMULTICOREINFO, eError);
 }
 
 static size_t
@@ -737,7 +737,7 @@ EventObjectWaitTimeout_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_EVENTOBJECTWAITTIMEOUT, eError);
 }
 
 static size_t
