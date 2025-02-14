@@ -480,7 +480,7 @@ PhysmemImportSparseDmaBuf_exit:
 #endif
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_PHYSMEMIMPORTSPARSEDMABUF, eError);
 }
 
 static PVRSRV_ERROR _PhysmemImportDmaBufLockedpsPMRPtrIntRelease(void *pvData)
@@ -493,7 +493,7 @@ static PVRSRV_ERROR _PhysmemImportDmaBufLockedpsPMRPtrIntRelease(void *pvData)
 static_assert(DEVMEM_ANNOTATION_MAX_LEN <= IMG_UINT32_MAX,
 	      "DEVMEM_ANNOTATION_MAX_LEN must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgePhysmemImportDmaBufLocked(IMG_UINT32 ui32DispatchTableEntry,
 				      IMG_UINT8 * psPhysmemImportDmaBufLockedIN_UI8,
 				      IMG_UINT8 * psPhysmemImportDmaBufLockedOUT_UI8,
@@ -644,7 +644,7 @@ PhysmemImportDmaBufLocked_exit:
 #endif
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return offsetof(PVRSRV_BRIDGE_OUT_PHYSMEMIMPORTSPARSEDMABUF, eError);
+	return offsetof(PVRSRV_BRIDGE_OUT_PHYSMEMIMPORTDMABUFLOCKED, eError);
 }
 
 /* ***************************************************************************
