@@ -514,7 +514,24 @@ static void mtk_qinspect_release_lock(struct kbase_context *kctx) {
 
 void mtk_qinspect_recovery(struct kbase_context *kctx, enum mtk_qinspect_queue_type queue_type, void *queue) {
 	int i = 0;
+	struct task_struct *task;
+	struct pid *pid_struct;
+
 	g_kctx = kctx;
+	/* Check if process in the zombie or dead state */
+	pid_struct = find_get_pid(kctx->tgid);
+	if (pid_struct) {
+		rcu_read_lock();
+		task = pid_task(pid_struct, PIDTYPE_PID);
+		if (task && (task->exit_state == EXIT_ZOMBIE || task->exit_state == EXIT_DEAD)) {
+			mtk_qinspect_log("Bypass recovery, event thread already in zombie or dead state");
+			rcu_read_unlock();
+			put_pid(pid_struct);
+			return;
+		}
+		rcu_read_unlock();
+		put_pid(pid_struct);
+	}
 
 	lockdep_assert_held(&recovery_lock);
 
