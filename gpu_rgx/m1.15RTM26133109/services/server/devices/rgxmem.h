@@ -170,6 +170,18 @@ PVRSRV_ERROR RGXRegisterMemoryContext(PVRSRV_DEVICE_NODE *psDevNode,
 
 DEVMEM_MEMDESC *RGXGetFWMemDescFromMemoryContextHandle(IMG_HANDLE hPriv);
 
+/*************************************************************************/ /*!
+@Function       RGXValidateExportableFlags
+
+@Description    Checks if a memory resource with the given flags can be exported
+                out of the driver and/or process.
+
+@Input          uiFlags      Memory allocation flags.
+
+@Return         IMG_TRUE if export is allowed, IMG_FALSE otherwise.
+*/ /**************************************************************************/
+IMG_BOOL RGXValidateExportableFlags(PVRSRV_MEMALLOCFLAGS_T uiFlags);
+
 void RGXCheckFaultAddress(PVRSRV_RGXDEV_INFO *psDevInfo,
 				IMG_DEV_VIRTADDR *psDevVAddr,
 				IMG_DEV_PHYADDR *psDevPAddr,

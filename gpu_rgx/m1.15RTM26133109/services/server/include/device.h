@@ -415,6 +415,9 @@ typedef struct _PVRSRV_DEVICE_NODE_
 														IMG_HANDLE					*hPrivData);
 	void					(*pfnUnregisterMemoryContext)(IMG_HANDLE hPrivData);
 
+	/* Functions for validation flags for exportable PMRs */
+	IMG_BOOL (*pfnValidateExportableFlags)(PVRSRV_MEMALLOCFLAGS_T uiFlags);
+
 	/* Functions for allocation/freeing of UFOs */
 	AllocUFOBlockCallback	pfnAllocUFOBlock;	/*!< Callback for allocation of a block of UFO memory */
 	FreeUFOBlockCallback	pfnFreeUFOBlock;	/*!< Callback for freeing of a block of UFO memory */
