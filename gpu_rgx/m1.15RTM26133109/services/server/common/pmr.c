@@ -2613,6 +2613,19 @@ PMR_GetRefCount(const PMR *psPMR)
 	return OSAtomicRead(&psPMR->iRefCount);
 }
 
+PVRSRV_ERROR
+PMR_IsExportable(const PMR *psPMR)
+{
+	PVR_ASSERT(psPMR != NULL);
+
+	if (!PMR_DeviceNode(psPMR)->pfnValidateExportableFlags(psPMR->uiFlags))
+	{
+		return PVRSRV_ERROR_INVALID_FLAGS;
+	}
+
+	return PVRSRV_OK;
+}
+
 /* must have called PMRLockSysPhysAddresses() before calling this! */
 PVRSRV_ERROR
 PMR_DevPhysAddr(const PMR *psPMR,

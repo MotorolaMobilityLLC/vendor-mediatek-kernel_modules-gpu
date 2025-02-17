@@ -47,6 +47,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "devicemem.h"
 #include "devicemem_server_utils.h"
 #include "devicemem_pdump.h"
+#include "pvrsrv_memallocflags.h"
 #include "rgxdevice.h"
 #include "rgx_fwif_km.h"
 #include "rgxfwutils.h"
@@ -469,6 +470,16 @@ void RGXUnregisterMemoryContext(IMG_HANDLE hPrivData)
 	DevmemFwUnmapAndFree(psDevInfo, psServerMMUContext->psFWMemContextMemDesc);
 
 	OSFreeMem(psServerMMUContext);
+}
+
+IMG_BOOL RGXValidateExportableFlags(PVRSRV_MEMALLOCFLAGS_T uiFlags)
+{
+	if (uiFlags & PVRSRV_MEMALLOCFLAG_DEVICE_FLAG(PMMETA_PROTECT))
+	{
+		return IMG_FALSE;
+	}
+
+	return IMG_TRUE;
 }
 
 /*
