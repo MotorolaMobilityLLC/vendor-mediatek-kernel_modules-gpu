@@ -2098,6 +2098,8 @@ static void mtk_debug_csf_dump_cpu_queues(struct kbase_device *kbdev, struct kba
     struct task_struct *task;
     struct pid *pid_struct;
 
+    lockdep_assert_held(&kctx->csf.lock);
+
     /* Prevent dump when process in the zombie or dead state */
     pid_struct = find_get_pid(kctx->tgid);
     if (pid_struct) {
@@ -2108,13 +2110,12 @@ static void mtk_debug_csf_dump_cpu_queues(struct kbase_device *kbdev, struct kba
                 "[%d_%d] Bypass CPU queue dump, event thread already in zombie or dead state", kctx->tgid, kctx->id);
             rcu_read_unlock();
             put_pid(pid_struct);
+            mutex_unlock(&kctx->csf.lock);
             return;
         }
         rcu_read_unlock();
         put_pid(pid_struct);
     }
-
-	lockdep_assert_held(&kctx->csf.lock);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY) || IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
 	mutex_lock(&kctx->csf.cpu_queue.lock);
