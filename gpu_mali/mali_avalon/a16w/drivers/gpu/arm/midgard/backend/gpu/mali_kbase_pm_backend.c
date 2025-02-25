@@ -711,6 +711,12 @@ int kbase_hwaccess_pm_powerup(struct kbase_device *kbdev, unsigned int flags)
 	 * the allocation of endpoints requested by CSGs.
 	 */
 	kbdev->pm.backend.shaders_avail = kbase_pm_ca_get_core_mask(kbdev);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT))
+		kbdev->pm.backend.mcu_core_mask = kbase_pm_ca_get_gov_core_mask(kbdev);
+#endif
+
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, irq_flags);
 
 	/* Pretend the GPU is active to prevent a power policy turning the GPU
