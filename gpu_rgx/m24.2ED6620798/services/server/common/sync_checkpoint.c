@@ -680,6 +680,7 @@ SyncCheckpointResolveFence(PSYNC_CHECKPOINT_CONTEXT psSyncCheckpointContext,
 			}
 
 			SyncCheckpointFreeCheckpointListMem(*papsSyncCheckpoints);
+			*papsSyncCheckpoints = NULL;
 		}
 
 		return PVRSRV_ERROR_INVALID_PARAMS;

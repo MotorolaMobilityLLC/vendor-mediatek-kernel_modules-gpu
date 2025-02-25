@@ -2022,6 +2022,7 @@ PVRSRV_ERROR RGXInitCreateFWKernelMemoryContext(PVRSRV_DEVICE_NODE *psDeviceNode
 	/* Register callbacks for creation of device memory contexts */
 	psDeviceNode->pfnRegisterMemoryContext = RGXRegisterMemoryContext;
 	psDeviceNode->pfnUnregisterMemoryContext = RGXUnregisterMemoryContext;
+	psDeviceNode->pfnValidateExportableFlags = RGXValidateExportableFlags;
 
 	RGXFwSharedMemCheckSnoopMode(psDevConfig);
 

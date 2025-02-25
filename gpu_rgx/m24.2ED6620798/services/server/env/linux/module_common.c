@@ -533,23 +533,39 @@ int PVRSRVDeviceServicesOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 		goto out;
 	}
 
-	if (psDRMFile->driver_priv == NULL)
-	{
-		/* Allocate psConnectionPriv (stores private data and release pfn under driver_priv) */
-		psConnectionPriv = kzalloc(sizeof(*psConnectionPriv), GFP_KERNEL);
-		if (!psConnectionPriv)
-		{
-			PVR_DPF((PVR_DBG_ERROR, "%s: No memory to allocate driver_priv data", __func__));
-			iErr = -ENOMEM;
-			mutex_unlock(&sDeviceInitMutex);
-			goto fail_alloc_connection_priv;
-		}
-		psConnectionPriv->ui32Type = DKF_CONNECTION_FLAG_SERVICES;
-	}
-	else
+	if (psDRMFile->driver_priv != NULL)
 	{
 		psConnectionPriv = (PVRSRV_CONNECTION_PRIV*)psDRMFile->driver_priv;
+
+		/* If there is already a valid connection, we can reuse it */
+		if (psConnectionPriv->ui32Type & DKF_CONNECTION_FLAG_SERVICES)
+		{
+			PVR_DPF((PVR_DBG_WARNING, "%s: Reusing services connection", __func__));
+			iErr = 0;
+			mutex_unlock(&sDeviceInitMutex);
+			goto out;
+		}
+		else
+		{
+			PVR_DPF((PVR_DBG_ERROR,
+			         "%s: Connection has already been initialised",
+			         __func__));
+			iErr = -EINVAL;
+			mutex_unlock(&sDeviceInitMutex);
+			goto out;
+		}
 	}
+
+	/* Allocate psConnectionPriv (stores private data and release pfn under driver_priv) */
+	psConnectionPriv = kzalloc(sizeof(*psConnectionPriv), GFP_KERNEL);
+	if (!psConnectionPriv)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: No memory to allocate driver_priv data", __func__));
+		iErr = -ENOMEM;
+		mutex_unlock(&sDeviceInitMutex);
+		goto fail_alloc_connection_priv;
+	}
+	psConnectionPriv->ui32Type = DKF_CONNECTION_FLAG_SERVICES;
 
 	if (psDeviceNode->eDevState == PVRSRV_DEVICE_STATE_CREATED)
 	{
@@ -627,6 +643,36 @@ static int PVRSRVDeviceSyncOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 		goto out;
 	}
 
+	if (psDRMFile->driver_priv != NULL)
+	{
+		psConnectionPriv = (PVRSRV_CONNECTION_PRIV*)psDRMFile->driver_priv;
+
+		/* If there is already a valid connection, we can reuse it */
+		if (psConnectionPriv->ui32Type & DKF_CONNECTION_FLAG_SYNC)
+		{
+			PVR_DPF((PVR_DBG_WARNING, "%s: Reusing sync connection", __func__));
+			iErr = 0;
+			goto out;
+		}
+#if (PVRSRV_DEVICE_INIT_MODE == PVRSRV_LINUX_DEV_INIT_ON_CONNECT)
+		else
+		{
+			PVR_DPF((PVR_DBG_ERROR,
+			         "%s: Connection has already been initialised",
+			         __func__));
+			iErr = -EINVAL;
+			goto out;
+		}
+#endif
+	}
+
+	/* It's valid for the driver_priv to point to a services connection allocation,
+	 * when PVRSRV_DEVICE_INIT_MODE != PVRSRV_LINUX_DEV_INIT_ON_CONNECT. This
+	 * function will extend the driver_priv with further initialisation to
+	 * `psConnectionPriv->pvSyncConnectionData`.
+	 *
+	 * However, this case is invalid when PVRSRV_DEVICE_INIT_MODE == PVRSRV_LINUX_DEV_INIT_ON_CONNECT;
+	 * driver_priv should be NULL at this point and a new allocation be initialised. */
 	if (psDRMFile->driver_priv == NULL)
 	{
 		/* Allocate psConnectionPriv (stores private data and release pfn under driver_priv) */
@@ -638,10 +684,8 @@ static int PVRSRVDeviceSyncOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 			goto out;
 		}
 	}
-	else
-	{
-		psConnectionPriv = (PVRSRV_CONNECTION_PRIV*)psDRMFile->driver_priv;
-	}
+
+	psConnectionPriv->ui32Type = DKF_CONNECTION_FLAG_SYNC;
 
 	/* Allocate connection data area, no stats since process not registered yet */
 	psConnection = kzalloc(sizeof(*psConnection), GFP_KERNEL);
@@ -657,7 +701,6 @@ static int PVRSRVDeviceSyncOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 	psConnectionPriv->pvSyncConnectionData = (void*)psConnection;
 #endif
 
-	psConnectionPriv->ui32Type = DKF_CONNECTION_FLAG_SYNC;
 
 	sPrivData.psDevNode = psDeviceNode;
 	sPrivData.psDRMFile = psDRMFile;
