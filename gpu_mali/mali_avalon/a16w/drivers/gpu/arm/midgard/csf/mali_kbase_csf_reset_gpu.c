@@ -394,7 +394,7 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 				"  L2_PWR_STATUS=0x%05llx\n",
 				kbase_reg_read64(kbdev, HOST_POWER_ENUM(PWR_CMDARG)));
 	}
-#else /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	dev_err(kbdev->dev, "\tMCU desired = %d\n",
 			kbase_pm_is_mcu_desired(kbdev));
@@ -467,7 +467,6 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 			dev_err(kbdev->dev, "  L2_PWR_STATUS=0x%05llx",
 				kbase_reg_read64(kbdev, HOST_POWER_ENUM(PWR_CMDARG)));
 	}
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 }
