@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2018-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1772,7 +1772,7 @@ static int kbase_kcpu_fence_wait_prepare(struct kbase_kcpu_command_queue *kcpu_q
 static void fence_signal_timeout_start(struct kbase_kcpu_command_queue *kcpu_queue)
 {
 	struct kbase_device *kbdev = kcpu_queue->kctx->kbdev;
-	unsigned int wait_ms = kbase_get_timeout_ms(kbdev, KCPU_FENCE_SIGNAL_TIMEOUT);
+	unsigned int wait_ms = kbdev->kcpu_fence_signal_timeout_ms;
 
 	if (atomic_read(&kbdev->fence_signal_timeout_enabled))
 		mod_timer(&kcpu_queue->fence_signal_timeout, jiffies + msecs_to_jiffies(wait_ms));
@@ -1906,7 +1906,7 @@ static void kcpu_queue_force_fence_signal(struct kbase_kcpu_command_queue *kcpu_
 		unsigned int fence_signal_command_timeout_ms;
 
 		fence_signal_command_timeout_ms = kcpu_queue->fence_signal_command_timeout_counter *
-			kbase_get_timeout_ms(kcpu_queue->kctx->kbdev, KCPU_FENCE_SIGNAL_TIMEOUT);
+			kcpu_queue->kctx->kbdev->kcpu_fence_signal_timeout_ms;
 
 		dev_info(kcpu_queue->kctx->kbdev->dev,
 			"ctx:%d_%d kcpu queue:%u Command - FENCE_SIGNAL timeout(%d ms)! Trigger force signal fence",
@@ -2266,7 +2266,7 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 	/* 2. Calculate the timeout value in ms and have the log */
 	fence_signal_command_timeout_counter = queue->fence_signal_command_timeout_counter;
 	fence_signal_command_timeout_ms =
-		fence_signal_command_timeout_counter * kbase_get_timeout_ms(kctx->kbdev, KCPU_FENCE_SIGNAL_TIMEOUT);
+		fence_signal_command_timeout_counter * kctx->kbdev->kcpu_fence_signal_timeout_ms;
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	is_extra_dump_enable = (fence_signal_command_timeout_counter == 1) && (mtk_common_extra_fence_debug_mode() > EXTRA_FENCE_DEBUG_MODE_NONE);
