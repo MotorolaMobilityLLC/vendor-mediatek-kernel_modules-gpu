@@ -137,6 +137,11 @@ static void wait_csg_slots_status_update_finish(struct kbase_device *kbdev,
 		} else if (!remaining) {
 			dev_warn(kbdev->dev, "STATUS_UPDATE request timed out for slots 0x%lx",
 				 slots_mask[0]);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"STATUS_UPDATE request timed out for slots 0x%lx\n",
+				 slots_mask[0]);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		}
 	}
 }

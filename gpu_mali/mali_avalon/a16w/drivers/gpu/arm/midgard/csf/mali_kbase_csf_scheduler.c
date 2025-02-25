@@ -5889,6 +5889,13 @@ static int wait_csg_slots_suspend(struct kbase_device *kbdev, unsigned long *slo
 				"[%llu] Suspend request sent on CSG slots 0x%lx timed out for slots 0x%lx",
 				kbase_backend_get_cycle_cnt(kbdev), slot_mask[0],
 				slot_mask_local[0]);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"[%llu] Suspend request sent on CSG slots 0x%lx timed out for slots 0x%lx\n",
+				kbase_backend_get_cycle_cnt(kbdev), slot_mask[0],
+				slot_mask_local[0]);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, NULL, MTK_DBG_HOOK_CSG_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
