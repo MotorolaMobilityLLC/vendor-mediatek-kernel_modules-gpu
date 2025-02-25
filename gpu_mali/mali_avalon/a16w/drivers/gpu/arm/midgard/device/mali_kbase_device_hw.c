@@ -57,9 +57,7 @@ static int busy_wait_cache_operation(struct kbase_device *kbdev, u32 irq_bit)
 	bool completed = false;
 	s64 diff;
 	u32 irq_bits_to_check = irq_bit;
-#if MALI_USE_CSF
 	const bool has_host_pwr_iface = kbdev->pm.backend.has_host_pwr_iface;
-#endif /* MALI_USE_CSF */
 
 	/* hwaccess_lock must be held to prevent concurrent threads from
 	 * cleaning the IRQ bits, otherwise it could be possible for this thread
@@ -73,12 +71,8 @@ static int busy_wait_cache_operation(struct kbase_device *kbdev, u32 irq_bit)
 	 * been reset which implies that any cache flush operation has been
 	 * completed, too.
 	 */
-#if MALI_USE_CSF
 	if (!has_host_pwr_iface)
-#endif /* MALI_USE_CSF */
-	{
 		irq_bits_to_check |= RESET_COMPLETED;
-	}
 
 	do {
 		unsigned int i;
@@ -89,7 +83,6 @@ static int busy_wait_cache_operation(struct kbase_device *kbdev, u32 irq_bit)
 				completed = true;
 				break;
 			}
-#if MALI_USE_CSF
 			/* Check whether the GPU has been reset, which implies that any
 			 * cache flush operation has been completed.
 			 */
@@ -100,11 +93,8 @@ static int busy_wait_cache_operation(struct kbase_device *kbdev, u32 irq_bit)
 					break;
 				}
 			}
-#endif /* MALI_USE_CSF */
 		}
 
-		if (kbase_io_is_aw_removed(kbdev))
-			return -ENODEV;
 
 		diff = ktime_to_ms(ktime_sub(ktime_get_raw(), wait_loop_start));
 	} while ((diff < wait_time_ms) && !completed);
@@ -160,8 +150,6 @@ static int busy_wait_cache_operation(struct kbase_device *kbdev, u32 irq_bit)
 	return 0;
 }
 
-#if MALI_USE_CSF
-
 int kbase_gpu_cache_flush_pa_range_and_busy_wait(struct kbase_device *kbdev, phys_addr_t phys,
 						 size_t nr_bytes, u32 flush_op)
 {
@@ -169,6 +157,7 @@ int kbase_gpu_cache_flush_pa_range_and_busy_wait(struct kbase_device *kbdev, phy
 	int ret = 0;
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
+
 
 	/* 1. Clear the interrupt FLUSH_PA_RANGE_COMPLETED bit. */
 	kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_CLEAR), FLUSH_PA_RANGE_COMPLETED);
@@ -186,7 +175,6 @@ int kbase_gpu_cache_flush_pa_range_and_busy_wait(struct kbase_device *kbdev, phy
 
 	return ret;
 }
-#endif /* MALI_USE_CSF */
 
 int kbase_gpu_cache_flush_and_busy_wait(struct kbase_device *kbdev, u32 flush_op)
 {
@@ -197,6 +185,7 @@ int kbase_gpu_cache_flush_and_busy_wait(struct kbase_device *kbdev, u32 flush_op
 	 * kbase_gpu_start_cache_clean() / kbase_clean_caches_done()
 	 */
 	lockdep_assert_held(&kbdev->hwaccess_lock);
+
 
 	/* 1. Check if kbdev->cache_clean_in_progress is set.
 	 *    If it is set, it means there are threads waiting for
@@ -250,6 +239,7 @@ void kbase_gpu_start_cache_clean_nolock(struct kbase_device *kbdev, u32 flush_op
 	u32 irq_mask;
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
+
 
 	if (kbdev->cache_clean_in_progress) {
 		/* If this is called while another clean is in progress, we

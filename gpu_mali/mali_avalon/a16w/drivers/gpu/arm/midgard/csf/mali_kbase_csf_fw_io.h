@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -30,6 +30,17 @@
 
 /** The wait completed because the GPU was lost. */
 #define KBASE_CSF_FW_IO_WAIT_GPU_LOST 1
+
+/**
+ * enum kbasep_csf_fw_io_status_bits - Status bits for firmware I/O interface.
+ *
+ * @KBASEP_FW_IO_STATUS_GPU_SUSPENDED: The GPU is suspended.
+ * @KBASEP_FW_IO_STATUS_NUM_BITS: Number of bits used to encode the status.
+ */
+enum kbasep_csf_fw_io_status_bits {
+	KBASEP_FW_IO_STATUS_GPU_SUSPENDED = 0,
+	KBASEP_FW_IO_STATUS_NUM_BITS,
+};
 
 /**
  * struct kbasep_csf_fw_io_stream_pages - Addresses to CS I/O pages.
@@ -72,11 +83,13 @@ struct kbasep_csf_fw_io_pages {
  * struct kbase_csf_fw_io - Manager of firmware input/output interface.
  *
  * @lock: Mutex to serialize access to the interface.
+ * @status: Internal status of the MCU interface.
  * @pages: Addresses to FW I/O pages
  * @kbdev: Pointer to the instance of a GPU platform device that implements a CSF interface.
  */
 struct kbase_csf_fw_io {
 	spinlock_t lock;
+	DECLARE_BITMAP(status, KBASEP_FW_IO_STATUS_NUM_BITS);
 	struct kbasep_csf_fw_io_pages pages;
 	struct kbase_device *kbdev;
 };
@@ -169,7 +182,8 @@ void kbase_csf_fw_io_pages_term(struct kbase_csf_fw_io *fw_io, u32 group_num);
  */
 static inline int kbase_csf_fw_io_open(struct kbase_csf_fw_io *fw_io, unsigned long *flags)
 {
-	if (kbase_io_test_status(fw_io->kbdev, KBASE_IO_STATUS_GPU_SUSPENDED))
+	if (test_bit(KBASEP_FW_IO_STATUS_GPU_SUSPENDED, fw_io->status) ||
+	    kbase_io_is_aw_removed(fw_io->kbdev))
 		return -KBASE_CSF_FW_IO_WAIT_GPU_LOST;
 
 	spin_lock_irqsave(&fw_io->lock, *flags);
@@ -410,8 +424,8 @@ bool kbase_csf_fw_io_check_status_gpu_suspended(struct kbase_csf_fw_io *fw_io);
 
 /**
  * kbase_csf_fw_io_wait_event_timeout() - Wait until condition gets true, timeout
- * occurs or a GPU_SUSPENDED FW I/O status bit is set. The rest of the functionalities is equal
- * to wait_event_timeout().
+ * occurs, GPU_SUSPENDED FW I/O status bit is set, or AW was removed.
+ * The rest of the functionalities is equal to wait_event_timeout().
  *
  * @fw_io_p:     Firmware I/O manager.
  * @wq_head:   The waitqueue to wait on.
@@ -420,7 +434,9 @@ bool kbase_csf_fw_io_check_status_gpu_suspended(struct kbase_csf_fw_io *fw_io);
  *
  * Return: Remaining jiffies (at least 1) on success,
  *         0 on timeout,
- *         negative KBASE_CSF_FW_IO_WAIT_LOST error if GPU_SUSPENDED FW I/O status bit is set.
+ *         negative KBASE_CSF_FW_IO_WAIT_LOST error
+ *         if GPU_SUSPENDED FW I/O status bit is set
+ *         or AW was removed.
  */
 #define kbase_csf_fw_io_wait_event_timeout(fw_io_p, wq_head, condition, timeout)              \
 	({                                                                                    \
@@ -433,7 +449,7 @@ bool kbase_csf_fw_io_check_status_gpu_suspended(struct kbase_csf_fw_io *fw_io);
 				kbase_io_is_aw_removed((fw_io_p)->kbdev),                     \
 			timeout);                                                             \
 		__ret = kbasep_csf_fw_io_handle_wait_result(fw_io_p, __wait_remaining);       \
-		__ret;                                                                               \
+		__ret;                                                                        \
 	})
 
 /**
@@ -445,13 +461,17 @@ bool kbase_csf_fw_io_check_status_gpu_suspended(struct kbase_csf_fw_io *fw_io);
  *
  * Return: Remaining jiffies (at least 1) on success,
  *         0 on timeout,
- *         negative KBASE_CSF_FW_IO_WAIT_LOST error if GPU_SUSPENDED FW I/O status bit is set.
+ *         negative KBASE_CSF_FW_IO_WAIT_LOST error
+ *         if GPU_SUSPENDED FW I/O status bit is set
+ *         or AW was removed.
  */
 static inline long kbasep_csf_fw_io_handle_wait_result(struct kbase_csf_fw_io *fw_io,
-						       long wait_remaining)
+						      long wait_remaining)
 {
-	return kbase_csf_fw_io_check_status_gpu_suspended(fw_io) ? -KBASE_CSF_FW_IO_WAIT_GPU_LOST :
-									 wait_remaining;
+	return (kbase_csf_fw_io_check_status_gpu_suspended(fw_io) ||
+		kbase_io_is_aw_removed(fw_io->kbdev)) ?
+			     -KBASE_CSF_FW_IO_WAIT_GPU_LOST :
+			     wait_remaining;
 }
 
 #if IS_ENABLED(CONFIG_MALI_DEBUG) || IS_ENABLED(CONFIG_MALI_NO_MALI)
