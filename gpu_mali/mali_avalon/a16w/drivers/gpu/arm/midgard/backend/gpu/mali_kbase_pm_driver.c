@@ -178,6 +178,11 @@ static bool pwr_status_value_valid_post_reset(struct kbase_device *kbdev)
 					     PWR_STATUS_DELEGATED_NEURAL_GET(pwr_status)))) {
 		dev_err(kbdev->dev, "Unexpected value (%llx) of PWR_STATUS register post reset",
 			pwr_status);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Unexpected value (%llx) of PWR_STATUS register post reset\n",
+			pwr_status);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		return false;
 	}
 
