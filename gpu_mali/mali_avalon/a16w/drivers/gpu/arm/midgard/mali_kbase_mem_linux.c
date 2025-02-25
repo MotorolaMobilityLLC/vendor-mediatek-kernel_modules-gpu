@@ -1428,6 +1428,10 @@ static int kbase_mem_umm_map_attachment(struct kbase_context *kctx, struct kbase
 
 		for (j = 0; (j < pages) && (count < reg->nr_pages); j++, count++)
 			*pa++ = as_tagged(phy_addr + (j << PAGE_SHIFT));
+
+		if (!(reg->flags & KBASE_REG_PROTECTED))
+			WARN_ONCE(j < pages, "sg list from dma_buf_map_attachment > dma_buf->size=%zu, j=%zu, pages=%zu, count=%zu, nr_pages=%zu, flags=0x%llX\n",
+				  alloc->imported.umm.dma_buf->size, j, pages, count, reg->nr_pages, reg->flags);
 #else
 		WARN_ONCE(sg_dma_address(s) & (PAGE_SIZE - 1),
 			  "sg_dma_address(s)=%llx is not aligned to PAGE_SIZE\n",
@@ -1435,9 +1439,10 @@ static int kbase_mem_umm_map_attachment(struct kbase_context *kctx, struct kbase
 
 		for (j = 0; (j < pages) && (count < reg->nr_pages); j++, count++)
 			*pa++ = as_tagged(sg_dma_address(s) + (j << PAGE_SHIFT));
-#endif /* CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM && CONFIG_MTK_GZ_KREE && CONFIG_MALI_MTK_PROTECTED_PATCH */
+
 		WARN_ONCE(j < pages, "sg list from dma_buf_map_attachment > dma_buf->size=%zu\n",
 			  alloc->imported.umm.dma_buf->size);
+#endif /* CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM && CONFIG_MTK_GZ_KREE && CONFIG_MALI_MTK_PROTECTED_PATCH */
 	}
 
 	if (!(reg->flags & KBASE_REG_IMPORT_PAD) &&
