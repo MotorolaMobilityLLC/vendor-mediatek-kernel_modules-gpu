@@ -3056,10 +3056,31 @@ static ssize_t core_mask_show(struct device *dev, struct device_attribute *attr,
 			 debug_mask);
 	ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret),
 			 "Current desired core mask : 0x%llX\n", ca_mask);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
+#if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+		&& (kbdev->gov_core_mask_disable == 0)
+#endif
+	)
+	{
+		ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret),
+		 "Current in use core mask : 0x%llX\n",
+		 kbdev->pm.backend.mcu_core_mask);
+	} else
+#endif
+	{
+		ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret),
+		 "Current in use core mask : 0x%llX\n",
+		 kbdev->pm.backend.shaders_avail);
+	}
+#else
 	if (!kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT))
 		ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret),
 				 "Current in use core mask : 0x%llX\n",
 				 kbdev->pm.backend.shaders_avail);
+#endif
 	ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret), "Available core mask : 0x%llX\n",
 			 kbdev->gpu_props.shader_present);
 

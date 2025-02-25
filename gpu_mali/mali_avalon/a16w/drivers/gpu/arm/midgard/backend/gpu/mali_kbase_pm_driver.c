@@ -1398,6 +1398,16 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 
 		case KBASE_MCU_ON:
 			backend->shaders_desired_mask = kbase_pm_ca_get_core_mask(kbdev);
+#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
+#if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
+			if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+			&& (kbdev->gov_core_mask_disable == 0)
+#endif
+			)
+				backend->mcu_core_mask = kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(MCU_CORE_MASK));
+#endif
+#endif
 			if (!kbase_pm_is_mcu_desired(kbdev))
 				backend->mcu_state = KBASE_MCU_ON_HWCNT_DISABLE;
 			else if (kbdev->csf.firmware_hctl_core_pwr) {

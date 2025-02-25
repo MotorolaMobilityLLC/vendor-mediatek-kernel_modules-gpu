@@ -112,9 +112,14 @@ void kbase_pm_ca_set_gov_core_mask_nolock(struct kbase_device *kbdev, enum mask_
 	/** after all checks, write the to GOV_CORE_MASK register if GPU powered,
 	 * otherwise value will be applied on next reboot.
 	 */
-	if (kbase_io_is_gpu_powered(kbdev))
+	if (kbase_io_is_gpu_powered(kbdev)) {
 		kbase_reg_write64(kbdev, GPU_GOVERNOR_ENUM(GOV_CORE_MASK),
 				  pm_backend->ca_gov_cores_enabled);
+#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
+		if (kbdev->csf.firmware_hctl_core_pwr)
+			pm_backend->mcu_core_mask = kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(MCU_CORE_MASK));
+#endif
+	}
 }
 
 void kbase_pm_ca_set_gov_core_mask(struct kbase_device *kbdev, enum mask_type core_mask_type,
