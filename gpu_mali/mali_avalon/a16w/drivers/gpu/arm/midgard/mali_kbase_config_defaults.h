@@ -314,7 +314,13 @@ enum {
 /* Firmware iterators' suspend timeout, default 4000ms. Customer can update this by
  * using debugfs -- csg_suspend_timeout
  */
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+/* Adjust the value to align with r38p1 1.5s.
+ */
+#define CSG_SUSPEND_TIMEOUT_FIRMWARE_MS (1500)
+#else
 #define CSG_SUSPEND_TIMEOUT_FIRMWARE_MS (4000)
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 #define CSG_SUSPEND_TIMEOUT_FIRMWARE_FPGA_MS (31000)
 
