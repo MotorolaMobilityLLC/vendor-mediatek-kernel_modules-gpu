@@ -686,6 +686,9 @@ PMR_GetTypeStr(const PMR *psPMR);
 IMG_INT32
 PMR_GetRefCount(const PMR *psPMR);
 
+PVRSRV_ERROR
+PMR_IsExportable(const PMR *psPMR);
+
 /*
  * PMR_DevPhysAddr()
  *
