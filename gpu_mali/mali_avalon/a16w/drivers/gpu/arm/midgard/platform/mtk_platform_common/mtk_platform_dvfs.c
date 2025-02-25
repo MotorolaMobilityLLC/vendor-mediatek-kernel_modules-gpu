@@ -2,6 +2,7 @@
 /*
  * Copyright (c) 2021 MediaTek Inc.
  */
+#include <mtk_ddk_define.h>  /* MTK_INLINE */
 
 #if IS_ENABLED(CONFIG_PROC_FS)
 #include <linux/proc_fs.h>

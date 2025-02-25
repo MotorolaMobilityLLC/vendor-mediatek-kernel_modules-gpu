@@ -18,7 +18,7 @@
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #include <platform/mtk_platform_common/mtk_platform_qinspect.h>
 #if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
-#include <mt-plat/aee.h>
+#include <aee.h>
 #endif /* CONFIG_MTK_AEE_FEATURE */
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)

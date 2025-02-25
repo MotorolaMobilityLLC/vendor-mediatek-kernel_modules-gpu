@@ -7,6 +7,7 @@
 #define __MTK_GPU_DVFS_H__
 
 #include <ged_dvfs.h>
+#include <mtk_ddk_define.h>  /* MTK_INLINE */
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 #if IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE)

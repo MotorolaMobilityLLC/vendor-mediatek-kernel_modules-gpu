@@ -26,6 +26,7 @@
 #include <mali_kbase_io.h>
 #include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 #include <mtk_gpufreq.h>
+#include <mtk_ddk_define.h>  /* MTK_INLINE */
 
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)

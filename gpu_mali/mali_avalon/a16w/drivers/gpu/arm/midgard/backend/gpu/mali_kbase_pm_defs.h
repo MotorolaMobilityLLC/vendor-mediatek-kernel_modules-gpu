@@ -31,6 +31,8 @@
 
 #include <hw_access/mali_kbase_hw_access_regmap.h>
 
+#include <mtk_ddk_define.h>  /* MTK_INLINE */
+
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
     IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY) && \
     IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_ASYNC)

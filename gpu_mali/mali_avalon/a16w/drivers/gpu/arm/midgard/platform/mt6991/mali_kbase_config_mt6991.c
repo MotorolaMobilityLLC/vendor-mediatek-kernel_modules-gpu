@@ -24,6 +24,8 @@
 #include <ged_dvfs.h>
 #include <mtk_gpufreq.h>
 #include <mtk_gpu_utility.h>
+#include <mtk_ddk_define.h>  /* MTK_INLINE */
+
 #if IS_ENABLED(CONFIG_MTK_AEE_IPANIC)
 #include <mboot_params.h>
 #endif /* CONFIG_MTK_AEE_IPANIC */
@@ -598,7 +600,9 @@ int mtk_platform_pm_init(struct kbase_device *kbdev)
 	gpu_dvfs_status_reset_footprint();
 
 	dev_info(kbdev->dev, "GPU PM Callback - Initialize Done");
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY) && \
+	IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
 	mtk_dvfs_hint_26m_init(kbdev,TOP_BASE,DVFS_TOP_BASE);
 #endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING */
 

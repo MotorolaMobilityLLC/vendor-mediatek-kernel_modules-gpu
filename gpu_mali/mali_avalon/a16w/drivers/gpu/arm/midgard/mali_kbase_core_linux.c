@@ -19,6 +19,7 @@
  *
  */
 
+#include <mtk_ddk_define.h>  /* MTK_INLINE */
 #include <mali_kbase.h>
 #include <mali_kbase_io.h>
 #include <mali_kbase_config_defaults.h>
