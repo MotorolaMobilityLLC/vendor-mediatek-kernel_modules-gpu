@@ -2062,6 +2062,7 @@ static void global_init(struct kbase_device *const kbdev, u64 core_mask)
 	kbasep_enable_rtu(kbdev);
 
 	/* Update shader core allocation enable mask */
+#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
 #if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
 	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
 #if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
@@ -2069,6 +2070,13 @@ static void global_init(struct kbase_device *const kbdev, u64 core_mask)
 #endif
 	)
 	{
+		if (kbase_io_is_gpu_powered(kbdev))
+			kbase_reg_write64(kbdev, GPU_GOVERNOR_ENUM(GOV_CORE_MASK),
+					  kbase_pm_ca_get_gov_core_mask(kbdev));
+	}
+#endif
+#else
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)) {
 		if (kbase_io_is_gpu_powered(kbdev))
 			kbase_reg_write64(kbdev, GPU_GOVERNOR_ENUM(GOV_CORE_MASK),
 					  kbase_pm_ca_get_gov_core_mask(kbdev));
