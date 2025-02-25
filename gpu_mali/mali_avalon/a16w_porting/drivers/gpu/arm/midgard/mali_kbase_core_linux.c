@@ -1777,19 +1777,21 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 			s64 blocked_time = ktime_to_ms(ktime_sub(ktime_get(), kctx->kbdev->scheduler_kthread_exec_begin_time));
 			if (blocked_time > 100) {
 				struct kbase_csf_scheduler *scheduler = &(kctx->kbdev)->csf.scheduler;
-				unsigned int state = scheduler->gpuq_kthread->__state;
-				dev_info(kctx->kbdev->dev,
-					"ctx_%d_%d scheduler kthread was blocked (%llu ms), state=0x%x", kctx->tgid, kctx->id, blocked_time, state);
+				if (scheduler->gpuq_kthread) {
+					unsigned int state = scheduler->gpuq_kthread->__state;
+					dev_info(kctx->kbdev->dev,
+						"ctx_%d_%d scheduler kthread was blocked (%llu ms), state=0x%x", kctx->tgid, kctx->id, blocked_time, state);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-					"ctx_%d_%d scheduler kthread was blocked (%llu ms), state=0x%x\n", kctx->tgid, kctx->id, blocked_time, state);
+					mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+						"ctx_%d_%d scheduler kthread was blocked (%llu ms), state=0x%x\n", kctx->tgid, kctx->id, blocked_time, state);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-				// 0x2: uninterruptible-sleep
-				if (state == 0x2 && scheduler->gpuq_kthread) {
-					mtk_common_print_backtrace_for_task(kctx->kbdev, scheduler->gpuq_kthread);
-				}
+					// 0x2: uninterruptible-sleep
+					if (state == 0x2) {
+						mtk_common_print_backtrace_for_task(kctx->kbdev, scheduler->gpuq_kthread);
+					}
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+				}
 			}
 		}
 		if (fence_wait->flags & BASE_INTERNAL_FENCE_WAIT_DUMP_FLAG) {
