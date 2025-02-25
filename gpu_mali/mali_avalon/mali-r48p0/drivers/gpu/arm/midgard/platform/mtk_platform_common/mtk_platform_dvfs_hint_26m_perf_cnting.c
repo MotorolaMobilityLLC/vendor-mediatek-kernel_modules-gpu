@@ -80,11 +80,7 @@ unsigned int mtk_dvfs_hint_26m_sc_prfcnt_query(u32 reg)
 	//get active counter value
 	active_counter = dvfs_hint_sc_base_reg_read(reg);
 
-	//if get value fail return 100 to debug
-	if (active_counter < 0)
-		return 100;
-	else
-		return active_counter;
+	return active_counter;
 
 }
 
@@ -98,11 +94,7 @@ unsigned int mtk_dvfs_hint_26m_prfcnt_query(u32 reg)
 	//get active counter value
 	active_counter = dvfs_hint_dvfs_top_base_reg_read(reg);
 
-	//if get value fail return 100 to debug
-	if (active_counter < 0)
-		return 100;
-	else
-		return active_counter;
+	return active_counter;
 }
 
 unsigned int mtk_dvfs_hint_26m_cal_prfcnt_utilization(u32 reg, bool is_gpu_powered)
