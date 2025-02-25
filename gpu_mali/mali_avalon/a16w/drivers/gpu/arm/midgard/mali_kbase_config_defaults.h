@@ -29,6 +29,7 @@
 
 /* Include mandatory definitions per platform */
 #include <mali_kbase_config_platform.h>
+#include <mtk_ddk_define.h>  /* MTK_INLINE */
 
 enum {
 	/* Use unrestricted Address ID width on the AXI bus. */

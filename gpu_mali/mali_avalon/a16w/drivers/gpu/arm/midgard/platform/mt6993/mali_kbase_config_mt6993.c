@@ -24,6 +24,8 @@
 #include <ged_dvfs.h>
 #include <mtk_gpufreq.h>
 #include <mtk_gpu_utility.h>
+#include <mtk_ddk_define.h>  /* MTK_INLINE */
+
 #if IS_ENABLED(CONFIG_MTK_AEE_IPANIC)
 #include <mboot_params.h>
 #endif /* CONFIG_MTK_AEE_IPANIC */

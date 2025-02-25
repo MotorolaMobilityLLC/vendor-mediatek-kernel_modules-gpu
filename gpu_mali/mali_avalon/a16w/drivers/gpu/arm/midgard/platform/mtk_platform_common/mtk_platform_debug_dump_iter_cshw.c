@@ -5,6 +5,7 @@
 
 #include <mali_kbase.h>
 #include <mali_kbase_defs.h>
+#include <hw_access/mali_kbase_hw_access_regmap_legacy.h>
 
 #include "mtk_platform_debug.h"
 

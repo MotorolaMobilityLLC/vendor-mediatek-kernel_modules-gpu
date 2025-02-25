@@ -29,6 +29,7 @@
 #include "backend/gpu/mali_kbase_pm_internal.h"
 #include "backend/gpu/mali_kbase_devfreq.h"
 #include <linux/pm_opp.h>
+#include <mtk_ddk_define.h>  /* MTK_INLINE */
 
 #define KBASE_IPA_FALLBACK_MODEL_NAME "mali-simple-power-model"
 

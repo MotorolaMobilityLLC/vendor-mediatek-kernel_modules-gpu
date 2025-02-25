@@ -26,7 +26,7 @@ CFLAGS_MODULE = [
     "-Wno-unused-parameter",
     "-Wmissing-declarations",
     # "-Wmissing-format-attribute",
-    "-Wmissing-prototypes",
+    "-Wno-missing-prototypes",
     "-Wold-style-definition",
     # "-Wunused-but-set-variable",
     "-Wunused-const-variable",
@@ -39,25 +39,15 @@ CFLAGS_MODULE = [
     # "-Werror=designated-init",
     "-Wdisabled-optimization",
     # "-Wlogical-op",
-    "-Wmissing-field-initializers",
+    "-Wno-missing-field-initializers",
     "-Wno-type-limits",
     # "-Wmaybe-uninitialized",
-    "-Wunused-macros",
-] + select({
-    "//config:cov_kernel": [
-        "-DGCOV_PROFILE=1",
-        "-ftest-coverage",
-        "-fprofile-arcs",
-    ],
-    "//conditions:default": [],
-}) + select({
-    "//config:mali_kcov": [
-        "-DKCOV=1",
-        "-DKCOV_ENABLE_COMPARISONS=1",
-        "-fsanitize-coverage=trace-cmp",
-    ],
-    "//conditions:default": [],
-})
+    "-Wno-unused-macros",
+    "-Wno-unused-variable",
+    "-Wno-unused-function",
+    "-Wno-unused-but-set-variable",
+    "-Wno-visibility",
+]
 
 COPTS_CORESIGHT = [
     "-Wmissing-include-dirs",
@@ -67,38 +57,83 @@ COPTS_CORESIGHT = [
 ]
 
 COPTS_KBASE = [
-    "-DMALI_COVERAGE=0",
-    "-DMALI_JIT_PRESSURE_LIMIT_BASE=0",
+    "MALI_COVERAGE=0",
+    "MALI_JIT_PRESSURE_LIMIT_BASE=0",
 ] + select({
-    "//config:mali_debug": ["-DMALI_UNIT_TEST=1"],
-    "//conditions:default": ["-DMALI_UNIT_TEST=0"],
+    "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_debug": ["MALI_UNIT_TEST=1"],
+    "//conditions:default": ["MALI_UNIT_TEST=0"],
 }) + select({
-    "//config:mali_customer_release": ["-DMALI_CUSTOMER_RELEASE=1"],
-    "//conditions:default": ["-DMALI_CUSTOMER_RELEASE=0"],
+    "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_customer_release": ["MALI_CUSTOMER_RELEASE=1"],
+    "//conditions:default": ["MALI_CUSTOMER_RELEASE=0"],
 }) + select({
-    "//config:mali_kutf": ["-DMALI_KERNEL_TEST_API=1"],
-    "//conditions:default": ["-DMALI_KERNEL_TEST_API=0"],
-}) + select({
-    "//conditions:default": [
-        "-DCONFIG_MALI_PLATFORM_NAME=\"devicetree\"",
-    ],
-    "//config:mali_platform_name_meson": [
-        "-DCONFIG_MALI_PLATFORM_NAME=\"meson\"",
-    ],
-    "//config:mali_platform_name_vexpress": [
-        "-DCONFIG_MALI_PLATFORM_NAME=\"vexpress\"",
-    ],
-    "//config:mali_platform_name_vexpress_1xv7_a57": [
-        "-DCONFIG_MALI_PLATFORM_NAME=\"vexpress_1xv7_a57\"",
-    ],
-    "//config:mali_platform_name_vexpress_6xvirtex7_10mhz": [
-        "-DCONFIG_MALI_PLATFORM_NAME=\"vexpress_6xvirtex7_10mhz\"",
-    ],
+    "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_kutf": ["MALI_KERNEL_TEST_API=1"],
+    "//conditions:default": ["MALI_KERNEL_TEST_API=0"],
 }) + select({
     "//conditions:default": [
-        "-DMALI_RELEASE_NAME=\"r54p0-00dev1\"",
+        "CONFIG_MALI_PLATFORM_NAME=\"devicetree\"",
     ],
-    "//config:mali_release_name_r54p0-00dev1": [
-        "-DMALI_RELEASE_NAME=\"r54p0-00dev1\"",
+    "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_platform_name_meson": [
+        "CONFIG_MALI_PLATFORM_NAME=\"meson\"",
     ],
+    "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_platform_name_vexpress": [
+        "CONFIG_MALI_PLATFORM_NAME=\"vexpress\"",
+    ],
+    "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_platform_name_vexpress_1xv7_a57": [
+        "CONFIG_MALI_PLATFORM_NAME=\"vexpress_1xv7_a57\"",
+    ],
+    "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_platform_name_vexpress_6xvirtex7_10mhz": [
+        "CONFIG_MALI_PLATFORM_NAME=\"vexpress_6xvirtex7_10mhz\"",
+    ],
+}) + select({
+    "//conditions:default": [
+        "MALI_RELEASE_NAME=\"r54p0-00dev1\"",
+    ],
+    "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_release_name_r54p0-00dev1": [
+        "MALI_RELEASE_NAME=\"r54p0-00dev1\"",
+    ],
+})  + select({
+    "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:cov_kernel": [
+        "GCOV_PROFILE=1",
+        "-ftest-coverage",
+        "-fprofile-arcs",
+    ],
+    "//conditions:default": [],
+}) + select({
+    "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_kcov": [
+        "KCOV=1",
+        "KCOV_ENABLE_COMPARISONS=1",
+        "-fsanitize-coverage=trace-cmp",
+    ],
+    "//conditions:default": [],
 })
+
+COPTS_MTK = [
+    "-I$(srctree)/include",
+    "-I$(DEVICE_MODULES_PATH)/include",
+    "-I$(srctree)/drivers/staging/android",
+    "-I$(srctree)/drivers/misc/mediatek/base/power/include",
+    "-I$(srctree)/drivers/misc/mediatek/gpu/ged/include",
+    "-I$(srctree)/drivers/misc/mediatek/sspm/",
+    "-I$(srctree)/drivers/misc/mediatek/sspm/v3",
+    "-I$(srctree)/drivers/misc/mediatek/qos",
+    "-I$(srctree)/drivers/misc/mediatek/gpu/gpu_bm",
+    "-I$(srctree)/drivers/misc/mediatek/include",
+    "-I$(srctree)/drivers/misc/mediatek/trusted_mem/public",
+    "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/trusted_mem/public",
+    "-I$(srctree)/drivers/gpu/mediatek/ged/include",
+    "-I$(srctree)/drivers/gpu/mediatek/gpueb/include",
+    "-I$(srctree)/drivers/gpu/mediatek/gpu_bm",
+    "-I$(srctree)/drivers/gpu/mediatek/mt-plat",
+    "-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mt-plat",
+    "-I$(srctree)/drivers/gpu/mediatek/gpufreq",
+    "-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpufreq",
+    "-I$(srctree)/drivers/gpu/mediatek/gpueb/include",
+    "-I$(srctree)/drivers/staging/android/ion",
+    "-I$(srctree)/drivers/iommu",
+    "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat",
+    "-I$(srctree)/drivers/misc/mediatek/sda/btm/v1",
+    "-I$(srctree)/drivers/misc/mediatek/slbc",
+    "-I$(srctree)/drivers/gpu/mediatek/gpu_pdma/include",
+    "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/perf_common",
+    "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/tinysys_scmi",
+]

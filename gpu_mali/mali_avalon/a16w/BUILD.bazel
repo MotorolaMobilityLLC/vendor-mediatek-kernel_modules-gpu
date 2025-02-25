@@ -19,15 +19,14 @@
 #
 
 load(
-    "@kleaf//build/kernel/kleaf:kernel.bzl",
+    "//build/kernel/kleaf:kernel.bzl",
     "ddk_headers",
     "kernel_module_group",
 )
 
 package(
     default_visibility = [
-        "//:__subpackages__",
-        "@kleaf//common:__pkg__",
+        "//visibility:public",
     ],
 )
 

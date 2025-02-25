@@ -37,6 +37,8 @@
 #include <linux/types.h>
 #include <linux/wait.h>
 
+#include <mtk_ddk_define.h>  /* MTK_INLINE */
+
 #if IS_ENABLED(CONFIG_MALI_CORESIGHT)
 #include <debug/backend/mali_kbase_debug_coresight_internal_csf.h>
 #endif /* IS_ENABLED(CONFIG_MALI_CORESIGHT) */
