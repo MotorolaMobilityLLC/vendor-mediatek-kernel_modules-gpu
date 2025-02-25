@@ -181,6 +181,27 @@ struct firmware_timeline_metadata {
 	size_t size;
 };
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_REDUCTION)
+static void kbasep_pm_toggle_mcu_status_interrupt(struct kbase_device *kbdev, bool enable)
+{
+	u32 irq_mask;
+
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
+
+	irq_mask = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK));
+
+	if (enable) {
+		irq_mask |= MCU_STATUS_GPU_IRQ;
+		kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_CLEAR), MCU_STATUS_GPU_IRQ);
+	} else {
+		irq_mask &= ~MCU_STATUS_GPU_IRQ;
+	}
+
+	kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK), irq_mask);
+}
+#endif
+
 static void reinit_page_fault_cnt_firmware_memory(struct kbase_device *kbdev)
 {
 	if (!kbdev->csf.page_fault_cnt_ptr)
@@ -385,10 +406,17 @@ void kbase_csf_firmware_disable_mcu_wait(struct kbase_device *kbdev)
 	u32 val;
 	const u32 timeout_us =
 		kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_STOP_TIMEOUT) * USEC_PER_MSEC;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_REDUCTION)
+	kbasep_pm_toggle_mcu_status_interrupt(kbdev, false);
+#endif
 	const int err = kbase_reg_poll32_timeout(kbdev, GPU_CONTROL_ENUM(MCU_STATUS), val,
 						 val == MCU_CONTROL_REQ_DISABLE, 0, timeout_us,
 						 false);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IRQ_REDUCTION)
+	kbasep_pm_toggle_mcu_status_interrupt(kbdev, true);
+#endif
 	if (err)
 		dev_err(kbdev->dev, "Firmware failed to stop, error no: %d", err);
 
