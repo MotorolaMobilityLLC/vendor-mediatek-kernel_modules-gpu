@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 #
-# (C) COPYRIGHT 2012-2024 ARM Limited. All rights reserved.
+# (C) COPYRIGHT 2012-2025 ARM Limited. All rights reserved.
 #
 # This program is free software and is provided to you under the terms of the
 # GNU General Public License version 2 as published by the Free Software
@@ -74,7 +74,7 @@ config MALI_NO_MALI_DEFAULT_GPU
 	  This option sets the default GPU to identify as for No Mali builds.
 
 menu "Platform specific options"
-source "$(MALI_KCONFIG_EXT_PREFIX)drivers/gpu/arm/midgard/platform/Kconfig"
+#source "$(MALI_KCONFIG_EXT_PREFIX)drivers/gpu/arm/midgard/platform/Kconfig"
 endmenu
 
 config MALI_CSF_SUPPORT
@@ -337,6 +337,7 @@ config MALI_TRACE_POWER_GPU_WORK_PERIOD
 	  If unsure, say N.
 
 
-source "$(MALI_KCONFIG_EXT_PREFIX)drivers/gpu/arm/midgard/tests/Kconfig"
+
+#source "$(MALI_KCONFIG_EXT_PREFIX)drivers/gpu/arm/midgard/tests/Kconfig"
 
 endif
