@@ -2096,8 +2096,10 @@ static void global_init(struct kbase_device *const kbdev, u64 core_mask)
 #if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
 	&& (kbdev->gov_core_mask_disable == 0)
 #endif
+	&& (mtk_common_ged_dvfs_get_gov_mask_enable() == 0)
 	)
 	{
+		trace_tracing_mark_write('C',5566, "reinit_gov_core_mask",1);
 		if (kbase_io_is_gpu_powered(kbdev))
 			kbase_reg_write64(kbdev, GPU_GOVERNOR_ENUM(GOV_CORE_MASK),
 					  kbase_pm_ca_get_gov_core_mask(kbdev));
@@ -2110,7 +2112,7 @@ static void global_init(struct kbase_device *const kbdev, u64 core_mask)
 					  kbase_pm_ca_get_gov_core_mask(kbdev));
 	}
 #endif
-
+	trace_tracing_mark_write('C',5566, "reinit_gov_core_mask",0);
 	enable_endpoints_global(fw_io, core_mask);
 	set_shader_poweroff_timer(fw_io);
 
