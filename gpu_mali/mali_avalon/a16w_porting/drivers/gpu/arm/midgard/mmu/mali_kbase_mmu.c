@@ -4737,8 +4737,6 @@ void *kbase_mmu_dump_mtk(struct kbase_device *kbdev, struct kbase_context *kctx,
 
 	size_left = nr_pages * PAGE_SIZE;
 
-	if (size_left == 0)
-		return NULL;
 	kaddr = (void *) vmalloc_user(size_left);
 
 	mutex_lock(&target_mmu->mmu_lock);
