@@ -109,10 +109,8 @@ MODULE_PARM_DESC(
 	"Note that this should only be enabled for testing worst case memory usage "
 	"and should not be enabled in production");
 
-#if MALI_USE_CSF
 static int kbase_csf_cpu_mmap_user_reg_page(struct kbase_context *kctx, struct vm_area_struct *vma);
 static int kbase_csf_cpu_mmap_user_io_pages(struct kbase_context *kctx, struct vm_area_struct *vma);
-#endif
 
 static int kbase_vmap_phy_pages(struct kbase_context *kctx, struct kbase_va_region *reg,
 				u64 offset_bytes, size_t size, struct kbase_vmap_struct *map,
@@ -144,7 +142,6 @@ static bool is_process_exiting(struct vm_area_struct *vma)
  */
 static struct kbase_va_region *kbase_find_event_mem_region(struct kbase_context *kctx, u64 gpu_addr)
 {
-#if MALI_USE_CSF
 	u64 gpu_pfn = gpu_addr >> PAGE_SHIFT;
 	struct kbase_va_region *reg;
 
@@ -161,10 +158,6 @@ static struct kbase_va_region *kbase_find_event_mem_region(struct kbase_context 
 			return reg;
 		}
 	}
-#else
-	CSTD_UNUSED(kctx);
-	CSTD_UNUSED(gpu_addr);
-#endif
 
 	return NULL;
 }
@@ -338,13 +331,8 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	}
 #endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 
-#if MALI_USE_CSF
 	if (!(*flags & BASE_MEM_FIXED))
 		*gpu_va = 0; /* return 0 on failure */
-#else
-	if (!(*flags & BASEP_MEM_FLAG_MAP_FIXED))
-		*gpu_va = 0; /* return 0 on failure */
-#endif
 	else
 		dev_dbg(dev, "Keeping requested GPU VA of 0x%llx\n", (unsigned long long)*gpu_va);
 
@@ -398,7 +386,6 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	/* find out which VA zone to use */
 	if (*flags & BASE_MEM_SAME_VA)
 		zone = SAME_VA_ZONE;
-#if MALI_USE_CSF
 	/* fixed va_zone always exists */
 	else if (*flags & (BASE_MEM_FIXED | BASE_MEM_FIXABLE)) {
 		if (*flags & BASE_MEM_PROT_GPU_EX) {
@@ -406,9 +393,7 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 		} else {
 			zone = FIXED_VA_ZONE;
 		}
-	}
-#endif
-	else if ((*flags & BASE_MEM_PROT_GPU_EX) && kbase_has_exec_va_zone(kctx)) {
+	} else if ((*flags & BASE_MEM_PROT_GPU_EX) && kbase_has_exec_va_zone(kctx)) {
 		zone = EXEC_VA_ZONE;
 	} else {
 		zone = CUSTOM_VA_ZONE;
@@ -450,10 +435,6 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 		 * reg->extension.
 		 */
 		reg->extension = extension;
-#if !MALI_USE_CSF
-	} else if (*flags & BASE_MEM_TILER_ALIGN_TOP) {
-		reg->extension = extension;
-#endif /* !MALI_USE_CSF */
 	} else {
 		reg->extension = 0;
 	}
@@ -525,10 +506,6 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 			}
 			if (*gpu_va)
 				align = 1;
-#if !MALI_USE_CSF
-			if (reg->flags & KBASE_REG_TILER_ALIGN_TOP)
-				align = 1;
-#endif /* !MALI_USE_CSF */
 		}
 		if (kbase_gpu_mmap(kctx, reg, *gpu_va, va_pages, align, mmu_sync_info) != 0) {
 			dev_warn(dev, "Failed to map memory on GPU");
@@ -552,12 +529,10 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 
 	kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 
-#if MALI_USE_CSF
 	if (*flags & BASE_MEM_FIXABLE)
 		atomic64_inc(&kctx->num_fixable_allocs);
 	else if (*flags & BASE_MEM_FIXED)
 		atomic64_inc(&kctx->num_fixed_allocs);
-#endif
 
 	return reg;
 
@@ -662,13 +637,8 @@ int kbase_mem_query(struct kbase_context *kctx, u64 gpu_addr, u64 query, u64 *co
 			if (KBASE_REG_PROTECTED & reg->flags)
 				*out |= BASE_MEM_PROTECTED;
 		}
-#if !MALI_USE_CSF
-		if (KBASE_REG_TILER_ALIGN_TOP & reg->flags)
-			*out |= BASE_MEM_TILER_ALIGN_TOP;
-#endif /* !MALI_USE_CSF */
 		if (!(KBASE_REG_GPU_CACHED & reg->flags))
 			*out |= BASE_MEM_UNCACHED_GPU;
-#if MALI_USE_CSF
 		if (KBASE_REG_CSF_EVENT & reg->flags)
 			*out |= BASE_MEM_CSF_EVENT;
 		if ((kbase_bits_to_zone(reg->flags) == FIXED_VA_ZONE) ||
@@ -678,7 +648,6 @@ int kbase_mem_query(struct kbase_context *kctx, u64 gpu_addr, u64 query, u64 *co
 			else
 				*out |= BASE_MEM_FIXABLE;
 		}
-#endif /* MALI_USE_CSF */
 		if (KBASE_REG_GPU_VA_SAME_4GB_PAGE & reg->flags)
 			*out |= BASE_MEM_GPU_VA_SAME_4GB_PAGE;
 		if (mali_kbase_supports_query_mem_import_sync_on_map_unmap(kctx->api_version)) {
@@ -838,13 +807,11 @@ static unsigned long kbase_mem_evictable_reclaim_scan_objects(struct shrinker *s
 	now_ns = ktime_get_raw_ns();
 #endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 
-#if MALI_USE_CSF
 	if (!down_read_trylock(&kctx->kbdev->csf.mmu_sync_sem)) {
 		dev_warn(kctx->kbdev->dev,
 			 "Can't shrink GPU memory when P.Mode entrance is in progress");
 		return 0;
 	}
-#endif
 	mutex_lock(&kctx->jit_evict_lock);
 
 	list_for_each_entry_safe(alloc, tmp, &kctx->evict_list, evict_node) {
@@ -895,9 +862,7 @@ static unsigned long kbase_mem_evictable_reclaim_scan_objects(struct shrinker *s
 	}
 
 	mutex_unlock(&kctx->jit_evict_lock);
-#if MALI_USE_CSF
 	up_read(&kctx->kbdev->csf.mmu_sync_sem);
-#endif
 	return freed;
 }
 
@@ -1658,15 +1623,33 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx, in
 	*flags &= ~BASE_MEM_SAME_VA;
 
 	/*
-	 * Force CPU cached flag.
-	 *
-	 * We can't query the dma-buf exporter to get details about the CPU
-	 * cache attributes of CPU mappings, so we have to assume that the
-	 * buffer may be cached, and call into the exporter for cache
-	 * maintenance, and rely on the exporter to do the right thing when
-	 * handling our calls.
+	 * mgm_get_import_memory_cached_access_permitted() returns true if externally visible
+	 * accesses by the GPU for this dma_buf are allowed to be cached. Set CPU cacheabilty
+	 * flag to match.
 	 */
-	*flags |= BASE_MEM_CACHED_CPU;
+	if (kctx->kbdev->mgm_dev->ops.mgm_get_import_memory_cached_access_permitted) {
+		struct memory_group_manager_import_data mgm_import_data;
+
+		mgm_import_data.type = MEMORY_GROUP_MANAGER_IMPORT_TYPE_DMA_BUF;
+		mgm_import_data.u.dma_buf = dma_buf;
+
+		if (kctx->kbdev->mgm_dev->ops.mgm_get_import_memory_cached_access_permitted(
+			    kctx->kbdev->mgm_dev, &mgm_import_data))
+			*flags |= BASE_MEM_CACHED_CPU;
+		else
+			*flags &= ~BASE_MEM_CACHED_CPU;
+	} else {
+		/*
+		 * Force CPU cached flag if we do not have the API to query MGM
+		 *
+		 * We can't query the dma-buf exporter to get details about the CPU
+		 * cache attributes of CPU mappings, so we have to assume that the
+		 * buffer may be cached, and call into the exporter for cache
+		 * maintenance, and rely on the exporter to do the right thing when
+		 * handling our calls.
+		 */
+		*flags |= BASE_MEM_CACHED_CPU;
+	}
 
 	if (*flags & BASE_MEM_IMPORT_SHARED)
 		shared_zone = true;
@@ -1989,8 +1972,8 @@ u64 kbase_mem_alias(struct kbase_context *kctx, base_mem_alloc_flags *flags, u64
 
 	/* validate and add src handles */
 	for (i = 0; i < nents; i++) {
-		if (ai[i].handle.basep.handle < BASE_MEM_FIRST_FREE_ADDRESS) {
-			if (ai[i].handle.basep.handle != BASEP_MEM_WRITE_ALLOC_PAGES_HANDLE)
+		if (ai[i].gpu_va < BASE_MEM_FIRST_FREE_ADDRESS) {
+			if (ai[i].gpu_va != BASEP_MEM_WRITE_ALLOC_PAGES_HANDLE)
 				goto bad_handle; /* unsupported magic handle */
 			if (!ai[i].length)
 				goto bad_handle; /* must be > 0 */
@@ -2004,7 +1987,7 @@ u64 kbase_mem_alias(struct kbase_context *kctx, base_mem_alloc_flags *flags, u64
 			struct kbase_mem_phy_alloc *alloc;
 
 			aliasing_reg = kbase_region_tracker_find_region_base_address(
-				kctx, (ai[i].handle.basep.handle >> PAGE_SHIFT) << PAGE_SHIFT);
+				kctx, (ai[i].gpu_va >> PAGE_SHIFT) << PAGE_SHIFT);
 
 			/* validate found region */
 			if (kbase_is_region_invalid_or_free(aliasing_reg))
@@ -2908,10 +2891,8 @@ static int kbasep_reg_mmap(struct kbase_context *kctx, struct vm_area_struct *vm
 	kctx->pending_regions[cookie] = NULL;
 	bitmap_set(kctx->cookies, cookie, 1);
 
-#if MALI_USE_CSF
 	if (reg->flags & KBASE_REG_CSF_EVENT)
 		kbase_link_event_mem_page(kctx, reg);
-#endif
 
 	/*
 	 * Overwrite the offset with the region start_pfn, so we effectively
@@ -2987,7 +2968,6 @@ int kbase_context_mmap(struct kbase_context *const kctx, struct vm_area_struct *
 		err = -EINVAL;
 		goto out_unlock;
 #endif /* defined(CONFIG_MALI_VECTOR_DUMP) */
-#if MALI_USE_CSF
 	case PFN_DOWN(BASEP_MEM_CSF_USER_REG_PAGE_HANDLE):
 		kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 		err = kbase_csf_cpu_mmap_user_reg_page(kctx, vma);
@@ -2999,7 +2979,6 @@ int kbase_context_mmap(struct kbase_context *const kctx, struct vm_area_struct *
 		mutex_unlock(&kctx->csf.lock);
 		goto out;
 	}
-#endif
 	case PFN_DOWN(BASE_MEM_COOKIE_BASE)... PFN_DOWN(BASE_MEM_FIRST_FREE_ADDRESS) - 1: {
 		err = kbasep_reg_mmap(kctx, vma, &reg, &nr_pages, &aligned_offset);
 		if (err != 0)
@@ -3493,7 +3472,6 @@ static int kbase_tracking_page_setup(struct kbase_context *kctx, struct vm_area_
 	return 0;
 }
 
-#if MALI_USE_CSF
 static unsigned long get_queue_doorbell_pfn(struct kbase_device *kbdev, struct kbase_queue *queue)
 {
 	lockdep_assert_held(&kbdev->csf.reg_lock);
@@ -3742,6 +3720,7 @@ static int kbase_csf_cpu_mmap_user_io_pages(struct kbase_context *kctx, struct v
 	get_file(vma->vm_file);
 	/* Also adjust the vm_pgoff */
 	vma->vm_pgoff = queue->db_file_offset;
+	kctx->csf.user_io.vma = vma;
 
 	return 0;
 
@@ -3936,5 +3915,3 @@ static int kbase_csf_cpu_mmap_user_reg_page(struct kbase_context *kctx, struct v
 
 	return 0;
 }
-
-#endif /* MALI_USE_CSF */

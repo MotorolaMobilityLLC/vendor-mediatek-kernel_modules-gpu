@@ -949,4 +949,3 @@ void mtk_common_print_backtrace_for_task(struct kbase_device *kbdev, struct task
 	dev_err(kbdev->dev, "kernel config of STACKTRACE is disabled\n");
 #endif /* CONFIG_STACKTRACE */
 }
-

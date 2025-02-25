@@ -42,7 +42,6 @@
 #include <hwcnt/mali_kbase_hwcnt_virtualizer.h>
 #include <mali_kbase_kinstr_prfcnt.h>
 #include <tl/mali_kbase_timeline.h>
-
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
 #include <mali_kbase_gpu_metrics.h>
 #endif
@@ -81,6 +80,7 @@ static void kbase_device_firmware_hwcnt_term(struct kbase_device *kbdev)
 		kbase_kinstr_prfcnt_term(kbdev->kinstr_prfcnt_ctx);
 		kbase_hwcnt_virtualizer_term(kbdev->hwcnt_gpu_virt);
 		kbase_hwcnt_backend_csf_metadata_term(&kbdev->hwcnt_gpu_iface);
+		kbase_hwcnt_backend_csf_ring_buf_term(&kbdev->hwcnt_gpu_iface);
 		kbase_csf_firmware_unload_term(kbdev);
 	}
 }
@@ -525,6 +525,7 @@ int kbase_device_firmware_init_once(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	mutex_lock(&kbdev->fw_load_lock);
+
 	if (!kbdev->csf.firmware_inited) {
 		kbase_pm_context_active(kbdev);
 

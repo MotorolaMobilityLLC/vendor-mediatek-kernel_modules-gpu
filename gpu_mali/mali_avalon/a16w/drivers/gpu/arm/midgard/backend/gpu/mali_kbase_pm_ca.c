@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2013-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2013-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -27,17 +27,16 @@
 #include <mali_kbase_pm.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
 #include <backend/gpu/mali_kbase_model_linux.h>
-#include <mali_kbase_dummy_job_wa.h>
 
 #ifdef CONFIG_MALI_DEVFREQ
 static void pm_init_cores_enabled_mask(struct kbase_device *kbdev)
 {
- 	struct kbase_pm_backend_data *pm_backend = &kbdev->pm.backend;
+	struct kbase_pm_backend_data *pm_backend = &kbdev->pm.backend;
 
- 	if (kbdev->current_core_mask)
- 		pm_backend->ca_cores_enabled = kbdev->current_core_mask;
- 	else
- 		pm_backend->ca_cores_enabled = kbdev->gpu_props.shader_present;
+	if (kbdev->current_core_mask)
+		pm_backend->ca_cores_enabled = kbdev->current_core_mask;
+	else
+		pm_backend->ca_cores_enabled = kbdev->gpu_props.shader_present;
 }
 
 static void pm_init_gov_cores_enabled_mask(struct kbase_device *kbdev)
@@ -136,6 +135,7 @@ void kbase_pm_ca_set_gov_core_mask(struct kbase_device *kbdev, enum mask_type co
 }
 
 #ifdef CONFIG_MALI_DEVFREQ
+
 static int set_core_mask_gov(struct kbase_device *kbdev, u64 core_mask)
 {
 	if (!kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)) {
@@ -165,8 +165,6 @@ static int set_core_mask_legacy(struct kbase_device *kbdev, u64 core_mask)
 	unsigned long flags;
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-
-#if MALI_USE_CSF
 	if (!(core_mask & kbdev->pm.debug_core_mask)) {
 		dev_err(kbdev->dev,
 			"OPP core mask 0x%llX does not intersect with sysfs debug mask 0x%llX\n",
@@ -176,28 +174,11 @@ static int set_core_mask_legacy(struct kbase_device *kbdev, u64 core_mask)
 	}
 
 	old_core_mask = pm_backend->ca_cores_enabled;
-#else
-	if (!(core_mask & kbdev->pm.debug_core_mask_all)) {
-		dev_err(kbdev->dev,
-			"OPP core mask 0x%llX does not intersect with debug mask 0x%llX\n",
-			core_mask, kbdev->pm.debug_core_mask_all);
-		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-		return -EINVAL;
-	}
-
-	if (kbase_dummy_job_wa_enabled(kbdev)) {
-		dev_err_once(kbdev->dev,
-			     "Dynamic core scaling not supported as dummy job WA is enabled");
-		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-		return -EINVAL;
-	}
-#endif /* MALI_USE_CSF */
 	pm_backend->ca_cores_enabled = core_mask;
 
 	kbase_pm_update_state(kbdev);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
-#if MALI_USE_CSF
 	/* Check if old_core_mask contained the undesired cores and wait
 	 * for those cores to get powered down
 	 */
@@ -208,7 +189,6 @@ static int set_core_mask_legacy(struct kbase_device *kbdev, u64 core_mask)
 				 old_core_mask, core_mask);
 		}
 	}
-#endif
 
 	return 0;
 }
@@ -218,13 +198,11 @@ void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
 	bool mmu_sync_needed = false;
 	int err;
 
-#if MALI_USE_CSF
 	if (!IS_ENABLED(CONFIG_MALI_NO_MALI) &&
 	    kbase_hw_has_issue(kbdev, KBASE_HW_ISSUE_GPU2019_3901)) {
 		mmu_sync_needed = true;
 		down_write(&kbdev->csf.mmu_sync_sem);
 	}
-#endif
 
 #if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
 	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
@@ -243,10 +221,8 @@ void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask)
 	err = set_core_mask_legacy(kbdev, core_mask);
 #endif
 
-#if MALI_USE_CSF
 	if (mmu_sync_needed)
 		up_write(&kbdev->csf.mmu_sync_sem);
-#endif
 
 	if (!err)
 		dev_dbg(kbdev->dev, "Devfreq policy : new core mask=%llX\n", core_mask);
@@ -256,11 +232,7 @@ KBASE_EXPORT_TEST_API(kbase_devfreq_set_core_mask);
 
 u64 kbase_pm_ca_get_debug_core_mask(struct kbase_device *kbdev)
 {
-#if MALI_USE_CSF
 	return kbdev->pm.debug_core_mask;
-#else
-	return kbdev->pm.debug_core_mask_all;
-#endif
 }
 KBASE_EXPORT_TEST_API(kbase_pm_ca_get_debug_core_mask);
 
@@ -312,9 +284,7 @@ u64 kbase_pm_ca_get_instr_core_mask(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_NO_MALI)
 	return (((1ull) << KBASE_DUMMY_MODEL_MAX_SHADER_CORES) - 1);
-#elif MALI_USE_CSF
-	return kbase_pm_get_ready_cores(kbdev, KBASE_PM_CORE_SHADER);
 #else
-	return kbdev->pm.backend.pm_shaders_core_mask;
+	return kbase_pm_get_ready_cores(kbdev, KBASE_PM_CORE_SHADER);
 #endif
 }

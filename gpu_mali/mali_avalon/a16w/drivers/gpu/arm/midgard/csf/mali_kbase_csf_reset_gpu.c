@@ -348,7 +348,7 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 		kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK)),
 		kbase_reg_read32(kbdev, JOB_CONTROL_ENUM(JOB_IRQ_MASK)),
 		kbase_reg_read32(kbdev, MMU_CONTROL_ENUM(IRQ_MASK)));
-#if MALI_USE_CSF
+
 	if (kbdev->pm.backend.has_host_pwr_iface) {
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_DEFERRED_WHEN_RESET,
 			"  PWR_IRQ_RAWSTAT=0x%08x\n",
@@ -360,7 +360,7 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 			"  PWR_STATUS=0x%016llx\n",
 			kbase_reg_read64(kbdev, HOST_POWER_ENUM(PWR_STATUS)));
 	}
-#endif
+
 	if (kbdev->gpu_props.gpu_id.arch_id < GPU_ID_ARCH_MAKE(14, 10, 0)) {
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_DEFERRED_WHEN_RESET,
 			"  PWR_OVERRIDE0=0x%08x  PWR_OVERRIDE1=0x%08x\n",
@@ -382,7 +382,6 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 			glb_req, glb_ack, glb_db_req, glb_db_ack);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
-#if MALI_USE_CSF
 	if (kbdev->pm.backend.has_host_pwr_iface) {
 		u32 domain_status;
 		if (kbdev->gpu_props.gpu_id.arch_id < GPU_ID_ARCH_MAKE(14, 10, 0))
@@ -395,7 +394,6 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 				"  L2_PWR_STATUS=0x%05llx\n",
 				kbase_reg_read64(kbdev, HOST_POWER_ENUM(PWR_CMDARG)));
 	}
-#endif
 #else /* CONFIG_MALI_MTK_LOG_BUFFER */
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 	dev_err(kbdev->dev, "\tMCU desired = %d\n",
@@ -431,7 +429,6 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 		kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK)),
 		kbase_reg_read32(kbdev, JOB_CONTROL_ENUM(JOB_IRQ_MASK)),
 		kbase_reg_read32(kbdev, MMU_CONTROL_ENUM(IRQ_MASK)));
-#if MALI_USE_CSF
 	if (kbdev->pm.backend.has_host_pwr_iface) {
 		dev_err(kbdev->dev, "  PWR_IRQ_RAWSTAT=0x%08x",
 			kbase_reg_read32(kbdev, HOST_POWER_ENUM(PWR_IRQ_RAWSTAT)));
@@ -440,7 +437,6 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 		dev_err(kbdev->dev, "  PWR_STATUS=0x%016llx",
 			kbase_reg_read64(kbdev, HOST_POWER_ENUM(PWR_STATUS)));
 	}
-#endif
 	if (kbdev->gpu_props.gpu_id.arch_id < GPU_ID_ARCH_MAKE(14, 10, 0)) {
 		dev_err(kbdev->dev, "  PWR_OVERRIDE0=0x%08x  PWR_OVERRIDE1=0x%08x",
 			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(PWR_OVERRIDE0)),
@@ -460,9 +456,9 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 			glb_req, glb_ack, glb_db_req, glb_db_ack);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
-#if MALI_USE_CSF
 	if (kbdev->pm.backend.has_host_pwr_iface) {
 		u32 domain_status;
+
 		if (kbdev->gpu_props.gpu_id.arch_id < GPU_ID_ARCH_MAKE(14, 10, 0))
 			dev_err(kbdev->dev, "  NEURAL_CONFIG=0x%08x",
 				kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(NEURAL_CONFIG)));
@@ -471,7 +467,6 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 			dev_err(kbdev->dev, "  L2_PWR_STATUS=0x%05llx",
 				kbase_reg_read64(kbdev, HOST_POWER_ENUM(PWR_CMDARG)));
 	}
-#endif
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
@@ -665,9 +660,12 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 
 	cancel_work_sync(&kbdev->csf.firmware_reload_work);
 
-	dev_dbg(kbdev->dev, "Disable GPU hardware counters.\n");
-	/* This call will block until counters are disabled. */
-	kbase_hwcnt_context_disable(kbdev->hwcnt_gpu_ctx);
+	{
+		dev_dbg(kbdev->dev, "Disable GPU hardware counters.\n");
+		/* This call will block until counters are disabled. */
+		kbase_hwcnt_context_disable(kbdev->hwcnt_gpu_ctx);
+	}
+
 #if IS_ENABLED(CONFIG_MALI_MTK_RESET_RELOAD_ON_FW)
 	kbdev->pm.backend.fw_reload_on_reset_worker = false;
 #endif /* IS_ENABLED(CONFIG_MALI_MTK_RESET_RELOAD_ON_FW) */
@@ -767,17 +765,16 @@ static void kbase_csf_reset_gpu_worker(struct work_struct *data)
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	firmware_inited = kbdev->csf.firmware_inited;
-#ifdef KBASE_PM_RUNTIME
-	gpu_sleep_mode_active = kbdev->pm.backend.gpu_sleep_mode_active;
-#endif
+	if (IS_ENABLED(CONFIG_PM))
+		gpu_sleep_mode_active = kbdev->pm.backend.gpu_sleep_mode_active;
+
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 		"Reset GPU Worker, gpu sleep mode status updated\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
-	if (unlikely(gpu_sleep_mode_active)) {
-#ifdef KBASE_PM_RUNTIME
+	if (unlikely(gpu_sleep_mode_active) && IS_ENABLED(CONFIG_PM)) {
 		/* As prior to GPU reset all on-slot groups are suspended,
 		 * need to wake up the MCU from sleep.
 		 * No pm active reference is taken here since GPU is in sleep
@@ -795,7 +792,6 @@ static void kbase_csf_reset_gpu_worker(struct work_struct *data)
 		kbase_pm_unlock(kbdev);
 
 		err = kbase_csf_reset_gpu_now(kbdev, firmware_inited, silent);
-#endif
 	} else if (!kbase_pm_context_active_handle_suspend(
 			   kbdev, KBASE_PM_SUSPEND_HANDLER_DONT_REACTIVATE)) {
 		err = kbase_csf_reset_gpu_now(kbdev, firmware_inited, silent);

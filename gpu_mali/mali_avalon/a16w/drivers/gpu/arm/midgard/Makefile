@@ -267,7 +267,7 @@ ccflags-y += -I$(KO_CODE_PATH)/include
 subdir-ccflags-y += -I$(KO_CODE_PATH)/include
 
 # Driver version string which is returned to userspace via an ioctl
-MALI_RELEASE_NAME ?= '"r53p0-00eac0"'
+MALI_RELEASE_NAME ?= '"r54p0-00dev1"'
 # Set up defaults if not defined by build system
 ifeq ($(CONFIG_MALI_DEBUG), y)
     MALI_UNIT_TEST = 1
@@ -287,12 +287,9 @@ include $(KO_CODE_PATH)/platform/$(MALI_PLATFORM_DIR)/Kbuild
 
 ifeq ($(CONFIG_MALI_CSF_SUPPORT),y)
     MALI_JIT_PRESSURE_LIMIT_BASE = 0
-    MALI_USE_CSF = 1
 else
     MALI_JIT_PRESSURE_LIMIT_BASE ?= 1
-    MALI_USE_CSF ?= 0
 endif
-
 
 ifneq ($(CONFIG_MALI_KUTF), n)
     MALI_KERNEL_TEST_API ?= 1
@@ -312,7 +309,6 @@ endif
 #
 ccflags-y += \
     -DMALI_CUSTOMER_RELEASE=$(MALI_CUSTOMER_RELEASE) \
-    -DMALI_USE_CSF=$(MALI_USE_CSF) \
     -DMALI_KERNEL_TEST_API=$(MALI_KERNEL_TEST_API) \
     -DMALI_UNIT_TEST=$(MALI_UNIT_TEST) \
     -DMALI_COVERAGE=$(MALI_COVERAGE) \
@@ -320,7 +316,6 @@ ccflags-y += \
     -DMALI_JIT_PRESSURE_LIMIT_BASE=$(MALI_JIT_PRESSURE_LIMIT_BASE) \
     -DMALI_KBASE_BUILD \
 #    -DMALI_PLATFORM_DIR=$(MALI_PLATFORM_DIR)
-
 
 ifeq ($(KBUILD_EXTMOD),)
 # in-tree
@@ -364,7 +359,7 @@ else ifneq ($(wildcard $(KO_CODE_PATH)/platform/$(MTK_PLATFORM)),)
     mali_kbase_$(MTK_PLATFORM)_a16w-y += $(mali_kbase-y) $(mali_kbase-m)
 endif
 
-obj-$(CONFIG_MALI_ARBITRATION) += arbitration/
+obj-$(CONFIG_MALI_HAS_VIRTUALIZATION) += arbitration/
 obj-$(CONFIG_MALI_KUTF)    += tests/
 
 mali_kbase-y += \
@@ -413,24 +408,6 @@ mali_kbase-$(CONFIG_SYNC_FILE) += \
 mali_kbase-$(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD) += \
         mali_power_gpu_work_period_trace.o \
         mali_kbase_gpu_metrics.o
-
-ifneq ($(CONFIG_MALI_CSF_SUPPORT),y)
-    mali_kbase-y += \
-        mali_kbase_jm.o \
-        mali_kbase_dummy_job_wa.o \
-        mali_kbase_debug_job_fault.o \
-        mali_kbase_event.o \
-        mali_kbase_jd.o \
-        mali_kbase_jd_debugfs.o \
-        mali_kbase_js.o \
-        mali_kbase_js_ctx_attr.o \
-        mali_kbase_kinstr_jm.o
-
-    mali_kbase-$(CONFIG_SYNC_FILE) += \
-        mali_kbase_fence_ops.o \
-        mali_kbase_fence.o
-endif
-
 
 INCLUDE_SUBDIR = \
     $(KO_CODE_PATH)/arbiter/Kbuild \
