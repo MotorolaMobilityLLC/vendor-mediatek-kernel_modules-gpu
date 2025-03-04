@@ -699,6 +699,9 @@ PMR_GetTypeStr(const PMR *psPMR);
 IMG_INT32
 PMR_GetRefCount(const PMR *psPMR);
 
+PVRSRV_ERROR
+PMR_IsExportable(const PMR *psPMR);
+
 /* PMR usage type for callers of PMR_DevPhysAddr() */
 typedef IMG_UINT32 PMR_PHYSADDRMODE_TYPE;
 

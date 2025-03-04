@@ -1982,7 +1982,7 @@ PVRSRV_ERROR RGXCreateFreeList(CONNECTION_DATA       *psConnection,
 			PVR_DPF((PVR_DBG_ERROR,
 			        "%s: Error from PMR_WriteBytes: %s",
 			        __func__, PVRSRVGetErrorString(eError)));
-			goto FWFreeListAlloc;
+			goto ErrorWritePMR;
 		}
 		PVR_ASSERT(uiNbBytes == sizeof(sFLState));
 
@@ -2111,6 +2111,7 @@ PVRSRV_ERROR RGXCreateFreeList(CONNECTION_DATA       *psConnection,
 
 	/* Error handling */
 FWFreeListCpuMap:
+ErrorWritePMR:
 	/* Remove freelists from list */
 	OSLockAcquire(psDevInfo->hLockFreeList);
 	dllist_remove_node(&psFreeList->sNode);

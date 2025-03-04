@@ -3205,6 +3205,19 @@ PMR_GetRefCount(const PMR *psPMR)
 	return _GetRef(psPMR);
 }
 
+PVRSRV_ERROR
+PMR_IsExportable(const PMR *psPMR)
+{
+	PVR_ASSERT(psPMR != NULL);
+
+	if (!PMR_DeviceNode(psPMR)->pfnValidateExportableFlags(psPMR->uiFlags))
+	{
+		return PVRSRV_ERROR_INVALID_FLAGS;
+	}
+
+	return PVRSRV_OK;
+}
+
 #if defined(PVRSRV_INTERNAL_IPA_FEATURE_TESTING)
 PVRSRV_ERROR
 PMRGetIPAPolicy(PMR *psPMR,

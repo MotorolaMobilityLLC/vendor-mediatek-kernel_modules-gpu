@@ -2012,6 +2012,9 @@ PhysmemExportDmaBuf(CONNECTION_DATA *psConnection,
 	PVR_RETURN_IF_FALSE(PMR_GetType(psPMR) != PMR_TYPE_DMABUF,
 	                    PVRSRV_ERROR_PMR_WRONG_PMR_TYPE);
 
+	eError = PMR_IsExportable(psPMR);
+	PVR_LOG_RETURN_IF_ERROR(eError, "PMR_IsExportable");
+
 	eError = PhysmemGetOrCreatePMRWrapper(psPMR, &psPMRWrapper);
 	PVR_LOG_GOTO_IF_ERROR(eError, "PhysmemExportDmaBuf", fail_get_pmr_wrapper);
 
@@ -2164,6 +2167,9 @@ PhysmemExportGemHandle(CONNECTION_DATA *psConnection,
 	bool bAlreadyExported;
 	PVRSRV_ERROR eError;
 	int iErr;
+
+	eError = PMR_IsExportable(psPMR);
+	PVR_LOG_RETURN_IF_ERROR(eError, "PMR_IsExportable");
 
 	eError = PhysmemGetOrCreatePMRWrapper(psPMR, &psPMRWrapper);
 	PVR_LOG_GOTO_IF_ERROR(eError, "PhysmemExportGemHandle", fail_get_pmr_wrapper);
