@@ -414,6 +414,11 @@ typedef struct _PVRSRV_DEVICE_NODE_
 														struct _DEVMEMINT_CTX_		*psDevMemCtx,
 														IMG_HANDLE					*hPrivData);
 	void					(*pfnUnregisterMemoryContext)(IMG_HANDLE hPrivData);
+	/* Callback for validating heap's protection flags. */
+	IMG_BOOL (*pfnValidateAddressPermissions)(struct _PVRSRV_DEVICE_NODE_ *psDevNode,
+	                                          MMU_CONTEXT *psMMUContext,
+	                                          IMG_DEV_VIRTADDR sVDevAddr,
+	                                          PVRSRV_MEMALLOCFLAGS_T uiFlags);
 
 	/* Functions for validation flags for exportable PMRs */
 	IMG_BOOL (*pfnValidateExportableFlags)(PVRSRV_MEMALLOCFLAGS_T uiFlags);
