@@ -226,17 +226,20 @@ int kbasep_csf_db_valid_update_result(struct kbase_device *kbdev)
 	if (!kbasep_csf_db_valid_wait_ack(kbdev, DBVALID_REQ_RESULT_UPDATE_MASK)) {
 		dev_warn(kbdev->dev, "DB validation may not able to get latest result!\n");
 	}
-	kbase_csf_fw_io_open_force(dbvld_ctx.fw_io, &flags);
+
 	if (dbvld_ctx.fw_io) {
 		int i;
+		kbase_csf_fw_io_open_force(dbvld_ctx.fw_io, &flags);
 
 		for (i = 0 ; i < DBVALID_RESULT_BUFFER_SIZE ; ++i) {
 			dbvld_ctx.result_buffer[i] += kbase_csf_fw_io_global_read(dbvld_ctx.fw_io, DBVALID_IFACE_IO_PAGE_RESULT + (i << 2));
 		}
 
+		kbase_csf_fw_io_close(dbvld_ctx.fw_io, flags);
+
 		dev_dbg(kbdev->dev, "DB validation update result\n");
 	}
-	kbase_csf_fw_io_close(dbvld_ctx.fw_io, flags);
+
 	return 0;
 }
 
