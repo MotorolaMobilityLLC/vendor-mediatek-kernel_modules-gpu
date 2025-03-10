@@ -51,3 +51,6 @@ mali_kbase-$(CONFIG_MALI_NO_MALI) += backend/gpu/mali_kbase_model_linux.o
 
 # NO_MALI Dummy model interface
 mali_kbase-$(CONFIG_MALI_NO_MALI) += backend/gpu/mali_kbase_model_dummy.o
+
+#GPU PMU
++ccflags-y += -I$(src)/platform/mtk_platform_common/

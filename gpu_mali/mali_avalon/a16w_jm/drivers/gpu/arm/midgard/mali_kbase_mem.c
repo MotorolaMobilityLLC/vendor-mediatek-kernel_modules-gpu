@@ -44,6 +44,18 @@
 #include <mmu/mali_kbase_mmu.h>
 #include <mali_kbase_trace_gpu_mem.h>
 #include <linux/version_compat_defs.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+#include <gpu_pdma.h>
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
+
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MMAP_LOGGING)
+#include <platform/mtk_platform_common/mtk_platform_debug.h>
+#endif /* CONFIG_MALI_MTK_MMAP_LOGGING */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
+#include <soc/mediatek/emi.h>
+#endif /* CONFIG_MALI_MTK_MGMM */
 
 /* Static key used to determine if large pages are enabled or not */
 static DEFINE_STATIC_KEY_FALSE(large_pages_static_key);
@@ -276,12 +288,24 @@ int kbase_mem_init(struct kbase_device *kbdev)
 	if (likely(!err)) {
 		struct kbase_mem_pool_group_config mem_pool_defaults;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
+		/*
+		 * mGMM contains kbdev-wide pool, disable kbdev-mem_pool if mGMM enabled
+		 */
+		kbase_mem_pool_group_config_set_max_size(&mem_pool_defaults,
+							 (mtk_emicen_get_rk_cnt() == 2) ? 0x0 : KBASE_MEM_POOL_MAX_SIZE_KBDEV);
+#else /* CONFIG_MALI_MTK_MGMM */
 		kbase_mem_pool_group_config_set_max_size(&mem_pool_defaults,
 							 KBASE_MEM_POOL_MAX_SIZE_KBDEV);
+#endif /* CONFIG_MALI_MTK_MGMM */
 
 		err = kbase_mem_pool_group_init(&kbdev->mem_pools, kbdev, &mem_pool_defaults, NULL);
-		if (likely(!err))
+		if (likely(!err)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+			kbdev->jit_reclaim_timeout_ms = JIT_RECLAIM_DEFAULT_TIMEOUT_MS;
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 			return err;
+		}
 	}
 
 	kmem_cache_destroy(kbdev->page_metadata_slab);
@@ -458,7 +482,15 @@ int kbase_gpu_mmap(struct kbase_context *kctx, struct kbase_va_region *reg, u64 
 		if (err)
 			goto bad_insert;
 	}
-
+#if IS_ENABLED(CONFIG_MALI_MTK_MMAP_LOGGING)
+	if (mtk_debug_debugfs_mmap_logging_mode())
+	{
+		pr_err("[MTKD] gpu_mmap %zu pages to GPU at VA %llx, PA %llx, flags %llx for ctx %d_%d (as_nr %d)\n",
+			kbase_reg_current_backed_size(reg),
+			reg->start_pfn << PAGE_SHIFT, as_phys_addr_t(kbase_get_gpu_phy_pages(reg)[0]), reg->flags,
+			kctx->tgid, kctx->id, kctx->as_nr);
+	}
+#endif /* CONFIG_MALI_MTK_MMAP_LOGGING */
 	return err;
 
 bad_aliased_insert:
@@ -584,6 +616,15 @@ int kbase_gpu_munmap(struct kbase_context *kctx, struct kbase_va_region *reg)
 	} break;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MMAP_LOGGING)
+	if (mtk_debug_debugfs_mmap_logging_mode())
+	{
+		pr_err("[MTKD] gpu_unmmap %zu pages to GPU at VA %llx, PA %llx, flags %llx for ctx %d_%d (as_nr %d)\n",
+			kbase_reg_current_backed_size(reg),
+			reg->start_pfn << PAGE_SHIFT, as_phys_addr_t(kbase_get_gpu_phy_pages(reg)[0]), reg->flags,
+			kctx->tgid, kctx->id, kctx->as_nr);
+	}
+#endif /* CONFIG_MALI_MTK_MMAP_LOGGING */
 	if (alloc->type != KBASE_MEM_TYPE_ALIAS)
 		kbase_mem_phy_alloc_gpu_unmapped(reg->gpu_alloc);
 
@@ -974,6 +1015,13 @@ int kbase_mem_free_region(struct kbase_context *kctx, struct kbase_va_region *re
 			 "Attempt to free GPU memory whose freeing by user space is forbidden!\n");
 		return -EINVAL;
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+	if((reg->isImportedMemory && reg->isFirstDmaBuf) || !reg->isImportedMemory)
+	{
+		if(reg->pbha_8bit != 0)
+			pdma_release_extended_pbha(kctx->id, reg->pbha_8bit);
+	}
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 
 	/* If a region has been made evictable then we must unmake it
 	 * before trying to free it.
@@ -1251,7 +1299,14 @@ int kbase_alloc_phy_pages_helper(struct kbase_mem_phy_alloc *alloc, size_t nr_pa
 	kbdev = kctx->kbdev;
 
 	if (nr_pages_requested == 0)
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	{
+		kbase_trace_alloc_pages(kbdev->id, kctx, nr_pages_requested, (size_t)alloc->pages, alloc->category);
 		goto done; /*nothing to do*/
+	}
+#else
+		goto done; /*nothing to do*/
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 	/* Increase mm counters before we allocate pages so that this
 	 * allocation is visible to the OOM killer. The actual count
@@ -1260,6 +1315,9 @@ int kbase_alloc_phy_pages_helper(struct kbase_mem_phy_alloc *alloc, size_t nr_pa
 	 * requested.
 	 */
 	new_page_count = mem_account_inc(kctx, nr_pages_requested);
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kbase_trace_alloc_pages(kbdev->id, kctx, nr_pages_requested, (size_t)alloc->pages, alloc->category);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 	tp = alloc->pages + alloc->nents;
 
 	/* Check if we have enough pages requested so we can allocate a large
@@ -1383,6 +1441,17 @@ no_new_partial:
 		new_page_count = mem_account_inc(kctx, nr_pages_to_account - nr_pages_requested);
 	else if (nr_pages_to_account < nr_pages_requested)
 		new_page_count = mem_account_dec(kctx, nr_pages_requested - nr_pages_to_account);
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	if (nr_pages_to_account != nr_pages_requested)
+		kbase_trace_update_pages(kbdev->id, kctx, nr_pages_to_account, nr_pages_requested, (size_t)alloc->pages, alloc->category);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT)
+	if (kctx->kbdev->mem_whitebox_debug == true) {
+		dev_err(kctx->kbdev->dev, "[pid:%d] nr_pages_requested: %lu, new_page_count: %d, nr_pages_to_account: %lu, kctx->used_pages: %10u\n",
+			kctx->tgid, nr_pages_requested, new_page_count, nr_pages_to_account, atomic_read(&(kctx->used_pages)));
+	}
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT */
 
 	KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
 
@@ -1420,6 +1489,9 @@ alloc_failed:
 	 * because memory allocation was rolled back.
 	 */
 	mem_account_dec(kctx, nr_left);
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kbase_trace_free_pages(kbdev->id, kctx, nr_left, (size_t)alloc->pages, alloc->category);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 invalid_request:
 	return -ENOMEM;
@@ -1496,7 +1568,14 @@ struct tagged_addr *kbase_alloc_phy_pages_helper_locked(struct kbase_mem_phy_all
 	lockdep_assert_held(&kctx->mem_partials_lock);
 
 	if (nr_pages_requested == 0)
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	{
+		kbase_trace_alloc_pages(kbdev->id, kctx, nr_pages_requested, (size_t)alloc->pages, alloc->category);
 		goto done; /*nothing to do*/
+	}
+#else
+		goto done; /*nothing to do*/
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 	/* Increase mm counters before we allocate pages so that this
 	 * allocation is visible to the OOM killer. The actual count
@@ -1505,6 +1584,9 @@ struct tagged_addr *kbase_alloc_phy_pages_helper_locked(struct kbase_mem_phy_all
 	 * requested.
 	 */
 	new_page_count = mem_account_inc(kctx, nr_pages_requested);
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kbase_trace_alloc_pages(kbdev->id, kctx, nr_pages_requested, (size_t)alloc->pages, alloc->category);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 	tp = alloc->pages + alloc->nents;
 	new_pages = tp;
 
@@ -1605,6 +1687,10 @@ struct tagged_addr *kbase_alloc_phy_pages_helper_locked(struct kbase_mem_phy_all
 		new_page_count = mem_account_inc(kctx, nr_pages_to_account - nr_pages_requested);
 	else if (nr_pages_to_account < nr_pages_requested)
 		new_page_count = mem_account_dec(kctx, nr_pages_requested - nr_pages_to_account);
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	if (nr_pages_to_account != nr_pages_requested)
+		kbase_trace_update_pages(kbdev->id, kctx, nr_pages_to_account, nr_pages_requested, (size_t)alloc->pages, alloc->category);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 	KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
 
@@ -1653,6 +1739,9 @@ alloc_failed:
 	 * of the pages accounted for at the top of the function.
 	 */
 	mem_account_dec(kctx, nr_pages_requested);
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kbase_trace_free_pages(kbdev->id, kctx, nr_pages_requested, (size_t)alloc->pages, alloc->category);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 invalid_request:
 	return NULL;
@@ -1769,6 +1858,9 @@ int kbase_free_phy_pages_helper(struct kbase_mem_phy_alloc *alloc, size_t nr_pag
 		 * need to be accounted.
 		 */
 		new_page_count = mem_account_dec(kctx, nr_pages_to_account);
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+		kbase_trace_free_pages(kbdev->id, kctx, nr_pages_to_account, (size_t)alloc->pages, alloc->category);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 		KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
 	} else if (freed != nr_pages_to_account) {
 		/* If the allocation was reclaimed then alloc->nents pages
@@ -1782,6 +1874,9 @@ int kbase_free_phy_pages_helper(struct kbase_mem_phy_alloc *alloc, size_t nr_pag
 			new_page_count = mem_account_inc(kctx, freed - nr_pages_to_account);
 		else
 			new_page_count = mem_account_dec(kctx, nr_pages_to_account - freed);
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+		kbase_trace_update_pages(kbdev->id, kctx, freed, nr_pages_to_account, (size_t)alloc->pages, alloc->category);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 		KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
 	}
 
@@ -1874,6 +1969,9 @@ void kbase_free_phy_pages_helper_locked(struct kbase_mem_phy_alloc *alloc,
 	alloc->nents -= freed;
 
 	new_page_count = mem_account_dec(kctx, nr_pages_to_account);
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kbase_trace_free_pages(kbdev->id, kctx, nr_pages_to_account, (size_t)alloc->pages, alloc->category);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 	KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
 }
 KBASE_EXPORT_TEST_API(kbase_free_phy_pages_helper_locked);
@@ -3296,8 +3394,13 @@ struct kbase_va_region *kbase_jit_allocate(struct kbase_context *kctx,
 		mutex_unlock(&kctx->jit_evict_lock);
 		kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+		reg = kbase_mem_alloc(kctx, info->va_pages, info->commit_pages, info->extension,
+				      &flags, &gpu_addr, mmu_sync_info, KBASE_MEM_JIT);
+#else
 		reg = kbase_mem_alloc(kctx, info->va_pages, info->commit_pages, info->extension,
 				      &flags, &gpu_addr, mmu_sync_info);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 		if (!reg) {
 			/* Most likely not enough GPU virtual space left for
 			 * the new JIT allocation.
@@ -3450,6 +3553,10 @@ void kbase_jit_free(struct kbase_context *kctx, struct kbase_va_region *reg)
 	atomic_add(reg->gpu_alloc->nents, &kctx->evict_nents);
 
 	list_move(&reg->jit_node, &kctx->jit_pool_head);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	reg->last_used_ts = ktime_get_raw_ns();
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 
 	mutex_unlock(&kctx->jit_evict_lock);
 }
@@ -4521,3 +4628,72 @@ void kbase_user_buf_from_gpu_mapped_to_pinned(struct kbase_context *kctx,
 	kbase_user_buf_dma_unmap_pages(kctx, reg);
 	reg->gpu_alloc->imported.user_buf.state = KBASE_USER_BUF_STATE_PINNED;
 }
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+static char category_str_list[KBASE_MEM_COUNT][10] = {"API", "GROW", "JIT", "MMU", "TILER", "CONTEXT", "JM", "UNKNOWN"};
+static inline const char *get_mem_type_name(enum kbase_memory_category category) {
+	// pr_err("[mali-debug] get_mem_type_name test");
+	return likely(category >= 0 && category < KBASE_MEM_COUNT) ? category_str_list[category] : "UNKNOWN";
+}
+
+void kbase_trace_alloc_pages(int32_t gpu_id, struct kbase_context *kctx, uint64_t size, uint64_t gpu_addr, enum kbase_memory_category category) {
+	if (likely(kctx != NULL)) {
+		if (likely(category >= 0 && category < KBASE_MEM_LABEL_COUNT)) {
+			atomic_add(size, &kctx->used_pages_categories[category]);
+		}
+		if (unlikely(kctx->kbdev->memory_debug_mode & 2)) {
+			pr_err("[mali-debug] ctx %d_%d %s %llu pages, total: %d %llu from %s\n",
+					kctx->tgid, kctx->id,
+					"add", size,
+					atomic_read(&(kctx->used_pages)), gpu_addr, get_mem_type_name(category));
+			if (unlikely(kctx->kbdev->memory_debug_mode & 4)) {
+				dump_stack();
+				pr_err("ctx %d_%d End trace\n", kctx->tgid, kctx->id);
+			}
+		}
+	}
+	trace_mali_mem_alloc(gpu_id, likely(kctx != NULL) ? kctx->tgid : 0, size, gpu_addr, get_mem_type_name(category));
+}
+
+void kbase_trace_free_pages(int32_t gpu_id, struct kbase_context *kctx, uint64_t size, uint64_t gpu_addr, enum kbase_memory_category category) {
+	if (likely(kctx != NULL)) {
+		if (likely(category >= 0 && category < KBASE_MEM_LABEL_COUNT)) {
+			atomic_sub(size, &kctx->used_pages_categories[category]);
+		}
+		if (unlikely(kctx->kbdev->memory_debug_mode & 2)) {
+			pr_err("[mali-debug] ctx %d_%d %s %llu pages, total: %d %llu from %s\n",
+					kctx->tgid, kctx->id,
+					"sub", size,
+					atomic_read(&(kctx->used_pages)), gpu_addr, get_mem_type_name(category));
+			if (unlikely(kctx->kbdev->memory_debug_mode & 4)) {
+				dump_stack();
+				pr_err("ctx %d_%d End trace\n", kctx->tgid, kctx->id);
+			}
+		}
+	}
+	trace_mali_mem_free(gpu_id, likely(kctx != NULL) ? kctx->tgid : 0, size, gpu_addr, get_mem_type_name(category));
+}
+
+void kbase_trace_update_pages(int32_t gpu_id, struct kbase_context *kctx, uint64_t size_new, uint64_t size_old, uint64_t gpu_addr, enum kbase_memory_category category) {
+	if (likely(kctx != NULL)) {
+		if (likely(category >= 0 && category < KBASE_MEM_LABEL_COUNT)) {
+			if (size_new > size_old)
+				atomic_add(size_new - size_old, &kctx->used_pages_categories[category]);
+			else if (size_new < size_old) {
+				atomic_sub(size_old - size_new, &kctx->used_pages_categories[category]);
+			}
+		}
+		if (unlikely(kctx->kbdev->memory_debug_mode & 2)) {
+			pr_err("[mali-debug] ctx %d_%d %s %llu pages, total: %d %llu from %s\n",
+					kctx->tgid, kctx->id,
+					"update", size_new,
+					atomic_read(&(kctx->used_pages)), gpu_addr, get_mem_type_name(category));
+			if (unlikely(kctx->kbdev->memory_debug_mode & 4)) {
+				dump_stack();
+				pr_err("ctx %d_%d End trace\n", kctx->tgid, kctx->id);
+			}
+		}
+	}
+	trace_mali_mem_update(gpu_id, likely(kctx != NULL) ? kctx->tgid : 0, size_new, gpu_addr, get_mem_type_name(category));
+}
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */

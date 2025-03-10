@@ -29,10 +29,12 @@
 #if IS_ENABLED(CONFIG_DEVFREQ_THERMAL)
 #include <linux/devfreq_cooling.h>
 #endif
+#include <linux/pm_domain.h>
 
 #include <linux/version.h>
 #include <linux/pm_opp.h>
 #include "mali_kbase_devfreq.h"
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 /**
  * get_voltage() - Get the voltage value corresponding to the nominal frequency
@@ -136,6 +138,14 @@ static int kbase_devfreq_target(struct device *dev, unsigned long *target_freq, 
 	}
 #if KERNEL_VERSION(4, 11, 0) <= LINUX_VERSION_CODE
 	dev_pm_opp_put(opp);
+#endif
+#if KERNEL_VERSION(4, 15, 0) <= LINUX_VERSION_CODE
+	err = dev_pm_genpd_set_performance_state(kbdev->dev, nominal_freq);
+	/* For ENODEV or EOPNOTSUPP do not return error code */
+	if (err && !((err == -ENODEV) || (err == -EOPNOTSUPP))) {
+		dev_err(dev, "Failed to set opp (%d) (target %lu)\n", err, *target_freq);
+		return err;
+	}
 #endif
 	/*
 	 * Only update if there is a change of frequency

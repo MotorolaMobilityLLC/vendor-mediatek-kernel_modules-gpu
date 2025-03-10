@@ -37,6 +37,7 @@
 
 #include <backend/gpu/mali_kbase_pm_defs.h>
 #include <mali_linux_trace.h>
+#include <platform/mtk_platform_utils.h> /* MTK_INLINE */
 
 #if defined(CONFIG_MALI_DEVFREQ) || defined(CONFIG_MALI_MIDGARD_DVFS) || !MALI_USE_CSF
 /* Shift used for kbasep_pm_metrics_data.time_busy/idle - units of (1 << 8) ns
@@ -263,6 +264,27 @@ static void kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 		 * the chances of overflows.
 		 */
 		protected_time >>= KBASE_PM_TIME_SHIFT;
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+		for (index = 0; index < NUM_PERF_COUNTERS; index++) {
+			gpu_active_counter[index] >>= KBASE_PM_TIME_SHIFT;
+			gpu_active_counter[index] += protected_time;
+
+			/* Ensure the following equations don't go wrong if ns_time is
+			 * slightly larger than gpu_active_counter somehow
+			 */
+			gpu_active_counter[index] = MIN(gpu_active_counter[index], ns_time);
+
+			kbdev->pm.backend.metrics.values.time_busy[index] +=
+				gpu_active_counter[index];
+
+			kbdev->pm.backend.metrics.values.time_idle[index] +=
+				ns_time - gpu_active_counter[index];
+
+			kbdev->pm.backend.metrics.values.counterRaw[index] +=
+				gpu_active_counter[index + NUM_PERF_COUNTERS];
+		}
+#else
 		gpu_active_counter >>= KBASE_PM_TIME_SHIFT;
 		gpu_active_counter += protected_time;
 
@@ -274,6 +296,7 @@ static void kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 		kbdev->pm.backend.metrics.values.time_busy += gpu_active_counter;
 
 		kbdev->pm.backend.metrics.values.time_idle += ns_time - gpu_active_counter;
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 		/* Also make time in protected mode available explicitly,
 		 * so users of this data have this info, too.
@@ -325,6 +348,12 @@ void kbase_pm_get_dvfs_metrics(struct kbase_device *kbdev, struct kbasep_pm_metr
 	struct kbasep_pm_metrics *cur = &kbdev->pm.backend.metrics.values;
 	unsigned long flags;
 
+#if MALI_USE_CSF && \
+	IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	int index = 0;
+#endif
+
 	spin_lock_irqsave(&kbdev->pm.backend.metrics.lock, flags);
 #if MALI_USE_CSF
 	kbase_pm_get_dvfs_utilisation_calc(kbdev);
@@ -333,8 +362,19 @@ void kbase_pm_get_dvfs_metrics(struct kbase_device *kbdev, struct kbasep_pm_metr
 #endif
 
 	memset(diff, 0, sizeof(*diff));
+#if MALI_USE_CSF && \
+	IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+
+	for (index = 0; index < NUM_PERF_COUNTERS; index++) {
+		diff->time_busy[index] = cur->time_busy[index] - last->time_busy[index];
+		diff->time_idle[index] = cur->time_idle[index] - last->time_idle[index];
+		diff->counterRaw[index] = cur->counterRaw[index] - last->counterRaw[index];
+	}
+#else
 	diff->time_busy = cur->time_busy - last->time_busy;
 	diff->time_idle = cur->time_idle - last->time_idle;
+#endif /* MALI_USE_CSF && CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 
 #if MALI_USE_CSF
 	diff->time_in_protm = cur->time_in_protm - last->time_in_protm;
@@ -354,6 +394,11 @@ KBASE_EXPORT_TEST_API(kbase_pm_get_dvfs_metrics);
 #ifdef CONFIG_MALI_MIDGARD_DVFS
 void kbase_pm_get_dvfs_action(struct kbase_device *kbdev)
 {
+#if !IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+/*
+ * kbase_platform_dvfs_event is not implemented by MTK.
+ * We used MTKCalGpuUtilization/MTKCalGpuUtilization_ex instead.
+ */
 	int utilisation;
 	struct kbasep_pm_metrics *diff;
 #if !MALI_USE_CSF
@@ -368,7 +413,14 @@ void kbase_pm_get_dvfs_action(struct kbase_device *kbdev)
 
 	kbase_pm_get_dvfs_metrics(kbdev, &kbdev->pm.backend.metrics.dvfs_last, diff);
 
+#if MALI_USE_CSF && IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	utilisation = (100 * diff->time_busy[0]) /
+			max(diff->time_busy[0]+ diff->time_idle[0], 1u);
+#else
 	utilisation = (100 * diff->time_busy) / max(diff->time_busy + diff->time_idle, 1u);
+#endif /* MALI_USE_CSF && CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
+
 
 #if !MALI_USE_CSF
 	busy = max(diff->busy_gl + diff->busy_cl[0] + diff->busy_cl[1], 1u);
@@ -385,9 +437,24 @@ void kbase_pm_get_dvfs_action(struct kbase_device *kbdev)
 	 * protected mode is already added to busy-time at this point, though,
 	 * so we should be good.
 	 */
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+		IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+#else
 	kbase_platform_dvfs_event(kbdev, utilisation);
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
 #endif
+#endif /* CONFIG_MALI_MTK_COMMON */
 }
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+bool kbase_pm_metrics_is_active(struct kbase_device *kbdev)
+{
+	return false;
+}
+KBASE_EXPORT_TEST_API(kbase_pm_metrics_is_active);
+void kbase_pm_metrics_start(struct kbase_device *kbdev) {}
+void kbase_pm_metrics_stop(struct kbase_device *kbdev) {}
+#else /* CONFIG_MALI_MTK_DVFS_POLICY */
 
 bool kbase_pm_metrics_is_active(struct kbase_device *kbdev)
 {
@@ -419,6 +486,8 @@ void kbase_pm_metrics_stop(struct kbase_device *kbdev)
 	/* Timer is Stopped if its currently on (transition a) */
 	atomic_cmpxchg(&kbdev->pm.backend.metrics.timer_state, TIMER_ON, TIMER_STOPPED);
 }
+
+#endif /* CONFIG_MALI_MTK_DVFS_POLICY */
 
 #endif /* CONFIG_MALI_MIDGARD_DVFS */
 

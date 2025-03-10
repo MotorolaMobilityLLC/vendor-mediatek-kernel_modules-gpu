@@ -75,6 +75,18 @@
 #include <linux/clk.h>
 #include <linux/regulator/consumer.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+#include <linux/hrtimer.h>
+#endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
+#include "platform/mtk_platform_utils.h"
+#endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 /** Number of milliseconds before we time out on a GPU soft/hard reset */
 #define RESET_TIMEOUT 500
 
@@ -143,6 +155,31 @@
  */
 #define BASE_MAX_NR_CLOCKS_REGULATORS (2)
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
+/* Define Force sync value for ACP debug use */
+#define FORCE_SYNC_NONE 0
+#define FORCE_SYNC_CMD  1
+#define FORCE_SYNC_DTS  2
+#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+#define API_SYNC_FLAG_RESET 0x00060000
+#define API_SYNC_FLAG_SET   0x00070000
+#define API_SYNC_FLAG_DEBUG 0x39000000
+#define API_SYNC_FLAG_DEBUG_INIT (API_SYNC_FLAG_DEBUG | 0x00030000)
+
+#define API_SYNC_LEVEL_0 0
+#define API_SYNC_LEVEL_1 3
+#define API_SYNC_LEVEL_2 6
+
+#define API_SYNC_DEFAULT_TIMEOUT_MS 360000
+#define API_SYNC_MAXIMUM_TIMEOUT_MIN 0xFF
+
+struct api_sync_target_level {
+	int orig_level;
+	int mapping_level;
+};
+#endif
 /* Forward declarations */
 struct kbase_context;
 struct kbase_device;
@@ -661,6 +698,16 @@ struct kbase_mmu_mode const *kbase_mmu_mode_get_aarch64(void);
 
 #define DEVNAME_SIZE 16
 
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+#ifndef JOB_STATUS_QOS
+#define JOB_STATUS_QOS
+struct job_status_qos {
+	phys_addr_t phyaddr;
+	size_t size;
+};
+#endif
+#endif /* CONFIG_MALI_MTK_GPU_BM_JM */
+
 /**
  * enum kbase_devfreq_work_type - The type of work to perform in the devfreq
  *                                suspend/resume worker.
@@ -739,6 +786,56 @@ struct kbase_mem_migrate {
 	struct inode *inode;
 #endif
 };
+
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+#define MMU_DEBUG_INFO_BUFFER_SIZE 4096
+
+enum kbase_mmu_dbg_op_type {
+	MMU_OP_MAP = 0,
+	MMU_OP_UNMAP = 1,
+};
+
+/**
+ * struct kbase_mmu_debug_info - Kernel mmu debug information
+ *
+ * @time:  Kernel time of the record (ns).
+ * @pgds:  Number of pyhsical pages.
+ * @va:    Shifted page frame number of the GPU virtual pages to unmap.
+ * @tgid:  Thread group ID of the process whose thread created the context.
+ * @id:    Unique identifier for the context, indicates the number of
+ *         contexts which have been created for the device so far.
+ * @as_nr: Address space number, for GPU cache maintenance operations
+ *         that happen outside a specific kbase context.
+ * @ipm:   Whether page migration metadata should be ignored.
+ *
+ */
+struct kbase_mmu_debug_info {
+	u64 time;
+	size_t pgds;
+	u64 va;
+	pid_t tgid;
+	u32 id;
+	int as_nr;
+	bool ipm;
+	enum kbase_mmu_dbg_op_type mmu_op_type;
+};
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)
+enum exception_type {
+	EXCEPTION_BIT_STUCK = 0,
+	EXCEPTION_PM_TIMED_OUT = 1,
+	EXCEPTION_RESET_FAILED = 2,
+};
+#endif /* CONFIG_MALI_MTK_TRIGGER_KE */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
+enum mmu_dbg_log_config {
+	MMU_DBG_CFG_LOG_DIS = 0,
+	MMU_DBG_CFG_LOG_EN = 1,
+	MMU_DBG_CFG_LOG_BT_EN = 2,
+};
+#endif /* CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG */
 
 /**
  * struct kbase_device   - Object representing an instance of GPU platform device,
@@ -1085,6 +1182,9 @@ struct kbase_device {
 	u32 hw_quirks_tiler;
 	u32 hw_quirks_mmu;
 	u32 hw_quirks_gpu;
+#if MALI_USE_CSF
+	u32 hw_quirks_ne;
+#endif
 
 	struct list_head entry;
 	struct device *dev;
@@ -1092,6 +1192,11 @@ struct kbase_device {
 	u64 reg_start;
 	size_t reg_size;
 	void __iomem *reg;
+#if IS_ENABLED(CONFIG_MALI_MTK_GPUEB_IRQ)
+	int gpueb_irq;
+	u64 low_volt_count;
+	u64 brcast_timeout_count;
+#endif /* CONFIG_MALI_MTK_GPUEB_IRQ */
 	struct {
 		void __iomem **regs;
 		u32 *flags;
@@ -1194,6 +1299,18 @@ struct kbase_device {
 	u64 lowest_gpu_freq_khz;
 
 	struct kbase_backend_time backend_time;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+	bool api_sync_update_in_progress;
+	int temp_api_sync_flag;
+	int final_api_sync_flag;
+	int api_sync_level;
+	bool api_sync_force_reset;
+	bool api_sync_restore_always_on;
+	unsigned int api_sync_timeout_ms;
+	struct hrtimer api_sync_timer;
+	int api_sync_debug_level;
+#endif
 
 	bool cache_clean_in_progress;
 	u32 cache_clean_queued;
@@ -1367,8 +1484,53 @@ struct kbase_device {
 
 	struct notifier_block oom_notifier_block;
 
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+	struct job_status_qos job_status_addr;
+	struct v1_data* v1;
+#endif /* CONFIG_MALI_MTK_GPU_BM_JM */
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	struct mtk_logbuffer_info logbuf_regular;
+	struct mtk_logbuffer_info logbuf_critical;
+	struct mtk_logbuffer_info logbuf_exception;
+	struct mtk_logbuffer_info logbuf_deferred;
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	struct kbase_mem_migrate mem_migrate;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	struct mutex register_check_lock;
+	struct kbase_mmu_debug_info mmu_dbg[MMU_DEBUG_INFO_BUFFER_SIZE];
+	struct mutex mmu_debug_info_lock;
+	size_t mmu_debug_info_head;
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	u32 jit_reclaim_timeout_ms;
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_TRIGGER_KE)
+	u32 exception_mask;
+#endif /* CONFIG_MALI_MTK_TRIGGER_KE */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
+	u32 mmu_dbg_config_value;
+#endif /* CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	int memory_debug_mode;
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT)
+	bool mem_whitebox_debug;
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_RESET_DEBUG)
+	u32 reset_exception_mask;
+#endif /* CONFIG_MALI_MTK_GPU_RESET_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+	u32 gov_core_mask_disable;
+#endif /* CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG */
 
 #if MALI_USE_CSF && IS_ENABLED(CONFIG_SYNC_FILE)
 	atomic_t live_fence_metadata;
@@ -1387,6 +1549,15 @@ struct kbase_device {
 #endif
 
 	struct notifier_block pcm_prioritized_process_nb;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	ktime_t scheduler_kthread_exec_begin_time;
+	ktime_t scheduler_kthread_exec_end_time;
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
+	u32 acp_dbg_force_sync;
+#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
 };
 
 /**
@@ -1614,6 +1785,24 @@ struct kbase_sub_alloc {
 	struct page *page;
 	DECLARE_BITMAP(sub_pages, NUM_PAGES_IN_2MB_LARGE_PAGE);
 };
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+enum kbase_memory_category {
+	KBASE_MEM_API, // 0
+	KBASE_MEM_GROW, // 1
+	KBASE_MEM_JIT, // 2
+	KBASE_MEM_MMU, // 3
+	KBASE_MEM_TILER, // 4
+	KBASE_MEM_LABEL_COUNT, // 5
+	KBASE_MEM_CONTEXT = KBASE_MEM_LABEL_COUNT, // 5
+	KBASE_MEM_JM, // 6
+	KBASE_MEM_UNKNOWN, // 7
+	KBASE_MEM_COUNT // 8
+};
+
+/** Max length of the process name */
+#define MAX_PROCESS_NAME_LEN        128
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 /**
  * struct kbase_context - Kernel base context
@@ -1945,6 +2134,11 @@ struct kbase_context {
 	atomic_t used_pages;
 	atomic_t nonmapped_pages;
 	atomic_t permanent_mapped_pages;
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	bool target_mem_profiling;
+	char process_name[MAX_PROCESS_NAME_LEN];
+	atomic_t used_pages_categories[KBASE_MEM_LABEL_COUNT];
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 	struct kbase_mem_pool_group mem_pools;
 
@@ -2034,6 +2228,16 @@ struct kbase_context {
 	 */
 	struct kbase_gpu_metrics_ctx *gpu_metrics_ctx;
 #endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	char group_leader_comm[TASK_COMM_LEN];
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	uint64_t notification_fd_signal_time;
+	uint64_t notification_data_read_time;
+	uint64_t notification_polling_start_time;
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 	char comm[TASK_COMM_LEN];
 };

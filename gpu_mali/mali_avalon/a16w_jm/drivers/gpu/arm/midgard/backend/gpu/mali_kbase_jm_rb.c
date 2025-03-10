@@ -40,6 +40,11 @@
 #include <backend/gpu/mali_kbase_jm_internal.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
 
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+#include <gpu_bm.h>
+#include <ged_gpu_bm.h>
+#endif
+
 /**
  * SLOT_RB_EMPTY - Return whether the specified ringbuffer is empty.
  *
@@ -1368,6 +1373,24 @@ void kbase_gpu_complete_hw(struct kbase_device *kbdev, unsigned int js, u32 comp
 			trace_gpu_sched_switch(kbasep_make_job_slot_string(js, js_string,
 									   sizeof(js_string)),
 					       ktime_to_ns(ktime_get_raw()), 0, 0, 0);
+		}
+	}
+#endif
+
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+	{
+		/* The atom in the HEAD */
+		struct kbase_jd_atom *next_katom = kbase_gpu_inspect(kbdev, js,
+									0);
+
+		if (next_katom && next_katom->gpu_rb_state ==
+						KBASE_ATOM_GPU_RB_SUBMITTED) {
+			if (js == 0) {
+				kbdev->v1->ctx = (u32)next_katom->kctx->id;
+				kbdev->v1->job = next_katom->work_id;
+				kbdev->v1->frame = (u32)qos_get_frame_nr();
+				kbdev->v1->freq = js;
+			}
 		}
 	}
 #endif

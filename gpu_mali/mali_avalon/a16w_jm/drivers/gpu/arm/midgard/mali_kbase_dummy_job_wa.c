@@ -335,8 +335,13 @@ int kbase_dummy_job_wa_load(struct kbase_device *kbdev)
 		nr_pages = PFN_UP(blob->size);
 		flags = blob->map_flags | BASE_MEM_FLAG_MAP_FIXED;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+		va_region = kbase_mem_alloc(kctx, nr_pages, nr_pages, 0, &flags, &gpu_va,
+					    mmu_sync_info, KBASE_MEM_UNKNOWN);
+#else
 		va_region = kbase_mem_alloc(kctx, nr_pages, nr_pages, 0, &flags, &gpu_va,
 					    mmu_sync_info);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 		if (!va_region) {
 			dev_err(kbdev->dev, "Failed to allocate for blob\n");

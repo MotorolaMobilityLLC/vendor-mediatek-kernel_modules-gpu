@@ -61,6 +61,9 @@
 #include "csf/mali_kbase_csf_csg_debugfs.h"
 #include "csf/mali_kbase_csf_cpu_queue.h"
 #include "csf/mali_kbase_csf_event.h"
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+#include "csf/mali_kbase_csf_db_validation.h"
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 #endif
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 #include "arbiter/mali_kbase_arbiter_pm.h"
@@ -121,6 +124,60 @@
 
 #include <mali_kbase_caps.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS) || IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_DEBUG_FS || CONFIG_MALI_MTK_DEBUG_DUMP */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+#include <mtk_heap.h>
+#include <slbc_ops.h>
+#include <linux/memory_group_manager.h>
+#endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST)
+#include <platform/mtk_platform_common/mtk_platform_gpu_idle_test.h>
+#endif /* CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM)
+#include "csf/mali_kbase_csf_tiler_heap_reclaim.h"
+#endif /* CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM */
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY) && \
+	IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+#include "platform/mtk_platform_common/mtk_platform_dvfs_hint_26m_perf_cnting_ex.h"
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
+#include <platform/mtk_platform_common/mtk_platform_qinspect_recovery.h>
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
+
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+#include <gpu_bm.h>
+#if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
+#include <sspm_reservedmem_define.h>
+static phys_addr_t rec_phys_addr, rec_virt_addr;
+static unsigned long long rec_size;
+struct v1_data *gpu_info_ref;
+#endif /* CONFIG_MTK_TINYSYS_SSPM_SUPPORT */
+#endif /* CONFIG_MALI_MTK_GPU_BM_JM */
+
+#if defined(CONFIG_MALI_MTK_GPU_BM_CSF)
+#include <ged_gpu_bm.h>
+#endif /* CONFIG_MALI_MTK_GPU_BM_CSF */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+#include <ged_mali_event.h>
+#include <platform/mtk_platform_common/mtk_platform_mali_event.h>
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+#include <gpu_pdma.h>
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
+
 #define KERNEL_SIDE_DDK_VERSION_STRING "K:" MALI_RELEASE_NAME "(GPL)"
 
 /**
@@ -174,6 +231,57 @@ static const struct mali_kbase_capability_def kbase_caps_table[MALI_KBASE_NUM_CA
 /* Mutex to synchronize the probe of multiple kbase instances */
 static struct mutex kbase_probe_mutex;
 #endif
+
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+#if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
+static void get_rec_addr(void)
+{
+	int i;
+	unsigned char *ptr;
+
+	pr_info("%s: [GPU_QOS] start to get sspm reserved memory\n", __func__);
+	/* get sspm reserved mem */
+	rec_phys_addr = sspm_reserve_mem_get_phys(GPU_MEM_ID);
+	rec_virt_addr = sspm_reserve_mem_get_virt(GPU_MEM_ID);
+	rec_size = sspm_reserve_mem_get_size(GPU_MEM_ID);
+	pr_info("[GPU_QOS] DRAM physical memory addr= %x\n",
+		(unsigned int)rec_phys_addr);
+	pr_info("[GPU_QOS] DRAM virtual memory addr= %x size= %llu\n",
+		(unsigned int)rec_virt_addr, rec_size);
+
+	if (rec_virt_addr) {
+		/* clear */
+		ptr = (unsigned char *)(uintptr_t)rec_virt_addr;
+		for (i = 0; i < rec_size; i++)
+			ptr[i] = 0x0;
+
+		gpu_info_ref = (struct v1_data *)(uintptr_t)rec_virt_addr;
+	}
+#endif /* CONFIG_MTK_TINYSYS_SSPM_SUPPORT */
+}
+
+static int mtk_bandwith_resource_init(struct kbase_device *kbdev)
+{
+	int err = 0;
+
+	pr_info("%s: [GPU_QOS] try to get rec addr\n", __func__);
+
+#if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
+	get_rec_addr();
+
+	if(gpu_info_ref == NULL) {
+		err = -1;
+		pr_info("%s: [GPU_QOS] get sspm reserved memory fail\n", __func__);
+		return err;
+	}
+	kbdev->v1 = gpu_info_ref;
+	kbdev->v1->version = 1;
+	kbdev->job_status_addr.phyaddr = rec_phys_addr;
+	MTKGPUQoS_setup(kbdev->v1, kbdev->job_status_addr.phyaddr, rec_size);
+#endif /* CONFIG_MTK_TINYSYS_SSPM_SUPPORT */
+	return err;
+}
+#endif /* CONFIG_MALI_MTK_GPU_BM_JM */
 
 /**
  * mali_kbase_supports_cap - Query whether a kbase capability is supported
@@ -896,14 +1004,27 @@ static int kbase_api_mem_alloc_ex(struct kbase_context *kctx,
 		flags |= (BASE_MEM_SAME_VA | BASE_MEM_CACHED_CPU | BASE_MEM_COHERENT_SYSTEM);
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+	if (alloc_ex->in.have_pbha_hint && !(flags & BASE_MEM_FIXED))
+		gpu_va = 0xF0;
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	reg = kbase_mem_alloc(kctx, alloc_ex->in.va_pages, alloc_ex->in.commit_pages,
+			      alloc_ex->in.extension, &flags, &gpu_va, mmu_sync_info, KBASE_MEM_API);
+#else
 	reg = kbase_mem_alloc(kctx, alloc_ex->in.va_pages, alloc_ex->in.commit_pages,
 			      alloc_ex->in.extension, &flags, &gpu_va, mmu_sync_info);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 	if (!reg)
 		return -ENOMEM;
 
 	alloc_ex->out.flags = flags;
 	alloc_ex->out.gpu_va = gpu_va;
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+	alloc_ex->out.pbha_8bit = reg->pbha_8bit;
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 
 	return 0;
 }
@@ -1183,9 +1304,38 @@ static int kbase_api_mem_import(struct kbase_context *kctx, union kbase_ioctl_me
 	if (flags & BASEP_MEM_FLAGS_KERNEL_ONLY)
 		return -ENOMEM;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+		u8 PBHA = import->in.in_pbha_8bit;
+		if (import->in.vkAllocateMemoryCallID != 0) {
+			/*
+			 * If PBHA from user DDK != 0 means that this is an AHB with multiple planes (multiple dma buffers)
+			 * Since these 1~3 dma buffers should share the same PBHA value, use the previous assigned PBHA value insted.
+			 * Also, send this information (if the PBHA from user DDK is 0 or not) to kbase_mem_import.
+			 * Because PDMA only release the PBHA value once when we have multiple PBHA.
+			 * So we should save this data inside kbase_va_region for free function to use.
+			 */
+
+			bool isFirstDmaBuf = false;
+			if (PBHA == 0) {
+				PBHA = pdma_request_extended_pbha(kctx->id);
+				isFirstDmaBuf = true;
+			}
+
+			ret = kbase_mem_import(kctx, import->in.type, u64_to_user_ptr(import->in.phandle),
+					   import->in.padding, &import->out.gpu_va, &import->out.va_pages, &flags,
+					   PBHA, isFirstDmaBuf);
+			import->out.out_pbha_8bit = PBHA;
+		}
+		else { //callID == 0 -> pbha hint from user DDK is off.
+			ret = kbase_mem_import(kctx, import->in.type, u64_to_user_ptr(import->in.phandle),
+							   import->in.padding, &import->out.gpu_va, &import->out.va_pages, &flags, 0, false);
+			import->out.out_pbha_8bit = 0;
+		}
+#else
 	ret = kbase_mem_import(kctx, import->in.type, u64_to_user_ptr(import->in.phandle),
 			       import->in.padding, &import->out.gpu_va, &import->out.va_pages,
 			       &flags);
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 
 	import->out.flags = flags;
 
@@ -1753,6 +1903,157 @@ static int kbasep_ioctl_set_limited_core_count(
 	return 0;
 }
 
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
+			struct kbase_ioctl_internal_fence_wait *fence_wait)
+{
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+	if (fence_wait->time_in_microseconds == 2000 || fence_wait->time_in_microseconds == 3000 ||
+		fence_wait->time_in_microseconds == 4000 || fence_wait->time_in_microseconds == 5000) {
+		ged_mali_event_notify_fence_timeout_event(kctx->tgid, FENCE_TYPE_INTERNAL, fence_wait->time_in_microseconds/1000);
+	}
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+	if (fence_wait->time_in_microseconds == 2000 || fence_wait->time_in_microseconds == 3000) {
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_DEFERRED,
+			"ctx:%d_%d cpu queue:%llx Internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u\n",
+			kctx->tgid, kctx->id, fence_wait->queue,
+			fence_wait->time_in_microseconds,
+			fence_wait->flags,
+			fence_wait->pid);
+
+		struct task_struct *task;
+		struct pid *pid_struct;
+		pid_struct = find_get_pid(kctx->tgid);
+		if (pid_struct) {
+			rcu_read_lock();
+			task = pid_task(pid_struct, PIDTYPE_PID);
+			if (task && task->group_leader && task->signal) {
+				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_DEFERRED | MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+					"ctx:%d_%d, process_name:%s, state:0x%llx, exit_state:0x%llx, signal->flags:%lld\n",
+					kctx->tgid, kctx->id, task->group_leader->comm, (unsigned long long) task->__state,
+					(unsigned long long) task->exit_state, (unsigned long long) task->signal->flags);
+			}
+			rcu_read_unlock();
+			put_pid(pid_struct);
+		}
+#else /* CONFIG_MALI_MTK_LOG_BUFFER */
+		dev_info(kctx->kbdev->dev, "ctx:%d_%d cpu queue:%llx Internal fence wait timeouts(%llu ms)! flags=0x%x pid=%u",
+			kctx->tgid, kctx->id, fence_wait->queue,
+			fence_wait->time_in_microseconds,
+			fence_wait->flags,
+			fence_wait->pid);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		if (kctx->kbdev->scheduler_kthread_exec_begin_time > kctx->kbdev->scheduler_kthread_exec_end_time) {
+			s64 blocked_time = ktime_to_ms(ktime_sub(ktime_get(), kctx->kbdev->scheduler_kthread_exec_begin_time));
+			if (blocked_time > 100) {
+				struct kbase_csf_scheduler *scheduler = &(kctx->kbdev)->csf.scheduler;
+				unsigned int state = scheduler->gpuq_kthread->__state;
+				dev_info(kctx->kbdev->dev,
+					"ctx_%d_%d scheduler kthread was blocked (%llu ms), state=0x%x", kctx->tgid, kctx->id, blocked_time, state);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+					"ctx_%d_%d scheduler kthread was blocked (%llu ms), state=0x%x\n", kctx->tgid, kctx->id, blocked_time, state);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+				// 0x2: uninterruptible-sleep
+				if (state == 0x2 && scheduler->gpuq_kthread) {
+					mtk_common_print_backtrace_for_task(kctx->kbdev, scheduler->gpuq_kthread);
+				}
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+			}
+		}
+		if (fence_wait->flags & BASE_INTERNAL_FENCE_WAIT_DUMP_FLAG) {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+			struct kbase_context *kctx_pid;
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, kctx, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, kctx, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
+			mtk_common_debug(MTK_COMMON_DBG_DUMP_DB_BY_SETTING, kctx, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
+			if (kctx->tgid != (int)fence_wait->pid) {
+				list_for_each_entry(kctx_pid, &kctx->kbdev->kctx_list, kctx_list_link) {
+					if (kctx_pid->tgid == (int)fence_wait->pid) {
+						mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, kctx_pid, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
+						break;
+					}
+				}
+			} else
+				mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, kctx, MTK_DBG_HOOK_FENCE_INTERNAL_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+		}
+	}
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET)
+	if (fence_wait->time_in_microseconds == 3000) {
+		if (kbase_prepare_to_reset_gpu(kctx->kbdev, RESET_FLAGS_NONE)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+				mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_DEFERRED,
+					"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Trigger GPU reset\n",
+					kctx->tgid, kctx->id, fence_wait->queue,
+					fence_wait->time_in_microseconds);
+#else /* CONFIG_MALI_MTK_LOG_BUFFER */
+			dev_info(kctx->kbdev->dev, "ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Trigger GPU reset",
+						kctx->tgid, kctx->id, fence_wait->queue,
+						fence_wait->time_in_microseconds);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+			ged_mali_event_update_gpu_reset_nolock(GPU_RESET_INTERNAL_FENCE_TIMEOUT);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
+			kbase_reset_gpu(kctx->kbdev);
+		} else {
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_DEFERRED,
+				"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Other threads are already resetting the GPU\n",
+				kctx->tgid, kctx->id, fence_wait->queue,
+				fence_wait->time_in_microseconds);
+#else /* CONFIG_MALI_MTK_LOG_BUFFER */
+			dev_info(kctx->kbdev->dev, "ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Other threads are already resetting the GPU",
+					 kctx->tgid, kctx->id, fence_wait->queue,
+					 fence_wait->time_in_microseconds);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		}
+	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	if (fence_wait->time_in_microseconds == 5000) {
+		/* Log the 2s, 3s timeout dump */
+		mtk_logbuffer_dump_to_dev_and_clear(kctx->kbdev, MTK_LOGBUFFER_TYPE_DEFERRED);
+	}
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
+#endif /* CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET */
+#if IS_ENABLED(CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY)
+	if ((fence_wait->time_in_microseconds == 4000 || fence_wait->time_in_microseconds == 5000 ||
+		fence_wait->time_in_microseconds == 6000 || fence_wait->time_in_microseconds == 7000 ||
+		fence_wait->time_in_microseconds == 8000 || fence_wait->time_in_microseconds == 9000) &&
+		(fence_wait->queue != 0)) {
+		mutex_lock(&recovery_lock);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		if (fence_wait->time_in_microseconds == 4000) {
+			mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
+						"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Trigger cross queue sync recovery\n",
+						kctx->tgid, kctx->id, fence_wait->queue, fence_wait->time_in_microseconds);
+		} else {
+			dev_info(kctx->kbdev->dev,
+				"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Trigger cross queue sync recovery",
+				kctx->tgid, kctx->id, fence_wait->queue, fence_wait->time_in_microseconds);
+		}
+
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Trigger cross queue sync recovery\n",
+			kctx->tgid, kctx->id, fence_wait->queue, fence_wait->time_in_microseconds);
+#else /* CONFIG_MALI_MTK_LOG_BUFFER */
+		dev_info(kctx->kbdev->dev,
+			"ctx:%d_%d cpu queue:%llx Internal fence timeouts(%llu ms)! Trigger cross queue sync recovery",
+			kctx->tgid, kctx->id, fence_wait->queue, fence_wait->time_in_microseconds);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		mtk_qinspect_recovery(kctx, QINSPECT_CPU_QUEUE, &fence_wait->queue);
+		mutex_unlock(&recovery_lock);
+	}
+#endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
+	return 0;
+}
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+
 static long kbase_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	struct kbase_file *const kfile = filp->private_data;
@@ -2052,6 +2353,13 @@ static long kbase_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				      kbasep_ioctl_set_limited_core_count,
 				      struct kbase_ioctl_set_limited_core_count, kctx);
 		break;
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	case KBASE_IOCTL_INTERNAL_FENCE_WAIT:
+		KBASE_HANDLE_IOCTL_IN(KBASE_IOCTL_INTERNAL_FENCE_WAIT,
+					kbasep_ioctl_internal_fence_wait,
+					struct kbase_ioctl_internal_fence_wait, kctx);
+		break;
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 	}
 
 	dev_warn(kbdev->dev, "Unknown ioctl 0x%x nr:%d", cmd, _IOC_NR(cmd));
@@ -2100,6 +2408,10 @@ static ssize_t kbase_read(struct file *filp, char __user *buf, size_t count, lof
 
 	if (read_event)
 		atomic_set(&kctx->event_count, 0);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	kctx->notification_data_read_time = ktime_get_ns();
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 	return data_size;
 }
@@ -2164,9 +2476,17 @@ static __poll_t kbase_poll(struct file *filp, poll_table *wait)
 		return EPOLLERR;
 #endif
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	kctx->notification_fd_signal_time = 0;
+	kctx->notification_data_read_time = 0;
+	kctx->notification_polling_start_time = ktime_get_ns();
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 	poll_wait(filp, &kctx->event_queue, wait);
 	if (kbase_event_pending(kctx)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+		kctx->notification_fd_signal_time = ktime_get_ns();
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 #if (KERNEL_VERSION(4, 19, 0) > LINUX_VERSION_CODE)
 		return POLLIN | POLLRDNORM;
 #else
@@ -2261,6 +2581,79 @@ static const struct file_operations kbase_fops = {
 	.fop_flags = FOP_UNSIGNED_OFFSET,
 #endif
 };
+
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY) && \
+	IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+static ssize_t dvfs_hint_26m_perf_cnting_show(struct device *dev, struct device_attribute *attr, char *const buf)
+{
+	struct kbase_device *kbdev;
+	ssize_t ret = 0;
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	if (dvfs_hint_26m_perf_cnting_enable)
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "dvfs_hint_26m_perf_cnting is enabled\n");
+	else
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "dvfs_hint_26m_perf_cnting is disabled\n");
+
+	return ret;
+}
+static ssize_t dvfs_hint_26m_perf_cnting_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct kbase_device *kbdev;
+	int ret;
+	int dvfs_hint_26m_perf_cnting = 0;
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	ret = kstrtoint(buf, 0, &dvfs_hint_26m_perf_cnting);
+
+	dvfs_hint_26m_perf_cnting_enable = dvfs_hint_26m_perf_cnting;
+
+	return count;
+}
+static DEVICE_ATTR_RW(dvfs_hint_26m_perf_cnting);
+
+static ssize_t ipa_enable_show(struct device *dev, struct device_attribute *attr, char *const buf)
+{
+	struct kbase_device *kbdev;
+	ssize_t ret = 0;
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	if (Enable_IPA)
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "ipa is enabled\n");
+	else
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "ipa is disabled\n");
+
+	return ret;
+}
+static ssize_t ipa_enable_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct kbase_device *kbdev;
+	int ret;
+	int ipa_enable = 0;
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	ret = kstrtoint(buf, 0, &ipa_enable);
+
+	Enable_IPA = ipa_enable;
+
+	return count;
+}
+static DEVICE_ATTR_RW(ipa_enable);
+
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY && CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING*/
 
 /**
  * power_policy_show - Show callback for the power_policy sysfs file.
@@ -2374,6 +2767,503 @@ static ssize_t power_policy_store(struct device *dev, struct device_attribute *a
  */
 static DEVICE_ATTR_RW(power_policy);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
+static ssize_t force_cache_sync_show(struct device *dev, struct device_attribute *attr, char * const buf)
+{
+	struct kbase_device *kbdev;
+
+	CSTD_UNUSED(attr);
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	return scnprintf(buf, PAGE_SIZE, "System cohrency: %u, Force cache: %d\n", kbdev->system_coherency, kbdev->acp_dbg_force_sync);
+}
+
+static ssize_t force_cache_sync_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct kbase_device *kbdev;
+	unsigned int force_sync;
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev) {
+		pr_info("[KBASE] Bad kbdev!\n");
+		return -ENODEV;
+	}
+
+	if ((kstrtoint(buf, 0, &force_sync)) || kbdev->acp_dbg_force_sync == FORCE_SYNC_DTS ||
+		(force_sync != FORCE_SYNC_NONE && force_sync != FORCE_SYNC_CMD))
+		return -EINVAL;
+
+	kbdev->acp_dbg_force_sync = FORCE_SYNC_CMD;
+
+	return count;
+}
+static DEVICE_ATTR_RW(force_cache_sync);
+#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
+
+
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
+/**
+ * mmu_dbg_config_show - Get the KBase MMU debug config value.
+ *
+ * @dev:  The device this sysfs file is for.
+ * @attr: The attributes of the sysfs file.
+ * @buf:  The output buffer for the sysfs file contents
+ *
+ * Get value for configuring MMU debug log
+ *
+ * Return: The number of bytes output to @buf if the
+ *         function succeeded. A Negative value on failure.
+ */
+static ssize_t mmu_dbg_config_show(struct device *dev, struct device_attribute *attr, char * const buf)
+{
+	struct kbase_device *kbdev = dev_get_drvdata(dev);
+	u32 mmu_dbg_config_value;
+
+	if (!kbdev) {
+		pr_info("[KBASE] Bad kbdev!\n");
+		return -ENODEV;
+	}
+
+	mmu_dbg_config_value = kbdev->mmu_dbg_config_value;
+	return scnprintf(buf, PAGE_SIZE, "%u\n", mmu_dbg_config_value);
+}
+
+/**
+ * mmu_dbg_config_store - Set the KBase MMU debug config value.
+ *
+ * @dev:   The device with sysfs file is for
+ * @attr:  The attributes of the sysfs file
+ * @buf:   The value written to the sysfs file
+ * @count: The number of bytes to write to the sysfs file
+ *
+ * The value for configuring MMU debug log
+ *
+ * Return: @count if the function succeeded. An error code on failure.
+ */
+static ssize_t mmu_dbg_config_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct kbase_device *kbdev = dev_get_drvdata(dev);
+	u32 mmu_dbg_config_value;
+
+	if (!kbdev) {
+		pr_info("[KBASE] Bad kbdev!\n");
+		return -ENODEV;
+	}
+
+	if (kstrtouint(buf, 0, &mmu_dbg_config_value))
+		return -EINVAL;
+
+	kbdev->mmu_dbg_config_value = mmu_dbg_config_value;
+	pr_info("[KBASE] mmu_dbg_config_value=%d\n", mmu_dbg_config_value);
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(mmu_dbg_config);
+#endif /* CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM)
+static ssize_t force_reclaim_show(struct device *dev, struct device_attribute *attr, char * const buf)
+{
+	return 0;
+}
+
+static ssize_t force_reclaim_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct kbase_device *kbdev;
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev) {
+		pr_info("[KBASE] Bad kbdev!\n");
+		return -ENODEV;
+	}
+	mtk_force_reclaim(kbdev);
+	return count;
+}
+
+static DEVICE_ATTR_RW(force_reclaim);
+#endif /* CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MMU_DUMP)
+extern void *kbase_mmu_dump_mtk(struct kbase_device *kbdev, struct kbase_context *kctx, size_t nr_pages, size_t *ret_size);
+#define DUMP_LIST_D1_NUM   (KBASE_MMU_PAGE_ENTRIES + 1) // PGD | LEVEL (1) + ENTRY_LIST (512)
+#define DUMP_LIST_STR_SIZE (DUMP_LIST_D1_NUM*17)        // 1 byte for space + 16 bytes for each entry hex dump => 17 bytes
+
+static void dump_mmu_table_to_km_log(struct kbase_device *kbdev, u64 *table, unsigned long dump_entry_nr)
+{
+	size_t entry_list_str_i = 0;
+	unsigned long i = 0;
+	char* entry_list_str = (char *) kmalloc(DUMP_LIST_STR_SIZE+1, GFP_KERNEL);
+	entry_list_str[DUMP_LIST_STR_SIZE] = 0;
+
+	dev_info(kbdev->dev, "[GPUMMU] as_setup: transtab 0x%llx, memattr 0x%llx, transcfg 0x%llx,\n", table[0], table[1], table[2]);
+	dev_info(kbdev->dev, "[GPUMMU] show i = %lu, range (3, %lu)\n", i, dump_entry_nr);
+	for(i = 3; i < dump_entry_nr; i++) {
+		if ( (i-3) % DUMP_LIST_D1_NUM == 0 ) {
+			dev_info(kbdev->dev, "[GPUMMU] [%lu] %llx \n", i, table[i]);
+			//count += scnprintf(buf_str + count, buf_size - count, "[GPUMMU] [%lu] %llx \n", i, table[i]);
+		}
+		//dev_info(kbdev->dev, "%llx ", table[i]);
+		if(0xFFULL == table[i])
+			break;
+		entry_list_str_i += scnprintf(entry_list_str + entry_list_str_i, DUMP_LIST_D1_NUM*16 - entry_list_str_i, "%llx ", table[i]);
+		if ( ((i-3) % DUMP_LIST_D1_NUM) == (DUMP_LIST_D1_NUM - 1) ) {
+			//dev_info(kbdev->dev, "\n");
+			entry_list_str_i += scnprintf(entry_list_str + entry_list_str_i, DUMP_LIST_D1_NUM*16 - entry_list_str_i, " \n");
+			entry_list_str[entry_list_str_i] = 0;
+			dev_info(kbdev->dev, "[GPUMMU] %s,\n", entry_list_str);
+			entry_list_str_i = 0;
+		}
+	}
+	kfree(entry_list_str);
+}
+
+static size_t dump_mmu_table_to_str_buf(struct kbase_device *kbdev, u64 *table, unsigned long dump_entry_nr, char* buf_str, size_t buf_size)
+{
+	size_t count = 0;
+	unsigned long i = 0;
+
+	//dump_mmu_table_to_km_log(table, dump_entry_nr);
+	count += scnprintf(buf_str + count, buf_size - count,
+					"[GPUMMU] as_setup: transtab 0x%llx, memattr 0x%llx, transcfg 0x%llx,\n", table[0], table[1], table[2]);
+	count += scnprintf(buf_str + count, buf_size - count, "[GPUMMU] Table:\n");
+	for(i = 3; i < dump_entry_nr; i++) {
+		if(0xFFULL == table[i])
+			break;
+		count += scnprintf(buf_str + count, buf_size - count, "%llx ", table[i]);
+		if ( ((i-3) % DUMP_LIST_D1_NUM) == (DUMP_LIST_D1_NUM - 1) ) {
+			count += scnprintf(buf_str + count, buf_size - count, " \n");
+		}
+	}
+	return count;
+}
+
+/*
+static void dump_mmu_table_to_gpu_log(struct kbase_device *kbdev, u64 *table, unsigned long dump_entry_nr)
+{
+	size_t count = 0;
+	unsigned long i = 0;
+
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR, "[GPUMMU] show i = %lu, range (0, %lu)\n", i, dump_entry_nr);
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR, "[GPUMMU] as_setup: transtab 0x%llx, memattr 0x%llx, transcfg 0x%llx,\n", table[0], table[1], table[2]);
+	for(i = 3; i < dump_entry_nr; i++) {
+		if ( (i-3) % DUMP_LIST_D1_NUM == 0 ) {
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR, "[GPUMMU] show i = %lu\n", i);
+		}
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR, "%llx ", table[i]);
+		if(0xFFULL == table[i])
+			break;
+		if ( ((i-3) % DUMP_LIST_D1_NUM) == (DUMP_LIST_D1_NUM - 1) ) {
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_REGULAR, "\n");
+		}
+	}
+}
+*/
+
+#define DUMP_MMU_TABLE_MAX_NUM 256
+struct mmu_user_info {
+	void *mmu_table_addr;   // mmu table base
+	size_t table_size;
+	unsigned int as_no;     // as number
+	int as_nr;              // idx in kbdev->as[kctx->as_nr]
+	u32 id;                 // process info
+	pid_t tgid;             // process info
+	pid_t pid;              // process info
+	char group_leader_comm[TASK_COMM_LEN];
+	char comm[TASK_COMM_LEN];
+};
+/* MMU table in str buffer */
+static char* mmu_table_user_arr_in_str_buf = NULL;
+static struct mutex mmu_table_str_buf_mutex;
+static ssize_t mmu_table_str_buf_size = 0;
+/* dump mode */
+static atomic_t dump_mmu_mode;
+static struct mutex dump_mmu_mode_mutex;
+#define DUMP_MMU_MODE_INIT   1   // alloc buffer and snapshot (dump csf mmu and all kctx mmu to buffer)
+#define DUMP_MMU_MODE_LOCK   2   // lock buffer
+#define DUMP_MMU_MODE_UNLOCK 3   // unlock buffer
+#define DUMP_MMU_MODE_FINISH 0   // free buffer
+#define DUMP_MMU_MODE_KM_LOG 4   // Don't use dump buffer, kernel log only
+
+static void save_mmu_table_user_info(struct kbase_device *kbdev,
+									struct mmu_user_info * dst,
+									void *mmu_table_addr,  // mmu table base
+									size_t table_size,
+									unsigned int as_no,     // as number
+									int as_nr,              // idx in kbdev->as[kctx->as_nr]
+									u32 id,                 // process info
+									pid_t tgid,             // process info
+									pid_t pid,              // process info
+									char *group_leader_comm,
+									char *comm)
+{
+	u64 *table = NULL;
+	dev_info(kbdev->dev,
+		"[GPUMMU] Dump MMU table, as_no %u, as_nr %d, dump address %p, ctx_id %d_%d, pid %d, group_leader %s, comm %s, table_size %lu \n",
+		as_no, as_nr, mmu_table_addr,
+		tgid, id, pid,
+		group_leader_comm, comm, table_size);
+	dst->mmu_table_addr = mmu_table_addr;
+	dst->table_size = table_size;
+	dst->as_no = as_no;
+	dst->as_nr = as_nr;
+	dst->id = id;
+	dst->tgid = tgid;
+	dst->pid = pid;
+	memcpy(dst->group_leader_comm, group_leader_comm, TASK_COMM_LEN);
+	memcpy(dst->comm, comm, TASK_COMM_LEN);
+
+	if(mmu_table_addr) {
+		table = (u64 *) mmu_table_addr;
+		dev_info(kbdev->dev, "[GPUMMU] as_setup: transtab 0x%llx, memattr 0x%llx, transcfg 0x%llx,\n", table[0], table[1], table[2]);
+	}
+}
+
+static void free_all_dump_mmu_table(struct kbase_device *kbdev)
+{
+	unsigned int i = 0;
+
+	if(mmu_table_str_buf_size == 0)
+		return;
+
+	mutex_lock(&mmu_table_str_buf_mutex);
+	mmu_table_str_buf_size = 0;
+	if(mmu_table_user_arr_in_str_buf)
+		kfree(mmu_table_user_arr_in_str_buf);
+	mmu_table_user_arr_in_str_buf = NULL;
+	mutex_unlock(&mmu_table_str_buf_mutex);
+}
+
+static void dump_mmu_table_all_to_str_buf(struct kbase_device *kbdev,
+										  struct mmu_user_info *mmu_table_user_arr, unsigned int mmu_table_num)
+{
+	unsigned int i = 0;
+	size_t out_size = PAGE_SIZE + 1, used_size = 0;
+	unsigned long entry_nr = 0;
+
+	if(mmu_table_num == 0)
+		return;
+
+	for(i=0; i< mmu_table_num; i++)
+		out_size += (mmu_table_user_arr[i].table_size * 17) / sizeof(u64);// u64 => str array (including space)
+
+	mmu_table_user_arr_in_str_buf = (char *) kmalloc(out_size, GFP_KERNEL);
+	char* buf_str = mmu_table_user_arr_in_str_buf;
+	if(buf_str == NULL)
+		return;
+
+	out_size -= 1;
+	buf_str[out_size] = 0;
+	dev_info(kbdev->dev, "[GPUMMU] out_size = %lu \n", out_size);
+
+	for(i=0; i< mmu_table_num && used_size <= out_size; i++){
+		used_size += (size_t)scnprintf(buf_str + used_size, out_size - used_size,
+							"[GPUMMU] Dump MMU table, as_no %u, as_nr %d, dump address %p, ctx_id %d_%d, pid %d, size %lu, group_leader %s, comm %s\n",
+							mmu_table_user_arr[i].as_no, mmu_table_user_arr[i].as_nr, mmu_table_user_arr[i].mmu_table_addr,
+							mmu_table_user_arr[i].tgid,  mmu_table_user_arr[i].id,  mmu_table_user_arr[i].pid,
+							mmu_table_user_arr[i].table_size, mmu_table_user_arr[i].group_leader_comm,  mmu_table_user_arr[i].comm);
+		entry_nr = mmu_table_user_arr[i].table_size / sizeof(u64);
+		used_size += dump_mmu_table_to_str_buf(kbdev, (u64 *)mmu_table_user_arr[i].mmu_table_addr, entry_nr, buf_str + used_size, out_size - used_size);
+		used_size += (size_t)scnprintf(buf_str + used_size, out_size - used_size, "\n[GPUMMU] -----------------------\n");
+	}
+	buf_str[used_size] = '\0';
+	used_size++;
+	dev_info(kbdev->dev, "[GPUMMU] used_size = %lu \n", used_size);
+	if(used_size == out_size){
+		dev_err(kbdev->dev, "[GPUMMU] warning (used_size = out_size) \n");
+	}
+	mmu_table_str_buf_size = used_size;
+}
+
+static void dump_mmu_table_all(struct kbase_device *kbdev)
+{
+	struct kbase_context *kctx;
+	size_t nr_pages = 0, copy_size = 0;
+	unsigned int i = 0;
+	struct mmu_user_info *mmu_table_user_arr = NULL; // one item is csf or per-ctx mmu table base address
+	unsigned int mmu_table_num = 0;
+
+	if (!kbdev) {
+		pr_info("[KBASE] Bad kbdev!\n");
+		return;
+	}
+
+	mutex_lock(&mmu_table_str_buf_mutex);
+	mutex_lock(&kbdev->kctx_list_lock);
+	size_t kctx_num = list_count_nodes(&kbdev->kctx_list);
+#if MALI_USE_CSF
+	mmu_table_num = kctx_num + 1; // all kctx + csf
+#else
+	mmu_table_num = kctx_num; // all kctx
+#endif
+	mmu_table_user_arr = (struct mmu_user_info *) kmalloc(sizeof(struct mmu_user_info)*mmu_table_num, GFP_KERNEL);
+	if (!mmu_table_user_arr) {
+		pr_info("[KBASE] Bad alloc of mmu_table_user_arr!\n");
+		return;
+	}
+	list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
+		if(kctx != NULL) {
+		// Dump GPU MMU table for each kctx (per-process)
+			nr_pages = 2;
+			nr_pages += kbasep_mmu_dump_table_size(kbdev, MIDGARD_MMU_TOPLEVEL, &kctx->mmu) >> PAGE_SHIFT; //(nr_pages * PAGE_SIZE)
+			//dev_info(kbdev->dev, "[GPUMMU] start dump, dump_target_size = %u", (unsigned int) dump_target_size);
+			void *kaddr = (void *) kbase_mmu_dump_mtk(kbdev, kctx, nr_pages, &copy_size);
+			// Show pid, process name, AS value
+			unsigned int as_no = (kctx->as_nr != KBASEP_AS_NR_INVALID) ? kbdev->as[kctx->as_nr].number : 0xFF;
+			dev_info(kbdev->dev, "[GPUMMU] i = %u ", i);
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+			save_mmu_table_user_info(kbdev, mmu_table_user_arr + i, kaddr, copy_size, as_no, kctx->as_nr,
+								kctx->id, kctx->tgid, kctx->pid, kctx->group_leader_comm, kctx->comm);
+#else
+			save_mmu_table_user_info(kbdev, mmu_table_user_arr + i, kaddr, copy_size, as_no, kctx->as_nr,
+								kctx->id, kctx->tgid, kctx->pid, kctx->comm, kctx->comm);
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+			i++;
+                }
+	}
+	mutex_unlock(&kbdev->kctx_list_lock);
+#if MALI_USE_CSF
+	nr_pages = 2;
+	nr_pages += kbasep_mmu_dump_table_size(kbdev, MIDGARD_MMU_TOPLEVEL, &kbdev->csf.mcu_mmu) >> PAGE_SHIFT; //(nr_pages * PAGE_SIZE)
+	//dev_info(kbdev->dev, "[GPUMMU] start dump, dump_target_size = %u", (unsigned int) dump_target_size);
+	dev_info(kbdev->dev, "[GPUMMU] i = %u ", mmu_table_num-1);
+	void *csf_dump_kaddr = (void *) kbase_mmu_dump_mtk(kbdev, NULL, nr_pages, &copy_size);
+	char csf_name[TASK_COMM_LEN] = "CSF (GPU FW)";
+	save_mmu_table_user_info(kbdev, mmu_table_user_arr + (mmu_table_num-1), csf_dump_kaddr, copy_size, 0, 0, 0, 0, 0, csf_name, csf_name);
+#endif
+
+	dump_mmu_table_all_to_str_buf(kbdev, mmu_table_user_arr, mmu_table_num);
+
+	for(i=0; i< mmu_table_num; i++){
+		//dev_info(kbdev->dev, "[GPUMMU] Free mmu_table_addr, i = %u \n", i);
+		// free csf_dump_kaddr & kaddr
+		if( (mmu_table_user_arr + i)->mmu_table_addr )
+			vfree( (mmu_table_user_arr + i)->mmu_table_addr );
+	}
+	//dev_info(kbdev->dev, "[GPUMMU] Free mmu_table_user_arr \n" );
+	kfree(mmu_table_user_arr);
+	mmu_table_user_arr = NULL;
+	mmu_table_num = 0;
+	mutex_unlock(&mmu_table_str_buf_mutex);
+}
+
+
+static ssize_t force_dump_mmu_read(struct file *file, char __user *buf, size_t len,
+						 loff_t *ppos)
+{
+	mutex_lock(&dump_mmu_mode_mutex);
+	if(atomic_read(&dump_mmu_mode) != DUMP_MMU_MODE_LOCK && mmu_table_str_buf_size <= 0) {
+		mutex_unlock(&dump_mmu_mode_mutex);
+		pr_err("[GPUMMU] User Guide (Please init and lock buffer before reading): \n"
+			"[GPUMMU]  Write Option 1: alloc buffer and snapshot (dump csf mmu and all kctx mmu to buffer) \n"
+			"[GPUMMU]  Write Option 2: lock buffer \n"
+			"[GPUMMU]  Write Option 3: unlock buffer \n"
+			"[GPUMMU]  Write Option 0: free buffer \n"
+			"[GPUMMU]  Read: dump buffer \n"
+			"[GPUMMU]  Example: echo 1 (init) -> echo 2 (lock) -> cat (dump) -> echo 3 (unlock) -> echo 0 (free) \n");
+		return 0;
+	}
+	mutex_unlock(&dump_mmu_mode_mutex);
+	return simple_read_from_buffer(buf, len, ppos, mmu_table_user_arr_in_str_buf, mmu_table_str_buf_size);
+}
+
+static ssize_t force_dump_mmu_write(struct file *file,
+		const char __user *ubuf, size_t count, loff_t *ppos)
+{
+	unsigned long val = 0;
+	int err = 0;
+
+	CSTD_UNUSED(ppos);
+	err = kstrtoul_from_user(ubuf, count, 0, &val);
+	if (err)
+		return err;
+
+	mutex_lock(&dump_mmu_mode_mutex);
+	unsigned int pre_mode = atomic_read(&dump_mmu_mode);
+	switch(val)
+	{
+		case DUMP_MMU_MODE_INIT:
+		{
+			if(pre_mode == DUMP_MMU_MODE_FINISH) {
+				atomic_set(&dump_mmu_mode, DUMP_MMU_MODE_INIT);
+				pr_info("[GPUMMU] DUMP_MMU_MODE_INIT \n");
+				free_all_dump_mmu_table((struct kbase_device *)file->private_data);
+				dump_mmu_table_all((struct kbase_device *)file->private_data);
+			} else {
+				goto fail_print_guide;
+			}
+			break;
+		}
+		case DUMP_MMU_MODE_LOCK:
+		{
+			if(pre_mode == DUMP_MMU_MODE_INIT) {
+				atomic_set(&dump_mmu_mode, DUMP_MMU_MODE_LOCK);
+				mutex_lock(&mmu_table_str_buf_mutex);
+				pr_info("[GPUMMU] DUMP_MMU_MODE_LOCK \n");
+			} else {
+				goto fail_print_guide;
+			}
+			break;
+		}
+		case DUMP_MMU_MODE_UNLOCK:
+		{
+			if(pre_mode == DUMP_MMU_MODE_LOCK) {
+				atomic_set(&dump_mmu_mode, DUMP_MMU_MODE_UNLOCK);
+				mutex_unlock(&mmu_table_str_buf_mutex);
+				pr_info("[GPUMMU] DUMP_MMU_MODE_UNLOCK \n");
+			} else {
+				goto fail_print_guide;
+			}
+			break;
+		}
+		case DUMP_MMU_MODE_FINISH:
+		{
+			if(pre_mode == DUMP_MMU_MODE_UNLOCK || pre_mode == DUMP_MMU_MODE_INIT) {
+				atomic_set(&dump_mmu_mode, DUMP_MMU_MODE_FINISH);
+				pr_info("[GPUMMU] DUMP_MMU_MODE_FINISH \n");
+				free_all_dump_mmu_table((struct kbase_device *)file->private_data);
+			} else {
+				goto fail_print_guide;
+			}
+			break;
+		}
+		case DUMP_MMU_MODE_KM_LOG:
+		default:
+			goto fail_print_guide;
+			break;
+	}
+
+	pr_info("[GPUMMU] set dump_mmu_mode=%u done\n", atomic_read(&dump_mmu_mode));
+	mutex_unlock(&dump_mmu_mode_mutex);
+
+	return count;
+
+fail_print_guide:
+	pr_err("[GPUMMU] Write Option is not expected, target %lu, current dump_mmu_mode %u\n", val, atomic_read(&dump_mmu_mode));
+	pr_err("[GPUMMU] User Guide : \n"
+			"[GPUMMU]  Write Option 1: alloc buffer and snapshot (dump csf mmu and all kctx mmu to buffer) \n"
+			"[GPUMMU]  Write Option 2: lock buffer \n"
+			"[GPUMMU]  Write Option 3: unlock buffer \n"
+			"[GPUMMU]  Write Option 0: free buffer \n"
+			"[GPUMMU]  Read: dump buffer \n"
+			"[GPUMMU]  Example: echo 1 (init) -> echo 2 (lock) -> cat (dump) -> echo 3 (unlock) -> echo 0 (free) \n");
+	return count;
+}
+
+static const struct file_operations fops_force_dump_mmu = {
+	.owner = THIS_MODULE,
+	.open = simple_open,
+	.read = force_dump_mmu_read,
+	.write = force_dump_mmu_write,
+#if (KERNEL_VERSION(6, 12, 0) > LINUX_VERSION_CODE)
+	.llseek = no_llseek,
+#endif
+};
+#endif /* CONFIG_MALI_MTK_MMU_DUMP */
+
 /*
  * core_mask_show - Show callback for the core_mask sysfs file.
  *
@@ -2441,9 +3331,13 @@ static int core_mask_parse(struct kbase_device *const kbdev, const char *const b
 {
 	int err = kstrtou64(buf, 0, &mask->new_core_mask);
 
-	if (err)
+	if (err) {
+#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
+		dev_dbg(kbdev->dev, "Couldn't process core mask write operation.\n");
+#else /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 		dev_err(kbdev->dev, "Couldn't process core mask write operation.\n");
-
+#endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
+        }
 	return err;
 }
 
@@ -2456,7 +3350,11 @@ static int core_mask_set(struct kbase_device *kbdev, struct kbase_core_mask *con
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
 	if ((new_core_mask & shader_present) != new_core_mask) {
+#if IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
+		dev_dbg(kbdev->dev,
+#else /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 		dev_err(kbdev->dev,
+#endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 			"Invalid core mask 0x%llX: Includes non-existent cores (present = 0x%llX)",
 			new_core_mask, shader_present);
 		return -EINVAL;
@@ -3284,6 +4182,45 @@ static ssize_t gpuinfo_show(struct device *dev, struct device_attribute *attr, c
 			 gpu_props->gpu_id.version_minor, product_id);
 }
 static DEVICE_ATTR_RO(gpuinfo);
+
+
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+static ssize_t upf_counter_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct kbase_device *kbdev;
+
+	CSTD_UNUSED(attr);
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	return scnprintf(buf, PAGE_SIZE, "upf_counter = %lld\n", mtk_common_upf_counter_get());
+}
+static ssize_t upf_counter_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct kbase_device *kbdev = dev_get_drvdata(dev);
+	u32 reset_value;
+
+	CSTD_UNUSED(attr);
+
+	if (!kbdev) {
+		pr_info("[KBASE] Bad kbdev!\n");
+		return -ENODEV;
+	}
+
+	if (kstrtouint(buf, 0, &reset_value))
+		return -EINVAL;
+
+	if (reset_value == 0) {
+		mtk_common_upf_counter_reset();
+	}
+
+	return count;
+}
+static DEVICE_ATTR_RW(upf_counter);
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+
 
 /**
  * dvfs_period_store - Store callback for the dvfs_period sysfs file.
@@ -4860,6 +5797,55 @@ static const struct file_operations kbase_device_debugfs_mem_pool_max_size_fops 
 	.release = single_release,
 };
 
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+static int kbase_device_debugfs_jit_reclaim_timeout_ms_show(struct seq_file *sfile,
+	void *data)
+{
+	void *const jit_reclaim_timeout_ms = sfile->private;
+
+	CSTD_UNUSED(data);
+
+	seq_printf(sfile, "%u\n", *(u32 *) jit_reclaim_timeout_ms);
+
+	return 0;
+}
+
+static ssize_t kbase_device_debugfs_jit_reclaim_timeout_ms_write(struct file *file,
+		const char __user *ubuf, size_t count, loff_t *ppos)
+{
+	const struct seq_file *const sfile = (struct seq_file *) file->private_data;
+	void *const jit_reclaim_timeout_ms = sfile->private;
+	unsigned long val = 0;
+	int err = 0;
+
+	CSTD_UNUSED(ppos);
+	err = kstrtoul_from_user(ubuf, count, 0, &val);
+	if (err)
+		return err;
+
+	*((u32 *) jit_reclaim_timeout_ms) = val;
+
+	return count;
+}
+
+static int kbase_device_debugfs_jit_reclaim_timeout_ms_open(struct inode *in,
+	struct file *file)
+{
+	return single_open(file, kbase_device_debugfs_jit_reclaim_timeout_ms_show,
+		in->i_private);
+}
+
+static const struct file_operations
+	kbase_device_debugfs_jit_reclaim_timeout_ms_fops = {
+	.owner = THIS_MODULE,
+	.open = kbase_device_debugfs_jit_reclaim_timeout_ms_open,
+	.read = seq_read,
+	.write = kbase_device_debugfs_jit_reclaim_timeout_ms_write,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
+
 /**
  * debugfs_ctx_defaults_init - Create the default configuration of new contexts in debugfs
  * @kbdev: An instance of the GPU platform device, allocated from the probe method of the driver.
@@ -4899,6 +5885,10 @@ static struct dentry *debugfs_ctx_defaults_init(struct kbase_device *const kbdev
 
 	return dentry;
 }
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+void kbase_csf_db_valid_test_debugfs_init(struct kbase_device *kbdev);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
 /**
  * init_debugfs - Create device-wide debugfs directories and files for the Mali driver
@@ -4999,14 +5989,36 @@ static struct dentry *init_debugfs(struct kbase_device *kbdev)
 		return dentry;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	debugfs_create_file("jit_reclaim_timeout_ms", 0644,
+			kbdev->mali_debugfs_directory,
+			&kbdev->jit_reclaim_timeout_ms,
+			&kbase_device_debugfs_jit_reclaim_timeout_ms_fops);
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MMU_DUMP)
+	dentry = debugfs_create_file("force_dump_mmu", 0644, kbdev->mali_debugfs_directory, kbdev,
+				     &fops_force_dump_mmu);
+	if (IS_ERR_OR_NULL(dentry)) {
+		dev_err(kbdev->dev, "Unable to create reset debugfs entry (force_dump_mmu) \n");
+		return dentry;
+	}
+#endif /* CONFIG_MALI_MTK_MMU_DUMP */
+
 	kbase_ktrace_debugfs_init(kbdev);
 
 #ifdef CONFIG_MALI_DEVFREQ
 #if IS_ENABLED(CONFIG_DEVFREQ_THERMAL)
+#if !IS_ENABLED(CONFIG_MALI_MTK_DEVFREQ_THERMAL)
 	if (kbdev->devfreq)
 		kbase_ipa_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_DEVFREQ_THERMAL */
 #endif /* CONFIG_DEVFREQ_THERMAL */
 #endif /* CONFIG_MALI_DEVFREQ */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST)
+	mtk_debug_gpu_idle_test_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST */
 
 #if !MALI_USE_CSF
 	dentry = debugfs_create_file("serialize_jobs", 0644, kbdev->mali_debugfs_directory, kbdev,
@@ -5019,6 +6031,9 @@ static struct dentry *init_debugfs(struct kbase_device *kbdev)
 #endif
 	kbase_dvfs_status_debugfs_init(kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_FS)
+	mtk_common_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_DEBUG_FS */
 
 	return dentry;
 }
@@ -5114,6 +6129,24 @@ static bool kbase_device_supports_coherency_mode(struct kbase_device *kbdev, u32
 int kbase_device_coherency_init(struct kbase_device *kbdev)
 {
 	int err = 0;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
+	kbdev->acp_dbg_force_sync = FORCE_SYNC_NONE;
+	if (IS_ENABLED(CONFIG_OF)) {
+		u32 override_dbg_force_sync;
+		const void *dbg_force_sync_override_dts;
+		dbg_force_sync_override_dts =
+			of_get_property(kbdev->dev->of_node, "dbg-force-sync", NULL);
+
+		if (dbg_force_sync_override_dts)
+			override_dbg_force_sync = be32_to_cpup(dbg_force_sync_override_dts);
+		else
+			override_dbg_force_sync = FORCE_SYNC_NONE;
+
+		if (override_dbg_force_sync == FORCE_SYNC_DTS)
+			kbdev->acp_dbg_force_sync = override_dbg_force_sync;
+	}
+#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
 
 	kbdev->system_coherency = COHERENCY_NONE;
 
@@ -5467,6 +6500,82 @@ static ssize_t idle_hysteresis_time_show(struct device *dev, struct device_attri
 
 static DEVICE_ATTR_RW(idle_hysteresis_time);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SOI_DEBUG)
+
+/**
+ * @brief Store whether sleep on idle should be enabled for the KBase device.
+ *
+ * This function sets the state of sleep on idle from user input string representation.
+ *
+ * @param dev   Pointer to the device structure.
+ * @param attr  Device attribute pointer (unused).
+ * @param buf   Buffer containing user input string.
+ * @param count Length of the user input buffer.
+ *
+ * @retval >=0 Number of characters processed from the buffer.
+ * @retval <0 Negative error code.
+ */
+
+static ssize_t sleep_on_idle_enable_store(struct device *dev, struct device_attribute *attr,
+					  const char *buf, size_t count)
+{
+	struct kbase_device *kbdev;
+	u32 enabled = 0;
+
+	CSTD_UNUSED(attr);
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	if (kstrtou32(buf, 0, &enabled)) {
+		dev_err(kbdev->dev, "Couldn't process sleep_on_idle_enable write operation.\n"
+				    "Use format <sleep_on_idle_enable>\n");
+		return -EINVAL;
+	}
+
+	kbase_csf_firmware_set_sleep_on_idle(kbdev,enabled);
+
+	return (ssize_t)count;
+}
+
+/**
+ * @brief Show whether sleep on idle is enabled for the KBase device.
+ *
+ * This function reads the current state of sleep on idle from the CSF firmware
+ * and returns it as a string representation.
+ *
+ * @param dev  Pointer to the device structure.
+ * @param attr Device attribute pointer (unused).
+ * @param buf  Buffer to store the result string.
+ *
+ * @retval >=0 Number of characters written to the buffer.
+ * @retval <0 Negative error code.
+ */
+
+static ssize_t sleep_on_idle_enable_show(struct device *dev, struct device_attribute *attr,
+					 char *const buf)
+{
+	struct kbase_device *kbdev;
+	ssize_t ret;
+	u64 enabled;
+
+	CSTD_UNUSED(attr);
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	enabled = kbase_csf_firmware_get_sleep_on_idle(kbdev);
+	ret = scnprintf(buf, PAGE_SIZE, "sleep on idle enable = %u\n", (u32)enabled);
+
+	return ret;
+}
+
+static DEVICE_ATTR_RW(sleep_on_idle_enable);
+
+#endif /* CONFIG_MALI_MTK_SOI_DEBUG */
+
 /**
  * idle_hysteresis_time_ns_store - Store callback for CSF
  *                     idle_hysteresis_time_ns sysfs file.
@@ -5534,6 +6643,81 @@ static ssize_t idle_hysteresis_time_ns_show(struct device *dev, struct device_at
 }
 
 static DEVICE_ATTR_RW(idle_hysteresis_time_ns);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+/**
+ * @brief Store whether gov_core_mask should be disabled for the KBase device.
+ *
+ * This function sets the state of gov_core_mask from user input string representation.
+ *
+ * @param dev   Pointer to the device structure.
+ * @param attr  Device attribute pointer (unused).
+ * @param buf   Buffer containing user input string.
+ * @param count Length of the user input buffer.
+ *
+ * @retval >=0 Number of characters processed from the buffer.
+ * @retval <0 Negative error code.
+ */
+
+static ssize_t gov_core_mask_disable_store(struct device *dev, struct device_attribute *attr,
+					  const char *buf, size_t count)
+{
+	struct kbase_device *kbdev;
+	u32 disabled = 0;
+
+	CSTD_UNUSED(attr);
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	if (kstrtou32(buf, 0, &disabled)) {
+		dev_err(kbdev->dev, "Couldn't process gov_core_mask_enable write operation.\n"
+				    "Use format <gov_core_mask_enable>\n");
+		return -EINVAL;
+	}
+
+	kbdev->gov_core_mask_disable = disabled;
+	dev_dbg(kbdev->dev, "gov_core_mask_disable: %d\n",disabled);
+
+	return (ssize_t)count;
+}
+
+/**
+ * @brief Show whether gov_core_mask is disabled for the KBase device.
+ *
+ * This function reads the current state of sleep on idle from the CSF firmware
+ * and returns it as a string representation.
+ *
+ * @param dev  Pointer to the device structure.
+ * @param attr Device attribute pointer (unused).
+ * @param buf  Buffer to store the result string.
+ *
+ * @retval >=0 Number of characters written to the buffer.
+ * @retval <0 Negative error code.
+ */
+
+static ssize_t gov_core_mask_disable_show(struct device *dev, struct device_attribute *attr,
+					 char *const buf)
+{
+	struct kbase_device *kbdev;
+	ssize_t ret;
+	u32 disabled;
+
+	CSTD_UNUSED(attr);
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	disabled = kbdev->gov_core_mask_disable;
+	ret = scnprintf(buf, PAGE_SIZE, "gov_core_mask disable = %u\n", (u32)disabled);
+
+	return ret;
+}
+static DEVICE_ATTR_RW(gov_core_mask_disable);
+
+#endif /* CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG */
 
 /**
  * mcu_shader_pwroff_timeout_show - Get the MCU shader Core power-off time value.
@@ -5710,11 +6894,23 @@ static struct attribute *kbase_attrs[] = {
 	&dev_attr_fw_timeout.attr,
 	&dev_attr_idle_hysteresis_time.attr,
 	&dev_attr_idle_hysteresis_time_ns.attr,
+#if IS_ENABLED(CONFIG_MALI_MTK_SOI_DEBUG)
+	&dev_attr_sleep_on_idle_enable.attr,
+#endif /* IS_ENABLED(CONFIG_MALI_MTK_SOI_DEBUG) */
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+	&dev_attr_gov_core_mask_disable.attr,
+#endif /* IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG) */
 	&dev_attr_mcu_shader_pwroff_timeout.attr,
 	&dev_attr_mcu_shader_pwroff_timeout_ns.attr,
 #endif /* !MALI_USE_CSF */
 	&dev_attr_power_policy.attr,
 	&dev_attr_core_mask.attr,
+#if IS_ENABLED(CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM)
+	&dev_attr_force_reclaim.attr,
+#endif /* CONFIG_MALI_MTK_PAGE_FAULT_WB_TILER_RECLAIM */
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG)
+	&dev_attr_mmu_dbg_config.attr,
+#endif /* CONFIG_MALI_MTK_KBASE_MMU_DBG_LOG */
 	&dev_attr_mem_pool_size.attr,
 	&dev_attr_mem_pool_max_size.attr,
 	&dev_attr_lp_mem_pool_size.attr,
@@ -5722,6 +6918,18 @@ static struct attribute *kbase_attrs[] = {
 #if !MALI_USE_CSF
 	&dev_attr_js_ctx_scheduling_mode.attr,
 #endif /* !MALI_USE_CSF */
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY) && \
+	IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+	&dev_attr_dvfs_hint_26m_perf_cnting.attr,
+	&dev_attr_ipa_enable.attr,
+#endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY && CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING*/
+#if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
+	&dev_attr_upf_counter.attr,
+#endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
+	&dev_attr_force_cache_sync.attr,
+#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
 	NULL
 };
 
@@ -5773,11 +6981,19 @@ int kbase_sysfs_init(struct kbase_device *kbdev)
 		sysfs_remove_group(&kbdev->dev->kobj, &kbase_attr_group);
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SYSFS)
+	mtk_common_sysfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_SYSFS */
+
 	return err;
 }
 
 void kbase_sysfs_term(struct kbase_device *kbdev)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_SYSFS)
+	mtk_common_sysfs_term(kbdev);
+#endif /* CONFIG_MALI_MTK_SYSFS */
+
 	sysfs_remove_group(&kbdev->dev->kobj, &kbase_mempool_attr_group);
 	sysfs_remove_group(&kbdev->dev->kobj, &kbase_scheduling_attr_group);
 	sysfs_remove_group(&kbdev->dev->kobj, &kbase_attr_group);
@@ -5832,6 +7048,7 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 {
 	struct kbase_device *kbdev;
 	int err = 0;
+	dev_err(&pdev->dev, "kbase_platform_device_probe [start] \n");
 
 	mali_kbase_print_cs_experimental();
 
@@ -5867,6 +7084,19 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		mutex_unlock(&kbase_probe_mutex);
 #endif
 	} else {
+
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+		err = mtk_bandwith_resource_init(kbdev);
+		if (err)
+			pr_info("@%s: GPU BM init failed (JM)\n", __func__);
+#endif /* CONFIG_MALI_MTK_GPU_BM_JM */
+
+#if defined(CONFIG_MALI_MTK_GPU_BM_CSF)
+		err = mtk_bandwidth_resource_init();
+		if (err)
+			pr_info("@%s: GPU BM init failed (CSF)\n", __func__);
+#endif /* CONFIG_MALI_MTK_GPU_BM_CSF */
+
 #if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
 		/* Since upstream is not exporting mmap_min_addr, kbase at the
 		 * moment is unable to track possible kernel changes via sysfs.
@@ -5876,6 +7106,10 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 #endif
 
 		dev_info(kbdev->dev, "Probed as %s\n", dev_name(kbdev->mdev.this_device));
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_EXCEPTION,
+			"Probed as %s\n", dev_name(kbdev->mdev.this_device));
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		if (PAGE_SHIFT != 12)
 			dev_warn(kbdev->dev, "Experimental feature: %s with Page Size of %luKiB",
 				 dev_name(kbdev->mdev.this_device), PAGE_SIZE / 1024);
@@ -5890,6 +7124,7 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		mutex_unlock(&kbdev->pm.lock);
 #endif
 	}
+	dev_err(kbdev->dev, "kbase_platform_device_probe [end] err = %d \n", err);
 
 	return err;
 }
@@ -5928,6 +7163,11 @@ static int kbase_device_suspend(struct device *dev)
 		flush_workqueue(kbdev->devfreq_queue.workq);
 	}
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+	slbc_invalidate(ID_GPU, slbc_gid_val(ID_GPU));
+	slbc_gid_release(ID_GPU, slbc_gid_val(ID_GPU));
+#endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
+
 	return 0;
 }
 
@@ -5943,6 +7183,10 @@ static int kbase_device_suspend(struct device *dev)
 static int kbase_device_resume(struct device *dev)
 {
 	struct kbase_device *kbdev = to_kbase_device(dev);
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+	int gid = slbc_gid_val(ID_GPU);
+	struct slbc_gid_data slbc_data = {0x51ca11ca,0,0,0,0,0,0,0,0};
+#endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
 
 	if (!kbdev)
 		return -ENODEV;
@@ -5958,6 +7202,10 @@ static int kbase_device_resume(struct device *dev)
 	if (kbdev->devfreq)
 		kbase_devfreq_enqueue_work(kbdev, DEVFREQ_WORK_RESUME);
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+	slbc_gid_request(ID_GPU, &gid, &slbc_data);
+	slbc_validate(ID_GPU, slbc_gid_val(ID_GPU));
+#endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
 	return 0;
 }
 
@@ -6090,10 +7338,14 @@ static const struct dev_pm_ops kbase_pm_ops = {
 };
 
 #if IS_ENABLED(CONFIG_OF)
+#if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
+static const struct of_device_id kbase_dt_ids[] = { { .compatible = "arm,mali-valhall" },
+#else
 static const struct of_device_id kbase_dt_ids[] = { { .compatible = "arm,malit6xx" },
 						    { .compatible = "arm,mali-midgard" },
 						    { .compatible = "arm,mali-bifrost" },
 						    { .compatible = "arm,mali-valhall" },
+#endif /* CONFIG_MALI_MTK_COMMON */
 						    { /* sentinel */ } };
 MODULE_DEVICE_TABLE(of, kbase_dt_ids);
 #endif
@@ -6115,6 +7367,7 @@ module_platform_driver(kbase_platform_driver);
 static int __init kbase_driver_init(void)
 {
 	int ret;
+	printk(KERN_ERR "module_platform_driver() [start]\n");
 
 #if (KERNEL_VERSION(5, 3, 0) <= LINUX_VERSION_CODE)
 	mutex_init(&kbase_probe_mutex);
@@ -6122,10 +7375,14 @@ static int __init kbase_driver_init(void)
 
 #ifndef CONFIG_OF
 	ret = kbase_platform_register();
-	if (ret)
+	printk(KERN_ERR "kbase_platform_register() \n");
+	if (ret) {
+		printk(KERN_ERR "kbase_platform_register() return [xxx] \n");
 		return ret;
+	}
 #endif
 	ret = platform_driver_register(&kbase_platform_driver);
+	printk(KERN_ERR "platform_driver_register() ret = %d \n", ret);
 #ifndef CONFIG_OF
 	if (ret) {
 		kbase_platform_unregister();

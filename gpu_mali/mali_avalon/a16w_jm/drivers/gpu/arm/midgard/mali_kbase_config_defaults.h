@@ -87,7 +87,12 @@ enum {
  * interface should sample counters with a resolution in the order of
  * milliseconds, while keeping GPU overhead as limited as possible.
  */
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
+	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+#define IPA_CONTROL_TIMER_DEFAULT_VALUE_MS ((u32)1) /* 1 milliseconds */
+#else
 #define IPA_CONTROL_TIMER_DEFAULT_VALUE_MS ((u32)10) /* 10 milliseconds */
+#endif
 #endif /* MALI_USE_CSF */
 
 /* Default period for DVFS sampling (can be overridden by platform header) */
@@ -167,6 +172,10 @@ enum {
  */
 #define DEFAULT_REF_TIMEOUT_FREQ_KHZ (100000)
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
+#define KBASE_FUNCTION_EXECUTE_DEBUG_TIMEOUT (70) /* 70ms*/
+#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
+
 #if MALI_USE_CSF
 /* Waiting timeout for status change acknowledgment, in clock cycles.
  *
@@ -192,7 +201,17 @@ enum {
  * More cycles (1s @ 100Mhz = 100000000) are added up to ensure that
  * host timeout is always bigger than FW timeout.
  */
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+/* Because of the MTK freqency information won't be input mali driver for
+ * timeout value calculation so the mali driver will use default 100Mhz
+ * to have the calculation.
+ * Then, it will end up with the original CSG suspend timeout to be 31s.
+ * So, adjust the value to align with r38p1 1.5s.
+ */
+#define CSF_CSG_SUSPEND_TIMEOUT_CYCLES (150000000ull)
+#else /* CONFIG_MALI_MTK_FENCE_DEBUG */
 #define CSF_CSG_SUSPEND_TIMEOUT_CYCLES (3100000000ull)
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 /* Waiting timeout in clock cycles for GPU suspend to complete. */
 #define CSF_GPU_SUSPEND_TIMEOUT_CYCLES (CSF_CSG_SUSPEND_TIMEOUT_CYCLES)
@@ -245,7 +264,12 @@ enum {
 #elif IS_ENABLED(CONFIG_MALI_IS_FPGA)
 #define KCPU_FENCE_SIGNAL_TIMEOUT_CYCLES (2500000000ull)
 #else
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+#define KCPU_FENCE_SIGNAL_TIMEOUT_CYCLES (100000000ull)
+#else /* CONFIG_MALI_MTK_FENCE_DEBUG */
 #define KCPU_FENCE_SIGNAL_TIMEOUT_CYCLES (1000000000ull)
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+#define KCPU_FENCE_SIGNAL_TIMEOUT_CYCLES_FPGA (2500000000ull)
 #endif
 
 /* Timeout for polling the GPU in clock cycles.

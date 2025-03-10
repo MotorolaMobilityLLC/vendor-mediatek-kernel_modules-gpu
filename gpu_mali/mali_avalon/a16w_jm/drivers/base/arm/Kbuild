@@ -18,11 +18,15 @@
 #
 #
 
+ifeq ($(MALI_CSF_SUPPORT),)
+    $(error Only JM builds are supported on this branch)
+endif
+
 #
 # ccflags
 #
 src:=$(if $(patsubst /%,,$(src)),$(srctree)/$(src),$(src))
-ccflags-y += -I$(src)/../../../include
+ccflags-y += -I$(srctree)/$(src)/../../../include
 
 subdir-ccflags-y += $(ccflags-y)
 

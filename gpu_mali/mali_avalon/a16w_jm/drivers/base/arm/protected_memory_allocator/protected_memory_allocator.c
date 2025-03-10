@@ -22,12 +22,46 @@
 #include <linux/version.h>
 #include <linux/of.h>
 #include <linux/of_reserved_mem.h>
+#include <linux/of_address.h>
 #include <linux/platform_device.h>
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/mm.h>
 #include <linux/io.h>
 #include <linux/protected_memory_allocator.h>
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IOMMU)
+#include <linux/of_device.h>
+#include <linux/of_platform.h>
+#endif /* CONFIG_MALI_MTK_GPU_IOMMU */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IOMMU)
+#pragma message "enable CONFIG_MALI_MTK_GPU_IOMMU"
+#include <mtk_gpufreq.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
+#pragma message "CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE enabled (pma)"
+#include <ghpm_wrapper.h>
+#else
+#pragma message "CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE disabled (pma)"
+#endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
+#include <linux/err.h>
+#include <linux/of_address.h>
+#include <linux/of_device.h>
+#endif /* CONFIG_MALI_MTK_GPU_IOMMU */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PROTECTED_MEMORY_SUPPORT)
+#include <linux/of_device.h>
+#include <linux/of_platform.h>
+#endif /* CONFIG_MALI_MTK_GPU_PROTECTED_MEMORY_SUPPORT */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP)
+#include <linux/dma-buf.h>
+#include <linux/dma-heap.h>
+#if IS_ENABLED(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && IS_ENABLED(CONFIG_MTK_GZ_KREE)
+#include <trusted_mem_api.h>
+#include <mtk_heap.h>
+#endif /* CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM && CONFIG_MTK_GZ_KREE */
+#endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP */
 
 /* Size of a bitfield element in bytes */
 #define BITFIELD_ELEM_SIZE sizeof(u64)
@@ -59,7 +93,213 @@ struct simple_pma_device {
 	size_t rmem_size;
 	size_t num_free_pages;
 	spinlock_t rmem_lock;
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP)
+	struct dma_buf_info heap_dma_info;
+#endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP */
 };
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP)
+static phys_addr_t alloc_sec_dma_heap(struct simple_pma_device *const epma_dev, size_t pma_size, struct dma_buf_info *dma_info)
+{
+	struct dma_heap *heap = NULL;
+	struct dma_buf *buf = NULL;
+	struct dma_buf_attachment *buf_attachment = NULL;
+	struct sg_table *sgt = NULL;
+	phys_addr_t pma_base = 0;
+	uint64_t phy_addr = 0;
+	u64 sec_handle = 0;
+	const char heap_name[] = "mtk_prot_page-uncached";
+	//TODO try svp_page or prot_page
+	// mtk_prot_page-uncached mtk_svp_page-uncached mtk_svp_region-aligned mtk_prot_region-aligned
+
+	(void)sgt;
+	heap = dma_heap_find(heap_name);
+	if (!heap) {
+		dev_err(epma_dev->dev, "failed to find heap %s\n", heap_name);
+		return 0;
+	}
+	buf = dma_heap_buffer_alloc(heap, pma_size, 0, 0);
+	if (IS_ERR_OR_NULL(buf)) {
+		dev_err(epma_dev->dev, "failed to allocate buffer\n");
+		return 0;
+	}
+	buf_attachment = dma_buf_attach(buf, epma_dev->dev);
+	if (IS_ERR_OR_NULL(buf_attachment)) {
+		dev_err(epma_dev->dev, "failed to attach buffer\n");
+		return 0;
+	}
+
+#if IS_ENABLED(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && IS_ENABLED(CONFIG_MTK_GZ_KREE)
+	sec_handle = dmabuf_to_secure_handle(buf);
+
+	if (sec_handle && is_support_secure_handle(buf)) {
+		// For region base sec mem
+		// use trusted_mem api
+#if IS_ENABLED(CONFIG_ARM_FFA_TRANSPORT)
+		trusted_mem_ffa_query_pa(&sec_handle, &phy_addr);
+#else
+		trusted_mem_api_query_pa(0, 0, 0, NULL, &sec_handle, NULL, 0, 0, &phy_addr);
+#endif
+	} else {
+		// For page base sec mem
+		// use sg_dma_address to get PA
+#if (KERNEL_VERSION(6, 1, 55) <= LINUX_VERSION_CODE)
+		sgt = dma_buf_map_attachment_unlocked(buf_attachment, DMA_BIDIRECTIONAL);
+#else
+		sgt = dma_buf_map_attachment(buf_attachment, DMA_BIDIRECTIONAL);
+#endif
+		if (IS_ERR_OR_NULL(sgt)) {
+			dev_err(epma_dev->dev, "failed to get sg table\n");
+			return 0;
+		}
+		if(sgt->sgl != NULL){
+			phy_addr = sg_dma_address(sgt->sgl);
+			/*for_each_sg(sgt->sgl, s, sgt->nents, i) {
+				phy_addr = sg_phys(s);
+			}*/
+		} else {
+			dev_err(epma_dev->dev, "failed to get pa from sgl\n");
+			return 0;
+		}
+	}
+
+	pma_base = phy_addr;
+	dev_vdbg(epma_dev->dev, "pma:base=%llx,size=%zu,heap=%s\n",
+			(unsigned long long) pma_base, pma_size, heap_name);
+#else
+#if (KERNEL_VERSION(6, 1, 55) <= LINUX_VERSION_CODE)
+	sgt = dma_buf_map_attachment_unlocked(buf_attachment, DMA_BIDIRECTIONAL);
+#else
+	sgt = dma_buf_map_attachment(buf_attachment, DMA_BIDIRECTIONAL);
+#endif
+	if (sgt == NULL) {
+		dev_err(epma_dev->dev, "failed to get sg table\n");
+		return 0;
+	}
+	if(sgt->sgl != NULL){
+		pma_base = sg_dma_address(sgt->sgl);
+	} else {
+		dev_err(epma_dev->dev, "failed to get pa from sgl\n");
+		return 0;
+	}
+	dev_vdbg(epma_dev->dev, "pma:base=%llx,size=%zu,heap_name=%s\n",
+		(unsigned long long) pma_base, pma_size, heap_name);
+#endif
+	if(dma_info != NULL)
+	{
+		dma_info->buf = buf;
+		dma_info->buf_attachment = buf_attachment;
+		dma_info->sgt = sgt;
+	}
+
+	return pma_base;
+}
+
+static struct protected_memory_allocation *simple_pma_alloc_dma_page(
+	struct protected_memory_allocator_device *pma_dev, unsigned int order)
+{
+	size_t num_pages_to_alloc;
+	struct simple_pma_device *const epma_dev =
+		container_of(pma_dev, struct simple_pma_device, pma_dev);
+	struct protected_memory_allocation *pma;
+
+	num_pages_to_alloc = (size_t)1 << order;
+
+	dev_vdbg(epma_dev->dev, "%s(pma_dev=%px, order=%u\n",
+		__func__, (void *)pma_dev, order);
+
+	pma = devm_kzalloc(epma_dev->dev, sizeof(*pma), GFP_KERNEL);
+	if (!pma) {
+		dev_err(epma_dev->dev, "Failed to alloc pma struct");
+		return NULL;
+	}
+
+	pma->pa = alloc_sec_dma_heap(epma_dev, num_pages_to_alloc<<PAGE_SHIFT, &(pma->dma_info));
+	pma->order = order;
+
+	if (pma->pa == 0) {
+		devm_kfree(epma_dev->dev, pma);
+		dev_err(epma_dev->dev, "Failed to get pma pa");
+		return NULL;
+	}
+
+	if (order > 0) {
+		dev_err(epma_dev->dev, "pma:base=%llx, order=%u\n",
+			(unsigned long long) pma->pa, order);
+	}
+
+	return pma;
+}
+
+static phys_addr_t simple_pma_get_dma_phys_addr(
+	struct protected_memory_allocator_device *pma_dev,
+	struct protected_memory_allocation *pma)
+{
+	struct simple_pma_device *const epma_dev =
+		container_of(pma_dev, struct simple_pma_device, pma_dev);
+
+	if (!pma) {
+		dev_err(epma_dev->dev, "Failed to get pma struct");
+		return 0;
+	}
+
+	dev_vdbg(epma_dev->dev, "%s(pma_dev=%px, pma=%px, pa=%llx\n",
+		__func__, (void *)pma_dev, (void *)pma,
+		(unsigned long long)pma->pa);
+	return pma->pa;
+}
+
+static void simple_pma_free_dma_page(
+	struct protected_memory_allocator_device *pma_dev,
+	struct protected_memory_allocation *pma)
+{
+	struct dma_buf *buf;
+	struct dma_buf_attachment *buf_attachment;
+	struct sg_table *sgt;
+	struct simple_pma_device *const epma_dev =
+		container_of(pma_dev, struct simple_pma_device, pma_dev);
+
+	if (!pma) {
+		dev_err(epma_dev->dev, "Failed to get pma struct");
+		return;
+	}
+
+	buf = pma->dma_info.buf;
+	buf_attachment = pma->dma_info.buf_attachment;
+	sgt = pma->dma_info.sgt;
+
+	dev_vdbg(epma_dev->dev, "%s(pma_dev=%px, pma=%px, pa=%llx\n",
+		__func__, (void *)pma_dev, (void *)pma,
+		(unsigned long long)pma->pa);
+
+	if (sgt) {
+#if (KERNEL_VERSION(6, 1, 55) <= LINUX_VERSION_CODE)
+		dma_buf_unmap_attachment_unlocked(buf_attachment, sgt, DMA_BIDIRECTIONAL);
+#else
+		dma_buf_unmap_attachment(buf_attachment, sgt, DMA_BIDIRECTIONAL);
+#endif /* KERNEL_VERSION */
+	}
+	if (buf_attachment) {
+		dma_buf_detach(buf, buf_attachment);
+	}
+	if (buf) {
+		dma_buf_put(buf);
+	}
+	devm_kfree(epma_dev->dev, pma);
+}
+
+#if 0
+static void pma_alloc_test(struct protected_memory_allocator_device *pma_dev)
+{
+	struct simple_pma_device *const epma_dev =
+		container_of(pma_dev, struct simple_pma_device, pma_dev);
+	struct protected_memory_allocation *pma = simple_pma_alloc_dma_page(pma_dev, 3);
+	phys_addr_t pa = simple_pma_get_dma_phys_addr(pma_dev, pma);
+	dev_err(epma_dev->dev, "pma_alloc_test: phy_addr=%llx\n", (unsigned long long) pa);
+	simple_pma_free_dma_page(pma_dev, pma);
+}
+#endif
+#endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP */
 
 /**
  * ALLOC_PAGES_BITFIELD_ARR_SIZE() - Number of elements in array
@@ -412,6 +652,74 @@ static void simple_pma_free_page(struct protected_memory_allocator_device *pma_d
 	devm_kfree(epma_dev->dev, pma);
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IOMMU)
+static int mtk_gpu_iommu_init(struct platform_device *pdev)
+{
+	int ret = 1;
+	struct device *dev = &pdev->dev;
+
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
+	/* On mfg0 and gpueb */
+	ret = gpueb_ctrl(GHPM_ON, MFG1_OFF, SUSPEND_POWER_ON);
+	if (ret) {
+		dev_err(dev, "gpueb on fail, return value=%d \n", ret);
+		return ret;
+	}
+#endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
+
+	/* on,off/ SWCG(BG3D)/ MTCMOS/ BUCK */
+	if (gpufreq_power_control(GPU_PWR_ON) < 0) {
+		dev_err(dev, "Power On Failed");
+		return ret;
+	}
+
+	/* Control runtime active-sleep state of GPU */
+	if (gpufreq_active_sleep_control(GPU_PWR_ON) < 0) {
+		dev_err(dev, "Active Failed (on)");
+		return ret;
+	}
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+
+	/* Create platform device for the sub node. */
+	ret = of_platform_populate(dev->of_node, NULL, NULL, dev);
+	if (ret) {
+		dev_err(dev, "[gpu_iommu] Create sub node fail %d", ret);
+		return ret;
+	}
+
+#if defined(CONFIG_MTK_GPUFREQ_V2)
+	/* Control runtime active-sleep state of GPU */
+	if (gpufreq_active_sleep_control(GPU_PWR_OFF) < 0) {
+		dev_err(dev, "Sleep Failed (off)");
+		return ret;
+	}
+
+	/* on,off/ SWCG(BG3D)/ MTCMOS/ BUCK */
+	if (gpufreq_power_control(GPU_PWR_OFF) < 0) {
+		dev_err(dev, "Power Off Failed");
+		return 1;
+	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
+	/* Off mfg0 and gpueb */
+	ret = gpueb_ctrl(GHPM_OFF, MFG1_OFF, SUSPEND_POWER_OFF);
+	if (ret) {
+		dev_err(dev, "gpueb off fail, return value=%d \n", ret);
+		return ret;
+	}
+#endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
+#endif /* CONFIG_MTK_GPUFREQ_V2 */
+
+	dev_info(dev, "[gpu_iommu] init done %d", ret);
+	return ret;
+}
+#endif /* CONFIG_MALI_MTK_GPU_IOMMU */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PROTECTED_MEMORY_SUPPORT)
+static int protected_memory_allocator_probe(struct platform_device *pdev) __attribute__((unused));
+#endif /* CONFIG_MALI_MTK_GPU_PROTECTED_MEMORY_SUPPORT */
 static int protected_memory_allocator_probe(struct platform_device *pdev)
 {
 	struct simple_pma_device *epma_dev;
@@ -419,6 +727,7 @@ static int protected_memory_allocator_probe(struct platform_device *pdev)
 	phys_addr_t rmem_base;
 	size_t rmem_size;
 	size_t alloc_bitmap_pages_arr_size;
+	struct resource *mem_res;
 #if (KERNEL_VERSION(4, 15, 0) <= LINUX_VERSION_CODE)
 	struct reserved_mem *rmem;
 #endif
@@ -428,6 +737,14 @@ static int protected_memory_allocator_probe(struct platform_device *pdev)
 	if (!np) {
 		dev_err(&pdev->dev, "device node pointer not set\n");
 		return -ENODEV;
+	}
+
+	/* Try to get reserved memory from IO resource memory */
+	mem_res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (mem_res) {
+		rmem_base = mem_res->start;
+		rmem_size = resource_size(mem_res) >> PAGE_SHIFT;
+		goto skip_reserved_lookup;
 	}
 
 	np = of_parse_phandle(np, "memory-region", 0);
@@ -448,6 +765,8 @@ static int protected_memory_allocator_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "could not read reserved memory-region\n");
 		return -ENODEV;
 	}
+
+skip_reserved_lookup:
 
 	of_node_put(np);
 	epma_dev = devm_kzalloc(&pdev->dev, sizeof(*epma_dev), GFP_KERNEL);
@@ -495,6 +814,237 @@ static int protected_memory_allocator_probe(struct platform_device *pdev)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PROTECTED_MEMORY_SUPPORT)
+/* Below macro is hard coded*/
+#define GPR(X, Y) (X + (Y << 2))
+#if !IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP)
+static int get_gpueb_gpr_val_v1(struct platform_device *pdev, uint32_t gpr_id, uint64_t *p_GPR_target_64)
+{
+	struct device_node *np;
+	struct resource *res = NULL;
+	void __iomem *gpueb_base;
+	void __iomem *GPR_target;
+	uint32_t gpr_offset;
+
+	np = pdev->dev.of_node;
+
+	if (!np) {
+		dev_err(&pdev->dev, "device node pointer not set\n");
+		return -ENODEV;
+	}
+
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "gpueb_base");
+
+	if (!res) {
+		dev_err(&pdev->dev, "can't have GPR access\n");
+		return -ENODEV;
+	}
+
+	of_property_read_u32(np, "gpr-offset", &gpr_offset);
+
+	if(!gpr_offset) {
+		dev_err(&pdev->dev, "can't have GPR offset access\n");
+		return -ENODEV;
+	}
+
+	dev_info(&pdev->dev,
+		"Using on addr(base + %x, %d)\n",
+                 gpr_offset, gpr_id);
+
+	gpueb_base = devm_ioremap(&pdev->dev, res->start, resource_size(res));
+	if (unlikely(!gpueb_base)) {
+		dev_err(&pdev->dev, "fail to ioremap gpueb_base: 0x%llx", (unsigned long long)res->start);
+		return -ENODEV;
+	}
+	GPR_target = GPR(gpueb_base + gpr_offset, gpr_id);
+
+	/* Note GPR is 32 bits */
+	*p_GPR_target_64 = *(uint32_t*)GPR_target;
+	devm_iounmap(&pdev->dev, gpueb_base);
+
+	return 0;
+}
+
+static int get_gpueb_gpr_val_v2(uint32_t gpr_id, uint64_t *p_GPR_target_64)
+{
+	void __iomem *gpueb_gpr_base;
+	void __iomem *GPR_target;
+	struct platform_device *pdev = NULL;
+	struct device *gpueb_dev = NULL;
+	struct device_node *of_gpueb = NULL;
+	struct resource *res = NULL;
+
+	pr_info("Using on gpr_id(%d)\n", gpr_id);
+
+	of_gpueb = of_find_compatible_node(NULL, NULL, "mediatek,gpueb");
+	if (!of_gpueb) {
+		pr_err("fail to find gpueb of_node");
+		return -ENODEV;
+	}
+	/* find our device by node */
+	pdev = of_find_device_by_node(of_gpueb);
+	gpueb_dev = &pdev->dev;
+
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "gpueb_gpr_base");
+	if (unlikely(!res)) {
+		pr_err("fail to get resource gpueb_gpr_base");
+		return -ENODEV;
+	}
+	gpueb_gpr_base = devm_ioremap(gpueb_dev, res->start, resource_size(res));
+	if (unlikely(!gpueb_gpr_base)) {
+		pr_err("fail to ioremap gpueb_gpr_base: 0x%llx", (unsigned long long)res->start);
+		return -ENODEV;
+	}
+	GPR_target = GPR(gpueb_gpr_base, gpr_id);
+
+	/* Note GPR is 32 bits */
+	*p_GPR_target_64 = *(uint32_t*)GPR_target;
+	devm_iounmap(&pdev->dev, gpueb_gpr_base);
+
+	return 0;
+}
+#endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP */
+
+static int mtk_protected_memory_allocator_probe(struct platform_device *pdev)
+{
+	struct simple_pma_device *epma_dev;
+	struct device_node *np;
+#if !IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP)
+	phys_addr_t rmem_base = 0;
+	size_t rmem_size;
+	size_t alloc_bitmap_pages_arr_size;
+	uint64_t GPR_target_64;
+#endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP */
+	uint32_t gpr_id, gmpu_table_size, psize, pma_version;
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP_2MB)
+	struct protected_memory_allocation *pma;
+#endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP_2MB */
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IOMMU)
+	uint32_t dis_init_gpu_iommu = 0;
+#endif /* CONFIG_MALI_MTK_GPU_IOMMU */
+
+	np = pdev->dev.of_node;
+
+	if (!np) {
+		dev_err(&pdev->dev, "device node pointer not set\n");
+		return -ENODEV;
+	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IOMMU)
+	of_property_read_u32(np, "disable-init-gpu-iommu", &dis_init_gpu_iommu);
+	if(dis_init_gpu_iommu == 0) {
+		if(mtk_gpu_iommu_init(pdev)) {
+			dev_err(&pdev->dev, "can't init gpu iommu\n");
+			return -ENODEV;
+		}
+	}else{
+		dev_info(&pdev->dev, "Skip init gpu iommu\n");
+	}
+#endif /* CONFIG_MALI_MTK_GPU_IOMMU */
+	of_property_read_u32(np, "gmpu-table-size", &gmpu_table_size);
+	of_property_read_u32(np, "gpr-id", &gpr_id);
+	of_property_read_u32(np, "protected-reserve-size", &psize);
+
+	if(!psize) {
+		dev_err(&pdev->dev, "can't find reserved-memory\n");
+		return -ENODEV;
+	}
+
+	of_property_read_u32(np, "pma-version", &pma_version);
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP)
+	of_node_put(np);
+	epma_dev = devm_kzalloc(&pdev->dev, sizeof(*epma_dev), GFP_KERNEL);
+	if (!epma_dev)
+		return -ENOMEM;
+
+	epma_dev->pma_dev.ops.pma_alloc_page = simple_pma_alloc_dma_page;
+	epma_dev->pma_dev.ops.pma_get_phys_addr = simple_pma_get_dma_phys_addr;
+	epma_dev->pma_dev.ops.pma_free_page = simple_pma_free_dma_page;
+	epma_dev->pma_dev.owner = THIS_MODULE;
+	epma_dev->dev = &pdev->dev;
+
+	platform_set_drvdata(pdev, &epma_dev->pma_dev);
+	dev_info(&pdev->dev,
+		"Protected memory allocator probed successfully\n");
+
+	//pma_alloc_test(&epma_dev->pma_dev);
+	if (dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(44))) //TODO DMA_BIT_MASK(kbdev->gpu_props.mmu.pa_bits), dma_set_mask_and_coherent or dma_set_mask
+		return -ENOMEM;
+#else
+	if(pma_version == 2)
+	{
+		if( 0 != get_gpueb_gpr_val_v2(gpr_id, &GPR_target_64))
+		{
+			dev_err(&pdev->dev, "can't get gpueb gpr (%d)\n", gpr_id);
+			return -ENODEV;
+		}
+	}else{
+		if( 0 != get_gpueb_gpr_val_v1(pdev, gpr_id, &GPR_target_64))
+		{
+			dev_err(&pdev->dev, "can't get gpueb gpr (%d)\n", gpr_id);
+			return -ENODEV;
+		}
+	}
+
+	rmem_base = (GPR_target_64 << PAGE_SHIFT) + gmpu_table_size;
+	rmem_size = psize; // at least 256KB
+	rmem_size = rmem_size >> PAGE_SHIFT;
+
+	dev_info(&pdev->dev,
+		"addr=0x%llx, size=%zu pages, gmpu_table_size=+%u\n",
+		(unsigned long long)rmem_base, rmem_size, gmpu_table_size);
+
+	of_node_put(np);
+	epma_dev = devm_kzalloc(&pdev->dev, sizeof(*epma_dev), GFP_KERNEL);
+	if (!epma_dev)
+		return -ENOMEM;
+
+	epma_dev->pma_dev.ops.pma_alloc_page = simple_pma_alloc_page;
+	epma_dev->pma_dev.ops.pma_get_phys_addr = simple_pma_get_phys_addr;
+	epma_dev->pma_dev.ops.pma_free_page = simple_pma_free_page;
+	epma_dev->pma_dev.owner = THIS_MODULE;
+	epma_dev->dev = &pdev->dev;
+	epma_dev->rmem_base = rmem_base;
+	epma_dev->rmem_size = rmem_size;
+	epma_dev->num_free_pages = rmem_size;
+	spin_lock_init(&epma_dev->rmem_lock);
+
+	alloc_bitmap_pages_arr_size = ALLOC_PAGES_BITFIELD_ARR_SIZE(epma_dev->rmem_size);
+
+	epma_dev->allocated_pages_bitfield_arr = devm_kzalloc(&pdev->dev,
+		alloc_bitmap_pages_arr_size * BITFIELD_ELEM_SIZE, GFP_KERNEL);
+
+	if (!epma_dev->allocated_pages_bitfield_arr) {
+		dev_err(&pdev->dev, "failed to allocate resources\n");
+		devm_kfree(&pdev->dev, epma_dev);
+		return -ENOMEM;
+	}
+
+	if (epma_dev->rmem_size % PAGES_PER_BITFIELD_ELEM) {
+		size_t extra_pages =
+			alloc_bitmap_pages_arr_size * PAGES_PER_BITFIELD_ELEM -
+			epma_dev->rmem_size;
+		size_t last_bitfield_index = alloc_bitmap_pages_arr_size - 1;
+
+		/* Mark the extra pages (that lie outside the reserved range) as
+		 * always in use.
+		 */
+		epma_dev->allocated_pages_bitfield_arr[last_bitfield_index] =
+			((1ULL << extra_pages) - 1) <<
+			(PAGES_PER_BITFIELD_ELEM - extra_pages);
+	}
+#endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP */
+
+	platform_set_drvdata(pdev, &epma_dev->pma_dev);
+	dev_info(&pdev->dev,
+		"Protected memory allocator probed successfully\n");
+	dev_info(&pdev->dev, "Protected memory region: base=%llx num pages=%zu\n",
+		(unsigned long long)epma_dev->rmem_base, epma_dev->rmem_size);
+
+	return 0;
+}
+#endif /* CONFIG_MALI_MTK_GPU_PROTECTED_MEMORY_SUPPORT */
+
 #if (KERNEL_VERSION(6, 11, 0) > LINUX_VERSION_CODE)
 static int protected_memory_allocator_remove(struct platform_device *pdev)
 #else
@@ -538,7 +1088,11 @@ static const struct of_device_id protected_memory_allocator_dt_ids[] = {
 MODULE_DEVICE_TABLE(of, protected_memory_allocator_dt_ids);
 
 static struct platform_driver
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PROTECTED_MEMORY_SUPPORT)
+	protected_memory_allocator_driver = { .probe = mtk_protected_memory_allocator_probe,
+#else
 	protected_memory_allocator_driver = { .probe = protected_memory_allocator_probe,
+#endif /* CONFIG_MALI_MTK_GPU_PROTECTED_MEMORY_SUPPORT */
 					      .remove = protected_memory_allocator_remove,
 					      .driver = {
 						      .name = "simple_protected_memory_allocator",
@@ -548,6 +1102,7 @@ static struct platform_driver
 
 module_platform_driver(protected_memory_allocator_driver);
 
+MODULE_IMPORT_NS(DMA_BUF);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("ARM Ltd.");
 MODULE_VERSION("1.0");

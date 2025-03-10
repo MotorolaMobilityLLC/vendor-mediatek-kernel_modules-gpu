@@ -31,6 +31,12 @@
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
 #include <mali_kbase_gpu_metrics.h>
 #endif
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+#include <platform/mtk_platform_common.h>
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 /*
  * Hold the runpool_mutex for this
@@ -174,6 +180,15 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 						kbdev->dev,
 						"JS: Job Hard-Stopped (took more than %u ticks at %u ms/tick)",
 						ticks, ms);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+					mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+						"JS: Job Hard-Stopped (took more than %u ticks at %u ms/tick)\n",
+						ticks, ms);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_NA);
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_NA);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 					kbase_job_slot_hardstop(atom->kctx, s, atom);
 #endif
 				} else if (ticks == gpu_reset_ticks) {
@@ -209,6 +224,15 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 						kbdev->dev,
 						"JS: Job Hard-Stopped (took more than %u ticks at %u ms/tick)",
 						ticks, ms);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+					mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+						"JS: Job Hard-Stopped (took more than %u ticks at %u ms/tick)\n",
+						ticks, ms);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_NA);
+					mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_NA);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 					kbase_job_slot_hardstop(atom->kctx, s, atom);
 #endif
 				} else if (ticks == js_devdata->gpu_reset_ticks_dumping) {

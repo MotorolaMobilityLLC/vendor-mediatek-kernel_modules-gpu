@@ -44,6 +44,10 @@
 #include <linux/sched/mm.h>
 #include <linux/kref.h>
 #include <linux/vmalloc.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
+#include <slbc_ops.h>
+#include <linux/memory_group_manager.h>
+#endif /* CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE */
 
 static inline void kbase_process_page_usage_inc(struct kbase_context *kctx, int pages);
 
@@ -294,6 +298,13 @@ struct kbase_aliased {
 #define KBASE_MEM_PHY_ALLOC_ACCESSED_CACHED (1u << 0)
 #define KBASE_MEM_PHY_ALLOC_LARGE (1u << 1)
 
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+/*
+ * Default value for struct kbase_device::jit_reclaim_timeout_ms.
+ */
+#define JIT_RECLAIM_DEFAULT_TIMEOUT_MS (1000)    /* 1 sec */
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
+
 /* enum kbase_user_buf_state - State of a USER_BUF handle.
  * @KBASE_USER_BUF_STATE_EMPTY: Empty handle with no resources.
  * @KBASE_USER_BUF_STATE_PINNED: Physical pages have been pinned.
@@ -357,6 +368,9 @@ struct kbase_mem_phy_alloc {
 	size_t evicted;
 	struct kbase_va_region *reg;
 	enum kbase_memory_type type;
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	enum kbase_memory_category category;
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 	struct kbase_vmap_struct *permanent_map;
 	u8 properties;
 	u8 group_id;
@@ -713,6 +727,15 @@ struct kbase_va_region {
 
 	kbase_refcount_t va_refcnt;
 	atomic64_t no_user_free_count;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	u64 last_used_ts;
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+	u32 pbha_8bit;
+	bool isFirstDmaBuf;
+	bool isImportedMemory;
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 };
 
 /* Special marker for failed JIT allocations that still must be marked as
@@ -939,6 +962,9 @@ static inline struct kbase_mem_phy_alloc *kbase_alloc_create(struct kbase_contex
 	}
 	INIT_LIST_HEAD(&alloc->mappings);
 	alloc->type = type;
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	alloc->category = KBASE_MEM_UNKNOWN;
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 	alloc->group_id = group_id;
 
 	if (type == KBASE_MEM_TYPE_IMPORTED_USER_BUF)
@@ -1549,6 +1575,10 @@ void kbase_mmu_interrupt(struct kbase_device *kbdev, u32 irq_stat);
  */
 void *kbase_mmu_dump(struct kbase_context *kctx, size_t nr_pages);
 #endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MMU_DUMP)
+size_t kbasep_mmu_dump_table_size(struct kbase_device *kbdev, int level, struct kbase_mmu_table *mmu);
+#endif /* CONFIG_MALI_MTK_MMU_DUMP */
 
 /**
  * kbase_sync_now - Perform cache maintenance on a memory region
@@ -2603,5 +2633,11 @@ static inline base_mem_alloc_flags kbase_mem_group_id_set(int id)
 }
 
 bool kbase_is_large_pages_enabled(void);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+void kbase_trace_alloc_pages(int32_t gpu_id, struct kbase_context *kctx, uint64_t size, uint64_t gpu_addr, enum kbase_memory_category category);
+void kbase_trace_free_pages(int32_t gpu_id, struct kbase_context *kctx, uint64_t size, uint64_t gpu_addr, enum kbase_memory_category category);
+void kbase_trace_update_pages(int32_t gpu_id, struct kbase_context *kctx, uint64_t size_a, uint64_t size_b, uint64_t gpu_addr, enum kbase_memory_category category);
+ #endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 #endif /* _KBASE_MEM_H_ */

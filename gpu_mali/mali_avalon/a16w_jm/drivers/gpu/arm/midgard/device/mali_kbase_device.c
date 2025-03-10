@@ -220,6 +220,11 @@ static int mali_oom_notifier_handler(struct notifier_block *nb, unsigned long ac
 	struct kbase_device *kbdev;
 	struct kbase_context *kctx = NULL;
 	unsigned long kbdev_alloc_total;
+#if IS_ENABLED(CONFIG_MALI_MTK_OOM_LOG_REDUCE)
+	static const int MAX_LEN_OF_OOM_LOG = 512;
+	char oom_log[512] = "";
+	int offset = 0;
+#endif
 
 	CSTD_UNUSED(action);
 	CSTD_UNUSED(data);
@@ -228,23 +233,41 @@ static int mali_oom_notifier_handler(struct notifier_block *nb, unsigned long ac
 		return NOTIFY_BAD;
 
 	kbdev = container_of(nb, struct kbase_device, oom_notifier_block);
-
+#if !IS_ENABLED(CONFIG_MALI_MTK_OOM_LOG_REDUCE)
 	kbdev_alloc_total = KBASE_PAGES_TO_KIB(atomic_read(&(kbdev->memdev.used_pages)));
 
 	dev_err(kbdev->dev, "OOM notifier: dev %s  %lu kB\n", kbdev->devname, kbdev_alloc_total);
-
+#endif
 	mutex_lock(&kbdev->kctx_list_lock);
 
 	list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
+#if IS_ENABLED(CONFIG_MALI_MTK_OOM_LOG_REDUCE)
+		if (offset < MAX_LEN_OF_OOM_LOG - 24)
+			offset += snprintf(oom_log+offset, MAX_LEN_OF_OOM_LOG-offset, "(%d_%d:%u)",
+					kctx->tgid, kctx->id, atomic_read(&(kctx->used_pages)));
+		else {
+			dev_err(kbdev->dev, "OOM notifier: dev %s %u | %s\n", kbdev->devname,
+				atomic_read(&(kbdev->memdev.used_pages)), oom_log);
+			strcpy(oom_log, "");
+			offset = 0;
+		}
+#else
 		struct task_struct *task = kctx->task;
 		unsigned long task_alloc_total =
 			KBASE_PAGES_TO_KIB(atomic_read(&(kctx->used_pages)));
 
 		dev_err(kbdev->dev, "OOM notifier: tsk %s  tgid (%u)  pid (%u) %lu kB\n",
 			task ? task->comm : "[null task]", kctx->tgid, kctx->pid, task_alloc_total);
+#endif
 	}
 
 	mutex_unlock(&kbdev->kctx_list_lock);
+#if IS_ENABLED(CONFIG_MALI_MTK_OOM_LOG_REDUCE)
+	if (offset) {
+		dev_err(kbdev->dev, "OOM notifier: dev %s %u | %s\n", kbdev->devname,
+				atomic_read(&(kbdev->memdev.used_pages)), oom_log);
+	}
+#endif
 	return NOTIFY_OK;
 }
 
@@ -487,6 +510,11 @@ KBASE_EXPORT_TEST_API(kbase_device_put_list);
 int kbase_device_early_init(struct kbase_device *kbdev)
 {
 	int err;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE)
+	/* This ghpm mutex lock is initialized before using pm_callback */
+	mutex_init(&kbdev->ghpm_lock);
+#endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE */
 
 	err = kbase_ktrace_init(kbdev);
 	if (err)
