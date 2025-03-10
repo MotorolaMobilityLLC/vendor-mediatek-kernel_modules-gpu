@@ -75,6 +75,7 @@ filegroup(
 platforms = [
     "mt6991",
     "mt6993",
+	"mt6895",
 ]
 
 [define_mgk_ddk_ko(
@@ -113,7 +114,9 @@ platforms = [
     ] if p in ["mt6991"] else [
         "CONFIG_MALI_MTK_MGMM",
         "CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE",
-    ] if p in ["mt6993"] else[]),
+    ] if p in ["mt6993"] else [
+        "CONFIG_MALI_MTK_MGMM",
+    ] if p in ["mt6895"] else[]),
 ) for p in platforms]
 
 [define_mgk_ddk_ko(
@@ -142,6 +145,9 @@ platforms = [
         "-I$(srctree)/drivers/gpu/mediatek/gpufreq",
         "-I$(srctree)/drivers/gpu/mediatek/gpueb/include",
     ] if p in ["mt6993"] else[
+        "-I$(srctree)/drivers/gpu/mediatek/gpufreq",
+        "-I$(srctree)/drivers/gpu/mediatek/gpueb/include",
+    ] if p in ["mt6895"] else[
     ]),
     defconfig = "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config/fragment:base_defconfig",
     kconfig = ":base_kconfig",
