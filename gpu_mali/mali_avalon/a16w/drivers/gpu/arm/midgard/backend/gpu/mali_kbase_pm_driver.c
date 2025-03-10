@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -3095,8 +3095,12 @@ static void kbase_pm_timed_out(struct kbase_device *kbdev, const char *timeout_m
 
 	dev_err(kbdev->dev, "%s", timeout_msg);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-	dev_err(kbdev->dev, "\tMCU desired = %d\n", kbase_pm_is_mcu_desired(kbdev));
+	dev_err(kbdev->dev, "\tMCU desired = %s\n",
+		kbase_pm_is_mcu_desired(kbdev) ? "true" : "false");
 	dev_err(kbdev->dev, "\tMCU sw state = %d\n", kbdev->pm.backend.mcu_state);
+	dev_err(kbdev->dev, "\tL2 desired = %s\n",
+		kbase_pm_is_l2_desired(kbdev) ? "true" : "false");
+	dev_err(kbdev->dev, "\tL2 sw state = %d\n", kbdev->pm.backend.l2_state);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	dev_err(kbdev->dev, "Current state :\n");
 

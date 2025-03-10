@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -129,7 +129,9 @@ void kbase_pm_context_idle_locked(struct kbase_device *kbdev)
 
 	KBASE_DEBUG_ASSERT(c >= 0);
 
-	if (c == 0) {
+	if (c == 1) {
+		kbase_csf_scheduler_pm_single_refcount(kbdev);
+        } else if (c == 0) {
 		/* Last context has gone idle */
 		kbase_hwaccess_pm_gpu_idle(kbdev);
 		kbase_clk_rate_trace_manager_gpu_idle(kbdev);
