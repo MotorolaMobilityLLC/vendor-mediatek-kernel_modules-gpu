@@ -16,10 +16,9 @@
 #include <ged_dvfs.h>
 #include <ged_base.h>
 #include <ged_type.h>
-#include <mtk_ddk_define.h>  /* MTK_INLINE */
 
 #if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
-#include <aee.h>
+#include <mt-plat/aee.h>
 #endif /* CONFIG_MTK_AEE_FEATURE */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
@@ -524,6 +523,15 @@ int mtk_common_ged_dvfs_get_gov_mask_enable(void)
 {
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	return (unsigned int)ged_dvfs_get_gov_mask_enable();
+#else
+	return -1;
+#endif
+}
+
+int mtk_common_ged_dvfs_get_desire_mask(void)
+{
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	return (unsigned int)ged_dvfs_get_desire_mask();
 #else
 	return -1;
 #endif
