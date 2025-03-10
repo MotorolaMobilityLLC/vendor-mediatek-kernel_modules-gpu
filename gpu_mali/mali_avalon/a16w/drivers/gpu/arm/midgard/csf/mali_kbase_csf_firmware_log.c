@@ -550,6 +550,15 @@ void kbase_csf_firmware_log_dump_buffer(struct kbase_device *kbdev)
 	 * partial messages over multiple invocations of this function
 	 */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	/* Dump latest FW source change's SHA of ARM ipdelivery for ELF file mapping */
+	dev_info(kbdev->dev, "Mali firmware git_sha: %s", kbdev->fw_git_sha);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+		"Mali firmware git_sha: %s\n", kbdev->fw_git_sha);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
 	p = buf;
 	pendbuf = &buf[FIRMWARE_LOG_DUMP_BUF_SIZE];
 
