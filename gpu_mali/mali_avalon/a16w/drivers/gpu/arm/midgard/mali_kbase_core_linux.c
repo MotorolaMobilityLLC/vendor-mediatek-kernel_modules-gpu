@@ -3055,8 +3055,20 @@ static ssize_t core_mask_show(struct device *dev, struct device_attribute *attr,
 
 	ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret), "Current debug core mask : 0x%llX\n",
 			 debug_mask);
-	ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret),
+
+#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
+	if (mtk_common_ged_dvfs_get_gov_mask_enable() == 1) {
+		ca_mask = mtk_common_ged_dvfs_get_desire_mask();
+		ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret),
 			 "Current desired core mask : 0x%llX\n", ca_mask);
+	} else {
+		ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret),
+			 "Current desired core mask : 0x%llX\n", ca_mask);
+	}
+#else
+	ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret),
+		 	 "Current desired core mask : 0x%llX\n", ca_mask);
+#endif
 
 #if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
 #if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)

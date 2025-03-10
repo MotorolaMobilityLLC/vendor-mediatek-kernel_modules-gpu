@@ -529,6 +529,15 @@ int mtk_common_ged_dvfs_get_gov_mask_enable(void)
 #endif
 }
 
+int mtk_common_ged_dvfs_get_desire_mask(void)
+{
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	return (unsigned int)ged_dvfs_get_desire_mask();
+#else
+	return -1;
+#endif
+}
+
 void mtk_common_get_system_timer_and_record(struct kbase_device *kbdev)
 {
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \
