@@ -43,10 +43,10 @@ define_mgk_ko(
 )
 
 define_mgk_ko(
-    name = "gpu",
+    name = "gpu_mt6895",
     srcs = glob(["**"]),
     outs = (
-        mt6895_outs if glob(["mt6895/*"]) else []
+    mt6895_outs if glob(["mt6895/*"]) else []
     ),
 )
 
