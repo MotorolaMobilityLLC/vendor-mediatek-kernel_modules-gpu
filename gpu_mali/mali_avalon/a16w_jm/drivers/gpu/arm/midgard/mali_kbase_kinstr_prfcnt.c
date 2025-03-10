@@ -2318,10 +2318,10 @@ int MTK_kbase_vinstr_hwcnt_reader_setup(
 	const uint64_t user_data_sample = 0xDEADBEEF;
 	int fd;
 	size_t item_count, max_item_count;
-	size_t bytes;
+	//size_t bytes;
 	struct prfcnt_request_item *req_arr = NULL;
 	struct kbase_kinstr_prfcnt_client *cli = NULL;
-	const size_t max_bytes = 32 * sizeof(*req_arr);
+	//const size_t max_bytes = 32 * sizeof(*req_arr);
 	const struct kbase_hwcnt_metadata *metadata;
 	struct prfcnt_request_item req_arr_[] = {
 		{
@@ -2458,8 +2458,8 @@ void MTK_update_gpu_LTR(void)
 	unsigned int stall_counter[4] = {0};
 	int i = 0;
 
-	char gpu_data_print[PRINT_BUFFER_SIZE] = {0};
-	u32 gpu_data_ctl = 0;
+	//char gpu_data_print[PRINT_BUFFER_SIZE] = {0};
+	//u32 gpu_data_ctl = 0;
 
 	mtk_get_gpu_loading(&pm_gpu_loading);
 	gpu_perf_counter.counter[VINSTR_GPU_FREQ] = gpufreq_get_cur_freq(TARGET_DEFAULT);

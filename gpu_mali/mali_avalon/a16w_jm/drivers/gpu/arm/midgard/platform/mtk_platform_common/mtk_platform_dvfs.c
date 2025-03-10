@@ -33,8 +33,10 @@ static unsigned int current_util_active;
 static unsigned int current_util_3d;
 static unsigned int current_util_ta;
 static unsigned int current_util_compute;
+#if MALI_USE_CSF
 static unsigned int current_util_iter;
 static unsigned int current_util_mcu;
+#endif
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DVFS_LOADING_MODE) && \

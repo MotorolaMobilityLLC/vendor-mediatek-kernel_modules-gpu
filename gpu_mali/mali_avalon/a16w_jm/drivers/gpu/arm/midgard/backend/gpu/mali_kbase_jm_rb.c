@@ -1367,6 +1367,14 @@ void kbase_gpu_complete_hw(struct kbase_device *kbdev, unsigned int js, u32 comp
 									   sizeof(js_string)),
 					       ktime_to_ns(*end_timestamp),
 					       (u32)next_katom->kctx->id, 0, next_katom->work_id);
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+			if(js == 0) {
+				kbdev->v1->ctx = (u32)next_katom->kctx->id;
+				kbdev->v1->job = next_katom->work_id;
+				kbdev->v1->frame = (u32)qos_get_frame_nr();
+				kbdev->v1->freq = js;
+			}
+#endif
 		} else {
 			char js_string[16];
 

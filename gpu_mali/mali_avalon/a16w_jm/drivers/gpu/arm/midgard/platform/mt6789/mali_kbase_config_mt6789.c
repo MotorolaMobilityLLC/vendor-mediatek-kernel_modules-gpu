@@ -263,7 +263,7 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
     pm_callback_power_off_nolock(kbdev);
     mutex_unlock(&g_mfg_lock);
 }
-
+/*
 static void pm_callback_power_suspend(struct kbase_device *kbdev)
 {
     mutex_lock(&g_mfg_lock);
@@ -291,7 +291,7 @@ static void pm_callback_power_resume(struct kbase_device *kbdev)
 
     mutex_unlock(&g_mfg_lock);
 }
-
+*/
 static void pm_callback_runtime_gpu_active(struct kbase_device *kbdev)
 {
     unsigned long flags;

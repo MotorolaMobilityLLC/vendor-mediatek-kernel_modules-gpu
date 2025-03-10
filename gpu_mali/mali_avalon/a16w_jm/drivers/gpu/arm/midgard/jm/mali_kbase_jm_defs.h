@@ -566,7 +566,7 @@ struct kbase_jd_atom {
 
 	wait_queue_head_t completed;
 	enum kbase_jd_atom_state status;
-#if IS_ENABLED(CONFIG_GPU_TRACEPOINTS)
+#if IS_ENABLED(CONFIG_GPU_TRACEPOINTS) || defined(CONFIG_MALI_MTK_GPU_BM_JM)
 	int work_id;
 #endif
 	unsigned int slot_nr;
@@ -607,6 +607,10 @@ struct kbase_jd_atom {
 	struct rb_node runnable_tree_node;
 
 	u32 age;
+#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+	/* frame number to the atom */
+	u32 frame_nr;
+#endif
 };
 
 static inline bool kbase_jd_katom_is_protected(const struct kbase_jd_atom *katom)
@@ -737,7 +741,7 @@ struct kbase_jd_context {
 	u32 job_nr;
 	size_t tb_wrap_offset;
 
-#if IS_ENABLED(CONFIG_GPU_TRACEPOINTS)
+#if IS_ENABLED(CONFIG_GPU_TRACEPOINTS) || defined(CONFIG_MALI_MTK_GPU_BM_JM)
 	atomic_t work_id;
 #endif
 
