@@ -4108,6 +4108,11 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		spin_lock_irqsave(&kbdev->hwaccess_lock, irq_flags);
 		/* power off and on once to reset MFG1 */
 		gpufreq_power_control(GPU_PWR_OFF);
+#if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE) && IS_ENABLED(CONFIG_MALI_MTK_POWER_RESET_MFG0)
+		/* power off and on once to reset MFG0 */
+		gpueb_ctrl(GHPM_OFF, 0, SUSPEND_POWER_OFF);
+		gpueb_ctrl(GHPM_ON, 0, SUSPEND_POWER_ON);
+#endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE && CONFIG_MALI_MTK_POWER_RESET_MFG0 */
 		gpufreq_power_control(GPU_PWR_ON);
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, irq_flags);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
@@ -4246,6 +4251,11 @@ whitebox_force_hard_reset:
 			spin_lock_irqsave(&kbdev->hwaccess_lock, irq_flags);
 			/* power off and on once to reset MFG1 */
 			gpufreq_power_control(GPU_PWR_OFF);
+#if IS_ENABLED(CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE) && IS_ENABLED(CONFIG_MALI_MTK_POWER_RESET_MFG0)
+			/* power off and on once to reset MFG0 */
+			gpueb_ctrl(GHPM_OFF, 0, SUSPEND_POWER_OFF);
+			gpueb_ctrl(GHPM_ON, 0, SUSPEND_POWER_ON);
+#endif /* CONFIG_MALI_MTK_GHPM_STAGE1_ENABLE && CONFIG_MALI_MTK_POWER_RESET_MFG0 */
 			gpufreq_power_control(GPU_PWR_ON);
 			spin_unlock_irqrestore(&kbdev->hwaccess_lock, irq_flags);
 			dev_info(kbdev->dev, "GPU hard power reset completed");
