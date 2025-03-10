@@ -145,9 +145,9 @@
 #include <platform/mtk_platform_common/mtk_platform_qinspect_recovery.h>
 #endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_BM_CSF)
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_BM_2)
 #include <ged_gpu_bm.h>
-#endif /* CONFIG_MALI_MTK_GPU_BM_CSF */
+#endif /* CONFIG_MALI_MTK_GPU_BM_2 */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
 #include <ged_mali_event.h>
@@ -5679,11 +5679,11 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 #endif
 	} else {
 
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_BM_CSF)
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_BM_2)
 		err = mtk_bandwidth_resource_init();
 		if (err)
 			pr_info("@%s: GPU BM init failed (CSF)\n", __func__);
-#endif /* CONFIG_MALI_MTK_GPU_BM_CSF */
+#endif /* CONFIG_MALI_MTK_GPU_BM_2 */
 
 #if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
 		/* Since upstream is not exporting mmap_min_addr, kbase at the
