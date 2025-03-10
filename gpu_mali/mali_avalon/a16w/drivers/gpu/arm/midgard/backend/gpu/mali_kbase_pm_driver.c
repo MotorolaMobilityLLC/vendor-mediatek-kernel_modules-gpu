@@ -4110,19 +4110,11 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		gpufreq_power_control(GPU_PWR_OFF);
 		gpufreq_power_control(GPU_PWR_ON);
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, irq_flags);
-#if IS_ENABLED(CONFIG_MALI_MTK_DEFERRED_LOGGING)
-		if (kbdev->is_reset_triggered_by_fence_timeout) {
-			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_DEFERRED,
-				"GPU soft power reset completed\n");
-		} else {
-			dev_info(kbdev->dev, "GPU soft power reset completed");
-		}
-#else /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
-		dev_info(kbdev->dev, "GPU soft power reset completed");
-#endif /* CONFIG_MALI_MTK_DEFERRED_LOGGING */
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL,
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_DEFERRED_WHEN_RESET,
 			"GPU soft power reset completed\n");
+#else /* CONFIG_MALI_MTK_LOG_BUFFER */
+		dev_info(kbdev->dev, "GPU soft power reset completed");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #endif /* CONFIG_MTK_GPUFREQ_V2 && CONFIG_MALI_MTK_POWER_RESET */
 		return 0;

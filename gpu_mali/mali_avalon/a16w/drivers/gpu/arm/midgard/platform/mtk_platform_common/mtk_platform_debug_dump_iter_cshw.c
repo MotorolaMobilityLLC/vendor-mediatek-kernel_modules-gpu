@@ -12,19 +12,6 @@
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
-//static bool kbase_is_register_accessible(u32 offset)
-//{
-//#ifdef CONFIG_MALI_DEBUG
-//if (((offset >= MCU_SUBSYSTEM_BASE) && (offset < IPA_CONTROL_BASE)) ||
-//	    ((offset >= GPU_CONTROL_MCU_BASE) && (offset < USER_BASE))) {
-//		WARN(1, "Invalid register offset 0x%x", offset);
-//		return false;
-//	}
-//#endif
-//
-//	return true;
-//}
-
 static u32 kbase_reg_read(struct kbase_device *kbdev, u32 offset)
 {
 	u32 val;
@@ -34,9 +21,6 @@ static u32 kbase_reg_read(struct kbase_device *kbdev, u32 offset)
 
 	if (WARN_ON(kbdev->dev == NULL))
 		return 0;
-
-	//if (!kbase_is_register_accessible(offset))
-	//	return 0;
 
 	val = readl(kbdev->reg + offset);
 

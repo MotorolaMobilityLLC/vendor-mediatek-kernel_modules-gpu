@@ -238,7 +238,7 @@ void mtk_common_debug(enum mtk_common_debug_types type, struct kbase_context *kc
 				tmp_idx = (tmp_idx + 1) % MAX_STATES_NUM; // Wrap around to 0 when reaching MAX_STATES_NUM
 			}
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_DEFERRED_WHEN_RESET,
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 				"mcu state back trace %hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu (%u)\n",
 				tmp_state_array[0], tmp_state_array[1], tmp_state_array[2], tmp_state_array[3],
 				tmp_state_array[4], tmp_state_array[5], tmp_state_array[6], tmp_state_array[7],
@@ -259,7 +259,7 @@ void mtk_common_debug(enum mtk_common_debug_types type, struct kbase_context *kc
 				tmp_idx = (tmp_idx + 1) % MAX_STATES_NUM;  // Increment and wrap around
 			}
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_DEFERRED_WHEN_RESET,
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 				"l2 state back trace %hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu->%hhu (%u)\n",
 				tmp_state_array[0], tmp_state_array[1], tmp_state_array[2], tmp_state_array[3],
 				tmp_state_array[4], tmp_state_array[5], tmp_state_array[6], tmp_state_array[7],
