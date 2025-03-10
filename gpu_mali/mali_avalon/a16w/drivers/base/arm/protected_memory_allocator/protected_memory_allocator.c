@@ -58,7 +58,7 @@
 #include <linux/dma-buf.h>
 #include <linux/dma-heap.h>
 #if IS_ENABLED(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && IS_ENABLED(CONFIG_MTK_GZ_KREE)
-#include <trusted_mem_api.h>
+#include <public/trusted_mem_api.h>
 #include <mtk_heap.h>
 #endif /* CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM && CONFIG_MTK_GZ_KREE */
 #endif /* CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP */

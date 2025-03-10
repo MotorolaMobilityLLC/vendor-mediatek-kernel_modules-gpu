@@ -51,7 +51,7 @@
 #include <linux/version_compat_defs.h>
 
 #if IS_ENABLED(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && IS_ENABLED(CONFIG_MTK_GZ_KREE) && IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
-#include <trusted_mem_api.h>
+#include <public/trusted_mem_api.h>
 #include <mtk_heap.h>
 #endif /* CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM && CONFIG_MTK_GZ_KREE && CONFIG_MALI_MTK_PROTECTED_PATCH */
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)

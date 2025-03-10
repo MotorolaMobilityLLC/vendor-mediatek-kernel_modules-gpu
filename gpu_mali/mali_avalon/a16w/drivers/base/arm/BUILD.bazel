@@ -135,7 +135,6 @@ platforms = [
     ],
     copts = CFLAGS_MODULE + [
         "-I$(srctree)/drivers/dma-buf/heaps",
-        "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/trusted_mem/public",
     ] + ([
         "-I$(srctree)/drivers/gpu/mediatek/gpufreq",
         "-I$(srctree)/drivers/gpu/mediatek/gpueb/include",

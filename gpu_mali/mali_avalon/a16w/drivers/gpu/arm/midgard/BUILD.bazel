@@ -85,7 +85,7 @@ filegroup(
     name = "midgard_kconfig",
     srcs = [
         "Kconfig",
-	"MTK_Kconfig",
+        "MTK_Kconfig",
     ] + select({
         "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_debug_kutf": ["//drivers/gpu/arm/midgard/tests:kutf_kconfig"],
         "//conditions:default": [],
@@ -190,8 +190,8 @@ platforms = [
     )  + glob(
         [
             "platform/*.c",
-	    "platform/mtk_platform_common/*.c",
-	    "platform/{}/*.c".format(p),
+            "platform/mtk_platform_common/*.c",
+            "platform/{}/*.c".format(p),
         ],
     ),
     out = "mali_kbase_{}_a16w.ko".format(p),
@@ -275,8 +275,8 @@ platforms = [
         "//kernel_device_modules-{}/drivers/dma-buf/heaps:mtk_sec_heap".format(kernel_version),
         "//kernel_device_modules-{}/drivers/gpu/mediatek/ged:ged".format(kernel_version),
         "//kernel_device_modules-{}/drivers/gpu/mediatek/gpueb:mtk_gpueb".format(kernel_version),
-	"//kernel_device_modules-{}/drivers/gpu/mediatek/gpufreq/v2:mtk_gpufreq_wrapper".format(kernel_version),
-	"//kernel_device_modules-{}/drivers/gpu/mediatek/hal:mtk_gpu_hal".format(kernel_version),
+        "//kernel_device_modules-{}/drivers/gpu/mediatek/gpufreq/v2:mtk_gpufreq_wrapper".format(kernel_version),
+        "//kernel_device_modules-{}/drivers/gpu/mediatek/hal:mtk_gpu_hal".format(kernel_version),
         "//kernel_device_modules-{}/drivers/misc/mediatek/aee/aed:aee_aed".format(kernel_version),
         "//kernel_device_modules-{}/drivers/misc/mediatek/aee/mrdump:mrdump".format(kernel_version),
         "//kernel_device_modules-{}/drivers/misc/mediatek/geniezone:gz_tz_system".format(kernel_version),
