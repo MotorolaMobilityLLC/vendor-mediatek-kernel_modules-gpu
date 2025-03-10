@@ -37,8 +37,6 @@
 #include <linux/types.h>
 #include <linux/wait.h>
 
-#include <mtk_ddk_define.h>  /* MTK_INLINE */
-
 #if IS_ENABLED(CONFIG_MALI_CORESIGHT)
 #include <debug/backend/mali_kbase_debug_coresight_internal_csf.h>
 #endif /* IS_ENABLED(CONFIG_MALI_CORESIGHT) */
@@ -284,6 +282,7 @@ enum kbase_queue_group_priority {
  * @CSF_SCHED_PROTM_PROGRESS_TIMEOUT: Timeout used to prevent protected mode execution hang.
  * @MMU_AS_INACTIVE_WAIT_TIMEOUT: Maximum waiting time in ms for the completion
  *                                of a MMU operation.
+ * @KCPU_FENCE_SIGNAL_TIMEOUT: Waiting time in ms for triggering a KCPU queue sync state dump.
  * @KBASE_PRFCNT_ACTIVE_TIMEOUT: Waiting time for prfcnt to be ready.
  * @KBASE_CLEAN_CACHE_TIMEOUT: Waiting time for cache flush to complete.
  * @KBASE_AS_INACTIVE_TIMEOUT: Waiting time for MCU address space to become inactive.
@@ -309,6 +308,7 @@ enum kbase_timeout_selector {
 	CSF_FIRMWARE_PING_TIMEOUT,
 	CSF_SCHED_PROTM_PROGRESS_TIMEOUT,
 	MMU_AS_INACTIVE_WAIT_TIMEOUT,
+	KCPU_FENCE_SIGNAL_TIMEOUT,
 	KBASE_PRFCNT_ACTIVE_TIMEOUT,
 	KBASE_CLEAN_CACHE_TIMEOUT,
 	KBASE_AS_INACTIVE_TIMEOUT,
@@ -1297,6 +1297,12 @@ struct kbase_csf_mcu_shared_regions {
  *                          queue commands.
  * @gpu_idle_timer_enabled: Tracks whether the GPU idle timer is enabled or disabled.
  * @fw_soi_enabled:         True if FW Sleep-on-Idle is currently enabled.
+ * @missed_suspend_on_idle_evt: Indicates if the previous attempt at suspending
+ *                              the scheduler on GPU becoming idle failed
+ *                              because the GPU could not be powered down at
+ *                              that moment. When this happens, we wait for the
+ *                              PM to inform us when it should be retried via
+ *                              kbase_csf_scheduler_pm_single_refcount().
  */
 struct kbase_csf_scheduler {
 	struct mutex lock;
@@ -1393,6 +1399,7 @@ struct kbase_csf_scheduler {
 #endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
 	atomic_t gpu_idle_timer_enabled;
 	atomic_t fw_soi_enabled;
+	atomic_t missed_suspend_on_idle_evt;
 };
 
 /*
