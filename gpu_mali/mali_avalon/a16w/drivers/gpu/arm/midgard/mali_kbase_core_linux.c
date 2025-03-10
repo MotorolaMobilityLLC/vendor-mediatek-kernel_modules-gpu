@@ -3568,6 +3568,25 @@ static ssize_t upf_counter_store(struct device *dev, struct device_attribute *at
 static DEVICE_ATTR_RW(upf_counter);
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+static ssize_t timeout_value_table_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct kbase_device *kbdev;
+	char timeout_value_table[KBASE_TIMEOUT_SELECTOR_COUNT * 100];
+
+	CSTD_UNUSED(attr);
+
+	kbdev = to_kbase_device(dev);
+	if (!kbdev)
+		return -ENODEV;
+
+	mtk_debug_dump_timeout_value_table(kbdev, timeout_value_table, KBASE_TIMEOUT_SELECTOR_COUNT * 100);
+
+	return scnprintf(buf, PAGE_SIZE, "%s\n", timeout_value_table);
+}
+static DEVICE_ATTR_RO(timeout_value_table);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
 /**
  * dvfs_period_store - Store callback for the dvfs_period sysfs file.
  * @dev:   The device with sysfs file is for
@@ -5548,6 +5567,9 @@ static struct attribute *kbase_attrs[] = {
 #if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
 	&dev_attr_force_cache_sync.attr,
 #endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	&dev_attr_timeout_value_table.attr,
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 	NULL
 };
 
