@@ -199,7 +199,7 @@ enum {
  * More cycles (1s @ 100Mhz = 100000000) are added up to ensure that
  * host timeout is always bigger than FW timeout.
  */
-#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_OPT)
 /* Because of the MTK freqency information won't be input mali driver for
  * timeout value calculation so the mali driver will use default 100Mhz
  * to have the calculation.
@@ -207,9 +207,9 @@ enum {
  * So, adjust the value to align with r38p1 1.5s.
  */
 #define CSF_CSG_SUSPEND_TIMEOUT_CYCLES (150000000ull)
-#else /* CONFIG_MALI_MTK_FENCE_DEBUG */
+#else /* CONFIG_MALI_MTK_TIMEOUT_OPT */
 #define CSF_CSG_SUSPEND_TIMEOUT_CYCLES (3100000000ull)
-#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+#endif /* CONFIG_MALI_MTK_TIMEOUT_OPT */
 
 /* Waiting timeout in clock cycles for GPU suspend to complete. */
 #define CSF_GPU_SUSPEND_TIMEOUT_CYCLES (CSF_CSG_SUSPEND_TIMEOUT_CYCLES)
@@ -315,13 +315,13 @@ enum {
 /* Firmware iterators' suspend timeout, default 4000ms. Customer can update this by
  * using debugfs -- csg_suspend_timeout
  */
-#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+#if IS_ENABLED(CONFIG_MALI_MTK_TIMEOUT_OPT)
 /* Adjust the value to align with r38p1 1.5s.
  */
 #define CSG_SUSPEND_TIMEOUT_FIRMWARE_MS (1500)
 #else
 #define CSG_SUSPEND_TIMEOUT_FIRMWARE_MS (4000)
-#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+#endif /* CONFIG_MALI_MTK_TIMEOUT_OPT */
 
 #define CSG_SUSPEND_TIMEOUT_FIRMWARE_FPGA_MS (31000)
 

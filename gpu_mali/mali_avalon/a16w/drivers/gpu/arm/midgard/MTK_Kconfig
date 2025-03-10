@@ -328,4 +328,8 @@ config MALI_MTK_API_SYNC_UPDATE
 	bool ""
 	default n
 
+config MALI_MTK_TIMEOUT_OPT
+	bool "Optimization for the timeout of error"
+	default n
+
 endmenu
