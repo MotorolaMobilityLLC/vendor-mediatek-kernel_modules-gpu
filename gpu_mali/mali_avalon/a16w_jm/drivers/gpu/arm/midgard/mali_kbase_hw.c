@@ -32,6 +32,7 @@
 void kbase_hw_set_features_mask(struct kbase_device *kbdev)
 {
 	const enum base_hw_feature *features;
+	pr_err("kbase_hw_set_features_mask kbdev->gpu_props.gpu_id.product_model = %d\n",kbdev->gpu_props.gpu_id.product_model);
 
 	switch (kbdev->gpu_props.gpu_id.product_model) {
 	case GPU_ID_PRODUCT_TMIX:
@@ -57,6 +58,7 @@ void kbase_hw_set_features_mask(struct kbase_device *kbdev)
 		break;
 	case GPU_ID_PRODUCT_TNAX:
 		features = base_hw_features_tNAx;
+		pr_err("kbase_hw_set_features_mask base_hw_features_tNAx found\n");
 		break;
 	case GPU_ID_PRODUCT_LBEX:
 	case GPU_ID_PRODUCT_TBEX:

@@ -703,7 +703,11 @@ static int kbasep_hwcnt_backend_jm_dump_alloc(const struct kbase_hwcnt_backend_j
 
 	nr_pages = PFN_UP(info->dump_bytes);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	reg = kbase_mem_alloc(kctx, nr_pages, nr_pages, 0, &flags, gpu_dump_va, mmu_sync_info, KBASE_MEM_JM);
+#else
 	reg = kbase_mem_alloc(kctx, nr_pages, nr_pages, 0, &flags, gpu_dump_va, mmu_sync_info);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 	if (!reg)
 		return -ENOMEM;

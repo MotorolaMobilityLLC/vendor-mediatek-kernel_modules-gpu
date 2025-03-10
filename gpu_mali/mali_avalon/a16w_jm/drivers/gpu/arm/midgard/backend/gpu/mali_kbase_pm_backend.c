@@ -46,6 +46,14 @@
 #include <mali_kbase_dummy_job_wa.h>
 #include <backend/gpu/mali_kbase_irq_internal.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+#include <ged_dvfs.h>
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING*/
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+#include <ged_mali_event.h>
+#include <platform/mtk_platform_common/mtk_platform_mali_event.h>
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 
 static void kbase_pm_gpu_poweroff_wait_wq(struct work_struct *data);
 static void kbase_pm_hwcnt_disable_worker(struct work_struct *data);
@@ -195,7 +203,12 @@ int kbase_hwaccess_pm_init(struct kbase_device *kbdev)
 	if ((kbdev->gpu_props.gpu_id.arch_major > 11) ||
 	    ((kbdev->gpu_props.gpu_id.arch_major == 11) &&
 	     (kbdev->gpu_props.gpu_id.arch_minor >= 8) && (kbdev->gpu_props.gpu_id.arch_rev >= 10)))
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DISABLE_SOI)
+		clear_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE, &kbdev->pm.backend.gpu_sleep_allowed);
+#else
 		set_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE, &kbdev->pm.backend.gpu_sleep_allowed);
+#endif /* CONFIG_MALI_MTK_DISABLE_SOI */
 
 
 #endif
@@ -299,6 +312,9 @@ static void wait_for_mmu_fault_handling_in_gpu_poweroff_wait_wq(struct kbase_dev
 				"Wait for fault handling timed-out in gpu_poweroff_wait_wq");
 			if (kbase_prepare_to_reset_gpu(kbdev,
 						       RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+				ged_mali_event_update_gpu_reset_nolock(GPU_RESET_WAIT_MMU_FAULT_IN_POWOFF_WAIT_WQ);
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 				kbase_reset_gpu(kbdev);
 				reset_triggered = true;
 			}
@@ -422,7 +438,7 @@ static void kbase_pm_gpu_poweroff_wait_wq(struct work_struct *data)
 
 static void kbase_pm_l2_clock_slow(struct kbase_device *kbdev)
 {
-#if defined(CONFIG_MALI_MIDGARD_DVFS)
+#if defined(CONFIG_MALI_MIDGARD_DVFS) && !defined(CONFIG_MALI_DEVFREQ) /* MTK_INLINE */
 	struct clk *clk = kbdev->clocks[0];
 #endif
 
@@ -464,7 +480,7 @@ static void kbase_pm_l2_clock_slow(struct kbase_device *kbdev)
 
 static void kbase_pm_l2_clock_normalize(struct kbase_device *kbdev)
 {
-#if defined(CONFIG_MALI_MIDGARD_DVFS)
+#if defined(CONFIG_MALI_MIDGARD_DVFS) && !defined(CONFIG_MALI_DEVFREQ) /* MTK_INLINE */
 	struct clk *clk = kbdev->clocks[0];
 #endif
 
@@ -1016,6 +1032,9 @@ void kbase_pm_handle_gpu_lost(struct kbase_device *kbdev)
 		/* Update kbase status */
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 		kbdev->protected_mode = false;
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+		ged_dvfs_write_sysram_protm_exit();
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING */
 		kbase_pm_update_state(kbdev);
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
@@ -1031,6 +1050,9 @@ void kbase_pm_handle_gpu_lost(struct kbase_device *kbdev)
 		/* Clear all jobs running on the GPU */
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 		kbdev->protected_mode = false;
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING)
+		ged_dvfs_write_sysram_protm_exit();
+#endif /* CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING */
 		kbase_backend_reset(kbdev, &end_timestamp);
 		kbase_pm_metrics_update(kbdev, NULL);
 		kbase_pm_update_state(kbdev);
@@ -1219,8 +1241,13 @@ int kbase_pm_handle_runtime_suspend(struct kbase_device *kbdev)
 
 	mcu_state = kbdev->pm.backend.mcu_state;
 	if (unlikely(!kbase_pm_is_mcu_inactive(kbdev, mcu_state))) {
+#if IS_ENABLED(CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG)
+		kbase_pm_debug_status(kbdev);
+		dev_err(kbdev->dev, "MCU SM in unexpected state %d on runtime suspend", mcu_state);
+#else
 		dev_WARN_ONCE(kbdev->dev, 1, "MCU SM in unexpected state %d on runtime suspend",
 			      mcu_state);
+#endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 		ret = -EBUSY;
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 		goto unlock;

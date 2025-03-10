@@ -177,6 +177,9 @@ int kbase_context_common_init(struct kbase_context *kctx)
 	}
 
 	mutex_init(&kctx->reg_lock);
+#if IS_ENABLED(CONFIG_MALI_MTK_KCPUQ_PRIORITZED)
+	atomic_set(&kctx->prioritized, 1);
+#endif /* CONFIG_MALI_MTK_KCPUQ_PRIORITZED */
 
 	spin_lock_init(&kctx->mem_partials_lock);
 	INIT_LIST_HEAD(&kctx->mem_partials);
@@ -186,11 +189,28 @@ int kbase_context_common_init(struct kbase_context *kctx)
 
 	init_waitqueue_head(&kctx->event_queue);
 
+#if !MALI_USE_CSF
+	atomic_set(&kctx->event_closed, false);
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_BM_JM)
+	atomic_set(&kctx->jctx.work_id, 0);
+#endif
+#endif
 	kbase_gpu_vm_lock(kctx);
 	bitmap_copy(kctx->cookies, &cookies_mask, BITS_PER_LONG);
 	kbase_gpu_vm_unlock(kctx);
 
 	kctx->id = (u32)atomic_add_return(1, &(kctx->kbdev->ctx_num)) - 1;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kctx->target_mem_profiling = false;
+	snprintf(kctx->process_name, sizeof(char) * MAX_PROCESS_NAME_LEN, "~%s", (NULL == kctx->task) ? "[null task]" : kctx->task->comm);
+	kbase_trace_alloc_pages(kctx->kbdev->id, kctx, 0, 0, KBASE_MEM_CONTEXT);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT)
+	if (kctx->kbdev->mem_whitebox_debug == true)
+		dev_err(kctx->kbdev->dev, "[pid:%d] kbase_create_context", kctx->tgid);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT */
 
 	mutex_lock(&kctx->kbdev->kctx_list_lock);
 	err = kbase_insert_kctx_to_process(kctx);

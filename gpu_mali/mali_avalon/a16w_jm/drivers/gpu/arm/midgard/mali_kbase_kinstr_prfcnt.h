@@ -36,6 +36,13 @@ struct kbase_ioctl_hwcnt_reader_setup;
 struct kbase_ioctl_kinstr_prfcnt_enum_info;
 union kbase_ioctl_kinstr_prfcnt_setup;
 
+typedef enum {
+	pm_non,
+	pm_ltr,
+	pm_swpm,
+	pm_met
+} mtk_pm_tool_used;
+
 /**
  * kbase_kinstr_prfcnt_init() - Initialize a kinstr_prfcnt context.
  * @hvirt:          Non-NULL pointer to the hardware counter virtualizer.
@@ -198,5 +205,19 @@ int kbase_kinstr_prfcnt_setup(struct kbase_kinstr_prfcnt_context *kinstr_ctx,
  */
 int kbasep_kinstr_populate_prfcnt_enum_list(const struct kbase_hwcnt_metadata *metadata,
 					    struct prfcnt_enum_item *item_array, size_t array_size);
+
+/* MTK GPU PMU */
+int MTK_kbase_vinstr_hwcnt_reader_setup(
+	struct kbase_kinstr_prfcnt_context *kinstr_ctx,
+	union kbase_ioctl_kinstr_prfcnt_setup *setup);
+void MTK_update_mtk_pm(int flag);
+int MTK_get_mtk_pm(void);
+void MTK_kbasep_vinstr_hwcnt_set_interval(unsigned int interval);
+void MTK_kbasep_vinstr_hwcnt_release(void);
+void MTK_update_gpu_LTR(void);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_HWCNT_HINT)
+void hwcnt_hint(bool is_init);
+#endif /* CONFIG_MALI_MTK_HWCNT_HINT */
 
 #endif /* _KBASE_KINSTR_PRFCNT_H_ */

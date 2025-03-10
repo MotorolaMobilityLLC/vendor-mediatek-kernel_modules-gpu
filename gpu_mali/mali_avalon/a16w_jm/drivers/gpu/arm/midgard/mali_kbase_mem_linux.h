@@ -50,9 +50,15 @@ struct kbase_hwc_dma_mapping {
  *
  * Return: 0 on success or error code
  */
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages, u64 commit_pages,
+					u64 extension, u64 *flags, u64 *gpu_va,
+					enum kbase_caller_mmu_sync_info mmu_sync_info, enum kbase_memory_category category);
+#else
 struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages, u64 commit_pages,
 					u64 extension, u64 *flags, u64 *gpu_va,
 					enum kbase_caller_mmu_sync_info mmu_sync_info);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 /**
  * kbase_mem_query - Query properties of a GPU memory region
@@ -83,9 +89,13 @@ int kbase_mem_query(struct kbase_context *kctx, u64 gpu_addr, u64 query, u64 *co
  *            memory.
  * Return: 0 on success or error code
  */
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+int kbase_mem_import(struct kbase_context *kctx, enum base_mem_import_type type,
+		     void __user *phandle, u32 padding, u64 *gpu_va, u64 *va_pages, u64 *flags, u8 PBHA, bool isFirstDmaBuf);
+#else
 int kbase_mem_import(struct kbase_context *kctx, enum base_mem_import_type type,
 		     void __user *phandle, u32 padding, u64 *gpu_va, u64 *va_pages, u64 *flags);
-
+#endif
 /**
  * kbase_mem_alias - Create a new allocation for GPU, aliasing one or more
  *                   memory regions

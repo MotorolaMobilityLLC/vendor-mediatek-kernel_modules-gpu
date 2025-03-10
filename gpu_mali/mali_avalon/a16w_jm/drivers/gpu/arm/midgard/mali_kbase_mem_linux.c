@@ -48,6 +48,18 @@
 #include <mali_kbase_reset_gpu.h>
 #include <linux/version_compat_defs.h>
 
+#if IS_ENABLED(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && IS_ENABLED(CONFIG_MTK_GZ_KREE) && IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
+#include <trusted_mem_api.h>
+#include <mtk_heap.h>
+#endif /* CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM && CONFIG_MTK_GZ_KREE && CONFIG_MALI_MTK_PROTECTED_PATCH */
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+#include <gpu_pdma.h>
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+#include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if ((KERNEL_VERSION(5, 3, 0) <= LINUX_VERSION_CODE) || \
      (KERNEL_VERSION(5, 0, 0) > LINUX_VERSION_CODE))
 /* Enable workaround for ion for kernels prior to v5.0.0 and from v5.3.0
@@ -292,13 +304,22 @@ void kbase_phy_alloc_mapping_put(struct kbase_context *kctx, struct kbase_vmap_s
 	 */
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages, u64 commit_pages,
+					u64 extension, u64 *flags, u64 *gpu_va,
+					enum kbase_caller_mmu_sync_info mmu_sync_info, enum kbase_memory_category category)
+#else
 struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages, u64 commit_pages,
 					u64 extension, u64 *flags, u64 *gpu_va,
 					enum kbase_caller_mmu_sync_info mmu_sync_info)
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 {
 	struct kbase_va_region *reg;
 	enum kbase_memory_zone zone;
 	struct device *dev;
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+	bool have_pbha_hint = false;
+#endif
 
 	KBASE_DEBUG_ASSERT(kctx);
 	KBASE_DEBUG_ASSERT(flags);
@@ -307,6 +328,13 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	dev = kctx->kbdev->dev;
 	dev_dbg(dev, "Allocating %lld va_pages, %lld commit_pages, %lld extension, 0x%llX flags\n",
 		va_pages, commit_pages, extension, *flags);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+	if ((*gpu_va == 0xF0) && !(*flags & BASE_MEM_FIXED)) {
+		have_pbha_hint = true;
+		*gpu_va = 0;
+	}
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 
 #if MALI_USE_CSF
 	if (!(*flags & BASE_MEM_FIXED))
@@ -397,6 +425,13 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	if (unlikely(reg->cpu_alloc != reg->gpu_alloc))
 		*flags |= BASE_MEM_KERNEL_SYNC;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
+	if ((*flags & BASE_MEM_COHERENT_SYSTEM) != 0 &&
+		kbase_device_is_cpu_coherent(kctx->kbdev) &&
+		kctx->kbdev->acp_dbg_force_sync)
+		*flags |= BASE_MEM_KERNEL_SYNC;
+#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
+
 	/* make sure base knows if the memory is actually cached or not */
 	if (reg->flags & KBASE_REG_CPU_CACHED)
 		*flags |= BASE_MEM_CACHED_CPU;
@@ -416,6 +451,9 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 		reg->extension = 0;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	reg->gpu_alloc->category = reg->cpu_alloc->category = ((*flags & BASE_MEM_GROW_ON_GPF) && (KBASE_MEM_JIT != category)) ? KBASE_MEM_GROW : category;
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 	if (kbase_alloc_phy_pages(reg, va_pages, commit_pages) != 0) {
 		dev_warn(dev, "Failed to allocate %lld pages (va_pages=%lld)",
 			 (unsigned long long)commit_pages, (unsigned long long)va_pages);
@@ -441,6 +479,13 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	/* mmap needed to setup VA? */
 	if (*flags & BASE_MEM_SAME_VA) {
 		unsigned long cookie, cookie_nr;
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+		if (have_pbha_hint) {
+			reg->pbha_8bit = pdma_request_extended_pbha(kctx->id);
+			reg->isFirstDmaBuf = false;
+			reg->isImportedMemory = false;
+		}
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 
 		/* Bind to a cookie */
 		if (bitmap_empty(kctx->cookies, BITS_PER_LONG)) {
@@ -685,10 +730,21 @@ static unsigned long kbase_mem_evictable_reclaim_count_objects(struct shrinker *
 
 	int evict_nents = atomic_read(&kctx->evict_nents);
 	unsigned long nr_freeable_items;
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	struct kbase_device *kbdev;
+	u64 jit_reclaim_timeout_ns = 0;
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	kbdev = kctx->kbdev;
+	jit_reclaim_timeout_ns = kbdev->jit_reclaim_timeout_ms * 1000000ULL;
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
+
+#if !IS_ENABLED(CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH)
 	WARN(in_atomic(),
 	     "Shrinker called in atomic context. The caller must use GFP_ATOMIC or similar, then Shrinkers must not be called. gfp_mask==%x\n",
 	     sc->gfp_mask);
+#endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 
 	if (unlikely(evict_nents < 0)) {
 		dev_err(kctx->kbdev->dev, "invalid evict_nents(%d)", evict_nents);
@@ -696,6 +752,37 @@ static unsigned long kbase_mem_evictable_reclaim_count_objects(struct shrinker *
 	} else {
 		nr_freeable_items = (unsigned long)evict_nents;
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	if (mutex_trylock(&kctx->jit_evict_lock)) {
+		struct kbase_mem_phy_alloc *alloc, *tmp;
+		u64 now_ns;
+
+		now_ns = ktime_get_raw_ns();
+		list_for_each_entry_safe(alloc, tmp, &kctx->evict_list, evict_node) {
+			if (!alloc->reg)
+				continue;
+
+			if (alloc->reg->last_used_ts == 0 || now_ns - alloc->reg->last_used_ts > jit_reclaim_timeout_ns)
+				continue;
+
+			pr_debug("mem_evictable count_object: tgid=%d, jit_usage_id=%u, total=%lu, exclude=%lu",
+				 kctx->tgid, alloc->reg->jit_usage_id,
+				 nr_freeable_items, alloc->reg->gpu_alloc->nents);
+
+			/* exclude those recently used jit mem */
+			nr_freeable_items -= alloc->reg->gpu_alloc->nents;
+		}
+
+		mutex_unlock(&kctx->jit_evict_lock);
+	} else {
+		pr_debug("mem_evictable count_object: tgid=%d, total=%lu, exclude=%lu",
+			 kctx->tgid, nr_freeable_items, nr_freeable_items);
+		nr_freeable_items = 0;
+	}
+
+	trace_mali_mem_evictable_count(kctx, nr_freeable_items);
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
 	if (nr_freeable_items == 0)
@@ -731,8 +818,18 @@ static unsigned long kbase_mem_evictable_reclaim_scan_objects(struct shrinker *s
 	struct kbase_mem_phy_alloc *alloc;
 	struct kbase_mem_phy_alloc *tmp;
 	unsigned long freed = 0;
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	struct kbase_device *kbdev;
+	u64 jit_reclaim_timeout_ns = 0;
+	u64 now_ns;
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 
 	kctx = KBASE_GET_KBASE_DATA_FROM_SHRINKER(s, struct kbase_context, reclaim);
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	kbdev = kctx->kbdev;
+	jit_reclaim_timeout_ns = kbdev->jit_reclaim_timeout_ms * 1000000ULL;
+	now_ns = ktime_get_raw_ns();
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 
 #if MALI_USE_CSF
 	if (!down_read_trylock(&kctx->kbdev->csf.mmu_sync_sem)) {
@@ -748,6 +845,18 @@ static unsigned long kbase_mem_evictable_reclaim_scan_objects(struct shrinker *s
 
 		if (!alloc->reg)
 			continue;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+		if (alloc->reg->last_used_ts != 0 && now_ns - alloc->reg->last_used_ts <= jit_reclaim_timeout_ns) {
+			trace_mali_mem_evictable_reclaim(kctx, alloc->reg->jit_usage_id,
+				now_ns, alloc->reg->last_used_ts, true);
+
+			continue;
+		} else {
+			trace_mali_mem_evictable_reclaim(kctx, alloc->reg->jit_usage_id,
+				now_ns, alloc->reg->last_used_ts, false);
+		}
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 
 		err = kbase_mem_shrink_gpu_mapping(kctx, alloc->reg, 0, alloc->nents);
 
@@ -827,6 +936,9 @@ void kbase_mem_evictable_mark_reclaim(struct kbase_mem_phy_alloc *alloc)
 
 	KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
 	kbase_trace_gpu_mem_usage_dec(kbdev, kctx, alloc->nents);
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kbase_trace_free_pages(kbdev->id, kctx, alloc->nents, (size_t)alloc->pages, alloc->category);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 }
 
 /**
@@ -849,6 +961,9 @@ static void kbase_mem_evictable_unmark_reclaim(struct kbase_mem_phy_alloc *alloc
 
 	KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
 	kbase_trace_gpu_mem_usage_inc(kbdev, kctx, alloc->nents);
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	kbase_trace_alloc_pages(kbdev->id, kctx, alloc->nents, (size_t)alloc->pages, alloc->category);
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 }
 
 void kbase_mem_evictable_make(struct kbase_mem_phy_alloc *gpu_alloc)
@@ -876,6 +991,10 @@ void kbase_mem_evictable_make(struct kbase_mem_phy_alloc *gpu_alloc)
 	 */
 	if (kbase_is_page_migration_enabled())
 		kbase_set_phy_alloc_page_status(kctx, gpu_alloc, NOT_MOVABLE);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
+	gpu_alloc->reg->last_used_ts = 0;
+#endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 
 	mutex_unlock(&kctx->jit_evict_lock);
 	kbase_mem_evictable_mark_reclaim(gpu_alloc);
@@ -1215,6 +1334,11 @@ int kbase_sync_imported_umm(struct kbase_context *kctx, struct kbase_va_region *
 	if (unlikely(ret))
 		dev_warn(kctx->kbdev->dev, "Failed to sync mem region %pK at GPU VA %llx: %d\n",
 			 reg, reg->start_pfn, ret);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			 "Failed to sync mem region %pK at GPU VA %llx: %d\n",
+			 reg, reg->start_pfn, ret);
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	return ret;
 }
@@ -1287,15 +1411,57 @@ static int kbase_mem_umm_map_attachment(struct kbase_context *kctx, struct kbase
 	for_each_sg(sgt->sgl, s, sgt->nents, i) {
 		size_t j, pages = PFN_UP(sg_dma_len(s));
 
+#if IS_ENABLED(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && IS_ENABLED(CONFIG_MTK_GZ_KREE) && IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
+		uint64_t phy_addr = 0;
+
+		if (reg->flags & KBASE_REG_PROTECTED) {
+			struct dma_buf *dma_buf = reg->gpu_alloc->imported.umm.dma_buf;
+			u64 sec_handle = dmabuf_to_secure_handle(dma_buf);
+
+			if (sec_handle && is_support_secure_handle(dma_buf)) {
+				// For region base sec mem
+				// use trusted_mem api
+#if IS_ENABLED(CONFIG_ARM_FFA_TRANSPORT)
+				trusted_mem_ffa_query_pa(&sec_handle, &phy_addr);
+#else
+				trusted_mem_api_query_pa(0, 0, 0, NULL, &sec_handle, NULL, 0, 0, &phy_addr);
+#endif
+			} else {
+				// For page base sec mem
+				// use sg_phys to get PA
+				phy_addr = sg_phys(s);
+			}
+
+			if (phy_addr == 0) {
+				dev_warn(kctx->kbdev->dev,
+					"can't get PA: sec_handle=%llx, phy_addr=%llx\n",
+					(unsigned long long)sec_handle,
+					(unsigned long long)phy_addr);
+				err = -EINVAL;
+				goto err_unmap_attachment;
+			}
+		} else
+			phy_addr = sg_phys(s);
+#endif /* CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM && CONFIG_MTK_GZ_KREE && CONFIG_MALI_MTK_PROTECTED_PATCH */
+
 		WARN_ONCE(sg_dma_len(s) & (PAGE_SIZE - 1),
 			  "sg_dma_len(s)=%u is not a multiple of PAGE_SIZE\n", sg_dma_len(s));
 
+#if IS_ENABLED(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && IS_ENABLED(CONFIG_MTK_GZ_KREE) && IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
+		WARN_ONCE(phy_addr & (PAGE_SIZE-1),
+		"sg_phys(s)=%llx is not aligned to PAGE_SIZE\n",
+		(unsigned long long) phy_addr);
+
+		for (j = 0; (j < pages) && (count < reg->nr_pages); j++, count++)
+			*pa++ = as_tagged(phy_addr + (j << PAGE_SHIFT));
+#else
 		WARN_ONCE(sg_dma_address(s) & (PAGE_SIZE - 1),
 			  "sg_dma_address(s)=%llx is not aligned to PAGE_SIZE\n",
 			  (unsigned long long)sg_dma_address(s));
 
 		for (j = 0; (j < pages) && (count < reg->nr_pages); j++, count++)
 			*pa++ = as_tagged(sg_dma_address(s) + (j << PAGE_SHIFT));
+#endif /* CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM && CONFIG_MTK_GZ_KREE && CONFIG_MALI_MTK_PROTECTED_PATCH */
 		WARN_ONCE(j < pages, "sg list from dma_buf_map_attachment > dma_buf->size=%zu\n",
 			  alloc->imported.umm.dma_buf->size);
 	}
@@ -1950,9 +2116,13 @@ bad_stride:
 bad_flags:
 	return 0;
 }
-
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+int kbase_mem_import(struct kbase_context *kctx, enum base_mem_import_type type,
+		     void __user *phandle, u32 padding, u64 *gpu_va, u64 *va_pages, u64 *flags, u8 PBHA, bool isFirstDmaBuf)
+#else
 int kbase_mem_import(struct kbase_context *kctx, enum base_mem_import_type type,
 		     void __user *phandle, u32 padding, u64 *gpu_va, u64 *va_pages, u64 *flags)
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 {
 	struct kbase_va_region *reg;
 
@@ -2038,6 +2208,12 @@ int kbase_mem_import(struct kbase_context *kctx, enum base_mem_import_type type,
 		goto no_reg;
 
 	kbase_gpu_vm_lock_with_pmode_sync(kctx);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+	reg->pbha_8bit = PBHA;
+	reg->isFirstDmaBuf = isFirstDmaBuf;
+	reg->isImportedMemory = true;
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 
 	/* mmap needed to setup VA? */
 	if (*flags & (BASE_MEM_SAME_VA | BASE_MEM_NEED_MMAP)) {
@@ -3432,7 +3608,12 @@ static vm_fault_t kbase_csf_user_io_pages_vm_fault(struct vm_fault *vmf)
 	/* Always map the doorbell page as uncached */
 	doorbell_pgprot = pgprot_device(vma->vm_page_prot);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG)
+	if (kbdev->system_coherency == COHERENCY_NONE ||
+		kbdev->acp_dbg_force_sync) {
+#else
 	if (kbdev->system_coherency == COHERENCY_NONE) {
+#endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
 		input_page_pgprot = pgprot_writecombine(vma->vm_page_prot);
 		output_page_pgprot = pgprot_writecombine(vma->vm_page_prot);
 	} else {
