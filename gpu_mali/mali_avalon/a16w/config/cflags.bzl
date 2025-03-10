@@ -113,5 +113,4 @@ COPTS_MTK = [
     "-I$(srctree)/drivers/staging/android",
     "-I$(srctree)/drivers/staging/android/ion",
     "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat",
-    "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/perf_common",
 ]
