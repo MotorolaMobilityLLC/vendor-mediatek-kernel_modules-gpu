@@ -219,4 +219,9 @@ int kbase_backend_time_init(struct kbase_device *kbdev);
  *
  */
 void kbase_gpu_timestamp_offset_debugfs_init(struct kbase_device *kbdev);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+void mtk_debug_dump_timeout_value_table(struct kbase_device *kbdev, char *timeout_value_table, size_t table_size);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
 #endif /* _KBASE_BACKEND_TIME_H_ */

@@ -202,6 +202,34 @@ void kbase_device_set_timeout_ms(struct kbase_device *kbdev, enum kbase_timeout_
 	dev_dbg(kbdev->dev, "\t%-35s: %ums\n", selector_str, timeout_ms);
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+void mtk_debug_dump_timeout_value_table(struct kbase_device *kbdev, char *timeout_value_table, size_t table_size)
+{
+	enum kbase_timeout_selector selector;
+	int write_counter = 0;
+	int remaining = table_size;
+	char *pointer = timeout_value_table;
+	const char *table_header =      "            Timeout Name            |   Timeout Cycles   | Timeout after Scaled(ms) |";
+	const char *table_header_line = "-------------------------------------------------------------------------------------";
+
+	write_counter = scnprintf(pointer, remaining, "%s\n", table_header);
+	pointer += write_counter;
+	remaining -= write_counter;
+
+	write_counter = scnprintf(pointer, remaining, "%s\n", table_header_line);
+	pointer += write_counter;
+	remaining -= write_counter;
+
+	for (selector = 0; selector < KBASE_TIMEOUT_SELECTOR_COUNT; selector++) {
+		write_counter = scnprintf(pointer, remaining, "%36s| %19llu| %25u|\n",
+			timeout_info[selector].selector_str, timeout_info[selector].timeout_cycles,
+			kbdev->backend_time.device_scaled_timeouts[selector]);
+		pointer += write_counter;
+		remaining -= write_counter;
+	}
+}
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
 void kbase_device_set_timeout(struct kbase_device *kbdev, enum kbase_timeout_selector selector,
 			      u64 timeout_cycles, u32 cycle_multiplier)
 {
