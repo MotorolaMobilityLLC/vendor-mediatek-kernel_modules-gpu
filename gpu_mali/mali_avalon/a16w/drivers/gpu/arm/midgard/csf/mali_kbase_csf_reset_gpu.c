@@ -270,7 +270,7 @@ const char *kbase_l2_core_state_to_string(enum kbase_l2_core_state state);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
+void kbase_csf_debug_dump_registers(struct kbase_device *kbdev, bool firmware_inited)
 #else
 static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
@@ -356,13 +356,15 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(TILER_CONFIG)));
 	}
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-	glb_db_ack = kbase_csf_fw_io_global_read(fw_io, GLB_DB_ACK);
-	glb_db_req = kbase_csf_fw_io_global_input_read(fw_io, GLB_DB_REQ);
-	glb_ack = kbase_csf_fw_io_global_read(fw_io, GLB_ACK);
-	glb_req = kbase_csf_fw_io_global_input_read(fw_io, GLB_REQ);
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+	if (likely(firmware_inited)) {
+		glb_db_ack = kbase_csf_fw_io_global_read(fw_io, GLB_DB_ACK);
+		glb_db_req = kbase_csf_fw_io_global_input_read(fw_io, GLB_DB_REQ);
+		glb_ack = kbase_csf_fw_io_global_read(fw_io, GLB_ACK);
+		glb_req = kbase_csf_fw_io_global_input_read(fw_io, GLB_REQ);
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 			"\tglb_req %x glb_ack %x glb_db_req %x glb_db_ack %x\n",
 			glb_req, glb_ack, glb_db_req, glb_db_ack);
+	}
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	if (kbdev->pm.backend.has_host_pwr_iface) {
@@ -431,12 +433,14 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(TILER_CONFIG)));
 	}
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-	glb_db_ack = kbase_csf_fw_io_global_read(fw_io, GLB_DB_ACK);
-	glb_db_req = kbase_csf_fw_io_global_input_read(fw_io, GLB_DB_REQ);
-	glb_ack = kbase_csf_fw_io_global_read(fw_io, GLB_ACK);
-	glb_req = kbase_csf_fw_io_global_input_read(fw_io, GLB_REQ);
-	dev_err(kbdev->dev, "\tglb_req %x glb_ack %x glb_db_req %x glb_db_ack %x\n",
+	if (likely(firmware_inited)) {
+		glb_db_ack = kbase_csf_fw_io_global_read(fw_io, GLB_DB_ACK);
+		glb_db_req = kbase_csf_fw_io_global_input_read(fw_io, GLB_DB_REQ);
+		glb_ack = kbase_csf_fw_io_global_read(fw_io, GLB_ACK);
+		glb_req = kbase_csf_fw_io_global_input_read(fw_io, GLB_REQ);
+		dev_err(kbdev->dev, "\tglb_req %x glb_ack %x glb_db_req %x glb_db_ack %x\n",
 			glb_req, glb_ack, glb_db_req, glb_db_ack);
+	}
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 	if (kbdev->pm.backend.has_host_pwr_iface) {
@@ -524,7 +528,11 @@ kbase_csf_reset_gpu_once(struct kbase_device *kbdev, bool firmware_inited, bool 
 	 * debugging of GPU resets, and dump the firmware trace buffer
 	 */
 	if (!silent) {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		kbase_csf_debug_dump_registers(kbdev, firmware_inited);
+#else
 		kbase_csf_debug_dump_registers(kbdev);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		if (likely(firmware_inited))
 			kbase_csf_firmware_log_dump_buffer(kbdev);
 	}
@@ -880,8 +888,13 @@ bool kbase_prepare_to_reset_gpu_ext(struct kbase_device *kbdev, unsigned int fla
 					else
 						mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, NULL, MTK_DBG_HOOK_NA);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
-					if (!lock)
+					if (!lock) {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+						kbase_csf_debug_dump_registers(kbdev, kbdev->csf.firmware_inited);
+#else
 						kbase_csf_debug_dump_registers(kbdev);
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+					}
 					kbase_csf_firmware_log_dump_buffer(kbdev);
 					BUG_ON(1);
 				}
