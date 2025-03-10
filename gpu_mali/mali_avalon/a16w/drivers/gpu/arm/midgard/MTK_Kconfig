@@ -109,7 +109,11 @@ config MALI_MTK_PREVENT_PRINTK_TOO_MUCH
 	default n
 
 config MALI_MTK_POWER_RESET
-	bool ""
+	bool "Enable MFG1 power reset"
+	default n
+
+config MALI_MTK_POWER_RESET_MFG0
+	bool "Enable MFG0 power reset"
 	default n
 
 config MALI_MTK_HARD_RESET_WA
