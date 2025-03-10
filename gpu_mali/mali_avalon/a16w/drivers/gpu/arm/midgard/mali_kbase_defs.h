@@ -1475,6 +1475,10 @@ struct kbase_device {
 	u32 acp_dbg_force_sync;
 #endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+	char fw_git_sha[64];
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+
 };
 
 /**

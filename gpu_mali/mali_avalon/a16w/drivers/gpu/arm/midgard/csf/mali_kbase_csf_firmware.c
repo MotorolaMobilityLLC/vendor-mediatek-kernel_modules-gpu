@@ -1201,9 +1201,19 @@ static int parse_build_info_metadata_entry(struct kbase_device *kbdev,
 		}
 		git_sha[i] = '\0';
 
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		strncpy(kbdev->fw_git_sha, git_sha, sizeof(kbdev->fw_git_sha));
+		kbdev->fw_git_sha[sizeof(kbdev->fw_git_sha) - 1] = '\0';
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		dev_info(kbdev->dev, "Mali firmware git_sha: %s\n", git_sha);
-	} else
+	} else {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
+		const char *invalid_sha = "not found or invalid";
+		strncpy(kbdev->fw_git_sha, invalid_sha, sizeof(kbdev->fw_git_sha));
+		kbdev->fw_git_sha[sizeof(kbdev->fw_git_sha) - 1] = '\0';
+#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		dev_info(kbdev->dev, "Mali firmware git_sha not found or invalid\n");
+	}
 
 	return 0;
 }
