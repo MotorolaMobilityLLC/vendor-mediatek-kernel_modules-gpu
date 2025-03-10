@@ -5019,7 +5019,7 @@ static void scheduler_rotate_ctxs(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
 void kbase_csf_firmware_log_dump_buffer(struct kbase_device *kbdev);
-void kbase_csf_debug_dump_registers(struct kbase_device *kbdev);
+void kbase_csf_debug_dump_registers(struct kbase_device *kbdev, bool firmware_inited);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 /**
@@ -5168,7 +5168,7 @@ static void scheduler_update_idle_slots_status(struct kbase_device *kbdev,
 			mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_CSG_TIMEOUT);
 			mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, NULL, MTK_DBG_HOOK_CSG_TIMEOUT);
 			mtk_debug_csf_dump_queue_data(group);
-			kbase_csf_debug_dump_registers(kbdev);
+			kbase_csf_debug_dump_registers(kbdev, kbdev->csf.firmware_inited);
 			kbase_csf_firmware_log_dump_buffer(kbdev);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
