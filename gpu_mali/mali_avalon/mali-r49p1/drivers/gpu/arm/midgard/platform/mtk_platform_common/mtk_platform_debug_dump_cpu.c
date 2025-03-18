@@ -27,9 +27,10 @@ void mtk_debug_csf_dump_cpu_queues(struct kbase_device *kbdev, struct kbase_cont
     if (pid_struct) {
         rcu_read_lock();
         task = pid_task(pid_struct, PIDTYPE_PID);
-        if (task && (task->exit_state == EXIT_ZOMBIE || task->exit_state == EXIT_DEAD)) {
+         if (task && ((task->exit_state == EXIT_ZOMBIE) || (task->exit_state == EXIT_DEAD) || (task->__state & TASK_FROZEN))) {
             mtk_log_critical_exception(kbdev, true,
-                "[%d_%d] Bypass CPU queue dump, event thread already in zombie or dead state", kctx->tgid, kctx->id);
+                "[%d_%d] Bypass CPU queue dump, event thread already in state:0x%llx, exit_state:0x%llx",
+                kctx->tgid, kctx->id, (unsigned long long) task->__state, (unsigned long long) task->exit_state);
             rcu_read_unlock();
             put_pid(pid_struct);
             return;
@@ -68,7 +69,7 @@ void mtk_debug_csf_dump_cpu_queues(struct kbase_device *kbdev, struct kbase_cont
             "[cpu_queue] ##### Ctx %d_%d #####",
             kctx->tgid, kctx->id);
 
-        if (!wait_for_completion_timeout(&kctx->csf.cpu_queue.dump_cmp, msecs_to_jiffies(3000))) {
+        if (!wait_for_completion_timeout(&kctx->csf.cpu_queue.dump_cmp, msecs_to_jiffies(500))) {
             dev_info(kbdev->dev, "ctx %d_%d mali-event-handler request pending", kctx->tgid, kctx->id);
             dev_info(kbdev->dev, "ctx %d_%d polling start: %llu, fd signal: %llu, data read: %llu",
                 kctx->tgid, kctx->id, kctx->notification_polling_start_time, kctx->notification_fd_signal_time,
