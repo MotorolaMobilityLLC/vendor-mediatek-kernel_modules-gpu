@@ -2036,6 +2036,7 @@ PVRSRV_ERROR RGXInitCreateFWKernelMemoryContext(PVRSRV_DEVICE_NODE *psDeviceNode
 	/* Register callbacks for creation of device memory contexts */
 	psDeviceNode->pfnRegisterMemoryContext = RGXRegisterMemoryContext;
 	psDeviceNode->pfnUnregisterMemoryContext = RGXUnregisterMemoryContext;
+	psDeviceNode->pfnValidateAddressPermissions = RGXValidateAddressPpsDeviceNode->pfnValidateAddressPermissions = RGXValidateAddressPermissions;ermissions;
 	psDeviceNode->pfnValidateExportableFlags = RGXValidateExportableFlags;
 
 	RGXFwSharedMemCheckSnoopMode(psDevConfig);
@@ -3895,7 +3896,7 @@ static PVRSRV_ERROR HeapInit(PVRSRV_DEVICE_NODE *psDeviceNode,
 	sCarveOutAddr.uiAddr += ui64Offset;
 
 	eError = DevmemIntReserveRange(NULL,
-	                               NULL,
+	                               psDeviceNode,
 	                               psDevmemHeap,
 	                               sCarveOutAddr,
 	                               uiSize,
@@ -4147,6 +4148,7 @@ static RGX_HEAP_INFO gasRGXHeapLayoutApp[] =
 	{RGX_CMP_SAFETY_RMW_HEAP_IDENT,     RGX_CMP_SAFETY_RMW_HEAP_BASE,            RGX_CMP_SAFETY_RMW_HEAP_SIZE,            0,                                           0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
 	{RGX_TEXTURE_STATE_HEAP_IDENT,      RGX_TEXTURE_STATE_HEAP_BASE,             RGX_TEXTURE_STATE_HEAP_SIZE,             0,                                           0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
 	{RGX_VISIBILITY_TEST_HEAP_IDENT,    RGX_VISIBILITY_TEST_HEAP_BASE,           RGX_VISIBILITY_TEST_HEAP_SIZE,           0,                                           0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
+	{RGX_PMMETA_PROTECT_HEAP_IDENT,     RGX_PMMETA_PROTECT_HEAP_BASE,            RGX_PMMETA_PROTECT_HEAP_SIZE,            0,                                           0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE }
 };
 
 static RGX_HEAP_INFO gasRGXHeapLayoutFW[] =

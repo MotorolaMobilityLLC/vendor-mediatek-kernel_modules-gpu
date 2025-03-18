@@ -58,6 +58,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define RGX_CMP_SAFETY_RMW_HEAP_IDENT       "Compute Safety RMW"        /*!< Compute Safety RMW Heap Identifier */
 #define RGX_TEXTURE_STATE_HEAP_IDENT        "Texture State"             /*!< Texture State Heap Identifier */
 #define RGX_VISIBILITY_TEST_HEAP_IDENT      "Visibility Test"           /*!< Visibility Test Heap Identifier */
+#define RGX_PMMETA_PROTECT_HEAP_IDENT       "PM Meta Protected"         /*!< Parameter Memory and Meta Protected Heap Identifier */
 
 /* Services client internal heap identification */
 #define RGX_RGNHDR_BRN_63142_HEAP_IDENT     "RgnHdr BRN63142"           /*!< RGX RgnHdr BRN63142 Heap Identifier */

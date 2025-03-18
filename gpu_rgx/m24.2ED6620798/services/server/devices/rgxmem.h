@@ -140,6 +140,25 @@ PVRSRV_ERROR RGXMMUCacheInvalidateKick(PVRSRV_DEVICE_NODE *psDevNode,
                                        IMG_UINT32 *pui32NextMMUInvalidateUpdate);
 
 /*************************************************************************/ /*!
+@Function       RGXValidateAddressPermissions
+
+@Description    Check if the given virtual address is valid for the given
+                device specific memory allocation flags.
+                See rgx_memallocflags.h.
+
+@Input          psDevNode    Device Node pointer
+@Input          psMMUContext MMU context pointer
+@Input          sVDevAddr    Device virtual address.
+@Input          uiFlags      Memory allocation flags.
+
+@Return         IMG_TRUE if the address is valid, IMG_FALSE otherwise.
+*/ /**************************************************************************/
+IMG_BOOL RGXValidateAddressPermissions(PVRSRV_DEVICE_NODE *psDevNode,
+                                       MMU_CONTEXT *psMMUContext,
+                                       IMG_DEV_VIRTADDR sVDevAddr,
+                                       PVRSRV_MEMALLOCFLAGS_T uiFlags);
+
+/*************************************************************************/ /*!
 @Function       RGXPreKickCacheCommand
 
 @Description    Sends a cache flush command to a particular DM without

@@ -894,6 +894,8 @@ static inline PVRSRV_ERROR PhysmemValidateParam( IMG_DEVMEM_SIZE_T uiSize,
                                                  IMG_CPU_VIRTADDR pvCpuVAddr,
                                                  PVRSRV_MEMALLOCFLAGS_T uiFlags)
 {
+	PVR_LOG_RETURN_IF_INVALID_PARAM(uiSize != 0, "uiSize");
+
 	if (!access_ok(pvCpuVAddr, uiSize))
 	{
 		PVR_DPF((PVR_DBG_ERROR, "Invalid User mode CPU virtual address"));
