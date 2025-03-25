@@ -196,6 +196,8 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 		kbase_pm_disable_db_mirror_interrupt(kbdev);
+		u32 db_notif_disabled = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_CONTROL)) &
+			    MCU_CNTRL_DOORBELL_DISABLE_MASK;
 
 		if (likely(kbdev->pm.backend.mcu_state == KBASE_MCU_IN_SLEEP)) {
 			if (IS_ENABLED(CONFIG_MALI_DEBUG)) {
@@ -211,7 +213,7 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 #endif
 			kbase_csf_scheduler_invoke_tick(kbdev);
 		} else if (atomic_read(&kbdev->csf.scheduler.fw_soi_enabled) &&
-			   (kbdev->pm.backend.mcu_state != KBASE_MCU_ON_PEND_SLEEP)) {
+			   (kbdev->pm.backend.mcu_state != KBASE_MCU_ON_PEND_SLEEP) && db_notif_disabled) {
 			/* Ensure that the MCU has become halted/not enabled
 			 * before re-enabling DB notification, otherwise FW
 			 * might not have had a chance to go to sleep after
