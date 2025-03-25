@@ -490,8 +490,6 @@ struct kbase_clk_rate_trace_manager {
  * @resume_wait: Wait queue to wait for the System suspend/resume of GPU device.
  * @debug_core_mask: Bit masks identifying the available shader cores that are
  *                   specified via sysfs. One mask per job slot.
- * @sysfs_gov_core_mask: Bit masks identifying the available shader cores that are
- *                       specified via sysfs when writing to GOV_CORE_MASK.
  * @callback_power_runtime_init: Callback for initializing the runtime power
  *                               management. Return 0 on success, else error code
  * @callback_power_runtime_term: Callback for terminating the runtime power
@@ -516,7 +514,6 @@ struct kbase_pm_device_data {
 	wait_queue_head_t resume_wait;
 
 	u64 debug_core_mask;
-	u64 sysfs_gov_core_mask;
 
 	int (*callback_power_runtime_init)(struct kbase_device *kbdev);
 	void (*callback_power_runtime_term)(struct kbase_device *kbdev);
