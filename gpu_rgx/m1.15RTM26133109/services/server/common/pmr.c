@@ -2251,6 +2251,11 @@ PMRMMapPMR(PMR *psPMR, PMR_MMAP_DATA pOSMMapData, PVRSRV_MEMALLOCFLAGS_T uiFlags
 	                    !PVRSRV_CHECK_CPU_WRITEABLE(uiFlags),
 	                    PVRSRV_ERROR_PMR_NOT_PERMITTED);
 
+	/* if readable mapping is requested on non-readable PMR then fail */
+	PVR_RETURN_IF_FALSE(PVRSRV_CHECK_CPU_READABLE(psPMR->uiFlags) ||
+	                    !PVRSRV_CHECK_CPU_READABLE(uiFlags),
+	                    PVRSRV_ERROR_PMR_NOT_PERMITTED);
+
 	if (psPMR->psFuncTab->pfnMMap)
 	{
 		return psPMR->psFuncTab->pfnMMap(psPMR->pvFlavourData, psPMR, pOSMMapData);
