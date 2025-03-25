@@ -95,7 +95,8 @@ filegroup(
 platforms = [
     "mt6991",
     "mt6993",
-	"mt6895",
+    "mt6895",
+    "mt6858",
 ]
 
 [define_mgk_ddk_ko(
@@ -292,5 +293,7 @@ platforms = [
     ] if p in ["mt6993"] else[
         "//kernel_device_modules-{}/drivers/misc/mediatek/tinysys_scmi:tinysys-scmi".format(kernel_version),
     ] if p in ["mt6895"] else[
+        "//kernel_device_modules-{}/drivers/misc/mediatek/tinysys_scmi:tinysys-scmi".format(kernel_version),
+    ] if p in ["mt6858"] else[
     ]),
 ) for p in platforms]

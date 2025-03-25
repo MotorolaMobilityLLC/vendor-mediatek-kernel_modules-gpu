@@ -12,6 +12,10 @@ config GPU_MT6895
 	bool ""
 	default n
 
+config GPU_MT6858
+	bool ""
+	default n
+
 config MALI_MTK_COMMON
 	bool ""
 	default n

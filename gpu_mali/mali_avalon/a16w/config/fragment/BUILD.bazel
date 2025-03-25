@@ -275,6 +275,59 @@ genrule(
     cmd = "cat $(SRCS) >> $(OUTS)",
 )
 
+# MTK: mt6858
+filegroup(
+    name = "kbaseconfig_mt6858",
+    srcs = ["midgard.fragment", "mt6858.fragment"] +
+           select({
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:no_mali": ["nomali.fragment"],
+               "//conditions:default": ["real_hw.fragment"],
+           }) +
+           select({
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_expert": ["mali_expert.fragment"],
+               "//conditions:default": [],
+           }) +
+           select({
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_sync_file": ["sync_file.fragment"],
+               "//conditions:default": [],
+           }) +
+           select({
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_debug": ["mali_debug.fragment"],
+               "//conditions:default": [],
+           }) +
+           select({
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:expert_no_mali": ["mali_expert_no_mali.fragment"],
+               "//conditions:default": [],
+           }) +
+           select({
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_expert_debug": ["mali_expert_debug.fragment"],
+               "//conditions:default": [],
+           }) +
+           select({
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_expert_debug_sync_file": ["mali_expert_debug_sync_file.fragment"],
+               "//conditions:default": [],
+           }) +
+           select({
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_debug_kutf": ["debug_kutf.fragment"],
+               "//conditions:default": [],
+           }) +
+           select({
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_coresight": ["debug_coresight.fragment"],
+               "//conditions:default": [],
+           }) +
+           select({
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_debug_kutf_devfreq_no_mali": ["debug_kutf_devfreq_no_mali.fragment"],
+               "//conditions:default": [],
+           }),
+)
+
+genrule(
+    name = "kbase_defconfig_mt6858",
+    srcs = [":kbaseconfig_mt6858"],
+    outs = ["common/kbase_mt6858.defconfig"],
+    cmd = "cat $(SRCS) >> $(OUTS)",
+)
+
 filegroup(
     name = "kutf_defconfig",
     srcs = ["kutf.fragment"],
