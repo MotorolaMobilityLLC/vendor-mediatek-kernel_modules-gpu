@@ -877,6 +877,24 @@ pend_soi_sleep:
 	backend->mcu_state = KBASE_MCU_ON_PEND_SOI_SLEEP;
 }
 
+static void kbasep_pm_toggle_mcu_status_interrupt(struct kbase_device *kbdev, bool enable)
+{
+	u32 irq_mask;
+
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
+	irq_mask = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK));
+
+	if (enable) {
+		irq_mask |= MCU_STATUS_GPU_IRQ;
+		kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_CLEAR), MCU_STATUS_GPU_IRQ);
+	} else {
+		irq_mask &= ~MCU_STATUS_GPU_IRQ;
+	}
+
+	kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK), irq_mask);
+}
+
 /**
  * wait_mcu_as_inactive - Wait for AS used by MCU FW to get configured
  *
@@ -1673,21 +1691,18 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 
 		case KBASE_MCU_POWER_DOWN:
 			if (kbase_hw_has_issue(kbdev, KBASE_HW_ISSUE_TITANHW_2922)) {
-				if (!kbdev->csf.firmware_hctl_core_pwr)
-					kbasep_pm_toggle_power_interrupt(kbdev, true);
-				backend->mcu_state = KBASE_MCU_OFF;
+				/* delay mcu disable to after l2 off */
 				backend->l2_force_off_after_mcu_halt = true;
 			} else {
 				kbase_csf_firmware_disable_mcu(kbdev);
-				backend->mcu_state = KBASE_MCU_PEND_OFF;
-			}
-			break;
 
-		case KBASE_MCU_PEND_OFF:
-			/* wait synchronously for the MCU to get disabled */
-			kbase_csf_firmware_disable_mcu_wait(kbdev);
-			if (!kbdev->csf.firmware_hctl_core_pwr)
-				kbasep_pm_toggle_power_interrupt(kbdev, true);
+				/* wait synchronously for the MCU to get disabled,
+				 * with the MCU_STATUS update IRQ disabled
+				 */
+				kbasep_pm_toggle_mcu_status_interrupt(kbdev, false);
+				kbase_csf_firmware_disable_mcu_wait(kbdev);
+				kbasep_pm_toggle_mcu_status_interrupt(kbdev, true);
+			}
 			backend->mcu_state = KBASE_MCU_OFF;
 			break;
 
