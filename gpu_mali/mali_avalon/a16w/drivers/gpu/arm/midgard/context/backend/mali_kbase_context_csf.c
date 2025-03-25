@@ -132,6 +132,24 @@ struct kbase_context *kbase_create_context(struct kbase_device *kbdev, bool is_c
 
 	/* zero-inited as lot of code assume it's zero'ed out on create */
 	kctx = vzalloc(sizeof(*kctx));
+
+#if IS_ENABLED(CONFIG_MALI_MTK_CHECK_FATAL_SIGNAL)
+	if (!current) {
+		pr_err("%s:current is NULL", __func__);
+		return NULL;
+	}
+
+	if (current->pid <= 0) {
+		pr_err("%s:current->pid is invalid: %d\n", __func__, current->pid);
+		return NULL;
+	}
+
+	if (fatal_signal_pending(current)) {
+		pr_err("%s:current->pid %d has fatal signal pending\n", __func__, current->pid);
+		return NULL;
+	}
+#endif /* CONFIG_MALI_MTK_CHECK_FATAL_SIGNAL */
+
 	if (WARN_ON(!kctx))
 		return NULL;
 
