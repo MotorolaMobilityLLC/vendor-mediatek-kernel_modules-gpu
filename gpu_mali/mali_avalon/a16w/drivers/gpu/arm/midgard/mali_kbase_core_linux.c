@@ -1737,12 +1737,6 @@ static int kbasep_ioctl_set_limited_core_count(
 static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 			struct kbase_ioctl_internal_fence_wait *fence_wait)
 {
-#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
-	if (fence_wait->time_in_microseconds == 2000 || fence_wait->time_in_microseconds == 3000 ||
-		fence_wait->time_in_microseconds == 4000 || fence_wait->time_in_microseconds == 5000) {
-		ged_mali_event_notify_fence_timeout_event(kctx->tgid, FENCE_TYPE_INTERNAL, fence_wait->time_in_microseconds/1000);
-	}
-#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 	if (fence_wait->time_in_microseconds == 2000 || fence_wait->time_in_microseconds == 3000) {
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kctx->kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_DEFERRED,
@@ -1813,6 +1807,12 @@ static int kbasep_ioctl_internal_fence_wait(struct kbase_context *kctx,
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 		}
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
+	if (fence_wait->time_in_microseconds == 2000 || fence_wait->time_in_microseconds == 3000 ||
+		fence_wait->time_in_microseconds == 4000 || fence_wait->time_in_microseconds == 5000) {
+		ged_mali_event_notify_fence_timeout_event(kctx->tgid, FENCE_TYPE_INTERNAL, fence_wait->time_in_microseconds/1000);
+	}
+#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET)
 	if (fence_wait->time_in_microseconds == 3000) {
 		if (kbase_prepare_to_reset_gpu(kctx->kbdev, RESET_FLAGS_NONE)) {
