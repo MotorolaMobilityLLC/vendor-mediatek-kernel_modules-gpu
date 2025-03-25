@@ -933,15 +933,18 @@ static void wait_mcu_as_inactive(struct kbase_device *kbdev)
 
 /**
  * kbasep_pm_toggle_power_interrupt - Toggles the IRQ mask for power interrupts
- *                                    from the firmware
  *
  * @kbdev:  Pointer to the device
  * @enable: boolean indicating to enable interrupts or not
  *
- * The POWER_CHANGED_ALL interrupt can be disabled after L2 has been turned on
- * when FW is controlling the power for the shader cores. Correspondingly, the
- * interrupts can be re-enabled after the MCU has been disabled before the
- * power down of L2.
+ * POWER_CHANGED_ALL or PWR_IRQ_POWER_CHANGED_ALL will be raised on PM an action,
+ * depending on firmware or host side triggers it
+ * The interrupt can be disabled after L2 has been turned on
+ * when FW is controlling the power for the shader cores.
+ * Correspondingly, the interrupt can be re-enabled
+ * after the MCU has been disabled and before the power down of L2,
+ * if kbase depends on the interrupt to judge the end of L2 power down,
+ * otherwise kbase can poll on the L2 status register and wait till L2 power down ends
  */
 static void kbasep_pm_toggle_power_interrupt(struct kbase_device *kbdev, bool enable)
 {
@@ -949,23 +952,53 @@ static void kbasep_pm_toggle_power_interrupt(struct kbase_device *kbdev, bool en
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
-	/* No toggling is needed when Host control power interface is there, as PM actions
-	 * done by the firmware for Tiler, shader, neural won't generate the POWER_CHANGED
-	 * irq on Host side.
-	 */
-	if (kbdev->pm.backend.has_host_pwr_iface)
-		return;
+	if (kbdev->pm.backend.has_host_pwr_iface) {
+		irq_mask = kbase_reg_read32(kbdev, HOST_POWER_ENUM(PWR_IRQ_MASK));
 
-	irq_mask = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK));
+		if (enable) {
+			irq_mask |= PWR_IRQ_POWER_CHANGED_ALL;
+			kbase_reg_write32(kbdev, HOST_POWER_ENUM(PWR_IRQ_CLEAR),
+					  PWR_IRQ_POWER_CHANGED_ALL);
+		} else
+			irq_mask &= ~PWR_IRQ_POWER_CHANGED_ALL;
 
-	if (enable) {
-		irq_mask |= POWER_CHANGED_ALL;
-		kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_CLEAR), POWER_CHANGED_ALL);
+		kbase_reg_write32(kbdev, HOST_POWER_ENUM(PWR_IRQ_MASK), irq_mask);
 	} else {
-		irq_mask &= ~POWER_CHANGED_ALL;
+		irq_mask = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK));
+
+		if (enable) {
+			irq_mask |= POWER_CHANGED_ALL;
+			kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_CLEAR),
+					  POWER_CHANGED_ALL);
+		} else
+			irq_mask &= ~POWER_CHANGED_ALL;
+
+		kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK), irq_mask);
+	}
+}
+
+static u64 get_l2_power_off_done(struct kbase_device *kbdev)
+{
+	return kbase_pm_get_trans_cores(kbdev, KBASE_PM_CORE_L2) |
+	       kbase_pm_get_ready_cores(kbdev, KBASE_PM_CORE_L2);
+}
+
+static bool wait_for_l2_power_off(struct kbase_device *kbdev)
+{
+	u64 val;
+	int err;
+	const u32 timeout_us = kbase_get_timeout_ms(kbdev, CSF_PM_TIMEOUT) * USEC_PER_MSEC;
+
+	err = mali_read_poll_timeout_atomic(get_l2_power_off_done, val,
+					    ((val == 0) || kbase_io_is_aw_removed(kbdev)), 0,
+					    timeout_us, 0, kbdev);
+
+	if (err) {
+		dev_err(kbdev->dev, "waiting for L2 power_off failed for error %d", err);
+		return false;
 	}
 
-	kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK), irq_mask);
+	return true;
 }
 
 /**
@@ -2465,12 +2498,24 @@ static int kbase_pm_l2_update_state(struct kbase_device *kbdev)
 
 		case KBASE_L2_PEND_OFF:
 			if (likely(!backend->l2_always_on)) {
-				if (need_tiler_control(kbdev) && l2_ready) {
+				if (need_tiler_control(kbdev) && l2_ready)
 					hctl_l2_power_down(kbdev);
+
+				/* Try polling for L2 power down completion first */
+				if ((l2_trans || l2_ready) && !wait_for_l2_power_off(kbdev)) {
+					/* If polling fails, then enable power IRQ
+					 * and fall back to wait for it before we can proceed.
+					 */
+					if (!kbdev->csf.firmware_hctl_core_pwr)
+						kbasep_pm_toggle_power_interrupt(kbdev, true);
 					break;
 				}
-				if (l2_trans || l2_ready)
-					break;
+
+				/* enable power interrupt
+				 * in case L2 will be powered on right afterwards
+				 */
+				if (!kbdev->csf.firmware_hctl_core_pwr)
+					kbasep_pm_toggle_power_interrupt(kbdev, true);
 			} else if (kbdev->cache_clean_in_progress)
 				break;
 
@@ -3031,15 +3076,6 @@ static void mtk_kbase_pm_timed_out_mcu_transition_check(struct kbase_device *kbd
 			"MCU status(%d) can't be halted, suggest use DEBUG SCFFW to do DOE",
 			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_STATUS)));
 		dev_err(kbdev->dev, "======end:KBASE_MCU_ON_PEND_HALT============");
-		return;
-	case KBASE_MCU_PEND_OFF: /* 10 */
-		dev_err(kbdev->dev, "====stuck:KBASE_MCU_PEND_OFF============");
-		dev_err(kbdev->dev,
-			"MCU status(%d) != 0, MCU can't be stop",
-			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_STATUS)));
-		dev_err(kbdev->dev,
-			"ARM:This error shall go away once MIDJM-2371 is closed");
-		dev_err(kbdev->dev, "======end:KBASE_MCU_PEND_OFF============");
 		return;
 	case KBASE_MCU_ON_PEND_SLEEP: /* 21 */
 		dev_err(kbdev->dev, "====stuck:KBASE_MCU_ON_PEND_SLEEP============");
