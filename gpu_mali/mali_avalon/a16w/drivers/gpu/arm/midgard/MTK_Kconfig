@@ -348,4 +348,8 @@ config MALI_MTK_CHECK_FATAL_SIGNAL
 	bool "check fatal siganl before WARN_ON"
 	default n
 
+config MALI_MTK_ISSUE_ANALYSIS_POINT_MT6995_C34
+	bool "The issue MT6995 C34 analysis point"
+	default n
+
 endmenu
