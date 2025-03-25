@@ -1726,7 +1726,8 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 				kbase_hwcnt_backend_csf_on_after_mcu_off(&kbdev->hwcnt_gpu_iface);
 				backend->mcu_state = KBASE_MCU_IN_SLEEP;
 				kbase_pm_enable_db_mirror_interrupt(kbdev);
-				kbase_csf_scheduler_reval_idleness_post_sleep(kbdev);
+				if (!atomic_read(&kbdev->csf.scheduler.fw_soi_enabled))
+					kbase_csf_scheduler_reval_idleness_post_sleep(kbdev);
 				/* Enable PM interrupt, after MCU has been put
 				 * to sleep, for the power down of L2.
 				 */
