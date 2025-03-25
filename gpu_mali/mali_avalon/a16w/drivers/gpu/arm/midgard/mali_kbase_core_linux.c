@@ -588,6 +588,9 @@ struct kbase_device *kbase_find_device(int minor)
 		if (tmp->mdev.minor == minor || minor == -1) {
 			kbdev = tmp;
 			get_device(kbdev->dev);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_REGULAR, "get_device() in kbase_find_device()\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			break;
 		}
 	}
@@ -600,6 +603,9 @@ EXPORT_SYMBOL(kbase_find_device);
 void kbase_release_device(struct kbase_device *kbdev)
 {
 	put_device(kbdev->dev);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_REGULAR, "put_device() in kbase_release_device()\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 }
 EXPORT_SYMBOL(kbase_release_device);
 
@@ -5592,6 +5598,10 @@ int kbase_sysfs_init(struct kbase_device *kbdev)
 	kbdev->mdev.fops = &kbase_fops;
 	kbdev->mdev.parent = get_device(kbdev->dev);
 	kbdev->mdev.mode = 0666;
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_REGULAR, "get_device() in kbase_sysfs_init()\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 
 	err = sysfs_create_group(&kbdev->dev->kobj, &kbase_attr_group);
 	if (err)
@@ -5620,6 +5630,9 @@ void kbase_sysfs_term(struct kbase_device *kbdev)
 	sysfs_remove_group(&kbdev->dev->kobj, &kbase_scheduling_attr_group);
 	sysfs_remove_group(&kbdev->dev->kobj, &kbase_attr_group);
 	put_device(kbdev->dev);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_REGULAR, "put_device() in kbase_sysfs_term()\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 }
 
 #if (KERNEL_VERSION(6, 11, 0) > LINUX_VERSION_CODE)
@@ -5633,6 +5646,9 @@ static void kbase_platform_device_remove(struct platform_device *pdev)
 	if (likely(kbdev)) {
 		kbase_device_term(kbdev);
 		dev_set_drvdata(kbdev->dev, NULL);
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_REGULAR, "device free in kbase_platform_device_remove()\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 		kbase_device_free(kbdev);
 	}
 
@@ -5673,6 +5689,9 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Allocate device failed\n");
 		return -ENOMEM;
 	}
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_REGULAR, "Device allocated\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 	kbdev->dev = &pdev->dev;
 
