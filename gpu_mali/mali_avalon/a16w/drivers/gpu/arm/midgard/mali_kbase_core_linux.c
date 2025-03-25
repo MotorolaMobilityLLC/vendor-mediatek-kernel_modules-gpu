@@ -3015,8 +3015,9 @@ static ssize_t core_mask_show(struct device *dev, struct device_attribute *attr,
 	struct kbase_device *kbdev;
 	unsigned long flags;
 	u64 debug_mask;
-	u64 ca_mask;
+	u64 desired_mask;
 	ssize_t ret = 0;
+	struct kbase_pm_core_masks all_core_masks;
 
 	CSTD_UNUSED(attr);
 
@@ -3027,55 +3028,21 @@ static ssize_t core_mask_show(struct device *dev, struct device_attribute *attr,
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
-#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
-#if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
-	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
-#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
-		&& (kbdev->gov_core_mask_disable == 0)
-#endif
-	)
-	{
-		ca_mask = kbase_pm_ca_get_gov_core_mask(kbdev);
-		debug_mask = kbase_pm_ca_get_sysfs_gov_core_mask(kbdev);
-	} else
-#endif
-	{
-		ca_mask = kbase_pm_ca_get_core_mask(kbdev);
-		debug_mask = kbase_pm_ca_get_debug_core_mask(kbdev);
-	}
-#else
-	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)) {
-		ca_mask = kbase_pm_ca_get_gov_core_mask(kbdev);
-		debug_mask = kbase_pm_ca_get_sysfs_gov_core_mask(kbdev);
-	} else {
-		ca_mask = kbase_pm_ca_get_core_mask(kbdev);
-		debug_mask = kbase_pm_ca_get_debug_core_mask(kbdev);
-	}
-#endif
+	all_core_masks = kbase_pm_ca_get_core_masks(kbdev);
+	debug_mask = all_core_masks.pm_core_mask_debug;
+	desired_mask = all_core_masks.pm_core_mask_desired;
 
 	ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret), "Current debug core mask : 0x%llX\n",
 			 debug_mask);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
-	if (mtk_common_ged_dvfs_get_gov_mask_enable() == 1) {
-		ca_mask = mtk_common_ged_dvfs_get_desire_mask();
-		ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret),
-			 "Current desired core mask : 0x%llX\n", ca_mask);
-	} else {
-		ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret),
-			 "Current desired core mask : 0x%llX\n", ca_mask);
-	}
-#else
 	ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret),
-		 	 "Current desired core mask : 0x%llX\n", ca_mask);
-#endif
-
+			 "Current desired core mask : 0x%llX\n", desired_mask);
 #if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
 #if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
 	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
 #if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
 		&& (kbdev->gov_core_mask_disable == 0)
 #endif
+		&& (kbdev->csf.firmware_hctl_core_pwr == 0)
 	)
 	{
 		ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret),
@@ -3094,6 +3061,7 @@ static ssize_t core_mask_show(struct device *dev, struct device_attribute *attr,
 				 "Current in use core mask : 0x%llX\n",
 				 kbdev->pm.backend.shaders_avail);
 #endif
+
 	ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret), "Available core mask : 0x%llX\n",
 			 kbdev->gpu_props.shader_present);
 
@@ -3125,40 +3093,19 @@ static int core_mask_set(struct kbase_device *kbdev, struct kbase_core_mask *con
 {
 	u64 new_core_mask = new_mask->new_core_mask;
 	u64 shader_present;
-	u64 ca_mask;
+	u64 devfreq_mask;
 	u64 debug_mask;
 	unsigned long flags;
 	int ret = 0;
+	struct kbase_pm_core_masks all_core_masks;
 
 	kbase_csf_scheduler_lock(kbdev);
 	kbase_pm_lock(kbdev);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
-#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
-#if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
-	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
-#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
-	&& (kbdev->gov_core_mask_disable == 0)
-#endif
-	)
-	{
-		ca_mask = kbdev->pm.backend.ca_gov_cores_enabled;
-		debug_mask = kbase_pm_ca_get_sysfs_gov_core_mask(kbdev);
-	} else
-#endif
-	{
-		ca_mask = kbdev->pm.backend.ca_cores_enabled;
-		debug_mask = kbase_pm_ca_get_debug_core_mask(kbdev);
-	}
-#else
-	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)) {
-		ca_mask = kbdev->pm.backend.ca_gov_cores_enabled;
-		debug_mask = kbase_pm_ca_get_sysfs_gov_core_mask(kbdev);
-	} else {
-		ca_mask = kbdev->pm.backend.ca_cores_enabled;
-		debug_mask = kbase_pm_ca_get_debug_core_mask(kbdev);
-	}
-#endif
+	all_core_masks = kbase_pm_ca_get_core_masks(kbdev);
+	debug_mask = all_core_masks.pm_core_mask_debug;
+	devfreq_mask = all_core_masks.pm_core_mask_devfreq;
 
 	shader_present = kbdev->gpu_props.shader_present;
 
@@ -3172,13 +3119,13 @@ static int core_mask_set(struct kbase_device *kbdev, struct kbase_core_mask *con
 			new_core_mask, shader_present);
 		ret = -EINVAL;
 		goto exit;
-	} else if (!(new_core_mask & shader_present & ca_mask)) {
+	} else if (!(new_core_mask & shader_present & devfreq_mask)) {
 		if (!kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT) ||
 		    (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT) &&
 		     new_core_mask != 0)) {
 			dev_err(kbdev->dev,
 				"Invalid requested core mask 0x%llX: No intersection with currently available cores (present = 0x%llX, CA enabled = 0x%llX)",
-				new_core_mask, kbdev->gpu_props.shader_present, ca_mask);
+				new_core_mask, kbdev->gpu_props.shader_present, devfreq_mask);
 			ret = -EINVAL;
 			goto exit;
 		}

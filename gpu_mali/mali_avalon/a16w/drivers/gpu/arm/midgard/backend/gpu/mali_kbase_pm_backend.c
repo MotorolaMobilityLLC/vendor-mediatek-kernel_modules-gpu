@@ -131,10 +131,6 @@ int kbase_hwaccess_pm_init(struct kbase_device *kbdev)
 
 	INIT_WORK(&kbdev->pm.backend.gpu_poweroff_wait_work, kbase_pm_gpu_poweroff_wait_wq);
 
-	kbdev->pm.backend.ca_cores_enabled = ~0ull;
-	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT))
-		kbdev->pm.backend.ca_gov_cores_enabled = ~0ull;
-
 	init_waitqueue_head(&kbdev->pm.backend.gpu_in_desired_state_wait);
 
 	mutex_init(&kbdev->pm.backend.policy_change_lock);
@@ -682,6 +678,7 @@ int kbase_hwaccess_pm_powerup(struct kbase_device *kbdev, unsigned int flags)
 {
 	unsigned long irq_flags;
 	int ret;
+	struct kbase_pm_core_masks all_core_masks;
 
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
 
@@ -699,10 +696,7 @@ int kbase_hwaccess_pm_powerup(struct kbase_device *kbdev, unsigned int flags)
 		return ret;
 	}
 
-	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT))
-		kbdev->pm.sysfs_gov_core_mask = kbdev->gpu_props.shader_present;
 
-	kbdev->pm.debug_core_mask = kbdev->gpu_props.shader_present;
 	spin_lock_irqsave(&kbdev->hwaccess_lock, irq_flags);
 	/* Set the initial value for 'shaders_avail'. It would be later
 	 * modified only from the MCU state machine, when the shader core
@@ -710,11 +704,12 @@ int kbase_hwaccess_pm_powerup(struct kbase_device *kbdev, unsigned int flags)
 	 * indicate the mask of cores that are currently being used by FW for
 	 * the allocation of endpoints requested by CSGs.
 	 */
-	kbdev->pm.backend.shaders_avail = kbase_pm_ca_get_core_mask(kbdev);
+	all_core_masks = kbase_pm_ca_get_core_masks(kbdev);
+	kbdev->pm.backend.shaders_avail = all_core_masks.pm_core_mask_alloc_en;
 
 #if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
 	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT))
-		kbdev->pm.backend.mcu_core_mask = kbase_pm_ca_get_gov_core_mask(kbdev);
+		kbdev->pm.backend.mcu_core_mask = kbdev->pm.backend.ca_cores_enabled;
 #endif
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, irq_flags);
@@ -818,31 +813,8 @@ void kbase_pm_set_debug_core_mask(struct kbase_device *kbdev, u64 new_core_mask)
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 	lockdep_assert_held(&kbdev->pm.lock);
 
-#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
-#if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
-	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
-#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
-	&& (kbdev->gov_core_mask_disable == 0)
-#endif
-	)
-	{
-		kbdev->pm.sysfs_gov_core_mask = new_core_mask;
-		kbase_pm_ca_set_gov_core_mask_nolock(kbdev, SYSFS_COREMASK, new_core_mask);
-	} else
-#endif
-	{
-		kbdev->pm.debug_core_mask = new_core_mask;
-		kbase_pm_update_dynamic_cores_onoff(kbdev);
-	}
-#else
-	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)) {
-		kbdev->pm.sysfs_gov_core_mask = new_core_mask;
-		kbase_pm_ca_set_gov_core_mask_nolock(kbdev, SYSFS_COREMASK, new_core_mask);
-	} else {
-		kbdev->pm.debug_core_mask = new_core_mask;
-		kbase_pm_update_dynamic_cores_onoff(kbdev);
-	}
-#endif
+	kbase_pm_ca_set_core_mask(kbdev, PM_CA_COREMASK_TYPE_SYSFS, new_core_mask);
+	kbase_pm_update_dynamic_cores_onoff(kbdev);
 }
 KBASE_EXPORT_TEST_API(kbase_pm_set_debug_core_mask);
 

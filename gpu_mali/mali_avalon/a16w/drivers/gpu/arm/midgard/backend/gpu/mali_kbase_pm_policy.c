@@ -407,6 +407,19 @@ void kbase_pm_set_policy(struct kbase_device *kbdev, const struct kbase_pm_polic
 	 * NULL), then re-try them here.
 	 */
 	kbase_pm_update_active(kbdev);
+	/* When moving to and from always_on power policy we need to store masks again,
+	 * this allows CFG_ALLOC_EN to be in sync with GOV_CORE_MASK going into always_on
+	 * and ignored leaving always_on.
+	 */
+#ifdef CONFIG_MALI_DEVFREQ
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT) &&
+	    (old_policy == &kbase_pm_always_on_policy_ops ||
+	     new_policy == &kbase_pm_always_on_policy_ops)) {
+		kbdev->pm.backend.shaders_desired = true;
+	}
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+#endif
 	kbase_pm_update_cores_state(kbdev);
 
 	/* Now the policy change is finished, we release our fake context active

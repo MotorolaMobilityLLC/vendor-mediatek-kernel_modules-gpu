@@ -779,6 +779,7 @@ static inline bool kbase_pm_handle_mcu_core_attr_update(struct kbase_device *kbd
 	struct kbase_pm_backend_data *backend = &kbdev->pm.backend;
 	bool timer_update;
 	bool core_mask_update;
+	struct kbase_pm_core_masks all_core_masks;
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
@@ -790,14 +791,15 @@ static inline bool kbase_pm_handle_mcu_core_attr_update(struct kbase_device *kbd
 	if (unlikely(kbdev->csf.firmware_hctl_core_pwr))
 		return false;
 
-	core_mask_update = backend->shaders_avail != backend->shaders_desired_mask;
+	all_core_masks = kbase_pm_ca_get_core_masks(kbdev);
+	core_mask_update = backend->shaders_avail != all_core_masks.pm_core_mask_alloc_en;
 
 	timer_update = kbdev->csf.mcu_core_pwroff_dur_count !=
 		       kbdev->csf.mcu_core_pwroff_reg_shadow;
 
 	if (core_mask_update || timer_update)
 		kbase_csf_firmware_update_core_attr(kbdev, timer_update, core_mask_update,
-						    backend->shaders_desired_mask);
+						    all_core_masks.pm_core_mask_alloc_en);
 
 	return (core_mask_update || timer_update);
 }
@@ -964,13 +966,14 @@ static void kbasep_pm_toggle_power_interrupt(struct kbase_device *kbdev, bool en
 static bool hctl_neural_engines_active(struct kbase_device *kbdev)
 {
 	u64 engines_active, engines_to_disable, engines_ready;
+	const struct kbase_pm_core_masks all_core_masks = kbase_pm_ca_get_core_masks(kbdev);
 
 	if (!kbase_csf_dev_has_ne(kbdev))
 		return false;
 
 	engines_active = kbase_pm_get_active_cores(kbdev, KBASE_PM_CORE_NEURAL);
 	engines_ready = kbase_pm_get_ready_cores(kbdev, KBASE_PM_CORE_NEURAL);
-	engines_to_disable = engines_ready & ~kbdev->pm.backend.shaders_desired_mask;
+	engines_to_disable = engines_ready & ~all_core_masks.pm_core_mask_alloc_en;
 
 	return !!(engines_to_disable & engines_active);
 }
@@ -1082,7 +1085,8 @@ static bool hctl_base_power_down_done(struct kbase_device *kbdev, u64 shaders_re
 static bool hctl_shader_cores_active(struct kbase_device *kbdev, u64 shaders_ready)
 {
 	const u64 shaders_active = kbase_pm_get_active_cores(kbdev, KBASE_PM_CORE_SHADER);
-	const u64 shaders_to_disable = shaders_ready & ~kbdev->pm.backend.shaders_desired_mask;
+	const struct kbase_pm_core_masks all_core_masks = kbase_pm_ca_get_core_masks(kbdev);
+	const u64 shaders_to_disable = shaders_ready & ~all_core_masks.pm_core_mask_alloc_en;
 	bool cores_are_active = !!(shaders_to_disable & shaders_active);
 
 	/* Shading engine is inactive in all the required shader cores, but also need
@@ -1109,8 +1113,14 @@ static bool hctl_shader_cores_active(struct kbase_device *kbdev, u64 shaders_rea
 static bool hctl_shader_cores_power_up_done(struct kbase_device *kbdev, u64 shaders_ready,
 					    u64 shaders_trans, u64 shaders_avail)
 {
-	if (shaders_trans || shaders_ready != shaders_avail)
+	if (shaders_trans)
 		return false;
+
+	if (shaders_ready != shaders_avail) {
+		kbase_pm_invoke(kbdev, KBASE_PM_CORE_SHADER, ~shaders_ready & shaders_avail,
+				ACTION_PWRON);
+		return false;
+	}
 
 	/* Shading engine is powered up in all the required shader cores, but also need
 	 * to trigger the power up of neural engine present in all those shader cores.
@@ -1156,8 +1166,14 @@ static bool hctl_cores_power_up_done(struct kbase_device *kbdev, u64 cores_ready
 static bool hctl_shader_cores_power_down_done(struct kbase_device *kbdev, u64 shaders_ready,
 					      u64 shaders_trans, u64 shaders_avail)
 {
-	if (shaders_trans || shaders_ready != shaders_avail)
+	if (shaders_trans)
 		return false;
+
+	if (shaders_ready != shaders_avail) {
+		kbase_pm_invoke(kbdev, KBASE_PM_CORE_SHADER, shaders_ready & ~shaders_avail,
+				ACTION_PWROFF);
+		return false;
+	}
 
 	/* Shading engine is powered down in all the required shader cores, but also need
 	 * to trigger the power down of neural engine present in all those shader cores.
@@ -1236,6 +1252,8 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 		u64 stacks_ready = 0;
 		u64 bases_trans = 0;
 		u64 bases_ready = 0;
+		struct kbase_pm_core_masks all_core_masks = kbase_pm_ca_get_core_masks(kbdev);
+		u64 desired_mask_alloc_en = all_core_masks.pm_core_mask_alloc_en;
 
 		if (corestack_driver_control) {
 			stacks_trans = kbase_pm_get_trans_cores(kbdev, KBASE_PM_CORE_STACK);
@@ -1294,9 +1312,7 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 
 		case KBASE_MCU_PEND_ON_RELOAD:
 			if (kbdev->csf.firmware_reloaded) {
-				backend->shaders_desired_mask = kbase_pm_ca_get_core_mask(kbdev);
-				kbase_csf_firmware_global_reinit(kbdev,
-								 backend->shaders_desired_mask);
+				kbase_csf_firmware_global_reinit(kbdev, desired_mask_alloc_en);
 				if (!kbdev->csf.firmware_hctl_core_pwr)
 					kbasep_pm_toggle_power_interrupt(kbdev, false);
 				backend->mcu_state = KBASE_MCU_ON_GLB_REINIT_PEND;
@@ -1305,8 +1321,8 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 
 		case KBASE_MCU_ON_GLB_REINIT_PEND:
 			if (kbase_csf_firmware_global_reinit_complete(kbdev)) {
-				backend->shaders_avail = backend->shaders_desired_mask;
-				backend->pm_shaders_core_mask = 0;
+				backend->shaders_avail = desired_mask_alloc_en;
+				kbase_pm_ca_set_core_mask(kbdev, PM_CA_COREMASK_TYPE_REWRITE, 0x0);
 				if (kbdev->csf.firmware_hctl_core_pwr) {
 					if (corestack_driver_control) {
 						kbase_pm_invoke(kbdev, KBASE_PM_CORE_STACK,
@@ -1366,7 +1382,6 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			/* Cores now stable, notify MCU the stable mask */
 			kbase_csf_firmware_update_core_attr(kbdev, false, true, shaders_ready);
 
-			backend->pm_shaders_core_mask = shaders_ready;
 			backend->mcu_state = KBASE_MCU_HCTL_CORES_NOTIFY_PEND;
 			break;
 
@@ -1397,7 +1412,6 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			break;
 
 		case KBASE_MCU_ON:
-			backend->shaders_desired_mask = kbase_pm_ca_get_core_mask(kbdev);
 #if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
 #if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
 			if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
@@ -1412,7 +1426,7 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 				backend->mcu_state = KBASE_MCU_ON_HWCNT_DISABLE;
 			else if (kbdev->csf.firmware_hctl_core_pwr) {
 				/* Host control scale up/down cores as needed */
-				if (backend->shaders_desired_mask != shaders_ready) {
+				if (desired_mask_alloc_en != shaders_ready) {
 					backend->hwcnt_desired = false;
 					if (!backend->hwcnt_disabled)
 						kbase_pm_trigger_hwcnt_disable(kbdev);
@@ -1458,7 +1472,6 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			break;
 
 		case KBASE_MCU_HCTL_MCU_ON_RECHECK:
-			backend->shaders_desired_mask = kbase_pm_ca_get_core_mask(kbdev);
 			WARN_ON(!kbdev->csf.firmware_hctl_core_pwr);
 			if (!backend->hwcnt_disabled) {
 				/* Wait for being disabled */
@@ -1466,12 +1479,11 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			} else if (!kbase_pm_is_mcu_desired(kbdev)) {
 				/* Converging to MCU powering down flow */
 				backend->mcu_state = KBASE_MCU_ON_HWCNT_DISABLE;
-			} else if (backend->shaders_desired_mask & ~shaders_ready) {
+			} else if (desired_mask_alloc_en & ~shaders_ready) {
 				/* set cores ready but not available to
 				 * meet SHADERS_PEND_ON check pass
 				 */
-				backend->shaders_avail =
-					(backend->shaders_desired_mask | shaders_ready);
+				backend->shaders_avail = (desired_mask_alloc_en | shaders_ready);
 				if (corestack_driver_control) {
 					kbase_pm_invoke(kbdev, KBASE_PM_CORE_STACK, stacks_avail,
 							ACTION_PWRON);
@@ -1483,9 +1495,9 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 					backend->mcu_state = KBASE_MCU_HCTL_SHADERS_PEND_ON;
 				}
 
-			} else if (~backend->shaders_desired_mask & shaders_ready) {
+			} else if (~desired_mask_alloc_en & shaders_ready) {
 				kbase_csf_firmware_update_core_attr(kbdev, false, true,
-								    backend->shaders_desired_mask);
+								    desired_mask_alloc_en);
 				backend->mcu_state = KBASE_MCU_HCTL_CORES_DOWN_SCALE_NOTIFY_PEND;
 			} else {
 				backend->mcu_state = KBASE_MCU_HCTL_SHADERS_PEND_ON;
@@ -1505,9 +1517,8 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 				break;
 
 			kbase_pm_invoke(kbdev, KBASE_PM_CORE_SHADER,
-					shaders_ready & ~backend->shaders_desired_mask,
-					ACTION_PWROFF);
-			backend->shaders_avail = backend->shaders_desired_mask;
+					shaders_ready & ~desired_mask_alloc_en, ACTION_PWROFF);
+			backend->shaders_avail = desired_mask_alloc_en;
 			backend->mcu_state = KBASE_MCU_HCTL_SHADERS_CORE_OFF_PEND;
 		} break;
 
@@ -1517,13 +1528,12 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 				break;
 
 			/* Cores now stable */
-			backend->pm_shaders_core_mask = shaders_ready;
 			backend->mcu_state = KBASE_MCU_ON_HWCNT_ENABLE;
 			break;
 
 		case KBASE_MCU_ON_CORE_ATTR_UPDATE_PEND:
 			if (kbase_csf_firmware_core_attr_updated(kbdev)) {
-				backend->shaders_avail = backend->shaders_desired_mask;
+				backend->shaders_avail = desired_mask_alloc_en;
 				backend->mcu_state = KBASE_MCU_ON;
 			}
 			break;
@@ -1647,7 +1657,6 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 							       0))
 				break;
 
-			backend->pm_shaders_core_mask = 0;
 			if (corestack_driver_control) {
 				kbase_pm_invoke(kbdev, KBASE_PM_CORE_BASE, bases_ready,
 						ACTION_PWROFF);
@@ -2672,12 +2681,13 @@ static enum hrtimer_restart shader_tick_timer_callback(struct hrtimer *timer)
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 	if (stt->remaining_ticks && backend->shaders_state == KBASE_SHADERS_WAIT_OFF_CORESTACK_ON) {
+		const struct kbase_pm_core_masks all_core_masks = kbase_pm_ca_get_core_masks(kbdev);
 		stt->remaining_ticks--;
 
 		/* If the remaining ticks just changed from 1 to 0, invoke the
 		 * PM state machine to power off the shader cores.
 		 */
-		if (!stt->remaining_ticks && !backend->shaders_desired)
+		if (!stt->remaining_ticks && !all_core_masks.pm_core_mask_alloc_en)
 			kbase_pm_update_state(kbdev);
 	}
 
