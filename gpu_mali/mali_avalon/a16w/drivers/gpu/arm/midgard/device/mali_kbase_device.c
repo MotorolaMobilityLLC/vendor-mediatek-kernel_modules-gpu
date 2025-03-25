@@ -319,6 +319,7 @@ int kbase_device_misc_init(struct kbase_device *const kbdev)
 	/* Workaround a pre-3.13 Linux issue, where dma_mask is NULL when our
 	 * device structure was created by device-tree
 	 */
+
 	if (!kbdev->dev->dma_mask)
 		kbdev->dev->dma_mask = &kbdev->dev->coherent_dma_mask;
 
@@ -329,6 +330,34 @@ int kbase_device_misc_init(struct kbase_device *const kbdev)
 	err = dma_set_coherent_mask(kbdev->dev, DMA_BIT_MASK(kbdev->gpu_props.mmu.pa_bits));
 	if (err)
 		goto dma_set_mask_failed;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_COHERENT_DMA_BUF)
+	kbdev->coherent_mdev.minor = MISC_DYNAMIC_MINOR;
+	kbdev->coherent_mdev.name = "mali_dma_coherent";
+
+	if (misc_register(&kbdev->coherent_mdev)) {
+		dev_err(kbdev->dev, "fail to register misc device of 'mali_dma_coherent'\n");
+	} else {
+		kbdev->coherent_mdev.this_device->dma_mask =
+			&kbdev->coherent_mdev.this_device->coherent_dma_mask;
+
+		kbdev->coherent_mdev.this_device->dma_coherent = true;
+		err = dma_set_mask(kbdev->coherent_mdev.this_device,
+			DMA_BIT_MASK(kbdev->gpu_props.mmu.pa_bits));
+		dev_err(kbdev->dev, "dma_set_mask ret %d\n", err);
+		if (err)
+			goto dma_set_mask_failed;
+
+		err = dma_set_coherent_mask(kbdev->coherent_mdev.this_device,
+			DMA_BIT_MASK(kbdev->gpu_props.mmu.pa_bits));
+		dev_err(kbdev->dev, "dma_set_coherent_mask ret %d\n", err);
+		if (err)
+			goto dma_set_mask_failed;
+		dev_info(kbdev->dev,
+			"coherent misc device 'mali_dma_coherent' %d\n",
+			kbdev->coherent_mdev.this_device->dma_coherent);
+	}
+#endif /* CONFIG_MALI_MTK_COHERENT_DMA_BUF */
 
 
 	/* There is no limit for Mali, so set to max. */
@@ -415,6 +444,10 @@ void kbase_device_misc_term(struct kbase_device *kbdev)
 	if (atomic_read(&kbdev->live_fence_metadata) > 0)
 		dev_warn(kbdev->dev, "Terminating Kbase device with live fence metadata!");
 #endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_COHERENT_DMA_BUF)
+	misc_deregister(&kbdev->coherent_mdev);
+#endif /* CONFIG_MALI_MTK_COHERENT_DMA_BUF */
 }
 
 void kbase_device_free(struct kbase_device *kbdev)
