@@ -8194,6 +8194,9 @@ int kbase_csf_scheduler_pm_suspend_no_lock(struct kbase_device *kbdev)
 	 */
 	if (IS_ENABLED(CONFIG_PM) && scheduler->state == SCHED_SLEEPING) {
 		dev_info(kbdev->dev, "Activating MCU out of sleep on system suspend");
+		if (unlikely(kbase_csf_firmware_soi_disable_on_scheduler_suspend(kbdev)))
+			dev_warn(kbdev->dev,
+			 "Failed to disable SoI on scheduler suspension");
 		result = force_scheduler_to_exit_sleep(kbdev);
 		if (result) {
 			dev_warn(kbdev->dev, "Scheduler failed to exit from sleep");

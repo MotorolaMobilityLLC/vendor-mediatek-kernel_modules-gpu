@@ -866,6 +866,17 @@ static void handle_sleep_initiate_state(struct kbase_device *kbdev)
 		 */
 		if (wait_mcu_active(kbdev))
 			goto pend_soi_sleep;
+
+		/* Also ensure that any pending GLB_IDLE_TIMER config change
+		 * has been handled by FW before sending the SLEEP request
+		 * (in case it was about to go to automatic sleep). This could
+		 * happen if there is a rapid change in the MCU state from
+		 * IN_SLEEP->ON->ON_SLEEP_INITIATE: FW might not have handled
+		 * the GLB_IDLE_TIMER disable request by this point even though
+		 * the gpu_idle_timer_enable flag has been cleared.
+		 */
+		if (!kbase_csf_global_request_complete(kbdev, GLB_REQ_IDLE_DISABLE_MASK))
+			return;
 	}
 
 	/* SoI is disabled or unsupported, so send a sleep request to FW.*/

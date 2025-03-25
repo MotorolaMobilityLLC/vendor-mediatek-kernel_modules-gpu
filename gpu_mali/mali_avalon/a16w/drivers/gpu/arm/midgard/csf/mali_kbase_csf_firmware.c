@@ -1697,9 +1697,7 @@ void kbase_csf_ring_doorbell(struct kbase_device *kbdev, int doorbell_nr)
 }
 EXPORT_SYMBOL(kbase_csf_ring_doorbell);
 
-static bool global_request_complete(struct kbase_csf_fw_io *fw_io,
-
-				    u32 const req_mask)
+static bool global_request_complete(struct kbase_csf_fw_io *fw_io, u32 const req_mask)
 {
 	struct kbase_device *const kbdev = fw_io->kbdev;
 
@@ -1715,6 +1713,13 @@ static bool global_request_complete(struct kbase_csf_fw_io *fw_io,
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 
 	return complete;
+}
+
+bool kbase_csf_global_request_complete(struct kbase_device *kbdev, u32 const req_mask)
+{
+	struct kbase_csf_fw_io *const fw_io = &kbdev->csf.fw_io;
+
+	return global_request_complete(fw_io, req_mask);
 }
 
 static int wait_for_global_request_with_timeout(struct kbase_csf_fw_io *fw_io, u32 const req_mask,

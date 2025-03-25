@@ -185,6 +185,15 @@ struct kbase_csf_global_iface {
 void kbase_csf_ring_doorbell(struct kbase_device *kbdev, int doorbell_nr);
 
 /**
+ * kbase_csf_global_request_complete() - Indicate whether a global request has
+ *                                       completed.
+ *
+ * @kbdev:    An instance of the GPU platform device
+ * @req_mask: Bits in the GLB_REQ register to check
+ */
+bool kbase_csf_global_request_complete(struct kbase_device *kbdev, u32 const req_mask);
+
+/**
  * kbase_csf_read_firmware_memory - Read a value in a GPU address
  *
  * @kbdev:     Device pointer

@@ -385,6 +385,13 @@ static bool global_request_complete(struct kbase_csf_fw_io *fw_io, u32 const req
 	return complete;
 }
 
+bool kbase_csf_global_request_complete(struct kbase_device *kbdev, u32 const req_mask)
+{
+	struct kbase_csf_fw_io *const fw_io = &kbdev->csf.fw_io;
+
+	return global_request_complete(fw_io, req_mask);
+}
+
 static int wait_for_global_request(struct kbase_csf_fw_io *fw_io, u32 const req_mask)
 {
 	struct kbase_device *const kbdev = fw_io->kbdev;
