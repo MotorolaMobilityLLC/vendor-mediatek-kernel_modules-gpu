@@ -344,4 +344,8 @@ config MALI_MTK_TIMEOUT_OPT
 	bool "Optimization for the timeout of error"
 	default n
 
+config MALI_MTK_CHECK_FATAL_SIGNAL
+	bool "check fatal siganl before WARN_ON"
+	default n
+
 endmenu
