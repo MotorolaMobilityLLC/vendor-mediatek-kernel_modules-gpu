@@ -529,11 +529,11 @@ int mtk_logbuffer_init(struct kbase_device *kbdev)
 
 	/* Create a circular buffer for regular logs */
 	offset = 0;
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER_ENLARGE)
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER_ENLARGE) && IS_ENABLED(CONFIG_MTK_GPU_DIAGNOSIS_DEBUG)
 	logbuf_size = 1024 * 2048;
 #else
 	logbuf_size = 1024 * 1024;
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER_ENLARGE */
+#endif
 	mtk_logbuffer_init_internal(kbdev,
 	                            &kbdev->logbuf_regular,      /* logbuf */
 	                            (uint8_t *)reserved_mem_virt /* rmem_va */,
@@ -546,11 +546,11 @@ int mtk_logbuffer_init(struct kbase_device *kbdev)
 
 	/* Create a circular buffer for critical logs */
 	offset += logbuf_size;
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER_ENLARGE)
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER_ENLARGE) && IS_ENABLED(CONFIG_MTK_GPU_DIAGNOSIS_DEBUG)
 	logbuf_size = 1024 * 1024;
 #else
 	logbuf_size = 1024 * 512;
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER_ENLARGE */
+#endif
 	mtk_logbuffer_init_internal(kbdev,
 	                            &kbdev->logbuf_critical,     /* logbuf */
 	                            (uint8_t *)reserved_mem_virt /* rmem_va */,
@@ -563,11 +563,11 @@ int mtk_logbuffer_init(struct kbase_device *kbdev)
 
 	/* Create a non-circular buffer for exception logs */
 	offset += logbuf_size;
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER_ENLARGE)
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER_ENLARGE) && IS_ENABLED(CONFIG_MTK_GPU_DIAGNOSIS_DEBUG)
 	logbuf_size = 1024 * 1024;
 #else
 	logbuf_size = 1024 * 512;
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER_ENLARGE */
+#endif
 	mtk_logbuffer_init_internal(kbdev,
 	                            &kbdev->logbuf_exception,    /* logbuf */
 	                            (uint8_t *)reserved_mem_virt /* rmem_virt */,
