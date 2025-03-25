@@ -39,7 +39,7 @@
  * Disabling reclaim with pages being 0.
  */
 #define HEAP_RECLAIM_OFFSLOT_TIMEOUT_MS (30000)
-#define HEAP_RECLAIM_OFFSLOT_PAGES (0)
+#define HEAP_RECLAIM_OFFSLOT_PAGES (2048)
 
 static u8 get_kctx_highest_csg_priority(struct kbase_context *kctx)
 {
