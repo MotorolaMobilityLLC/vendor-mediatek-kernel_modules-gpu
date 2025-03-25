@@ -49,6 +49,9 @@
 #include <mali_kbase_trace_gpu_mem.h>
 #include <mali_kbase_reset_gpu.h>
 #include <linux/version_compat_defs.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_COHERENT_DMA_BUF)
+#include <mtk_heap.h>
+#endif /* CONFIG_MALI_MTK_COHERENT_DMA_BUF */
 
 #if IS_ENABLED(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && IS_ENABLED(CONFIG_MTK_GZ_KREE) && IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
 #include <public/trusted_mem_api.h>
@@ -1602,12 +1605,28 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx, in
 	bool shared_zone = false;
 	bool need_sync = false;
 	int group_id;
+#if IS_ENABLED(CONFIG_MALI_MTK_COHERENT_DMA_BUF)
+	int is_coherent_heap;
+#endif /* CONFIG_MALI_MTK_COHERENT_DMA_BUF */
 
 	dma_buf = dma_buf_get(fd);
 	if (IS_ERR_OR_NULL(dma_buf))
 		return NULL;
+#if IS_ENABLED(CONFIG_MALI_MTK_COHERENT_DMA_BUF)
+	is_coherent_heap = is_coherent_heap_dmabuf(dma_buf);
 
-	dma_attachment = dma_buf_attach(dma_buf, kctx->kbdev->dev);
+	if (is_coherent_heap && (*flags & BASE_MEM_CACHED_CPU)
+		&& kbase_device_is_cpu_coherent(kctx->kbdev)) {
+		dma_attachment = dma_buf_attach(dma_buf,
+			kctx->kbdev->coherent_mdev.this_device);
+		if (dma_attachment == NULL)
+			dev_err(kctx->kbdev->dev, "%s map coherent heap %d", __func__,
+				IS_ERR_OR_NULL(dma_attachment));
+	}
+	else
+#endif /* CONFIG_MALI_MTK_COHERENT_DMA_BUF */
+		dma_attachment = dma_buf_attach(dma_buf, kctx->kbdev->dev);
+
 	if (IS_ERR_OR_NULL(dma_attachment)) {
 		dma_buf_put(dma_buf);
 		return NULL;
@@ -1661,6 +1680,17 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx, in
 
 	if (*flags & BASE_MEM_IMPORT_SYNC_ON_MAP_UNMAP)
 		need_sync = true;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_COHERENT_DMA_BUF)
+	if (is_coherent_heap) {
+		if ((*flags & BASE_MEM_CACHED_CPU) &&
+			kbase_device_is_cpu_coherent(kctx->kbdev)) {
+			*flags |= BASE_MEM_COHERENT_SYSTEM_REQUIRED;
+			*flags |= BASE_MEM_COHERENT_SYSTEM;
+			*flags &= ~BASE_MEM_COHERENT_LOCAL;
+		}
+	}
+#endif /* CONFIG_MALI_MTK_COHERENT_DMA_BUF */
 
 	if (!kbase_ctx_compat_mode(kctx)) {
 		/*

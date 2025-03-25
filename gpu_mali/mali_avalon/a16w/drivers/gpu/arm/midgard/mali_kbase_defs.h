@@ -1479,6 +1479,9 @@ struct kbase_device {
 	char fw_git_sha[64];
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_COHERENT_DMA_BUF)
+	struct miscdevice coherent_mdev;
+#endif /* CONFIG_MALI_MTK_COHERENT_DMA_BUF */
 };
 
 /**

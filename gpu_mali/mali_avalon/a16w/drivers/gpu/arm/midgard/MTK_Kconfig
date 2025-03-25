@@ -352,4 +352,8 @@ config MALI_MTK_ISSUE_ANALYSIS_POINT_MT6995_C34
 	bool "The issue MT6995 C34 analysis point"
 	default n
 
+config MALI_MTK_COHERENT_DMA_BUF
+	bool ""
+	default n
+
 endmenu
