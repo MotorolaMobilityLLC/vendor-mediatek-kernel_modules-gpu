@@ -3528,15 +3528,9 @@ static int scheduler_group_schedule(struct kbase_queue_group *group)
 		 * causing stalls. If this happens, we force an in-cycle scheduling tock to ensure
 		 * that new work gets handled in time if appropriate.
 		 */
-		/* If scheduler is not suspended and the given group's
-		 * static priority (reflected by the scan_seq_num) is inside
-		 * the current tick slot-range, schedule an async tock.
-		 */
-		if (scheduler->state != SCHED_SUSPENDED) {
-			if (group->scan_seq_num < scheduler->num_csg_slots_for_tick)
-				schedule_in_cycle(group, true);
-		}
 		group->idle_on_stop = false;
+		if (scheduler->state != SCHED_SUSPENDED)
+			schedule_in_cycle(group, true);
 	}
 
 	/* Since a group has become active now, check if GPU needs to be
