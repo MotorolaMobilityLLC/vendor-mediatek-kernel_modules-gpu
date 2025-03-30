@@ -2377,7 +2377,6 @@ DevmemIntMapPMR(DEVMEMINT_RESERVATION *psReservation, PMR *psPMR)
 	void *pvTmpBuf = NULL;
 	IMG_UINT32 i;
 
-	PVR_LOG_RETURN_IF_INVALID_PARAM(psReservation->psMappedPMR == NULL, "psReservation");
 	PVR_LOG_RETURN_IF_INVALID_PARAM(PMR_LogicalSize(psPMR) == psReservation->uiLength, "psPMR logical size");
 
 	if (uiLog2HeapContiguity > PMR_GetLog2Contiguity(psPMR))
@@ -2396,8 +2395,9 @@ DevmemIntMapPMR(DEVMEMINT_RESERVATION *psReservation, PMR *psPMR)
 
 	OSLockAcquireNested(psReservation->hLock, psReservation->eLockClass);
 
-	uiVirtualSize = psReservation->uiLength;
+	PVR_LOG_GOTO_IF_INVALID_PARAM(psReservation->psMappedPMR == NULL, eError, ErrorReleaseResLock);
 
+	uiVirtualSize = psReservation->uiLength;
 	ui32NumDevPages = 0xffffffffU & ( ( (uiVirtualSize - 1) >> uiLog2HeapContiguity) + 1);
 	PVR_ASSERT((IMG_DEVMEM_SIZE_T) ui32NumDevPages << uiLog2HeapContiguity == uiVirtualSize);
 
@@ -2628,12 +2628,12 @@ DevmemIntUnmapPMR(DEVMEMINT_RESERVATION *psReservation)
 	IMG_BOOL bIsSparse = IMG_FALSE;
 	IMG_UINT32 i;
 
-	PVR_RETURN_IF_INVALID_PARAM(psReservation->psMappedPMR != NULL);
 
 	ui32NumDevPages = _DevmemReservationPageCount(psReservation);
 	sReservationVAddr = psReservation->sBase;
 
 	OSLockAcquireNested(psReservation->hLock, psReservation->eLockClass);
+	PVR_GOTO_IF_INVALID_PARAM(psReservation->psMappedPMR != NULL, eError, ErrUnlockRes);
 	PMRLockPMR(psReservation->psMappedPMR);
 
 	bIsSparse = PMR_IsSparse(psReservation->psMappedPMR);
@@ -2693,6 +2693,7 @@ DevmemIntUnmapPMR(DEVMEMINT_RESERVATION *psReservation)
 
 ErrUnlock:
 	PMRUnlockPMR(psReservation->psMappedPMR);
+ErrUnlockRes:
 	OSLockRelease(psReservation->hLock);
 
 	return eError;
@@ -2832,7 +2833,11 @@ DevmemIntUnreserveRange(DEVMEMINT_RESERVATION *psReservation)
 	}
 
 	OSLockRelease(psReservation->hLock);
-
+	/* Accessing psMappedPMR here does not require protection from the reservation lock.
+	 * Multiple access cannot occur at this stage due to mechanisms provided by the handle
+	 * abstracting this resource. Specifically, lookup prevention on destroyed resources both in progress
+	 * and completed; destruction prevention based on active lookup count.
+	 */
 	if (psReservation->psMappedPMR != NULL)
 	{
 		/* No warning to be emitted as this is expected behaviour for the

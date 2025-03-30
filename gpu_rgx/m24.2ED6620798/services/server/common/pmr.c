@@ -2739,6 +2739,11 @@ PMRMMapPMR(PMR *psPMR, PMR_MMAP_DATA pOSMMapData, PVRSRV_MEMALLOCFLAGS_T uiFlags
 	                    !PVRSRV_CHECK_CPU_WRITEABLE(uiFlags),
 	                    PVRSRV_ERROR_PMR_NOT_PERMITTED);
 
+	/* if readable mapping is requested on non-readable PMR then fail */
+	PVR_RETURN_IF_FALSE(PVRSRV_CHECK_CPU_READABLE(psPMR->uiFlags) ||
+	                    !PVRSRV_CHECK_CPU_READABLE(uiFlags),
+	                    PVRSRV_ERROR_PMR_NOT_PERMITTED);
+
 	PVR_LOG_RETURN_IF_TRUE(PMR_PhysicalSize(psPMR) == 0, "PVRSRV_ERROR_BAD_MAPPING can not map PMR of 0 physical size", PVRSRV_ERROR_BAD_MAPPING);
 
 	if (psPMR->psFuncTab->pfnMMap)
