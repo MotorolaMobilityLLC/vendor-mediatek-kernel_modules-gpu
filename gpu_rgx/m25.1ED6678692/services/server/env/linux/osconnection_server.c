@@ -51,6 +51,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <linux/sched.h>
 
+#if defined(MTK_MINI_PORTING)
+#include <mtk_ion_support.h>
+#endif
+
 PVRSRV_ERROR OSConnectionPrivateDataInit(IMG_HANDLE *phOsPrivateData, void *pvOSData)
 {
 	ENV_CONNECTION_PRIVATE_DATA *psPrivData = pvOSData;

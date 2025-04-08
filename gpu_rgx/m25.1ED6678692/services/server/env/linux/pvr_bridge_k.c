@@ -303,13 +303,19 @@ void OSPlatformBridgeDeInit(void)
 	DeinitDMABUFBridge();
 }
 
+#if defined(MTK_FULL_PORTING)
+#define MTK_RETRY 5
+#endif
+
 PVRSRV_ERROR LinuxBridgeBlockClientsAccess(struct pvr_drm_private *psDevPriv,
                                            IMG_BOOL bShutdown)
 {
 	PVRSRV_ERROR eError;
 	IMG_HANDLE hEvent;
 	__maybe_unused IMG_INT iSuspendCount;
-
+#if defined(MTK_FULL_PORTING)
+	int retry = MTK_RETRY;
+#endif
 	eError = OSEventObjectOpen(g_hDriverThreadEventObject, &hEvent);
 	if (eError != PVRSRV_OK)
 	{
@@ -351,6 +357,16 @@ PVRSRV_ERROR LinuxBridgeBlockClientsAccess(struct pvr_drm_private *psDevPriv,
 		 * process). Because of that this thread shouldn't and most likely
 		 * event cannot be frozen. */
 		OSEventObjectWait(hEvent);
+#if defined(MTK_FULL_PORTING)
+		if (bShutdown) {
+			retry--;
+			if (retry == 0) {
+				PVR_LOG(("%s: retried %u times, force abort",
+						__func__, MTK_RETRY));
+				break;
+			}
+		}
+#endif
 	}
 
 CloseEventObject:

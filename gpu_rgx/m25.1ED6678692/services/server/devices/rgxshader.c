@@ -141,6 +141,21 @@ PVRSRVTQLoadShaders(PVRSRV_DEVICE_NODE * psDeviceNode)
 
 	_GetShaderFileName(psDeviceNode, aszShaderFilenameStr, aszShaderpFilenameStr);
 
+#if defined(MTK_MINI_PORTING)
+	eError = OSLoadFirmware(psDeviceNode, RGX_SH_FILENAME,
+	                        NULL, &psShaderFW);
+	if (eError != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to load shader binary file %s (%s)",
+		         __func__,
+		         RGX_SH_FILENAME,
+		         PVRSRVGetErrorString(eError)));
+		eError = PVRSRV_ERROR_UNABLE_TO_FIND_RESOURCE;
+		goto failed_init;
+	}
+
+	pszShaderFilenameStr = RGX_SH_FILENAME;
+#else
 	eError = OSLoadFirmware(psDeviceNode, aszShaderFilenameStr, NULL, &psShaderFW);
 
 	if (eError != PVRSRV_OK)
@@ -159,7 +174,7 @@ PVRSRVTQLoadShaders(PVRSRV_DEVICE_NODE * psDeviceNode)
 
 		pszShaderFilenameStr = aszShaderpFilenameStr;
 	}
-
+#endif /* MTK_MINI_PORTING */
 	PVR_LOG(("Shader binary image '%s' loaded", pszShaderFilenameStr));
 
 	RGXShaderReadHeader(psShaderFW, &sHeader);

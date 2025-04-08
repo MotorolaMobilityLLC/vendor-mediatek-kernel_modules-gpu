@@ -217,4 +217,11 @@ PVRSRV_ERROR PVRSRVGetProcessMemUsage(IMG_UINT64 *pui64TotalMem,
                                       IMG_UINT32 *pui32NumberOfLivePids,
                                       PVRSRV_PER_PROCESS_MEM_USAGE **ppsPerProcessMemUsageData);
 
+#if defined(MTK_FULL_PORTING)
+extern unsigned int (*mtk_get_gpu_memory_usage_fp)(void);
+extern bool (*mtk_dump_gpu_memory_usage_fp)(void);
+IMG_UINT32 MTKGetMemStat(void);
+bool MTKGetMemStatDump(void);
+#endif /* MTK_FULL_PORTING */
+
 #endif /* PROCESS_STATS_H */

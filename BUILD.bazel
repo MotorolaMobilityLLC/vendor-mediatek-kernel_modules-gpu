@@ -24,7 +24,7 @@ mt6789_outs = [
 
 
 mt6855_outs = [
-     "mt6855/m24.2ED6620798/pvrsrvkm_mt6855.ko",
+     "mt6855/m25.1ED6678692/pvrsrvkm_mt6855.ko",
 ]
 
 

@@ -1217,8 +1217,12 @@ PVRSRV_ERROR RGXInitDevPart2(PVRSRV_DEVICE_NODE	*psDeviceNode,
 	}
 #endif
 
+#if defined(MTK_MINI_PORTING)
+	spin_lock_init(&psDevInfo->sGPUUtilLock);
+#else
 	eError = OSLockCreate(&psDevInfo->hGPUUtilLock);
 	PVR_LOG_GOTO_IF_ERROR(eError, "OSLockCreate(GPUUtilLock)", ErrorExit);
+#endif /* MTK_MINI_PORTING */
 
 #if !defined(NO_HARDWARE)
 	/* Setup GPU utilisation stats update callback */
@@ -1491,11 +1495,19 @@ PVRSRV_ERROR RGXLoadAndGetFWData(PVRSRV_DEVICE_NODE *psDeviceNode,
 	eErr = OSLoadFirmware(psDeviceNode, pszLoadedFwStr, OS_FW_VERIFY_FUNCTION, ppsRGXFW);
 	if (eErr == PVRSRV_ERROR_NOT_FOUND)
 	{
-		pszLoadedFwStr = aszFWpFilenameStr;
+#if defined(MTK_MINI_PORTING)
+	pszLoadedFwStr = RGX_FW_FILENAME;
+#else
+ 	pszLoadedFwStr = aszFWFilenameStr;
+#endif
 		eErr = OSLoadFirmware(psDeviceNode, pszLoadedFwStr, OS_FW_VERIFY_FUNCTION, ppsRGXFW);
 		if (eErr == PVRSRV_ERROR_NOT_FOUND)
 		{
+#if defined(MTK_MINI_PORTING)
 			pszLoadedFwStr = RGX_FW_FILENAME;
+#else
+			pszLoadedFwStr = aszFWFilenameStr;
+#endif
 			eErr = OSLoadFirmware(psDeviceNode, pszLoadedFwStr, OS_FW_VERIFY_FUNCTION, ppsRGXFW);
 			if (eErr == PVRSRV_ERROR_NOT_FOUND)
 			{

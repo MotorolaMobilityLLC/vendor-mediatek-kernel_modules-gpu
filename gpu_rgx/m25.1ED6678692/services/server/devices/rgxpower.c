@@ -313,8 +313,14 @@ PVRSRV_ERROR RGXGetGpuDetailedUtilStats(PVRSRV_DEVICE_NODE *psDeviceNode,
 	OS_SPINLOCK_FLAGS uiFlags;
 	IMG_UINT64 ui64GpuActiveTimeNS, ui64FwStatsTimestampNS;
 	IMG_BOOL bGpuActive;
-
-	OSLockAcquire(psDevInfo->hGPUUtilLock);
+#if defined(MTK_MINI_PORTING)
+	unsigned long uLockFlags;
+#endif /* MTK_MINI_PORTING */
+#if defined(MTK_MINI_PORTING)
+	spin_lock_irqsave(&psDevInfo->sGPUUtilLock, uLockFlags);
+#else
+ 	OSLockAcquire(psDevInfo->hGPUUtilLock);
+#endif /* MTK_MINI_PORTING */
 
 	if (psDevInfo->bRGXPowered)
 	{
@@ -349,7 +355,11 @@ PVRSRV_ERROR RGXGetGpuDetailedUtilStats(PVRSRV_DEVICE_NODE *psDeviceNode,
 
 		if (eError != PVRSRV_OK)
 		{
-			OSLockRelease(psDevInfo->hGPUUtilLock);
+#if defined(MTK_MINI_PORTING)
+	spin_unlock_irqrestore(&psDevInfo->sGPUUtilLock, uLockFlags);
+#else
+ 	OSLockRelease(psDevInfo->hGPUUtilLock);
+#endif /* MTK_MINI_PORTING */
 			OSSpinLockAcquire(psReturnStats->hSpinlock, uiFlags);
 			psReturnStats->bDetailedStatsValid = IMG_FALSE;
 			psReturnStats->bBasicStatsValid = IMG_FALSE;
@@ -372,7 +382,11 @@ PVRSRV_ERROR RGXGetGpuDetailedUtilStats(PVRSRV_DEVICE_NODE *psDeviceNode,
 		   &psFwSysData->aaui32DmActiveTimeTicks,
 		   sizeof(psReturnStats->aaui32DmActiveTimeTicksCurrent));
 
-	OSLockRelease(psDevInfo->hGPUUtilLock);
+#if defined(MTK_MINI_PORTING)
+	spin_unlock_irqrestore(&psDevInfo->sGPUUtilLock, uLockFlags);
+#else
+ 	OSLockRelease(psDevInfo->hGPUUtilLock);
+#endif /* MTK_MINI_PORTING */
 
 	_RGXProcessBasicUtilStats(psReturnStats,
 							  ui64GpuActiveTimeNS,
