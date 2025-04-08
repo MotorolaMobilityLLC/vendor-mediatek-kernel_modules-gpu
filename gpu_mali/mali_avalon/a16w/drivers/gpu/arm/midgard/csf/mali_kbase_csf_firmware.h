@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2018-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -510,6 +510,23 @@ bool kbase_csf_firmware_is_mcu_in_sleep(struct kbase_device *kbdev);
 #if IS_ENABLED(CONFIG_MALI_MTK_RESET_RELOAD_ON_FW)
 void kbase_csf_firmware_reload(struct kbase_device *kbdev);
 #endif /* CONFIG_MALI_MTK_RESET_RELOAD_ON_FW */
+
+/**
+ * kbase_csf_firmware_trigger_gpu_suspend - Send global GPU_SUSPEND request
+ *
+ * @kbdev: Instance of a GPU platform device that implements a CSF interface.
+ */
+void kbase_csf_firmware_trigger_gpu_suspend(struct kbase_device *kbdev);
+
+/**
+ * kbase_csf_firmware_wait_for_gpu_suspend -	Wait for global GPU_SUSPEND
+ *					to be acknowledged by FW.
+ *
+ * @kbdev: Instance of a GPU platform device that implements a CSF interface.
+ *
+ * Return: true if GPU_SUSPEND request has completed, otherwise false.
+ */
+int kbase_csf_firmware_wait_for_gpu_suspend(struct kbase_device *kbdev);
 
 /**
  * kbase_csf_firmware_trigger_reload() - Trigger the reboot of MCU firmware, for

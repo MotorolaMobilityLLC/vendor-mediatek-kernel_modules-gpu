@@ -408,14 +408,14 @@ int kbase_device_misc_init(struct kbase_device *const kbdev)
 
 	atomic_set(&kbdev->fence_signal_timeout_enabled, 1);
 
-	kbdev->csf.neural_allowed_mask = neural_allowed_mask;
-
 	if ((kbdev->gpu_props.impl_tech == THREAD_FEATURES_IMPLEMENTATION_TECHNOLOGY_FPGA) ||
 	    (kbdev->gpu_props.impl_tech == THREAD_FEATURES_IMPLEMENTATION_TECHNOLOGY_SOFTWARE)) {
 		kbdev->kcpu_fence_signal_timeout_ms = KCPU_FENCE_SIGNAL_TIMEOUT_MS_FPGA;
 	} else {
 		kbdev->kcpu_fence_signal_timeout_ms = KCPU_FENCE_SIGNAL_TIMEOUT_MS;
 	}
+
+	kbdev->csf.neural_allowed_mask = neural_allowed_mask;
 
 	return 0;
 

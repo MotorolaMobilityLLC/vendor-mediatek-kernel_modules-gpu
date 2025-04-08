@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -190,7 +190,8 @@ int kbase_hwaccess_pm_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_DISABLE_SOI)
 			clear_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE, &kbdev->pm.backend.gpu_sleep_allowed);
 #else
-			set_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE, &kbdev->pm.backend.gpu_sleep_allowed);
+			set_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE,
+				&kbdev->pm.backend.gpu_sleep_allowed);
 #endif /* CONFIG_MALI_MTK_DISABLE_SOI */
 	}
 
@@ -696,7 +697,6 @@ int kbase_hwaccess_pm_powerup(struct kbase_device *kbdev, unsigned int flags)
 		return ret;
 	}
 
-
 	spin_lock_irqsave(&kbdev->hwaccess_lock, irq_flags);
 	/* Set the initial value for 'shaders_avail'. It would be later
 	 * modified only from the MCU state machine, when the shader core
@@ -948,7 +948,7 @@ int kbase_pm_force_mcu_wakeup_after_sleep(struct kbase_device *kbdev)
 	return kbase_pm_wait_for_desired_state(kbdev);
 }
 
-static int pm_handle_mcu_sleep_on_runtime_suspend(struct kbase_device *kbdev)
+static int pm_handle_mcu_sleep_on_runtime_suspend(struct kbase_device *kbdev, bool *wake_up_sched)
 {
 	unsigned long flags;
 	int ret;
@@ -1010,12 +1010,32 @@ static int pm_handle_mcu_sleep_on_runtime_suspend(struct kbase_device *kbdev)
 		ret = -EBUSY;
 	}
 
-	if (ret)
-		return ret;
+	if (!ret) {
+		ret = kbase_pm_wait_for_desired_state(kbdev);
+		if (ret)
+			dev_warn(kbdev->dev, "Wait for power down failed on runtime suspend");
+	}
 
-	ret = kbase_pm_wait_for_desired_state(kbdev);
-	if (ret)
-		dev_warn(kbdev->dev, "Wait for power down failed on runtime suspend");
+	/* CSG slots' state must be checked and saved regardless of whether
+	 * the device has become active since. There are several possibilities:
+	 * 1. GPU suspended successfully, scheduler doesn't need resuming.
+	 * 2. GPU suspended successfully, scheduler needs to resume.
+	 * 3. GPU failed to suspend i.e., not all slots suspended successfully:
+	 *    we trigger GPU reset. */
+	if (is_gpu_level_suspend_supported(kbdev))
+		if (!kbase_csf_scheduler_check_gls_success(kbdev)) {
+
+			/* The suspend of CSGs failed,
+			 * trigger the GPU reset to be in a deterministic state.
+			 */
+			if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
+				kbase_reset_gpu(kbdev);
+
+			ret = -EBUSY;
+		}
+
+	if (!ret)
+		*wake_up_sched = kbase_csf_scheduler_finalize_gpu_suspend(kbdev);
 
 	return ret;
 }
@@ -1025,6 +1045,7 @@ int kbase_pm_handle_runtime_suspend(struct kbase_device *kbdev)
 	enum kbase_mcu_state mcu_state;
 	bool exit_early = false;
 	unsigned long flags;
+	bool wake_up_sched = false;
 	int ret = 0;
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
@@ -1111,7 +1132,7 @@ int kbase_pm_handle_runtime_suspend(struct kbase_device *kbdev)
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	if (mcu_state == KBASE_MCU_IN_SLEEP) {
-		ret = pm_handle_mcu_sleep_on_runtime_suspend(kbdev);
+		ret = pm_handle_mcu_sleep_on_runtime_suspend(kbdev, &wake_up_sched);
 		if (ret)
 			goto unlock;
 	}
@@ -1141,6 +1162,8 @@ int kbase_pm_handle_runtime_suspend(struct kbase_device *kbdev)
 
 unlock:
 	kbase_pm_unlock(kbdev);
+	if (!ret && wake_up_sched)
+		kbase_csf_scheduler_wakeup(kbdev);
 	kbase_csf_scheduler_unlock(kbdev);
 	kbase_reset_gpu_allow(kbdev);
 out:

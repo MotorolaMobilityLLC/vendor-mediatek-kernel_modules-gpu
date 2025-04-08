@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -2497,6 +2497,12 @@ static ssize_t power_policy_store(struct device *dev, struct device_attribute *a
 		dev_err(dev, "power_policy: policy not found\n");
 		return -EINVAL;
 	}
+
+	/* Ensure CSF scheduler to be initialized and ready for changing power policy
+	 * in case user space hasn't yet created a base context.
+	 */
+	if (unlikely(kbase_device_firmware_init_once(kbdev)))
+		return -ENODEV;
 
 	kbase_pm_set_policy(kbdev, new_policy);
 

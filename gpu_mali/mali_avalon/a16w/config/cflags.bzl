@@ -86,10 +86,10 @@ COPTS_KBASE = [
     ],
 }) + select({
     "//conditions:default": [
-        "MALI_RELEASE_NAME=\"r54p0-00dev1\"",
+        "MALI_RELEASE_NAME=\"r54p1-00dev0\"",
     ],
-    "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_release_name_r54p0-00dev1": [
-        "MALI_RELEASE_NAME=\"r54p0-00dev1\"",
+    "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_release_name_r54p1-00dev0": [
+        "MALI_RELEASE_NAME=\"r54p1-00dev0\"",
     ],
 })  + select({
     "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:cov_kernel": [

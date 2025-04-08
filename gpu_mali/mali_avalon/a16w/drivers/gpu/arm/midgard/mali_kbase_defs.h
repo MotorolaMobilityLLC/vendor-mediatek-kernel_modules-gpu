@@ -1119,8 +1119,8 @@ enum mmu_dbg_log_config {
  * @va_region_slab:         kmem_cache (slab) for allocated @kbase_va_region structures.
  * @page_metadata_slab:     kmem_cache (slab) for allocated @kbase_page_metadata structures.
  * @fence_signal_timeout_enabled: Global flag for whether fence signal timeout tracking
- * @kcpu_fence_signal_timeout_ms: Waiting time in ms for triggering a KCPU queue sync state dump.
  *                                is enabled.
+ * @kcpu_fence_signal_timeout_ms: Waiting time in ms for triggering a KCPU queue sync state dump.
  * @pcm_prioritized_process_nb: Notifier block for the Priority Control Manager
  *                              driver, this is used to be informed of the
  *                              changes in the list of prioritized processes.
@@ -1456,7 +1456,6 @@ struct kbase_device {
 	struct kbase_gpu_metrics gpu_metrics;
 #endif
 	atomic_t fence_signal_timeout_enabled;
-
 	u32 kcpu_fence_signal_timeout_ms;
 
 	struct notifier_block pcm_prioritized_process_nb;
