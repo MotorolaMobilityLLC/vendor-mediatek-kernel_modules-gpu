@@ -161,7 +161,7 @@ PVRSRV_ERROR MTKSysPrePowerState(IMG_HANDLE hSysData,
 	/* power off */
 	if (eNewPowerState == PVRSRV_SYS_POWER_STATE_OFF &&
 		eCurrentPowerState == PVRSRV_SYS_POWER_STATE_ON) {
-		eResult = gpufreq_power_control(GPU_PWR_ON);
+		eResult = gpufreq_power_control(GPU_PWR_OFF);
 		if (eResult < 0) {
 			MTK_LOGE("fail to power off GPU (%d)", eResult);
 			/* update GED log buffer */
