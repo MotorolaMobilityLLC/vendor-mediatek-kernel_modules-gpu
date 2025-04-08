@@ -765,6 +765,11 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
 	mtk_memory_debug_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FW_ANALYSIS_DUMP)
+	mtk_debug_dump_fw_analysis_debugfs_init(kbdev);
+#endif /* CONFIG_MALI_MTK_FW_ANALYSIS_DUMP */
+
 }
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT)
@@ -896,6 +901,10 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
 	kbdev->gov_core_mask_disable = 0;
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FW_ANALYSIS_DUMP)
+	mtk_debug_dump_fw_analysis_init(kbdev);
+#endif /* CONFIG_MALI_MTK_FW_ANALYSIS_DUMP */
 
 	return 0;
 }

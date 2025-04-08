@@ -2383,6 +2383,9 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, kctx, MTK_DBG_HOOK_MALI_FENCE_SIGNAL_TIMEOUT);
 		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, kctx, MTK_DBG_HOOK_MALI_FENCE_SIGNAL_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
+#if IS_ENABLED(CONFIG_MALI_MTK_FW_ANALYSIS_DUMP)
+		queue_work(kctx->kbdev->mtk_fw_analysis_dump_workq, &kctx->kbdev->mtk_fw_analysis_dump_work);
+#endif /* CONFIG_MALI_MTK_FW_ANALYSIS_DUMP */
 
 	/* 5. Trigger reset when timeout 3s */
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET)
