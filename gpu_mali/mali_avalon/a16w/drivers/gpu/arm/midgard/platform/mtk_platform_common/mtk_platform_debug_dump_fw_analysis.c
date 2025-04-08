@@ -155,7 +155,16 @@ void mtk_debug_dump_fw_analysis(struct kbase_device *kbdev)
 static void mtk_fw_analysis_dump_worker(struct work_struct *const data)
 {
 	struct kbase_device *kbdev = container_of(data, struct kbase_device, mtk_fw_analysis_dump_work);
-	mtk_debug_dump_fw_analysis(kbdev);
+
+	if (kbase_io_is_gpu_powered(kbdev))
+		mtk_debug_dump_fw_analysis(kbdev);
+	else {
+		dev_info(kbdev->dev, "bypass fw analysis dump due to GPU power off");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			 "bypass fw analysis dump due to GPU power off\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+	}
 }
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
