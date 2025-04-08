@@ -1284,6 +1284,12 @@ struct kbase_csf_mcu_shared_regions {
  *                          queue commands.
  * @gpu_idle_timer_enabled: Tracks whether the GPU idle timer is enabled or disabled.
  * @fw_soi_enabled:         True if FW Sleep-on-Idle is currently enabled.
+ * @missed_suspend_on_idle_evt: Indicates if the previous attempt at suspending
+ *                              the scheduler on GPU becoming idle failed
+ *                              because the GPU could not be powered down at
+ *                              that moment. When this happens, we wait for the
+ *                              PM to inform us when it should be retried via
+ *                              kbase_csf_scheduler_pm_single_refcount().
  */
 struct kbase_csf_scheduler {
 	struct mutex lock;
@@ -1380,6 +1386,7 @@ struct kbase_csf_scheduler {
 #endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
 	atomic_t gpu_idle_timer_enabled;
 	atomic_t fw_soi_enabled;
+	atomic_t missed_suspend_on_idle_evt;
 };
 
 /*

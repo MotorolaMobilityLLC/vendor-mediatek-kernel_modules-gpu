@@ -768,6 +768,33 @@ bool kbase_csf_scheduler_check_gls_success(struct kbase_device *kbdev);
 bool kbase_csf_scheduler_finalize_gpu_suspend(struct kbase_device *kbdev);
 
 /**
+ * kbase_csf_scheduler_pm_single_refcount() - Informs scheduler that there is
+ *                                            only 1 refcount for the PM
+ *
+ * @kbdev: Pointer to the device
+ *
+ * This function is called by the Power Manager when the active_count value
+ * drops to 1. This is used by the scheduler to detect if it should re-execute
+ * a missed GPU idle event. This can happen if, at the point the GPU becomes
+ * idle, the GPU could not be powered down if the GPU was used by something
+ * else.
+ *
+ * This is only relevant to GPU-level suspension when autosuspend_delay_ms is
+ * set to 0, which is a special case that forces the scheduler to suspend
+ * immediately rather than allowing the MCU to go to sleep.
+ */
+void kbase_csf_scheduler_pm_single_refcount(struct kbase_device *kbdev);
+
+/**
+ * is_gpu_level_suspend_supported() - Whether GPU-level suspend is supported
+ *
+ * @kbdev: Pointer to the device
+ *
+ * Return: true if GPU-level suspend is supported
+ */
+bool is_gpu_level_suspend_supported(struct kbase_device *const kbdev);
+
+/**
  * kbase_csf_scheduler_wakeup() - Wake up scheduler
  *
  * @kbdev: Pointer to the device
