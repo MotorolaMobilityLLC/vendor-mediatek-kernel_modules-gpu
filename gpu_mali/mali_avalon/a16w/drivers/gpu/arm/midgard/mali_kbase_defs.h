@@ -1478,6 +1478,11 @@ struct kbase_device {
 #if IS_ENABLED(CONFIG_MALI_MTK_COHERENT_DMA_BUF)
 	struct miscdevice coherent_mdev;
 #endif /* CONFIG_MALI_MTK_COHERENT_DMA_BUF */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_FW_ANALYSIS_DUMP)
+	struct workqueue_struct *mtk_fw_analysis_dump_workq;
+	struct work_struct mtk_fw_analysis_dump_work;
+#endif /* CONFIG_MALI_MTK_FW_ANALYSIS_DUMP */
 };
 
 /**

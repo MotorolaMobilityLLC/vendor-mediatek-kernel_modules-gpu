@@ -102,4 +102,10 @@ void mtk_debug_dump_pm_status(struct kbase_device *kbdev);
 void mtk_debug_dump_as_status(struct kbase_device *kbdev);
 void mtk_debug_dump_as_status_nolock(struct kbase_device *kbdev);
 
+/* Dump FW analysis */
+#if IS_ENABLED(CONFIG_MALI_MTK_FW_ANALYSIS_DUMP)
+int mtk_debug_dump_fw_analysis_debugfs_init(struct kbase_device *kbdev);
+int mtk_debug_dump_fw_analysis_init(struct kbase_device *kbdev);
+#endif /* CONFIG_MALI_MTK_FW_ANALYSIS_DUMP */
+
 #endif /* __MTK_PLATFORM_DEBUG_H__ */
