@@ -588,9 +588,6 @@ struct kbase_device *kbase_find_device(int minor)
 		if (tmp->mdev.minor == minor || minor == -1) {
 			kbdev = tmp;
 			get_device(kbdev->dev);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_REGULAR, "get_device() in kbase_find_device()\n");
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			break;
 		}
 	}
@@ -603,9 +600,6 @@ EXPORT_SYMBOL(kbase_find_device);
 void kbase_release_device(struct kbase_device *kbdev)
 {
 	put_device(kbdev->dev);
-#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
-	mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION | MTK_LOGBUFFER_TYPE_REGULAR, "put_device() in kbase_release_device()\n");
-#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 }
 EXPORT_SYMBOL(kbase_release_device);
 
