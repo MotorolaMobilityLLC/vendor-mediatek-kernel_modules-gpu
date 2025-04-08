@@ -742,6 +742,20 @@ void kbase_csf_scheduler_force_wakeup(struct kbase_device *kbdev);
 void kbase_csf_scheduler_force_sleep(struct kbase_device *kbdev);
 
 /**
+ * kbase_csf_scheduler_revert_all_csg_suspension_preparation() - Revert the maintenance steps
+ *                                                               done before suspending all CSGs.
+ *
+ * @kbdev: Pointer to the device
+ *
+ * This function should be called if suspension of all CSGs must be aborted
+ * after calling prepare_all_csg_suspension(). This requirement does not apply
+ * in case of suspension failure, because the driver would trigger a GPU reset.
+ *
+ * Return: 0 on success, otherwise error.
+ */
+int kbase_csf_scheduler_revert_all_csg_suspension_preparation(struct kbase_device *kbdev);
+
+/**
  * kbase_csf_scheduler_check_gls_success() - Save CSG slots state after suspend
  *
  * @kbdev: Pointer to the device
@@ -766,6 +780,33 @@ bool kbase_csf_scheduler_check_gls_success(struct kbase_device *kbdev);
  * Return: true if the scheduler should be woken up again due to activities
  */
 bool kbase_csf_scheduler_finalize_gpu_suspend(struct kbase_device *kbdev);
+
+/**
+ * kbase_csf_scheduler_pm_single_refcount() - Informs scheduler that there is
+ *                                            only 1 refcount for the PM
+ *
+ * @kbdev: Pointer to the device
+ *
+ * This function is called by the Power Manager when the active_count value
+ * drops to 1. This is used by the scheduler to detect if it should re-execute
+ * a missed GPU idle event. This can happen if, at the point the GPU becomes
+ * idle, the GPU could not be powered down if the GPU was used by something
+ * else.
+ *
+ * This is only relevant to GPU-level suspension when autosuspend_delay_ms is
+ * set to 0, which is a special case that forces the scheduler to suspend
+ * immediately rather than allowing the MCU to go to sleep.
+ */
+void kbase_csf_scheduler_pm_single_refcount(struct kbase_device *kbdev);
+
+/**
+ * is_gpu_level_suspend_supported() - Whether GPU-level suspend is supported
+ *
+ * @kbdev: Pointer to the device
+ *
+ * Return: true if GPU-level suspend is supported
+ */
+bool is_gpu_level_suspend_supported(struct kbase_device *const kbdev);
 
 /**
  * kbase_csf_scheduler_wakeup() - Wake up scheduler
