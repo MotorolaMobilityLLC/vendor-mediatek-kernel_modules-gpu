@@ -69,6 +69,10 @@
 #include <mali_kbase_config_defaults.h>
 #endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+#include <linux/kthread.h>
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
+
 #define CS_REQ_EXCEPTION_MASK (CS_REQ_FAULT_MASK | CS_REQ_FATAL_MASK)
 #define CS_ACK_EXCEPTION_MASK (CS_ACK_FAULT_MASK | CS_ACK_FATAL_MASK)
 
@@ -509,7 +513,11 @@ static bool release_queue(struct kbase_queue *queue)
 	return false;
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+static void oom_event_worker(struct kthread_work *data);
+#else
 static void oom_event_worker(struct work_struct *data);
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 static void cs_error_worker(struct work_struct *data);
 
 /* Between reg and reg_ex, one and only one must be null */
@@ -627,7 +635,11 @@ static int csf_queue_register_internal(struct kbase_context *kctx,
 	INIT_LIST_HEAD(&queue->link);
 	atomic_set(&queue->pending_kick, 0);
 	INIT_LIST_HEAD(&queue->pending_kick_link);
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+	kthread_init_work(&queue->oom_event_work, oom_event_worker);
+#else
 	INIT_WORK(&queue->oom_event_work, oom_event_worker);
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 	INIT_WORK(&queue->cs_error_work, cs_error_worker);
 	list_add(&queue->link, &kctx->csf.queue_list);
 
@@ -777,7 +789,14 @@ void kbase_csf_queue_terminate(struct kbase_context *kctx,
 		}
 		wait_pending_queue_kick(queue);
 		/* The work items can be cancelled as Userspace is terminating the queue */
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+		kthread_cancel_work_sync(&queue->oom_event_work);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+		mali_kthread_event("cancel work", queue, "oom_event_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+#else
 		cancel_work_sync(&queue->oom_event_work);
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 		cancel_work_sync(&queue->cs_error_work);
 		mutex_lock(&kctx->csf.lock);
 
@@ -2534,7 +2553,11 @@ unlock:
  * releases a reference that was added to prevent the queue being destroyed
  * while this work item was pending on a workqueue.
  */
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+static void oom_event_worker(struct kthread_work *data)
+#else
 static void oom_event_worker(struct work_struct *data)
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 {
 	struct kbase_queue *queue = container_of(data, struct kbase_queue, oom_event_work);
 	struct kbase_context *kctx = queue->kctx;
@@ -2546,6 +2569,15 @@ static void oom_event_worker(struct work_struct *data)
 	ktime_t begin_timestamp = ktime_get();
 #endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_TRACE_DEBUG)
+	MALI_TRACE_BEGIN("oom_event_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_TRACE_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	mali_kthread_event("work start", queue, "oom_event_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
+
 	mutex_lock(&kctx->csf.lock);
 	if (likely(!reset_prevent_err)) {
 		kbase_queue_oom_event(queue);
@@ -2556,6 +2588,15 @@ static void oom_event_worker(struct work_struct *data)
 	mutex_unlock(&kctx->csf.lock);
 	if (likely(!reset_prevent_err))
 		kbase_reset_gpu_allow(kbdev);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	mali_kthread_event("work end", queue, "oom_event_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_TRACE_DEBUG)
+	MALI_TRACE_END();
+#endif /* CONFIG_MALI_MTK_KBASE_TRACE_DEBUG */
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
 	// if worker execute too long, trigger debug message
@@ -3264,10 +3305,16 @@ void kbase_csf_report_cs_fault_info(struct kbase_queue *const queue, u32 slot_id
 int kbase_csf_handle_pending_oom_interrupt(struct kbase_queue *const queue, u32 group_id)
 {
 	struct kbase_device *const kbdev = queue->kctx->kbdev;
+#if !IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
 	struct workqueue_struct *wq = queue->kctx->csf.wq;
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 
 	if (!kbase_csf_cs_get_pending_oom(kbdev, queue, group_id)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+		if (!kthread_queue_work(kbdev->csf.scheduler.oom_event_kthread_worker, &queue->oom_event_work)) {
+#else
 		if (!queue_work(wq, &queue->oom_event_work)) {
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 			/* The work item shall not have been already queued, there can be only
 			 * one pending OoM event for a  queue.
 			 */
