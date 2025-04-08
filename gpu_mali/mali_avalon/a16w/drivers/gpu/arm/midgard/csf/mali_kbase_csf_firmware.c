@@ -3577,8 +3577,16 @@ void kbase_csf_firmware_trigger_mcu_halt(struct kbase_device *kbdev)
 
 		if (kbdev->pm.backend.has_host_pwr_iface)
 			set_global_req_state_as_halt(fw_io);
+#if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
+		else {
+			if (mtk_common_whitebox_missing_doorbell_enable())
+				kbase_csf_db_valid_push_event(DOORBELL_GLB_HALT);
+			set_global_request(fw_io, GLB_REQ_HALT_MASK);
+		}
+#else
 		else
 			set_global_request(fw_io, GLB_REQ_HALT_MASK);
+#endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 		dev_dbg(kbdev->dev, "Sending request to HALT MCU");
 	}
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
