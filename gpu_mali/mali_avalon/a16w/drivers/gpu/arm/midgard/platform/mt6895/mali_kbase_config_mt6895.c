@@ -230,7 +230,7 @@ dev_dbg(kbdev->dev, "%s\n", __func__);
 static void pm_callback_power_suspend(struct kbase_device *kbdev)
 {
 	mutex_lock(&g_mfg_lock);
-	
+
     if (mtk_common_pm_is_mfg_active()) {
         pm_callback_power_off_nolock(kbdev);
         KBASE_PLATFORM_LOGI("%s, force powering off GPU", __func__);
@@ -245,9 +245,9 @@ static void pm_callback_power_suspend(struct kbase_device *kbdev)
 static void pm_callback_power_resume(struct kbase_device *kbdev)
 {
 	mutex_lock(&g_mfg_lock);
-	
-    g_is_suspend = 0;
-    KBASE_PLATFORM_LOGI("%s, GPU resume", __func__);
+
+	g_is_suspend = 0;
+	KBASE_PLATFORM_LOGI("%s, GPU resume", __func__);
 
 	gpu_dvfs_status_footprint(GPU_DVFS_STATUS_STEP_F);
 	mutex_unlock(&g_mfg_lock);
