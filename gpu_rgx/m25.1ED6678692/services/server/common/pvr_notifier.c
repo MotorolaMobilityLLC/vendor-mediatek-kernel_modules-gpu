@@ -507,6 +507,24 @@ SOPvrDbgRequestNotifyUnregister(IMG_HANDLE hNotify)
 	return _UnregisterDbgRequestNotify(hNotify);
 }
 
+#if defined(MTK_FULL_PORTING)
+IMG_BOOL bQuiet;
+IMG_BOOL MTK_PVRSRVDebugRequestGetSilence(void)
+{
+	return bQuiet;
+}
+
+void
+MTK_PVRSRVDebugRequestSetSilence(IMG_BOOL bEnable)
+{
+	bQuiet = bEnable;
+	if (bQuiet == IMG_TRUE)
+		g_use_id = MTKPP_ID_SHOT_FW;
+	else
+		g_use_id = MTKPP_ID_FW;
+}
+#endif /* MTK_FULL_PORTING */
+
 void
 PVRSRVDebugRequest(PVRSRV_DEVICE_NODE *psDevNode,
 				   IMG_UINT32 ui32VerbLevel,
@@ -555,7 +573,11 @@ PVRSRVDebugRequest(PVRSRV_DEVICE_NODE *psDevNode,
 
 	PVR_DUMPDEBUG_LOG("Time now: %" IMG_UINT64_FMTSPEC "us",
 	                  OSClockus64());
-
+#if defined(MTK_FULL_PORTING)
+	if (!pfnDumpDebugPrintf) {
+		MTKPP_LOGTIME(g_use_id, "Dump Debug Data");
+	}
+#endif /* MTK_FULL_PORTING */
 	switch (psPVRSRVData->eServicesState)
 	{
 		case PVRSRV_SERVICES_STATE_OK:

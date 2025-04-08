@@ -1230,8 +1230,12 @@ PVRSRV_ERROR RGXInitDevPart2(PVRSRV_DEVICE_NODE	*psDeviceNode,
 	}
 #endif
 
+#if defined(MTK_MINI_PORTING)
+	spin_lock_init(&psDevInfo->sGPUUtilLock);
+#else
 	eError = OSLockCreate(&psDevInfo->hGPUUtilLock);
 	PVR_LOG_GOTO_IF_ERROR(eError, "OSLockCreate(GPUUtilLock)", ErrorExit);
+#endif /* MTK_MINI_PORTING */
 
 #if !defined(NO_HARDWARE)
 	/* Setup GPU utilisation stats update callback */
@@ -3041,12 +3045,12 @@ static void DevPart2DeInitRGX(PVRSRV_DEVICE_NODE *psDeviceNode)
 
 	psDevInfo->pfnGetBasicGpuUtilStats = NULL;
 	psDevInfo->pfnGetDetailedGpuUtilStats = NULL;
-
+#if !defined(MTK_MINI_PORTING)
 	if (psDevInfo->hGPUUtilLock != NULL)
 	{
 		OSLockDestroy(psDevInfo->hGPUUtilLock);
 	}
-
+#endif /* MTK_MINI_PORTING */
 #if defined(RGX_FEATURE_MIPS_BIT_MASK)
 	if (RGX_IS_FEATURE_SUPPORTED(psDevInfo, MIPS) &&
 		(psDevInfo->hNMILock != NULL))
