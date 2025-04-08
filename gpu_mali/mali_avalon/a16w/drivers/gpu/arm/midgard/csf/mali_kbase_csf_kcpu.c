@@ -2274,7 +2274,7 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
-	if ((fence_signal_command_timeout_counter > 1) && (fence_signal_command_timeout_counter <= 5)) {
+	if ((fence_signal_command_timeout_counter >= 1) && (fence_signal_command_timeout_counter <= 5)) {
 		ged_mali_event_notify_fence_timeout_event(kctx->tgid, FENCE_TYPE_KCPU_QUEUE, fence_signal_command_timeout_counter);
 	}
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
@@ -2383,11 +2383,6 @@ static void kcpu_fence_timeout_dump(struct kbase_kcpu_command_queue *queue,
 		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_GROUPS_QUEUES, kctx, MTK_DBG_HOOK_MALI_FENCE_SIGNAL_TIMEOUT);
 		mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF, kctx, MTK_DBG_HOOK_MALI_FENCE_SIGNAL_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
-#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
-		if (is_extra_dump_enable) {
-			ged_mali_event_notify_fence_timeout_event(kctx->tgid, FENCE_TYPE_KCPU_QUEUE, fence_signal_command_timeout_counter);
-		}
-#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 
 	/* 5. Trigger reset when timeout 3s */
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_TIMEOUT_RESET)
