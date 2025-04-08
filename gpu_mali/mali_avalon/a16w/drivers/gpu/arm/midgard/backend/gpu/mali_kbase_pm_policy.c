@@ -35,6 +35,8 @@
 #endif
 
 #include <linux/of.h>
+#include <platform/mtk_platform_common.h>
+
 
 static const struct kbase_pm_policy *const all_policy_list[] = {
 #if IS_ENABLED(CONFIG_MALI_NO_MALI) || IS_ENABLED(CONFIG_MALI_MTK_BRINGUP)
@@ -413,12 +415,37 @@ void kbase_pm_set_policy(struct kbase_device *kbdev, const struct kbase_pm_polic
 	 */
 #ifdef CONFIG_MALI_DEVFREQ
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
+#if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
 	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT) &&
 	    (old_policy == &kbase_pm_always_on_policy_ops ||
 	     new_policy == &kbase_pm_always_on_policy_ops)) {
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+		if (mtk_common_ged_dvfs_get_gov_mask_enable() == 1)
+		{
+			if (new_policy == &kbase_pm_always_on_policy_ops)
+				mtk_common_ged_dvfs_set_gov_mask_enable(0);
+		}
+
+		if ((new_policy != &kbase_pm_always_on_policy_ops) && mtk_common_ged_dvfs_get_dcs_enable())
+			mtk_common_ged_dvfs_set_gov_mask_enable(1);
+
+		kbdev->pm.backend.shaders_desired = true;
+	} else
+#endif
+	{
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+	}
+#else
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT) &&
+	    (old_policy == &kbase_pm_always_on_policy_ops ||
+	     new_policy == &kbase_pm_always_on_policy_ops)) {
+
 		kbdev->pm.backend.shaders_desired = true;
 	}
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+#endif
 #endif
 	kbase_pm_update_cores_state(kbdev);
 

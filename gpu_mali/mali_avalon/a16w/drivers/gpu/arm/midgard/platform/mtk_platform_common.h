@@ -79,6 +79,8 @@ unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_dual(void);
 unsigned long mtk_common_ged_dvfs_write_sysram_last_commit_dual_test(int top_idx, int stack_idx);
 int mtk_common_ged_dvfs_get_gov_mask_enable(void);
 int mtk_common_ged_dvfs_get_desire_mask(void);
+int mtk_common_ged_dvfs_set_gov_mask_enable(unsigned int enable);
+int mtk_common_ged_dvfs_get_dcs_enable(void);
 int mtk_common_ged_pwr_hint(int pwr_hint);
 void mtk_common_get_system_timer_and_record(struct kbase_device *kbdev);
 

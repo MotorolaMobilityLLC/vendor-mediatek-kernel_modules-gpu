@@ -538,6 +538,25 @@ int mtk_common_ged_dvfs_get_desire_mask(void)
 #endif
 }
 
+int mtk_common_ged_dvfs_set_gov_mask_enable(unsigned int enable)
+{
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	ged_dvfs_set_gov_mask_enable(enable);
+	return 0;
+#else
+	return -1;
+#endif
+}
+
+int mtk_common_ged_dvfs_get_dcs_enable(void)
+{
+#if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
+	return ged_dvfs_get_dcs_enable();
+#else
+	return -1;
+#endif
+}
+
 void mtk_common_get_system_timer_and_record(struct kbase_device *kbdev)
 {
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && \

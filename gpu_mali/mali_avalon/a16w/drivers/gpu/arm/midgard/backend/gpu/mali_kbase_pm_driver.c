@@ -1384,7 +1384,15 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 		case KBASE_MCU_ON_GLB_REINIT_PEND:
 			if (kbase_csf_firmware_global_reinit_complete(kbdev)) {
 				backend->shaders_avail = desired_mask_alloc_en;
+#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
+				if (mtk_common_ged_dvfs_get_gov_mask_enable() == 0) {
+					trace_tracing_mark_write('C',5566, "reinit_gov_core_mask",1);
+					kbase_pm_ca_set_core_mask(kbdev, PM_CA_COREMASK_TYPE_REWRITE, 0x0);
+				}
+				trace_tracing_mark_write('C',5566, "reinit_gov_core_mask",0);
+#else
 				kbase_pm_ca_set_core_mask(kbdev, PM_CA_COREMASK_TYPE_REWRITE, 0x0);
+#endif
 				if (kbdev->csf.firmware_hctl_core_pwr) {
 					if (corestack_driver_control) {
 						kbase_pm_invoke(kbdev, KBASE_PM_CORE_STACK,

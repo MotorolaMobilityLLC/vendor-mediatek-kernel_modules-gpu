@@ -3040,14 +3040,23 @@ static ssize_t core_mask_show(struct device *dev, struct device_attribute *attr,
 
 	ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret), "Current debug core mask : 0x%llX\n",
 			 debug_mask);
+#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
+	if (mtk_common_ged_dvfs_get_gov_mask_enable() == 1) {
+		desired_mask = mtk_common_ged_dvfs_get_desire_mask();
+		ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret),
+				 "Current desired core mask : 0x%llX\n", desired_mask);
+	} else {
+		ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret),
+				 "Current desired core mask : 0x%llX\n", desired_mask);
+	}
+#else
 	ret += scnprintf(buf + ret, (size_t)(PAGE_SIZE - ret),
 			 "Current desired core mask : 0x%llX\n", desired_mask);
+#endif
+
 #if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
 #if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
 	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
-#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
-		&& (kbdev->gov_core_mask_disable == 0)
-#endif
 		&& (kbdev->csf.firmware_hctl_core_pwr == 0)
 	)
 	{
