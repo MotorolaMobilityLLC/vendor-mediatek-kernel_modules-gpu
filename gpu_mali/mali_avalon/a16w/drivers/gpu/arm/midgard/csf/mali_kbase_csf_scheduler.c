@@ -7418,6 +7418,7 @@ static void wait_for_mcu_sleep_before_sync_update_check(struct kbase_device *kbd
 	long timeout = kbase_csf_timeout_in_jiffies(kbdev->csf.csg_suspend_timeout_ms);
 	bool can_wait_for_mcu_sleep;
 	unsigned long flags;
+	int dbg_db_notif_disabled;
 
 	lockdep_assert_held(&kbdev->csf.scheduler.lock);
 
@@ -7432,6 +7433,13 @@ static void wait_for_mcu_sleep_before_sync_update_check(struct kbase_device *kbd
 	 * which implies that MCU needs to be turned on.
 	 */
 	can_wait_for_mcu_sleep = !kbdev->pm.backend.exit_gpu_sleep_mode && !kbdev->pm.active_count;
+	if (kbase_io_is_gpu_powered(kbdev)) {
+		dbg_db_notif_disabled = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_CONTROL)) &
+					 MCU_CNTRL_DOORBELL_DISABLE_MASK;
+	} else {
+		dbg_db_notif_disabled = -1;
+	}
+
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	if (!can_wait_for_mcu_sleep)
 		return;
@@ -7441,8 +7449,9 @@ static void wait_for_mcu_sleep_before_sync_update_check(struct kbase_device *kbd
 					  kbase_csf_firmware_mcu_halted(kbdev) ||
 						kbdev->pm.backend.exit_gpu_sleep_mode ||
 						!kbase_reset_gpu_is_not_pending(kbdev),
-					  timeout))
-		dev_warn(kbdev->dev, "Wait for MCU sleep timed out");
+					  timeout)) {
+		dev_warn(kbdev->dev, "Wait for MCU sleep timed out %d",dbg_db_notif_disabled);
+	}
 }
 
 static void check_sync_update_in_sleep_mode(struct kbase_device *kbdev)
