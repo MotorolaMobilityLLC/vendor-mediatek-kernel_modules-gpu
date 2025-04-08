@@ -6,6 +6,7 @@
 #include <mali_kbase.h>
 #include <mali_kbase_defs.h>
 #include <csf/mali_kbase_csf_firmware_log.h>
+#include <csf/mali_kbase_csf_fw_io.h>
 #include "backend/gpu/mali_kbase_pm_internal.h"
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include "mtk_platform_logbuffer.h"
@@ -64,11 +65,11 @@ static int wait_for_global_request_with_timeout(struct kbase_csf_fw_io *fw_io, u
 
 	if (!remaining) {
 		dev_warn(kbdev->dev,
-			 "[%llu] Timeout (%d ms) waiting for global request %x to complete when fw analysis dump, bypass dump",
+			 "[%llu] Timeout (%d ms) waiting for global request %x complete, bypass FW analysis dump",
 			 kbase_backend_get_cycle_cnt(kbdev), timeout_ms, req_mask);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			 "Timeout (%d ms) waiting for global request %x to complete when fw analysis dump, bypass dump\n",
+			 "Timeout (%d ms) waiting for global request %x complete, bypass FW analysis dump\n",
 			 timeout_ms, req_mask);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
@@ -111,8 +112,8 @@ static void set_global_request(struct kbase_csf_fw_io *fw_io, u32 const req_mask
 
 void mtk_debug_dump_fw_analysis(struct kbase_device *kbdev)
 {
-	unsigned long flags;
 	struct kbase_csf_fw_io *fw_io = &kbdev->csf.fw_io;
+	unsigned long flags, fw_io_flags;
 	/* Use the DDK native flow - GLB_DEBUG_RUN_MODE_TYPE_NOP for fw analysis dump */
 	uint32_t run_mode = GLB_DEBUG_REQ_RUN_MODE_SET(0, GLB_DEBUG_RUN_MODE_TYPE_NOP);
 	int ret = 0;
@@ -125,6 +126,17 @@ void mtk_debug_dump_fw_analysis(struct kbase_device *kbdev)
 
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 
+	if (kbase_csf_fw_io_open(fw_io, &fw_io_flags)) {
+		dev_info(kbdev->dev, "FW IO is not accessible, bypass FW analysis dump");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+			 "FW IO is not accessible, bypass FW analysis dump\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		kbase_csf_scheduler_spin_unlock(kbdev, flags);
+		mutex_unlock(&kbdev->csf.reg_lock);
+		return;
+	}
+
 	/* Prepare GLB_DEBUG_REQ for FW analysis dump */
 	set_global_debug_request(fw_io, GLB_DEBUG_REQ_DEBUG_RUN_MASK | run_mode);
 
@@ -134,16 +146,27 @@ void mtk_debug_dump_fw_analysis(struct kbase_device *kbdev)
 	/* Ring doorbell to CSFFW for debug request */
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
 
+	kbase_csf_fw_io_close(fw_io, fw_io_flags);
+
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 
 	/* Wait finish of CSFFW process nop metadata dump */
 	ret = wait_for_global_request(fw_io, GLB_REQ_DEBUG_CSF_REQ_MASK);
 	if (!ret) {
 		/* Check if CSFFW process nop metadata dump complete */
-		if (global_debug_request_complete(fw_io, GLB_DEBUG_REQ_DEBUG_RUN_MASK))
+		if (global_debug_request_complete(fw_io, GLB_DEBUG_REQ_DEBUG_RUN_MASK)) {
 			dev_info(kbdev->dev, "FW analysis dump complete!");
-		else
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"FW analysis dump complete!\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		} else {
 			dev_info(kbdev->dev, "FW analysis dump failed!");
+#if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
+			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
+				"FW analysis dump failed!\n");
+#endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+		}
 	}
 
 	mutex_unlock(&kbdev->csf.reg_lock);
@@ -159,10 +182,10 @@ static void mtk_fw_analysis_dump_worker(struct work_struct *const data)
 	if (kbase_io_is_gpu_powered(kbdev))
 		mtk_debug_dump_fw_analysis(kbdev);
 	else {
-		dev_info(kbdev->dev, "bypass fw analysis dump due to GPU power off");
+		dev_info(kbdev->dev, "GPU power off, bypass FW analysis dump");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
-			 "bypass fw analysis dump due to GPU power off\n");
+			 "GPU power off, bypass FW analysis dump\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 	}
 }
