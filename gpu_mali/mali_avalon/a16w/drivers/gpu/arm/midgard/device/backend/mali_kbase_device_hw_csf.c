@@ -253,6 +253,9 @@ static void handle_db_mirror_irq(struct kbase_device *kbdev)
 		}
 
 		kbdev->pm.backend.exit_gpu_sleep_mode = true;
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+		kbdev->csf.scheduler.keep_apo_timer = true;
+#endif
 		kbase_csf_scheduler_invoke_tick(kbdev);
 	} else if (atomic_read(&kbdev->csf.scheduler.fw_soi_enabled) &&
 		   (kbdev->pm.backend.mcu_state != KBASE_MCU_ON_PEND_SLEEP) && db_notif_disabled) {
