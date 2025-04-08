@@ -149,10 +149,14 @@ static void enqueue_gpu_idle_work(struct kbase_csf_scheduler *const scheduler);
 
 bool is_gpu_level_suspend_supported(struct kbase_device *const kbdev)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_DISABLE_GLS)
+	return false;
+#else
 	if ((kbdev->gpu_props.gpu_id.arch_id >= GPU_ID_ARCH_MAKE(14, 8, 0)) &&
 	    static_branch_unlikely(&gpu_level_suspend_static_key))
 		return true;
 	return false;
+#endif
 }
 
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
