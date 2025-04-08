@@ -1221,7 +1221,7 @@ static int scheduler_pm_active_after_sleep(struct kbase_device *kbdev)
 {
 	lockdep_assert_held(&kbdev->csf.scheduler.lock);
 
-	return scheduler_pm_active_handle_suspend(kbdev, KBASE_PM_SUSPEND_HANDLER_NOT_POSSIBLE,
+	return scheduler_pm_active_handle_suspend(kbdev, KBASE_PM_SUSPEND_HANDLER_DONT_INCREASE,
 						  true);
 }
 
