@@ -45,7 +45,6 @@ ddk_headers(
 kernel_module_group(
     name = "hwtracing_coresight",
     srcs = [
-        ":coresight_mali_sinks",
         ":coresight_mali_source_ela",
         ":coresight_mali_source_etm",
         ":coresight_mali_source_itm",
@@ -124,23 +123,6 @@ ddk_module(
     copts = CFLAGS_MODULE,
     defconfig = "//config/fragment:coresight_defconfig",
     kconfig = ":hwtracing_coresight_kconfig",
-    kernel_build = "@kleaf//common:kernel_aarch64",
-    deps = ["//drivers/gpu/arm/midgard:mali_kbase"]
-)
-
-ddk_module(
-    name = "coresight_mali_sinks",
-    srcs = [
-        "sinks/coresight_mali_sinks_core.c",
-        ":coresight_mali_defaults",
-    ],
-    out = "coresight_mali_sinks.ko",
-    hdrs = [
-        ":mali_kernel_headers",
-    ],
-    copts = CFLAGS_MODULE,
-    defconfig = "//config/fragment:coresight_defconfig",
-    kconfig = "hwtracing_coresight_kconfig",
     kernel_build = "@kleaf//common:kernel_aarch64",
     deps = ["//drivers/gpu/arm/midgard:mali_kbase"]
 )
