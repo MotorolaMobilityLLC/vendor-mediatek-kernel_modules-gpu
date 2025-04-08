@@ -220,7 +220,7 @@ static irqreturn_t kbase_combined_irq_handler(int irq, void *data)
 		cur_gpufreq = gpufreq_get_cur_freq(TARGET_DEFAULT);
 		if (cur_gpufreq != last_gpufreq) {
 			last_gpufreq = cur_gpufreq;
-			trace_gpu_frequency((long long) div_u64(cur_gpufreq, 1000), 0);
+			trace_gpu_frequency(cur_gpufreq, 0);
 		}
 	}
 #endif /* CONFIG_MALI_MTK_GPU_FREQUENCY_TRACE*/
