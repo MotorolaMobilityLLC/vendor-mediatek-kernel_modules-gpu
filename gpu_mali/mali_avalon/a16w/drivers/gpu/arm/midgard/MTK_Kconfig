@@ -360,4 +360,9 @@ config MALI_MTK_COHERENT_DMA_BUF
 	bool ""
 	default n
 
+config MALI_MTK_GPU_FREQUENCY_TRACE
+	bool "provide gpu_frequency trace event"
+	default n
+
 endmenu
+
