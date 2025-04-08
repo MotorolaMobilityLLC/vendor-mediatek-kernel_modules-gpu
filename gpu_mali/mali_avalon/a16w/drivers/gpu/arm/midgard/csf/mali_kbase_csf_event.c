@@ -26,6 +26,7 @@
 #include <csf/mali_kbase_csf_db_validation.h>
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 #include "backend/gpu/mali_kbase_pm_ca.h"
+#include <platform/mtk_platform_common.h>
 
 /**
  * struct kbase_csf_event_cb - CSF event callback.
@@ -107,7 +108,6 @@ static void sync_update_notify_gpu(struct kbase_context *kctx)
 #else
 		if (can_notify_gpu) {
 			struct kbase_pm_core_masks all_core_masks;
-
 			bool db_mirror_interrupt_enabled = kctx->kbdev->pm.backend.db_mirror_interrupt_enabled;
 			bool gpu_sleep_mode_active = kctx->kbdev->pm.backend.gpu_sleep_mode_active;
 			bool fw_soi_enabled = atomic_read(&kctx->kbdev->csf.scheduler.fw_soi_enabled);
@@ -115,8 +115,15 @@ static void sync_update_notify_gpu(struct kbase_context *kctx)
 				    MCU_CNTRL_DOORBELL_DISABLE_MASK;
 			int core_num = 0;
 
-			all_core_masks = kbase_pm_ca_get_core_masks(kctx->kbdev);
-			core_num = hweight64(all_core_masks.pm_core_mask_desired);
+			if (mtk_common_ged_dvfs_get_gov_mask_enable() == 1) {
+				int desired_mask;
+
+				desired_mask = mtk_common_ged_dvfs_get_desire_mask();
+				core_num = hweight32(desired_mask);
+			} else {
+				all_core_masks = kbase_pm_ca_get_core_masks(kctx->kbdev);
+				core_num = hweight64(all_core_masks.pm_core_mask_desired);
+			}
 
 			if (fw_soi_enabled) {
 				if ((core_num <= 4) && db_notif_disabled)
@@ -126,10 +133,6 @@ static void sync_update_notify_gpu(struct kbase_context *kctx)
 					can_notify_gpu = false;
 			}
 		}
-		//dev_err(kctx->kbdev->dev, "fw_soi_enabled :0x%d ,db_notif_disabled :0x%d",fw_soi_enabled, db_notif_disabled);
-		//dev_err(kctx->kbdev->dev, "db_mirror_interrupt_enabled :0x%d ,gpu_sleep_mode_active :0x%d",db_mirror_interrupt_enabled, gpu_sleep_mode_active);
-		//dev_err(kctx->kbdev->dev, "core_mask_desired :0x%llx ,shader_present :0x%llx can_notify_gpu:%d core_num:%d\n",
-		//		all_core_masks.pm_core_mask_desired, kctx->kbdev->gpu_props.shader_present, can_notify_gpu, core_num);
 #endif
 	}
 
