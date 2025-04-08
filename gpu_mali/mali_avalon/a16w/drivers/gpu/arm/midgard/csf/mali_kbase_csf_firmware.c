@@ -4073,6 +4073,9 @@ int kbase_csf_firmware_soi_disable_on_scheduler_suspend(struct kbase_device *kbd
 
 	lockdep_assert_held(&scheduler->lock);
 
+	if (scheduler->state != SCHED_INACTIVE)
+		return 0;
+
 	if (!atomic_read(&kbdev->csf.scheduler.fw_soi_enabled))
 		return 0;
 
