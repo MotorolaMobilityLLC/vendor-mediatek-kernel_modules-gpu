@@ -155,7 +155,7 @@ void kbase_pm_update_active(struct kbase_device *kbdev)
 		/* It is an error for the power policy to power off the GPU
 		 * when there are contexts active
 		 */
-		KBASE_DEBUG_ASSERT(pm->active_count == 0);
+		WARN_ON(atomic_read(&pm->active_count) != 0);
 
 		pm->backend.poweron_required = false;
 

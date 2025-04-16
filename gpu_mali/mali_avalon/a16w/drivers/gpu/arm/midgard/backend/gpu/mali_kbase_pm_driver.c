@@ -1822,7 +1822,7 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 				 * and there would be no waiters. The wake_up() call won't have an
 				 * effect if there are no waiters.
 				 */
-				if (likely(!kbdev->pm.active_count))
+				if (likely(!atomic_read(&kbdev->pm.active_count)))
 					wake_up(&backend->gpu_in_desired_state_wait);
 			}
 			break;

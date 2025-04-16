@@ -3970,12 +3970,8 @@ void kbase_csf_firmware_soi_update(struct kbase_device *kbdev)
 
 	kbase_csf_scheduler_lock(kbdev);
 
-	mutex_lock(&kbdev->pm.lock);
-	if (unlikely(kbdev->pm.active_count > 1)) {
-		mutex_unlock(&kbdev->pm.lock);
+	if (unlikely(atomic_read(&kbdev->pm.active_count) > 1))
 		goto out_unlock_scheduler_lock;
-	}
-	mutex_unlock(&kbdev->pm.lock);
 
 	if ((scheduler->state == SCHED_SUSPENDED) || (scheduler->state == SCHED_SLEEPING))
 		goto out_unlock_scheduler_lock;
@@ -4072,9 +4068,6 @@ int kbase_csf_firmware_soi_disable_on_scheduler_suspend(struct kbase_device *kbd
 	unsigned long flags;
 
 	lockdep_assert_held(&scheduler->lock);
-
-	if (scheduler->state != SCHED_INACTIVE)
-		return 0;
 
 	if (!atomic_read(&kbdev->csf.scheduler.fw_soi_enabled))
 		return 0;

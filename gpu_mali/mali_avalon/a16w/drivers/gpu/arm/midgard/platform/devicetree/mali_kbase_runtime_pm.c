@@ -92,7 +92,7 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	WARN_ON(kbase_io_is_gpu_powered(kbdev));
 	if (likely(kbdev->csf.firmware_inited)) {
-		WARN_ON(!kbdev->pm.active_count);
+		WARN_ON(!atomic_read(&kbdev->pm.active_count));
 		WARN_ON(kbdev->pm.runtime_active);
 	}
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
@@ -133,7 +133,7 @@ static void pm_callback_runtime_gpu_active(struct kbase_device *kbdev)
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	WARN_ON(!kbase_io_is_gpu_powered(kbdev));
-	WARN_ON(!kbdev->pm.active_count);
+	WARN_ON(!atomic_read(&kbdev->pm.active_count));
 	WARN_ON(kbdev->pm.runtime_active);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
@@ -162,7 +162,7 @@ static void pm_callback_runtime_gpu_idle(struct kbase_device *kbdev)
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	WARN_ON(!kbase_io_is_gpu_powered(kbdev));
 	WARN_ON(kbdev->pm.backend.l2_state != KBASE_L2_OFF);
-	WARN_ON(kbdev->pm.active_count);
+	WARN_ON(atomic_read(&kbdev->pm.active_count));
 	WARN_ON(!kbdev->pm.runtime_active);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 

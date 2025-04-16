@@ -504,7 +504,7 @@ struct kbase_clk_rate_trace_manager {
  */
 struct kbase_pm_device_data {
 	struct mutex lock;
-	int active_count;
+	atomic_t active_count;
 	bool suspending;
 	bool resuming;
 	bool runtime_active;
