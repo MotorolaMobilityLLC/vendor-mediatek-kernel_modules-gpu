@@ -500,6 +500,8 @@ static int kbase_csf_firmware_deferred_init(struct kbase_device *kbdev)
 		unsigned long flags;
 
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+		kbdev->csf.firmware_reloaded = true;
+		//kbdev->csf.firmware_booted_once = true;
 		kbdev->pm.backend.mcu_state = KBASE_MCU_ON;
 		kbdev->csf.firmware_inited = true;
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);

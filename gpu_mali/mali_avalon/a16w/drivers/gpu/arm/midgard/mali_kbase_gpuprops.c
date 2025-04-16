@@ -513,7 +513,7 @@ int kbase_gpuprops_update_l2_features(struct kbase_device *kbdev)
 		/* pm.active_count is expected to be 1 here, which is set in
 		 * kbase_hwaccess_pm_powerup().
 		 */
-		WARN_ON(kbdev->pm.active_count != 1);
+		WARN_ON(atomic_read(&kbdev->pm.active_count) != 1);
 		/* The new settings for L2 cache can only be applied when it is
 		 * off, so first do the power down.
 		 */

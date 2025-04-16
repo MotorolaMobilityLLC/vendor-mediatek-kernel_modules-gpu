@@ -67,7 +67,7 @@ kbasep_pm_context_active_handle_suspend_locked(struct kbase_device *kbdev,
 	if (kbase_pm_is_suspending(kbdev)) {
 		switch (suspend_handler) {
 		case KBASE_PM_SUSPEND_HANDLER_DONT_REACTIVATE:
-			if (kbdev->pm.active_count != 0)
+			if (atomic_read(&kbdev->pm.active_count) != 0)
 				break;
 			fallthrough;
 		case KBASE_PM_SUSPEND_HANDLER_DONT_INCREASE:
@@ -80,7 +80,7 @@ kbasep_pm_context_active_handle_suspend_locked(struct kbase_device *kbdev,
 			break;
 		}
 	}
-	c = ++kbdev->pm.active_count;
+	c = atomic_inc_return(&kbdev->pm.active_count);
 	KBASE_KTRACE_ADD(kbdev, PM_CONTEXT_ACTIVE, NULL, (u64)c);
 
 	if (c == 1) {
@@ -92,7 +92,7 @@ kbasep_pm_context_active_handle_suspend_locked(struct kbase_device *kbdev,
 		kbase_clk_rate_trace_manager_gpu_active(kbdev);
 	}
 
-	dev_dbg(kbdev->dev, "%s %d\n", __func__, kbdev->pm.active_count);
+	dev_dbg(kbdev->dev, "%s %d\n", __func__, atomic_read(&kbdev->pm.active_count));
 
 	return 0;
 }
@@ -124,7 +124,7 @@ void kbase_pm_context_idle_locked(struct kbase_device *kbdev)
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
 	lockdep_assert_held(&kbdev->pm.lock);
 
-	c = --kbdev->pm.active_count;
+	c = atomic_dec_return(&kbdev->pm.active_count);
 	KBASE_KTRACE_ADD(kbdev, PM_CONTEXT_IDLE, NULL, (u64)c);
 
 	KBASE_DEBUG_ASSERT(c >= 0);
@@ -143,7 +143,8 @@ void kbase_pm_context_idle_locked(struct kbase_device *kbdev)
 		wake_up(&kbdev->pm.zero_active_count_wait);
 	}
 
-	dev_dbg(kbdev->dev, "%s %d (pid = %d)\n", __func__, kbdev->pm.active_count, current->pid);
+	dev_dbg(kbdev->dev, "%s %d (pid = %d)\n", __func__, atomic_read(&kbdev->pm.active_count),
+		current->pid);
 }
 
 void kbase_pm_context_idle(struct kbase_device *kbdev)
@@ -227,7 +228,7 @@ int kbase_pm_driver_suspend(struct kbase_device *kbdev)
 	 */
 	dev_dbg(kbdev->dev, ">wait_event - waiting for active_count == 0 (pid = %d)\n",
 		current->pid);
-	wait_event(kbdev->pm.zero_active_count_wait, kbdev->pm.active_count == 0);
+	wait_event(kbdev->pm.zero_active_count_wait, atomic_read(&kbdev->pm.active_count) == 0);
 	dev_dbg(kbdev->dev, ">wait_event - waiting done\n");
 
 	/* At this point, any kbase context termination should either have run to

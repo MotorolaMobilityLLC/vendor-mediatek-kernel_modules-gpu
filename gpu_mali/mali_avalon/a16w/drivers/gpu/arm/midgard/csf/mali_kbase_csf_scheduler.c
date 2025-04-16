@@ -3064,13 +3064,18 @@ static void save_csg_slot(struct kbase_queue_group *group, bool csg_status_updat
 				if (save_cs_wait_state(&kbdev->csf.fw_io, group->csg_nr, queue)) {
 					/* The queue is considered idle only if it's blocked on
 					 * SYNC_WAIT with no pending deferred instructions.
- 					 */
+					 */
 					if ((queue->blocked_reason ==
 					     CS_STATUS_BLOCKED_REASON_REASON_SYNC_WAIT) &&
 					    (queue->sb_status == 0))
 						sync_wait = true;
-					else
+					else if (!csg_status_updated) {
+						/* The queue was non-idle at the time of
+						 * suspension. If the CSG status was updated then
+						 * the CSG would have been marked as non-idle.
+						 */
 						idle = false;
+					}
 				} else {
 					/* Need to confirm if ringbuffer of the GPU
 					 * queue is empty or not. A race can arise
@@ -5609,6 +5614,15 @@ static bool scheduler_suspend_on_idle_gls(struct kbase_device *kbdev)
 
 	lockdep_assert_held(&scheduler->lock);
 
+	/* Quick confirmation for whether suspension is viable before going
+	 * through with the rest of the preparation.
+	 */
+	if (unlikely(atomic_read(&kbdev->pm.active_count) > 1)) {
+		dev_dbg(kbdev->dev, "Aborting scheduler suspension due to non-idle context");
+		atomic_set(&scheduler->missed_suspend_on_idle_evt, true);
+		goto out;
+	}
+
 	if (unlikely(prepare_all_csg_suspension(kbdev))) {
 		dev_dbg(kbdev->dev, "Aborting suspend scheduler (grps: %d)",
 			atomic_read(&kbdev->csf.scheduler.non_idle_offslot_grps));
@@ -5634,7 +5648,7 @@ static bool scheduler_suspend_on_idle_gls(struct kbase_device *kbdev)
 	}
 
 	kbase_pm_lock(kbdev);
-	if (likely(kbdev->pm.active_count == 1)) {
+	if (likely(atomic_read(&kbdev->pm.active_count) == 1)) {
 		kbase_pm_context_idle_locked(kbdev);
 		pm_ref_dropped = true;
 		kbase_pm_unlock(kbdev);
@@ -5691,7 +5705,7 @@ out:
 		 */
 		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
 			kbase_reset_gpu(kbdev);
-	} else {
+	} else if (pm_ref_dropped) {
 		/* Bring forward the next tick */
 		kbase_csf_scheduler_invoke_tick(kbdev);
 	}
@@ -7427,7 +7441,7 @@ static void wait_for_mcu_sleep_before_sync_update_check(struct kbase_device *kbd
 	db_notif_disabled = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_CONTROL)) &
 								 MCU_CNTRL_DOORBELL_DISABLE_MASK;
 	can_wait_for_mcu_sleep = !kbdev->pm.backend.exit_gpu_sleep_mode &&
-								 !kbdev->pm.active_count &&
+								 !atomic_read(&kbdev->pm.active_count) &&
 								 db_notif_disabled;
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
@@ -7465,7 +7479,7 @@ static void check_sync_update_in_sleep_mode(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE)
 	if (mtk_common_whitebox_sync_update_test_mode() > SYNC_UPDATE_TEST_MODE_NONE) {
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-		is_mcu_need_sleep = !kbdev->pm.backend.exit_gpu_sleep_mode && !kbdev->pm.active_count;
+		is_mcu_need_sleep = !kbdev->pm.backend.exit_gpu_sleep_mode && !atomic_read(&kbdev->pm.active_count);
 		mcu_state = kbdev->pm.backend.mcu_state;
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 		if (!kbase_csf_firmware_mcu_halted(kbdev) && mcu_state == KBASE_MCU_ON_PEND_SLEEP) {
@@ -7806,7 +7820,7 @@ static void wait_for_mcu_sleep_after_idle_stress_test(struct kbase_device *kbdev
 	 * which implies that MCU needs to be turned on.
 	 */
 	can_wait_for_mcu_sleep = !kbdev->pm.backend.exit_gpu_sleep_mode &&
-				 !kbdev->pm.active_count;
+				 !atomic_read(&kbdev->pm.active_count);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	if (!can_wait_for_mcu_sleep)
 		return;
@@ -8642,9 +8656,7 @@ static int scheduler_wait_mcu_active(struct kbase_device *kbdev, bool killable_w
 	unsigned long flags;
 	int err;
 
-	kbase_pm_lock(kbdev);
-	WARN_ON(!kbdev->pm.active_count);
-	kbase_pm_unlock(kbdev);
+	WARN_ON(!atomic_read(&kbdev->pm.active_count));
 
 	if (killable_wait)
 		err = kbase_pm_killable_wait_for_poweroff_work_complete(kbdev);

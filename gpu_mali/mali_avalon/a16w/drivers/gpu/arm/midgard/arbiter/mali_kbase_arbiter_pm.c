@@ -844,7 +844,7 @@ void kbase_arbiter_pm_vm_event(struct kbase_device *kbdev, enum kbase_arbif_evt 
 		switch (arb_vm_state->vm_state) {
 		case KBASE_VM_STATE_INITIALIZING_WITH_GPU:
 			lockdep_assert_held(&kbdev->pm.lock);
-			if (kbdev->pm.active_count > 0) {
+			if (atomic_read(&kbdev->pm.active_count) > 0) {
 				kbase_arbiter_pm_vm_set_state(kbdev, KBASE_VM_STATE_ACTIVE);
 				kbase_arbif_gpu_active(kbdev);
 			} else {
@@ -955,7 +955,7 @@ int kbase_arbiter_pm_ctx_active_handle_suspend(struct kbase_device *kbdev,
 				res = 1;
 				break;
 			case KBASE_PM_SUSPEND_HANDLER_DONT_REACTIVATE:
-				if (kbdev->pm.active_count == 0)
+				if (atomic_read(&kbdev->pm.active_count) == 0)
 					res = 1;
 				break;
 			case KBASE_PM_SUSPEND_HANDLER_VM_GPU_GRANTED:
