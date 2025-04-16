@@ -169,7 +169,12 @@ static IMG_PBYTE HTB_GetNextMessage(HTB_Sentinel_t *pSentinel)
 		if (pNext >= pLast)
 		{
 			eError = TLClientReleaseData(DIRECT_BRIDGE_HANDLE, g_sHTBData.hStream);
-			PVR_ASSERT(eError == PVRSRV_OK);
+			if (PVRSRV_OK != eError)
+			{
+				PVR_DPF((PVR_DBG_ERROR, "%s: %s FAILED '%s'", __func__,
+					"TLClientReleaseData", PVRSRVGETERRORSTRING(eError)));
+				return NULL;
+			}
 
 			eError = TLClientAcquireData(DIRECT_BRIDGE_HANDLE,
 				g_sHTBData.hStream, &pSentinel->pBuf, &pSentinel->uiBufLen);

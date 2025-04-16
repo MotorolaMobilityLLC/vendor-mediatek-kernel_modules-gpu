@@ -337,6 +337,7 @@ PVRSRV_ERROR PhysMemValidateParams(PVRSRV_DEVICE_NODE *psDevNode,
                                    IMG_UINT32 ui32NumVirtChunks,
                                    IMG_UINT32 *pui32MappingTable,
                                    PVRSRV_MEMALLOCFLAGS_T uiFlags,
+                                   IMG_PID uiPid,
                                    IMG_UINT32 *puiLog2AllocPageSize,
                                    IMG_DEVMEM_SIZE_T *puiSize)
 {
@@ -348,13 +349,6 @@ PVRSRV_ERROR PhysMemValidateParams(PVRSRV_DEVICE_NODE *psDevNode,
 	IMG_BOOL bIsSparse = (ui32NumVirtChunks != ui32NumPhysChunks ||
 			ui32NumVirtChunks > 1) ? IMG_TRUE : IMG_FALSE;
 
-	if (PVRSRV_CHECK_ON_DEMAND(uiFlags) &&
-	    PVRSRV_CHECK_PHYS_ALLOC_NOW(uiFlags))
-	{
-		PVR_DPF((PVR_DBG_ERROR, "%s: Invalid to specify both ON_DEMAND and NOW phys alloc flags: 0x%" IMG_UINT64_FMTSPECX, __func__, uiFlags));
-		return PVRSRV_ERROR_INVALID_FLAGS;
-	}
-
 	/* Sparse allocations must be backed immediately as the requested
 	 * pui32MappingTable is not retained in any structure if not immediately
 	 * actioned on allocation.
@@ -364,6 +358,27 @@ PVRSRV_ERROR PhysMemValidateParams(PVRSRV_DEVICE_NODE *psDevNode,
 		PVR_DPF((PVR_DBG_ERROR, "%s: Invalid to specify ON_DEMAND for a sparse allocation: 0x%" IMG_UINT64_FMTSPECX, __func__, uiFlags));
 		return PVRSRV_ERROR_INVALID_FLAGS;
 	}
+
+#if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
+	if (PVRSRV_CHECK_OS_LINUX_MOVABLE(uiFlags) && uiPid == PVR_SYS_ALLOC_PID)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Cannot move system allocated resources PID = PVR_SYS_ALLOC_PID",
+		         __func__));
+
+		return PVRSRV_ERROR_INVALID_FLAGS;
+	}
+
+	if (PVRSRV_CHECK_OS_LINUX_MOVABLE(uiFlags) &&
+	    PVRSRV_CHECK_OS_LINUX_DENY_MOVE(uiFlags))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Cannot move denied movable allocation",
+		         __func__));
+
+		return PVRSRV_ERROR_INVALID_FLAGS;
+	}
+#else
+	PVR_UNREFERENCED_PARAMETER(uiPid);
+#endif
 
 	if (ui32NumVirtChunks == 0)
 	{
@@ -589,6 +604,7 @@ PhysmemNewRamBackedPMR_direct(CONNECTION_DATA *psConnection,
 	                               ui32NumVirtChunks,
 	                               pui32MappingTable,
 	                               uiFlags,
+	                               uiPid,
 	                               &uiLog2AllocPageSize,
 	                               &uiSize);
 	PVR_RETURN_IF_ERROR(eError);
@@ -744,7 +760,6 @@ PhysmemNewRamBackedPMR(CONNECTION_DATA *psConnection,
                        PVRSRV_MEMALLOCFLAGS_T *puiPMRFlags)
 {
 	PVRSRV_PHYS_HEAP ePhysHeap = PVRSRV_GET_PHYS_HEAP_HINT(uiFlags);
-	PVRSRV_ERROR eError;
 
 	PVR_LOG_RETURN_IF_INVALID_PARAM(ePhysHeap < PVRSRV_PHYS_HEAP_LAST, "uiFlags");
 	PVR_LOG_RETURN_IF_INVALID_PARAM(uiAnnotationLength != 0, "uiAnnotationLength");
@@ -761,30 +776,20 @@ PhysmemNewRamBackedPMR(CONNECTION_DATA *psConnection,
 		return PVRSRV_ERROR_INVALID_PARAMS;
 	}
 
-	eError = PhysmemNewRamBackedPMR_direct(psConnection,
-										  psDevNode,
-										  uiSize,
-										  ui32NumPhysChunks,
-										  ui32NumVirtChunks,
-										  pui32MappingTable,
-										  uiLog2AllocPageSize,
-										  uiFlags,
-										  uiAnnotationLength,
-										  pszAnnotation,
-										  uiPid,
-										  ppsPMRPtr,
-										  ui32PDumpFlags,
-										  puiPMRFlags);
-	if (eError == PVRSRV_OK)
-	{
-		/* Lock phys addresses if backing was allocated */
-		if (PVRSRV_CHECK_PHYS_ALLOC_NOW(uiFlags))
-		{
-			eError = PMRLockSysPhysAddresses(*ppsPMRPtr);
-		}
-	}
-
-	return eError;
+	return PhysmemNewRamBackedPMR_direct(psConnection,
+	                                     psDevNode,
+	                                     uiSize,
+	                                     ui32NumPhysChunks,
+	                                     ui32NumVirtChunks,
+	                                     pui32MappingTable,
+	                                     uiLog2AllocPageSize,
+	                                     uiFlags,
+	                                     uiAnnotationLength,
+	                                     pszAnnotation,
+	                                     uiPid,
+	                                     ppsPMRPtr,
+	                                     ui32PDumpFlags,
+	                                     puiPMRFlags);
 }
 
 PVRSRV_ERROR

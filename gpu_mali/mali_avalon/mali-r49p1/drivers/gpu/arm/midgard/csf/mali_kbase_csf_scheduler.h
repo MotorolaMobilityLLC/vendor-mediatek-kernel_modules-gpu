@@ -540,6 +540,15 @@ void kbase_csf_scheduler_wait_for_kthread_pending_work(struct kbase_device *kbde
 						       atomic_t *pending);
 
 /**
+ * kbase_csf_scheduler_check_group_sync_update_cb - callback for enqueuing sync_updates
+ *
+ * @param: context for the callback
+ *
+ * Return: KBASE_CSF_EVENT_CALLBACK_KEEP, the callback should remain registered.
+ */
+enum kbase_csf_event_callback_action kbase_csf_scheduler_check_group_sync_update_cb(void *param);
+
+/**
  * kbase_csf_scheduler_invoke_tick() - Invoke the scheduling tick
  *
  * @kbdev: Pointer to the device
@@ -557,7 +566,10 @@ static inline void kbase_csf_scheduler_invoke_tick(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 	if (ged_gpu_apo_support()) {
-		hrtimer_cancel(&scheduler->apo_idle_timer);
+		if (kbdev->csf.scheduler.keep_apo_timer)
+			kbdev->csf.scheduler.keep_apo_timer = false;
+		else
+			hrtimer_cancel(&scheduler->apo_idle_timer);
 
 		ged_get_predict_active_time();
 	}

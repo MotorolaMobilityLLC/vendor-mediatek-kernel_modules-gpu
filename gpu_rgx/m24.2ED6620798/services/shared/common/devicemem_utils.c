@@ -639,15 +639,6 @@ PVRSRV_ERROR DevmemValidateParams(IMG_DEVMEM_SIZE_T uiSize,
 		return PVRSRV_ERROR_INVALID_PARAMS;
 	}
 
-	if ((*puiFlags & PVRSRV_MEMALLOCFLAG_DEFER_PHYS_ALLOC) &&
-			(*puiFlags & PVRSRV_MEMALLOCFLAG_PHYS_ALLOC_NOW))
-	{
-		PVR_DPF((PVR_DBG_ERROR,
-				"%s: Defer Alloc and Alloc Now are mutually exclusive.",
-				__func__));
-		return PVRSRV_ERROR_INVALID_PARAMS;
-	}
-
 	if (uiAlign & (uiAlign-1))
 	{
 		PVR_DPF((PVR_DBG_ERROR,

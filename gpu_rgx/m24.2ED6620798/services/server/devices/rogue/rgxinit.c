@@ -1770,7 +1770,7 @@ PVRSRV_ERROR RGXInitDevPart2(PVRSRV_DEVICE_NODE	*psDeviceNode,
 	                                   (PVRSRV_VZ_MODE_IS(NATIVE, DEVNODE, psDeviceNode)) ? &RGXPostPowerState : &RGXVzPostPowerState,
 	                                   psDevConfig->pfnPrePowerState, psDevConfig->pfnPostPowerState,
 	                                   &RGXPreClockSpeedChange, &RGXPostClockSpeedChange,
-	                                   &RGXForcedIdleRequest, &RGXCancelForcedIdleRequest,
+	                                   &RGXForcedIdleRequest, &RGXCancelForcedIdleRequest, &RGXCancelForcedIdleRequestAsync,
 	                                   &RGXPowUnitsChange,
 	                                   (IMG_HANDLE)psDeviceNode,
 	                                   PVRSRV_DEV_POWER_STATE_OFF,
@@ -2022,6 +2022,8 @@ PVRSRV_ERROR RGXInitCreateFWKernelMemoryContext(PVRSRV_DEVICE_NODE *psDeviceNode
 	/* Register callbacks for creation of device memory contexts */
 	psDeviceNode->pfnRegisterMemoryContext = RGXRegisterMemoryContext;
 	psDeviceNode->pfnUnregisterMemoryContext = RGXUnregisterMemoryContext;
+	psDeviceNode->pfnValidateAddressPermissions = RGXValidateAddressPermissions;
+	psDeviceNode->pfnValidateExportableFlags = RGXValidateExportableFlags;
 
 	RGXFwSharedMemCheckSnoopMode(psDevConfig);
 
@@ -3864,12 +3866,14 @@ static PVRSRV_ERROR HeapInit(PVRSRV_DEVICE_NODE *psDeviceNode,
 	sCarveOutAddr = DevmemIntHeapGetBaseAddr(psDevmemHeap);
 	sCarveOutAddr.uiAddr += ui64Offset;
 
-	eError = DevmemIntReserveRange(psDevmemHeap,
-									sCarveOutAddr,
-									uiSize,
-									PVRSRV_MEMALLOCFLAG_GPU_READABLE |
-									(bWriteAble ? PVRSRV_MEMALLOCFLAG_GPU_WRITEABLE : 0),
-									&psHeapData->psMemReservation);
+	eError = DevmemIntReserveRange(NULL,
+	                               psDeviceNode,
+	                               psDevmemHeap,
+	                               sCarveOutAddr,
+	                               uiSize,
+	                               PVRSRV_MEMALLOCFLAG_GPU_READABLE |
+	                               (bWriteAble ? PVRSRV_MEMALLOCFLAG_GPU_WRITEABLE : 0),
+	                               &psHeapData->psMemReservation);
 	PVR_GOTO_IF_ERROR(eError, ErrorFreeHeapData);
 
 	eError = DevmemIntMapPMR(psHeapData->psMemReservation, psPMR);
@@ -4142,6 +4146,7 @@ static RGX_HEAP_INFO gasRGXHeapLayoutApp[] =
 	{RGX_VISIBILITY_TEST_HEAP_IDENT,    RGX_VISIBILITY_TEST_BRN_65273_HEAP_BASE, RGX_VISIBILITY_TEST_BRN_65273_HEAP_SIZE, 0,                                           0,                  BRN65273IsPresent,           NULL,              NULL,             NULL,              HEAP_INST_BRN_ALT_VALUE },
 	{RGX_MMU_INIA_BRN_65273_HEAP_IDENT, RGX_MMU_INIA_BRN_65273_HEAP_BASE,        RGX_MMU_INIA_BRN_65273_HEAP_SIZE,        0,                                           0,                  BRN65273IsPresent,           NULL,              NULL,             NULL,              HEAP_INST_BRN_DEP_VALUE },
 	{RGX_MMU_INIB_BRN_65273_HEAP_IDENT, RGX_MMU_INIB_BRN_65273_HEAP_BASE,        RGX_MMU_INIB_BRN_65273_HEAP_SIZE,        0,                                           0,                  BRN65273IsPresent,           NULL,              NULL,             NULL,              HEAP_INST_BRN_DEP_VALUE },
+	{RGX_PMMETA_PROTECT_HEAP_IDENT,     RGX_PMMETA_PROTECT_HEAP_BASE,            RGX_PMMETA_PROTECT_HEAP_SIZE,            0,                                           0,                  NULL,                        NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE }
 };
 
 static RGX_HEAP_INFO gasRGXHeapLayoutFW[] =
@@ -4189,16 +4194,15 @@ static INLINE void CheckHeapAlignment(const RGX_HEAP_INFO *psHeapInfo,
 	/* All UM accessible heap bases should be aligned to 2MB */
 	if (psHeapInfo->ui64HeapBase & uiAlignment)
 	{
-		PVR_ASSERT(!"Heap Base not aligned to RGX_HEAP_BASE_SIZE_ALIGN");
 		PVR_DPF((PVR_DBG_ERROR,
-		         "%s: Invalid Heap \"%s\" Base: "
-		         "%"IMG_UINT64_FMTSPEC")",
-		         __func__,
-		         psHeapInfo->pszName,
-		         psHeapInfo->ui64HeapBase));
-		PVR_DPF((PVR_DBG_ERROR,
+		         "%s: Heap Base not aligned to RGX_HEAP_BASE_SIZE_ALIGN. "
+		         "Invalid Heap \"%s\" Base: "
+		         "%"IMG_UINT64_FMTSPEC")\n"
 		         "Heap Base (0x%"IMG_UINT64_FMTSPECX") should always be aligned to "
 		         "RGX_HEAP_BASE_ALIGN (0x%" IMG_UINT64_FMTSPECX ")",
+		         __func__,
+		         psHeapInfo->pszName,
+		         psHeapInfo->ui64HeapBase,
 		         psHeapInfo->ui64HeapBase,
 		         uiAlignment + 1));
 	}
@@ -4206,16 +4210,15 @@ static INLINE void CheckHeapAlignment(const RGX_HEAP_INFO *psHeapInfo,
 	/* All UM accessible heaps should also be size aligned to 2MB */
 	if (psHeapInfo->uiHeapLength & uiAlignment)
 	{
-		PVR_ASSERT(!"Heap Size not aligned to RGX_HEAP_BASE_SIZE_ALIGN");
 		PVR_DPF((PVR_DBG_ERROR,
-		         "%s: Invalid Heap \"%s\" Size: "
-		         "%"IMG_UINT64_FMTSPEC")",
-		         __func__,
-		         psHeapInfo->pszName,
-		         psHeapInfo->uiHeapLength));
-		PVR_DPF((PVR_DBG_ERROR,
+		         "%s: Heap Size not aligned to RGX_HEAP_BASE_SIZE_ALIGN. "
+		         "Invalid Heap \"%s\" Size: "
+		         "%"IMG_UINT64_FMTSPEC")\n"
 		         "Heap Size (0x%"IMG_UINT64_FMTSPECX") should always be aligned to "
 		         "RGX_HEAP_BASE_SIZE_ALIGN (0x%" IMG_UINT64_FMTSPECX ")",
+		         __func__,
+		         psHeapInfo->pszName,
+		         psHeapInfo->uiHeapLength,
 		         psHeapInfo->uiHeapLength,
 		         uiAlignment + 1));
 	}
@@ -4287,12 +4290,12 @@ static void _InstantiateRequiredHeaps(PVRSRV_RGXDEV_INFO     *psDevInfo,
 		}
 		if (bHeapPageSizeMisMatch)
 		{
-			PVR_ASSERT(!"Two Heap with Different Page Size allocated in the same PD space(2MB)");
 			PVR_DPF((PVR_DBG_ERROR,
-					"%s: Invalid Heaps 1) \"%s\" and 2) \"%s\"",
-					__func__,
-					psHeapInfo1->pszName,
-					psHeapInfo2->pszName));
+			         "%s: Two Heap with Different Page Size allocated in the same PD space(2MB)\n"
+			         "Invalid Heaps 1) \"%s\" and 2) \"%s\"",
+			         __func__,
+			         psHeapInfo1->pszName,
+			         psHeapInfo2->pszName));
 		}
 	}
 #endif

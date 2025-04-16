@@ -82,6 +82,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pdump_km.h"
 #include "pmr.h"
 #include "pmr_impl.h"
+#include "pmr_os.h"
 #include "cache_km.h"
 #include "devicemem_server_utils.h"
 #include "pvr_vmap.h"
@@ -149,8 +150,18 @@ typedef struct _PMR_OSPAGEARRAY_DATA_ {
 	/* DRM Node associated with connection that made the allocation */
 	struct drm_file *psDRMFile;
 #endif
-	/* How many pages in the PMR are currently in process of migration */
-	ATOMIC_T iNumOSPagesUnderMigration;
+	/* Protects migration in progress count and action of idling the device */
+	POSWR_LOCK hPagesUnderMigrationRWLock;
+	/* How many pages in the PMR are currently in process of migration,
+	 * Must be protected by above RW lock.
+	 */
+	IMG_INT32 iNumOSPagesUnderMigration;
+
+	/*
+	 * CPU mappings associated with PMR.
+	 * Must be protected with PMR lock.
+	 */
+	DLLIST_NODE sCpuMappingListHead;
 #endif
 
 	/* The pid that made this allocation */
@@ -414,193 +425,6 @@ static const struct movable_operations movable_callbacks =
 };
 #endif
 
-static bool OSMemPageIsolate(struct page *psPage, isolate_mode_t uIsolateMode)
-{
-	OSMEM_PAGE_PRIVDATA *psPrivData = GetPrivateDataFromPage(psPage);
-
-
-	PVR_GOTO_IF_FALSE(psPrivData != NULL, condition_failed);
-
-	/* Attempt to migrate pages before PMR wrapper has been setup,
-	 * avoid migration at this time.
-	 */
-	PVR_GOTO_IF_FALSE(psPrivData->psPMRData->hPMR, condition_failed);
-
-	OSAtomicAdd(&psPrivData->psPMRData->iNumOSPagesUnderMigration, 1);
-	PVR_GOTO_IF_FALSE(!PMR_IsGpuMapped(psPrivData->psPMRData->hPMR), condition_failed);
-	PVR_GOTO_IF_FALSE(!PMR_IsCpuMapped(psPrivData->psPMRData->hPMR), condition_failed);
-#if defined(SUPPORT_PMR_DEFERRED_FREE)
-	PVR_GOTO_IF_FALSE(!PMR_IsZombie(psPrivData->psPMRData->hPMR), condition_failed);
-#endif
-	/* Try take a ref on PMR, this ensures destruction will not occur while migrating */
-	PVR_GOTO_IF_ERROR(PMRTryRefPMR(psPrivData->psPMRData->hPMR), condition_failed);
-
-
-	psPrivData->psPMRData->pagearray[psPrivData->uiPMRArrIdx] = NULL;
-
-	MIGRATE_DBG_LOG((PVR_DBG_ERROR, "Isolated: PMR UID %llu, PMR Size 0x%llx, "
-	                                "OSPageSize %lu, PageAddr 0x%llx",
-	                                PMRInternalGetUID(psPrivData->psPMRData->hPMR),
-	                                (unsigned long long) PMR_LogicalSize(psPrivData->psPMRData->hPMR),
-	                                OSGetPageSize(),
-	                                (unsigned long long) psPage));
-
-	/* Movable */
-	return true;
-
-condition_failed:
-	/* Not movable */
-	OSAtomicSubtract(&psPrivData->psPMRData->iNumOSPagesUnderMigration, 1);
-
-	return false;
-}
-
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0))
-static int OSMemPageMigrate(struct address_space *psAddrSpace,
-		struct page *psDstPage, struct page *psSrcPage, enum migrate_mode eMigrateMode)
-#else
-static int OSMemPageMigrate(struct page *psDstPage, struct page *psSrcPage, enum migrate_mode eMigrateMode)
-#endif
-{
-	void* vpDst;
-	void* vpSrc;
-	PMR_OSPAGEARRAY_DATA *psPMRData;
-	OSMEM_PAGE_PRIVDATA *psSrcPagePrivData = GetPrivateDataFromPage(psSrcPage);
-
-	if (!psSrcPagePrivData)
-	{
-		/* Shouldn't hit this case */
-		PVR_DPF((PVR_DBG_ERROR, "Migrate invalid, potentially leaked PMR"));
-		return -EINVAL;
-	}
-	psPMRData = psSrcPagePrivData->psPMRData;
-
-	PVR_UNREFERENCED_PARAMETER(eMigrateMode);
-
-	vpDst = kmap(psDstPage);
-	vpSrc = kmap(psSrcPage);
-
-
-	OSDeviceMemCopy(vpDst, vpSrc, PAGE_SIZE);
-
-	kunmap(vpDst);
-	kunmap(vpSrc);
-
-#if defined(CONFIG_X86)
-	/* Reset caching attrs of page we give back to OS */
-	if (!set_pages_array_wb(&psSrcPage, 1))
-	{
-		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to reset page attribute PMR UID:%llu",
-		         __func__,
-		         (unsigned long long)PMRInternalGetUID(psSrcPagePrivData->psPMRData->hPMR)));
-		return -EINVAL;
-	}
-#endif
-
-	psPMRData->pagearray[psSrcPagePrivData->uiPMRArrIdx] = psDstPage;
-
-	MIGRATE_DBG_LOG((PVR_DBG_ERROR, "Migrated: PMR UID %llu, PMR Size 0x%llx, "
-	                                "OSPageSize %lu, SrcPageAddr 0x%llx, DstPageAddr 0x%llx",
-	                                PMRInternalGetUID(psSrcPagePrivData->psPMRData->hPMR),
-	                                (unsigned long long) PMR_LogicalSize(psSrcPagePrivData->psPMRData->hPMR),
-	                                OSGetPageSize(),
-	                                (unsigned long long) psSrcPage,
-	                                (unsigned long long) psDstPage));
-
-	/* Apply caching reqs to page we receive from OS */
-	_ApplyOSPagesAttribute(psPMRData->psDevNode,
-	                       &psPMRData->pagearray[psSrcPagePrivData->uiPMRArrIdx],
-	                       1,
-	                       IMG_FALSE,
-	                       psPMRData->ui32CPUCacheFlags);
-
-	get_page(psDstPage);
-	SetPagePrivate(psDstPage);
-	set_page_private(psDstPage, (unsigned long)psSrcPagePrivData);
-
-	/* DstPage already locked prior to callback */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0))
-	__SetPageMovable(psDstPage, psPMRData->psDRMFile->filp->f_inode->i_mapping);
-#else
-	__SetPageMovable(psDstPage, &movable_callbacks);
-#endif
-
-	set_page_private(psSrcPage, 0);
-	ClearPagePrivate(psSrcPage);
-	put_page(psSrcPage);
-	__ClearPageMovable(psSrcPage);
-
-	/* Migration for this page no longer in progress */
-	OSAtomicSubtract(&psSrcPagePrivData->psPMRData->iNumOSPagesUnderMigration, 1);
-
-	/* Unref parent PMR to allow for subsequent destruction,
-	 * if PMR resource no longer required and the bridge has
-	 * dropped its handles to it, destruction will follow.
-	 */
-	PMRUnrefPMR2(psSrcPagePrivData->psPMRData->hPMR);
-
-	return MIGRATEPAGE_SUCCESS;
-}
-
-static void OSMemPagePutback(struct page *psPage)
-{
-	OSMEM_PAGE_PRIVDATA *psPrivData = GetPrivateDataFromPage(psPage);
-	if (!psPrivData)
-	{
-		/* We shouldn't hit this case */
-		PVR_DPF((PVR_DBG_ERROR, "Putback invalid, potentially leaked PMR"));
-		return;
-	}
-
-	MIGRATE_DBG_LOG((PVR_DBG_ERROR, "Putback: PMR UID %llu, PMR Size 0x%llx, "
-	                                "OSPageSize %lu, PageAddr 0x%llx",
-	                                PMRInternalGetUID(psPrivData->psPMRData->hPMR),
-	                                (unsigned long long) PMR_LogicalSize(psPrivData->psPMRData->hPMR),
-	                                OSGetPageSize(),
-	                                (unsigned long long) psPage));
-
-
-	/* Restore the page to our structures */
-	psPrivData->psPMRData->pagearray[psPrivData->uiPMRArrIdx] = psPage;
-
-	/* Migration for this page no longer in progress */
-	OSAtomicSubtract(&psPrivData->psPMRData->iNumOSPagesUnderMigration, 1);
-
-	/* Unref surrounding PMR as we no longer need the PMR to remain in case of array access.
-	 */
-	PMRUnrefPMR2(psPrivData->psPMRData->hPMR);
-}
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0))
-int LinuxRegisterMigrateCallbacks(struct file* filp)
-{
-	if (filp == NULL)
-	{
-		PVR_DPF((PVR_DBG_ERROR, "filp NULL, cannot set movable callbacks, PID %u:%s",
-		                        OSGetCurrentClientProcessIDKM(),
-		                        OSGetCurrentClientProcessNameKM()));
-		return -EINVAL;
-	}
-
-	filp->f_inode->i_mapping->a_ops = &movable_callbacks;
-
-	return 0;
-}
-
-void LinuxDeregisterMigrateCallbacks(struct file* filp)
-{
-	if (filp == NULL)
-	{
-		PVR_DPF((PVR_DBG_ERROR, "filp NULL, cannot unset movable callbacks"));
-		return;
-	}
-
-	filp->f_inode->i_mapping->a_ops = NULL;
-}
-#endif
-
-
 static INLINE void OSMemSetMovablePageAttr(struct page* psPage,
                                            PMR_OSPAGEARRAY_DATA *psPageArrayData,
                                            IMG_UINT32 uiPageIndex)
@@ -655,6 +479,14 @@ static INLINE void OSMemSetMovablePageAttr(struct page* psPage,
 	unlock_page(psPage);
 }
 
+/* Page should be locked before calling this function */
+static INLINE void OSMemSetPagePrivate(struct page* psPage)
+{
+	__ClearPageMovable(psPage);
+	set_page_private(psPage, 0);
+	ClearPagePrivate(psPage);
+}
+
 static INLINE void OSMemUnsetMovablePageAttr(struct page* psPage, PMR_OSPAGEARRAY_DATA *psPageArrayData)
 {
 	OSMEM_PAGE_PRIVDATA *psPrivData;
@@ -672,13 +504,323 @@ static INLINE void OSMemUnsetMovablePageAttr(struct page* psPage, PMR_OSPAGEARRA
 	}
 
 	lock_page(psPage);
-	__ClearPageMovable(psPage);
-	set_page_private(psPage, 0);
-	ClearPagePrivate(psPage);
+	OSMemSetPagePrivate(psPage);
 	unlock_page(psPage);
 
 	kmem_cache_free(g_psLinuxPagePrivateData, psPrivData);
 }
+static IMG_BOOL _MigrateGPUIdleGet(PMR_OSPAGEARRAY_DATA *psPMRData)
+{
+	PVRSRV_ERROR eError;
+
+	/* Try take a ref on PMR, this ensures destruction will not occur while migrating */
+	eError = PMRTryRefPMR(psPMRData->hPMR);
+	PVR_GOTO_IF_ERROR(eError, ErrorOut);
+
+	OSWRLockAcquireWrite(psPMRData->hPagesUnderMigrationRWLock);
+
+	/* If we just started migrating pages */
+	if ((++psPMRData->iNumOSPagesUnderMigration) == 1)
+	{
+		eError = PVRSRVDeviceIdleLatchedGetKM(psPMRData->psDevNode);
+		PVR_LOG_GOTO_IF_ERROR(eError, "PVRSRVDeviceIdleLatchedGetKM", ErrorOutDecr);
+
+		OSWRLockReleaseWrite(psPMRData->hPagesUnderMigrationRWLock);
+
+		PMRLockPMR(psPMRData->hPMR);
+		PMRNotifyMigrateInProgress(psPMRData->hPMR);
+		PMRUnlockPMR(psPMRData->hPMR);
+	}
+	else
+	{
+		OSWRLockReleaseWrite(psPMRData->hPagesUnderMigrationRWLock);
+	}
+
+	return IMG_TRUE;
+
+ErrorOutDecr:
+	psPMRData->iNumOSPagesUnderMigration--;
+#if defined(DEBUG)
+	PVR_DPF((PVR_DBG_WARNING, "%s: Failed to Idle GPU", __func__));
+#endif
+	OSWRLockReleaseWrite(psPMRData->hPagesUnderMigrationRWLock);
+	(void) PMRUnrefPMR(psPMRData->hPMR);
+ErrorOut:
+	return IMG_FALSE;
+}
+
+static void _MigrateGPUIdlePut(PMR_OSPAGEARRAY_DATA *psPMRData)
+{
+	PVRSRV_ERROR eError;
+
+	OSWRLockAcquireWrite(psPMRData->hPagesUnderMigrationRWLock);
+
+	/* If we just finished migrating pages */
+	if ((--psPMRData->iNumOSPagesUnderMigration) == 0)
+	{
+		eError = PVRSRVDeviceIdleLatchedPutAsyncKM(psPMRData->psDevNode);
+		PVR_LOG_GOTO_IF_ERROR(eError, "PVRSRVDeviceIdleLatchedPutAsyncKM", ErrorOut);
+
+		OSWRLockReleaseWrite(psPMRData->hPagesUnderMigrationRWLock);
+
+		PMRLockPMR(psPMRData->hPMR);
+		PMRNotifyMigrateComplete(psPMRData->hPMR);
+		PMRUnlockPMR(psPMRData->hPMR);
+	}
+	else
+	{
+		OSWRLockReleaseWrite(psPMRData->hPagesUnderMigrationRWLock);
+	}
+
+
+	/* Unref parent PMR to allow for subsequent destruction,
+	 * if PMR resource no longer required and the bridge has
+	 * dropped its handles to it, destruction will follow.
+	 */
+	(void) PMRUnrefPMR(psPMRData->hPMR);
+
+	return;
+
+ErrorOut:
+	psPMRData->iNumOSPagesUnderMigration++;
+	OSWRLockReleaseWrite(psPMRData->hPagesUnderMigrationRWLock);
+	PVR_DPF((PVR_DBG_FATAL,"Request to Unidle GPU failed, unrecoverable state!"));
+}
+
+static bool OSMemPageIsolate(struct page *psPage, isolate_mode_t uIsolateMode)
+{
+	OSMEM_PAGE_PRIVDATA *psPrivData = GetPrivateDataFromPage(psPage);
+	PMR_OSPAGEARRAY_DATA *psPMRData;
+	IMG_BOOL bSuccess;
+
+
+	PVR_GOTO_IF_FALSE(psPrivData != NULL, condition_failed);
+	psPMRData = psPrivData->psPMRData;
+
+	/* Attempt to migrate pages before PMR wrapper has been setup,
+	 * avoid migration at this time.
+	 */
+	PVR_GOTO_IF_FALSE(psPMRData->hPMR, condition_failed);
+
+	bSuccess = _MigrateGPUIdleGet(psPMRData);
+	PVR_GOTO_IF_FALSE(bSuccess, condition_failed);
+
+	PVR_GOTO_IF_FALSE(!PMR_IsMemLayoutFixed(psPMRData->hPMR), clear_movable);
+	PVR_GOTO_IF_FALSE(!PMR_IsGpuMultiMapped(psPMRData->hPMR), clear_movable);
+	PVR_GOTO_IF_FALSE(!PMR_IsKernelCpuMapped(psPMRData->hPMR), condition_failed_decr);
+#if defined(SUPPORT_PMR_DEFERRED_FREE)
+	PVR_GOTO_IF_FALSE(!PMR_IsZombie(psPMRData->hPMR), condition_failed_decr);
+#endif
+
+
+	psPrivData->psPMRData->pagearray[psPrivData->uiPMRArrIdx] = NULL;
+
+	MIGRATE_DBG_LOG((PVR_DBG_ERROR, "Isolated: PMR UID %llu, PMR Size 0x%llx, "
+	                                "OSPageSize %lu, PageAddr 0x%llx",
+	                                PMRInternalGetUID(psPMRData->hPMR),
+	                                (unsigned long long) PMR_LogicalSize(psPMRData->hPMR),
+	                                OSGetPageSize(),
+	                                (unsigned long long) psPage));
+
+	/* Movable */
+	return true;
+
+clear_movable:
+	OSMemSetPagePrivate(psPage);
+	kmem_cache_free(g_psLinuxPagePrivateData, psPrivData);
+
+condition_failed_decr:
+	_MigrateGPUIdlePut(psPMRData);
+
+condition_failed:
+	/* Not movable */
+	return false;
+}
+
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0))
+static int OSMemPageMigrate(struct address_space *psAddrSpace,
+		struct page *psDstPage, struct page *psSrcPage, enum migrate_mode eMigrateMode)
+#else
+static int OSMemPageMigrate(struct page *psDstPage, struct page *psSrcPage, enum migrate_mode eMigrateMode)
+#endif
+{
+	PVRSRV_ERROR eError;
+	int iLinuxError;
+	void* vpDst;
+	void* vpSrc;
+	PMR_OSPAGEARRAY_DATA *psPMRData;
+	OSMEM_PAGE_PRIVDATA *psSrcPagePrivData = GetPrivateDataFromPage(psSrcPage);
+	/* Align phys to logical */
+	IMG_UINT32 uiLogicalAlignedOffset;
+
+	PVR_UNREFERENCED_PARAMETER(eMigrateMode);
+
+	if (!psSrcPagePrivData)
+	{
+		/* Shouldn't hit this case */
+		PVR_DPF((PVR_DBG_ERROR, "Migrate invalid, potentially leaked PMR"));
+		return -EINVAL;
+	}
+	psPMRData = psSrcPagePrivData->psPMRData;
+
+	/* Calc logical aligned index offset, dev page aligned down. */
+	uiLogicalAlignedOffset = (
+	                          IMG_PAGES2BYTES64(psSrcPagePrivData->uiPMRArrIdx, PAGE_SHIFT) &
+	                          ~(psPMRData->uiLog2DevPageSize - 1)
+	                         ) >> PAGE_SHIFT;
+
+	/* If layout has been fixed after isolation, cancel the migration */
+	PVR_RETURN_IF_FALSE(!PMR_IsMemLayoutFixed(psPMRData->hPMR), -EPERM);
+
+	/* Unmap the page from any CPU mappings on this PMR. The mapping will
+	 * be repaired by the fault handler installed on the vma that
+	 * represents the CPU mapping.
+	 */
+	OSLinuxPMRUnmapPageInPMR(psPMRData->hPMR,
+	                         &psPMRData->sCpuMappingListHead,
+	                         uiLogicalAlignedOffset);
+
+	/* Set the new page in place, if any errors occur with migration the
+	 * putback callback will reset the original page.
+	 */
+	psPMRData->pagearray[psSrcPagePrivData->uiPMRArrIdx] = psDstPage;
+
+	/* Apply caching reqs to page we receive from OS */
+	eError = _ApplyOSPagesAttribute(psPMRData->psDevNode,
+	                                &psPMRData->pagearray[psSrcPagePrivData->uiPMRArrIdx],
+	                                1,
+	                                IMG_FALSE,
+	                                psPMRData->ui32CPUCacheFlags);
+	PVR_LOG_RETURN_IF_FALSE(eError == PVRSRV_OK, "_ApplyOSPagesAttribute", -EPERM);
+
+	/* Trigger remapping */
+	eError = PMRRemapGPUPMR(psPMRData->hPMR, uiLogicalAlignedOffset);
+	if (eError != PVRSRV_OK)
+	{
+		iLinuxError = -EPERM;
+		if (eError != PVRSRV_ERROR_DEVICEMEM_REMAP_REJECTED)
+		{
+			PVR_DPF((PVR_DBG_ERROR, "%s: PMRRemapGPUPMR() failed to remap page.", __func__));
+		}
+		goto error_reset_page_attrs;
+	}
+
+	vpDst = kmap(psDstPage);
+	vpSrc = kmap(psSrcPage);
+
+
+	OSDeviceMemCopy(vpDst, vpSrc, PAGE_SIZE);
+
+	kunmap(vpDst);
+	kunmap(vpSrc);
+
+	MIGRATE_DBG_LOG((PVR_DBG_ERROR, "Migrated: PMR UID %llu, PMR Size 0x%llx, "
+	                                "OSPageSize %lu, SrcPageAddr 0x%llx, DstPageAddr 0x%llx",
+	                                PMRInternalGetUID(psSrcPagePrivData->psPMRData->hPMR),
+	                                (unsigned long long) PMR_LogicalSize(psSrcPagePrivData->psPMRData->hPMR),
+	                                OSGetPageSize(),
+	                                (unsigned long long) psSrcPage,
+	                                (unsigned long long) psDstPage));
+
+	get_page(psDstPage);
+	SetPagePrivate(psDstPage);
+	set_page_private(psDstPage, (unsigned long)psSrcPagePrivData);
+
+	/* DstPage already locked prior to callback */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0))
+	__SetPageMovable(psDstPage, psPMRData->psDRMFile->filp->f_inode->i_mapping);
+#else
+	__SetPageMovable(psDstPage, &movable_callbacks);
+#endif
+
+	/* Migration for this page no longer in progress */
+	_MigrateGPUIdlePut(psSrcPagePrivData->psPMRData);
+
+#if defined(CONFIG_X86)
+	/* Reset caching attrs of page we give back to OS */
+	if (!set_pages_array_wb(&psSrcPage, 1))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to reset page attribute for "
+		                        " page given back to kernel. PMR UID:%llu",
+		         __func__,
+		         (unsigned long long)PMRInternalGetUID(psSrcPagePrivData->psPMRData->hPMR)));
+	}
+#endif
+
+	set_page_private(psSrcPage, 0);
+	ClearPagePrivate(psSrcPage);
+	put_page(psSrcPage);
+	__ClearPageMovable(psSrcPage);
+
+	return MIGRATEPAGE_SUCCESS;
+
+error_reset_page_attrs:
+#if defined(CONFIG_X86)
+	/* Reset caching attrs of page we give back to OS */
+	if (!set_pages_array_wb(&psDstPage, 1))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to reset page attribute for "
+		                        " page given from kernel. PMR UID:%llu",
+		         __func__,
+		         (unsigned long long)PMRInternalGetUID(psSrcPagePrivData->psPMRData->hPMR)));
+	}
+#endif
+	return iLinuxError;
+}
+
+static void OSMemPagePutback(struct page *psPage)
+{
+	OSMEM_PAGE_PRIVDATA *psPrivData = GetPrivateDataFromPage(psPage);
+	if (!psPrivData)
+	{
+		/* We shouldn't hit this case */
+		PVR_DPF((PVR_DBG_ERROR, "Putback invalid, potentially leaked PMR"));
+		return;
+	}
+
+	MIGRATE_DBG_LOG((PVR_DBG_ERROR, "Putback: PMR UID %llu, PMR Size 0x%llx, "
+	                                "OSPageSize %lu, PageAddr 0x%llx",
+	                                PMRInternalGetUID(psPrivData->psPMRData->hPMR),
+	                                (unsigned long long) PMR_LogicalSize(psPrivData->psPMRData->hPMR),
+	                                OSGetPageSize(),
+	                                (unsigned long long) psPage));
+
+
+	/* Restore the page to our structures */
+	psPrivData->psPMRData->pagearray[psPrivData->uiPMRArrIdx] = psPage;
+
+	/* Migration for this page no longer in progress */
+	_MigrateGPUIdlePut(psPrivData->psPMRData);
+}
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0))
+int LinuxRegisterMigrateCallbacks(struct file* filp)
+{
+	if (filp == NULL)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "filp NULL, cannot set movable callbacks, PID %u:%s",
+		                        OSGetCurrentClientProcessIDKM(),
+		                        OSGetCurrentClientProcessNameKM()));
+		return -EINVAL;
+	}
+
+	filp->f_inode->i_mapping->a_ops = &movable_callbacks;
+
+	return 0;
+}
+
+void LinuxDeregisterMigrateCallbacks(struct file* filp)
+{
+	if (filp == NULL)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "filp NULL, cannot unset movable callbacks"));
+		return;
+	}
+
+	filp->f_inode->i_mapping->a_ops = NULL;
+}
+#endif
 #endif /* defined(SUPPORT_LINUX_OSPAGE_MIGRATION) */
 
 static inline IMG_BOOL
@@ -1801,7 +1943,10 @@ _AllocOSPageArray(PVRSRV_DEVICE_NODE *psDevNode,
 	psPageArrayData->ui32CPUCacheFlags = ui32CPUCacheFlags;
 	psPageArrayData->ui32CMAAdjustedPageCount = 0;
 #if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
-	OSAtomicWrite(&psPageArrayData->iNumOSPagesUnderMigration, 0);
+	eError = OSWRLockCreate(&psPageArrayData->hPagesUnderMigrationRWLock);
+	PVR_LOG_GOTO_IF_ERROR(eError, "OSWRLockCreate", e_free_cpuvirtaddrarray);
+	psPageArrayData->iNumOSPagesUnderMigration = 0;
+	dllist_init(&psPageArrayData->sCpuMappingListHead);
 #endif
 
 	*ppsPageArrayDataPtr = psPageArrayData;
@@ -3061,6 +3206,14 @@ _FreeOSPagesArray(PMR_OSPAGEARRAY_DATA *psPageArrayData)
 {
 	PVR_DPF((PVR_DBG_MESSAGE, "physmem_osmem_linux.c: freed OS memory for PMR @0x%p", psPageArrayData));
 
+#if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
+	if (!dllist_is_empty(&psPageArrayData->sCpuMappingListHead))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "Attempt to free linux cpu mapping data while still in use."));
+		OSWarnOn(1);
+	}
+#endif
+
 	psPageArrayData->hPMR = NULL;
 
 	/* Check if the page array actually still exists.
@@ -3610,7 +3763,6 @@ PMRFinalizeOSMem(PMR_IMPL_PRIVDATA pvPriv)
 
 		eError = _FreeOSPages(psOSPageArrayData, NULL, 0);
 		PVR_LOG_IF_ERROR(eError, "_FreeOSPages");
-		PVR_ASSERT(eError == PVRSRV_OK); /* can we do better? */
 	}
 
 	_FreeOSPagesArray(psOSPageArrayData);
@@ -3809,11 +3961,13 @@ PMRUnlockSysPhysAddressesOSMem(PMR_IMPL_PRIVDATA pvPriv)
 #endif
 	}
 
+	return eError;
+
 #if defined(SUPPORT_PMR_PAGES_DEFERRED_FREE)
 e0:
-#endif
-	PVR_ASSERT(eError == PVRSRV_OK);
+	PVR_ASSERT(eError != PVRSRV_OK);
 	return eError;
+#endif
 }
 
 static INLINE IMG_BOOL IsOffsetValid(const PMR_OSPAGEARRAY_DATA *psOSPageArrayData,
@@ -3869,17 +4023,6 @@ PMRSysPhysAddrOSMem(PMR_IMPL_PRIVDATA pvPriv,
 		         ui32Log2PageSize));
 		return PVRSRV_ERROR_PMR_INCOMPATIBLE_CONTIGUITY;
 	}
-
-#if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
-	if (OSAtomicRead(&psOSPageArrayData->iNumOSPagesUnderMigration))
-	{
-		PVR_DPF((PVR_DBG_ERROR,
-		         "%s: Requested physical addresses from PMR "
-		         "in process of page migration!",
-		         __func__));
-		return PVRSRV_ERROR_PMR_NOT_PERMITTED;
-	}
-#endif
 
 	for (uiIdx=0; uiIdx < ui32NumOfPages; uiIdx++)
 	{
@@ -3947,14 +4090,17 @@ PMRAcquireKernelMappingDataOSMem(PMR_IMPL_PRIVDATA pvPriv,
 	PMR_OSPAGEARRAY_KERNMAP_DATA *psData;
 
 #if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
-	if (OSAtomicRead(&psOSPageArrayData->iNumOSPagesUnderMigration))
+	OSWRLockAcquireRead(psOSPageArrayData->hPagesUnderMigrationRWLock);
+	if (psOSPageArrayData->iNumOSPagesUnderMigration != 0)
 	{
-		PVR_DPF((PVR_DBG_ERROR,
-		         "%s: Requested physical addresses from PMR "
-		         "in process of page migration!",
+		PVR_DPF((PVR_DBG_MESSAGE,
+		         "%s: Requested kernel mapping from PMR "
+		         "in process of page migration, retry.",
 		         __func__));
-		return PVRSRV_ERROR_PMR_NOT_PERMITTED;
+		OSWRLockReleaseRead(psOSPageArrayData->hPagesUnderMigrationRWLock);
+		return PVRSRV_ERROR_RETRY;
 	}
+	OSWRLockReleaseRead(psOSPageArrayData->hPagesUnderMigrationRWLock);
 #endif
 
 	/*
@@ -4331,6 +4477,17 @@ static PMR_IMPL_FUNCTAB _sPMROSPFuncTab = {
 #endif
 };
 
+#if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
+DLLIST_NODE *
+LinuxOSGetCPUMappingPrivateDataList(PMR *psPMR)
+{
+	PMR_OSPAGEARRAY_DATA *psOSPageArrayData = PMRGetPrivateData(psPMR, &_sPMROSPFuncTab);
+	PVR_ASSERT(psOSPageArrayData);
+
+	return &psOSPageArrayData->sCpuMappingListHead;
+}
+#endif
+
 /* Wrapper around OS page allocation. */
 static PVRSRV_ERROR
 DoPageAlloc(PMR_OSPAGEARRAY_DATA *psPrivData,
@@ -4489,9 +4646,11 @@ PhysmemNewOSRamBackedPMR(PHYS_HEAP *psPhysHeap,
 	_EncodeAllocationFlags(uiLog2DevPageSize, uiFlags, &ui32AllocFlags);
 
 #if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
-	/* Reject sparse PMR marked for migrate */
+	/* Reject sparse and non4k PMR marked for migrate */
 	if (BIT_ISSET(ui32AllocFlags, FLAG_IS_MOVABLE) &&
-	   (ui32NumPhysChunks != ui32NumLogicalChunks|| ui32NumLogicalChunks > 1))
+	   ((ui32NumPhysChunks != ui32NumLogicalChunks|| ui32NumLogicalChunks > 1) ||
+	    uiLog2DevPageSize != PAGE_SHIFT)
+	   )
 	{
 		PVR_LOG_GOTO_WITH_ERROR("PhysmemNewOSRamBackedPMR", eError, PVRSRV_ERROR_INVALID_PARAMS, errorOnParam);
 	}

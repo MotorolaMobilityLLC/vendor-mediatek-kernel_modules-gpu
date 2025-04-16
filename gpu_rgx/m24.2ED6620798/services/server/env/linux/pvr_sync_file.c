@@ -669,12 +669,13 @@ pvr_sync_rollback_export_fence(PVRSRV_FENCE fence_to_rollback)
 		pr_err("%s: Failed to read sync private data for fd %d\n",
 			__func__, fence_to_rollback);
 		err = PVRSRV_ERROR_HANDLE_NOT_FOUND;
-		goto err_out;
+		goto err_get_fence;
 	}
 
 	if (!pvr_is_exp_fence(fence)) {
 		pr_err(FILE_NAME ": %s: Fence not a pvr export fence\n", __func__);
-		return PVRSRV_ERROR_INVALID_PARAMS;
+		err = PVRSRV_ERROR_INVALID_PARAMS;
+		goto err_is_exp_fence;
 	}
 
 	err = pvr_exp_fence_rollback(fence);
@@ -683,9 +684,10 @@ pvr_sync_rollback_export_fence(PVRSRV_FENCE fence_to_rollback)
 		       __func__);
 	}
 
+err_is_exp_fence:
 	dma_fence_put(fence);
 
-err_out:
+err_get_fence:
 	return err;
 }
 
@@ -1250,7 +1252,7 @@ static void _dump_sync_point(struct dma_fence *fence,
 
 	PVR_DUMPDEBUG_LOG(dump_debug_printf,
 					  dump_debug_file,
-					  "<%p> Seq#=%llu TS=%s State=%s TLN=%s",
+					  "<"IMG_KM_PTR_FMTSPEC"> Seq#=%llu TS=%s State=%s TLN=%s",
 					  fence,
 					  (u64) fence->seqno,
 					  time,
@@ -1269,7 +1271,7 @@ static void _dump_fence(struct dma_fence *fence,
 		if (fence_array) {
 			PVR_DUMPDEBUG_LOG(dump_debug_printf,
 					  dump_debug_file,
-					  "Fence: [%p] Sync Points:\n",
+					  "Fence: ["IMG_KM_PTR_FMTSPEC"] Sync Points:\n",
 					  fence_array);
 
 			for (i = 0; i < fence_array->num_fences; i++)

@@ -357,12 +357,12 @@ IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntReserveRange(IMG_HANDLE hBridge,
 	PVRSRV_ERROR eError;
 	DEVMEMINT_HEAP *psDevmemServerHeapInt;
 	DEVMEMINT_RESERVATION *psReservationInt = NULL;
-	PVR_UNREFERENCED_PARAMETER(hBridge);
 
 	psDevmemServerHeapInt = (DEVMEMINT_HEAP *) hDevmemServerHeap;
 
 	eError =
-	    DevmemIntReserveRange(psDevmemServerHeapInt,
+	    DevmemIntReserveRange(NULL, (PVRSRV_DEVICE_NODE *) ((void *)hBridge),
+				  psDevmemServerHeapInt,
 				  sAddress, uiLength, uiFlags, &psReservationInt);
 
 	*phReservation = psReservationInt;
@@ -381,13 +381,13 @@ IMG_INTERNAL PVRSRV_ERROR BridgeDevmemIntReserveRangeAndMapPMR(IMG_HANDLE hBridg
 	DEVMEMINT_HEAP *psDevmemServerHeapInt;
 	PMR *psPMRInt;
 	DEVMEMINT_RESERVATION *psReservationInt = NULL;
-	PVR_UNREFERENCED_PARAMETER(hBridge);
 
 	psDevmemServerHeapInt = (DEVMEMINT_HEAP *) hDevmemServerHeap;
 	psPMRInt = (PMR *) hPMR;
 
 	eError =
-	    DevmemIntReserveRangeAndMapPMR(psDevmemServerHeapInt,
+	    DevmemIntReserveRangeAndMapPMR(NULL, (PVRSRV_DEVICE_NODE *) ((void *)hBridge),
+					   psDevmemServerHeapInt,
 					   sAddress,
 					   uiLength, psPMRInt, uiFlags, &psReservationInt);
 

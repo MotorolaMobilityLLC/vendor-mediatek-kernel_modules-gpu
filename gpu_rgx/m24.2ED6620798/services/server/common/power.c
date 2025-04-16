@@ -96,6 +96,7 @@ struct _PVRSRV_POWER_DEV_TAG_
 	PFN_POST_CLOCKSPEED_CHANGE		pfnPostClockSpeedChange;
 	PFN_FORCED_IDLE_REQUEST			pfnForcedIdleRequest;
 	PFN_FORCED_IDLE_CANCEL_REQUEST	pfnForcedIdleCancelRequest;
+	PFN_FORCED_IDLE_CANCEL_REQUEST_ASYNC	pfnForcedIdleCancelRequestAsync;
 	PFN_GPU_UNITS_POWER_CHANGE		pfnGPUUnitsPowerChange;
 	IMG_HANDLE						hSysData;
 	IMG_HANDLE						psDevNode;
@@ -104,6 +105,10 @@ struct _PVRSRV_POWER_DEV_TAG_
 #if defined(PVRSRV_ENABLE_PROCESS_STATS)
 	PVRSRV_POWER_STATS				sPowerStats;
 #endif
+	/* Counts number of device idle references that have been taken,
+	 * must be protected by power lock.
+	 */
+	IMG_INT32                       iIdleReqInFlight;
 };
 
 #if defined(PVRSRV_ENABLE_PROCESS_STATS)
@@ -706,6 +711,63 @@ PVRSRV_ERROR PVRSRVDeviceIdleCancelRequestKM(PPVRSRV_DEVICE_NODE psDeviceNode)
 	return PVRSRV_OK;
 }
 
+PVRSRV_ERROR PVRSRVDeviceIdleLatchedGetKM(PPVRSRV_DEVICE_NODE psDeviceNode)
+{
+	PVRSRV_POWER_DEV *psPowerDev = psDeviceNode->psPowerDev;
+	PVRSRV_ERROR eError;
+
+	eError = PVRSRVPowerLock(psDeviceNode);
+	PVR_LOG_RETURN_IF_ERROR(eError, "PVRSRVPowerLock");
+
+	if ((++psPowerDev->iIdleReqInFlight) > 1)
+	{
+		PVRSRVPowerUnlock(psDeviceNode);
+		return PVRSRV_OK;
+	}
+
+	eError = _PVRSRVDeviceIdleRequestKM(psDeviceNode,
+									  &PVRSRVDeviceIsDefaultStateOFF,
+									  IMG_TRUE,
+#if defined(DEBUG)
+									  PVRSRVPowerLock_Debug
+#else
+									  PVRSRVPowerLock
+#endif
+									  );
+	if (eError != PVRSRV_OK)
+	{
+		psPowerDev->iIdleReqInFlight--;
+	}
+
+	if (eError != PVRSRV_ERROR_PWLOCK_RELEASED_REACQ_FAILED)
+	{
+		PVRSRVPowerUnlock(psDeviceNode);
+	}
+
+	return eError;
+}
+
+PVRSRV_ERROR PVRSRVDeviceIdleLatchedPutAsyncKM(PPVRSRV_DEVICE_NODE psDeviceNode)
+{
+	PVRSRV_POWER_DEV *psPowerDev = psDeviceNode->psPowerDev;
+	PVRSRV_ERROR eError;
+
+	eError = PVRSRVPowerLock(psDeviceNode);
+	PVR_LOG_GOTO_IF_ERROR(eError, "PVRSRVPowerLock", ErrorOut);
+
+	if (psPowerDev &&
+	    (--psPowerDev->iIdleReqInFlight) == 0 &&
+	    psPowerDev->pfnForcedIdleCancelRequestAsync)
+	{
+		eError = psPowerDev->pfnForcedIdleCancelRequestAsync(psPowerDev->psDevNode);
+	}
+
+	PVRSRVPowerUnlock(psDeviceNode);
+
+ErrorOut:
+	return eError;
+}
+
 /*!
 ******************************************************************************
 
@@ -988,7 +1050,12 @@ PVRSRV_ERROR PVRSRVSetDeviceSystemPowerState(PPVRSRV_DEVICE_NODE psDeviceNode,
 	{
 		return PVRSRV_ERROR_INVALID_PARAMS;
 	}
-
+	if (psDeviceNode->eDevState < PVRSRV_DEVICE_STATE_ACTIVE)
+	{
+		/* Power device is not initialised. */
+		PVR_DPF((PVR_DBG_ERROR, "%s: Device not initialised", __func__));
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
 	/* Prevent simultaneous SetPowerStateKM calls */
 	_PVRSRVForcedPowerLock(psDeviceNode);
 	psPowerDevice = psDeviceNode->psPowerDev;
@@ -1137,7 +1204,8 @@ void PVRSRVSetPowerCallbacks(PPVRSRV_DEVICE_NODE				psDeviceNode,
 							 PFN_SYS_PRE_POWER					pfnSystemPrePower,
 							 PFN_SYS_POST_POWER					pfnSystemPostPower,
 							 PFN_FORCED_IDLE_REQUEST			pfnForcedIdleRequest,
-							 PFN_FORCED_IDLE_CANCEL_REQUEST	pfnForcedIdleCancelRequest)
+							 PFN_FORCED_IDLE_CANCEL_REQUEST	pfnForcedIdleCancelRequest,
+							 PFN_FORCED_IDLE_CANCEL_REQUEST_ASYNC pfnForcedIdleCancelRequestAsync)
 {
 	if (psPowerDevice != NULL)
 	{
@@ -1156,6 +1224,7 @@ void PVRSRVSetPowerCallbacks(PPVRSRV_DEVICE_NODE				psDeviceNode,
 		psPowerDevice->pfnDevicePostPower = pfnDevicePostPower;
 		psPowerDevice->pfnForcedIdleRequest = pfnForcedIdleRequest;
 		psPowerDevice->pfnForcedIdleCancelRequest = pfnForcedIdleCancelRequest;
+		psPowerDevice->pfnForcedIdleCancelRequestAsync = pfnForcedIdleCancelRequestAsync;
 	}
 }
 
@@ -1168,6 +1237,7 @@ PVRSRV_ERROR PVRSRVRegisterPowerDevice(PPVRSRV_DEVICE_NODE psDeviceNode,
 									   PFN_POST_CLOCKSPEED_CHANGE	pfnPostClockSpeedChange,
 									   PFN_FORCED_IDLE_REQUEST	pfnForcedIdleRequest,
 									   PFN_FORCED_IDLE_CANCEL_REQUEST	pfnForcedIdleCancelRequest,
+									   PFN_FORCED_IDLE_CANCEL_REQUEST_ASYNC pfnForcedIdleCancelRequestAsync,
 									   PFN_GPU_UNITS_POWER_CHANGE	pfnGPUUnitsPowerChange,
 									   IMG_HANDLE					psDevNode,
 									   PVRSRV_DEV_POWER_STATE		eCurrentPowerState,
@@ -1191,7 +1261,8 @@ PVRSRV_ERROR PVRSRVRegisterPowerDevice(PPVRSRV_DEVICE_NODE psDeviceNode,
 							pfnSystemPrePower,
 							pfnSystemPostPower,
 							pfnForcedIdleRequest,
-							pfnForcedIdleCancelRequest);
+							pfnForcedIdleCancelRequest,
+							pfnForcedIdleCancelRequestAsync);
 
 	psPowerDevice->pfnPreClockSpeedChange = pfnPreClockSpeedChange;
 	psPowerDevice->pfnPostClockSpeedChange = pfnPostClockSpeedChange;
@@ -1200,6 +1271,7 @@ PVRSRV_ERROR PVRSRVRegisterPowerDevice(PPVRSRV_DEVICE_NODE psDeviceNode,
 	psPowerDevice->psDevNode = psDevNode;
 	PVRSRVSetDeviceCurrentPowerState(psPowerDevice, eCurrentPowerState);
 	psPowerDevice->eDefaultPowerState = eDefaultPowerState;
+	psPowerDevice->iIdleReqInFlight = 0;
 
 #if defined(PVRSRV_ENABLE_PROCESS_STATS)
 	OSCachedMemSet(&psPowerDevice->sPowerStats, 0, sizeof(psPowerDevice->sPowerStats));

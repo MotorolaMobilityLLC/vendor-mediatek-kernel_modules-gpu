@@ -76,7 +76,7 @@ static PVRSRV_ERROR _PhysmemWrapExtMempsPMRPtrIntRelease(void *pvData)
 	return eError;
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgePhysmemWrapExtMem(IMG_UINT32 ui32DispatchTableEntry,
 			      IMG_UINT8 * psPhysmemWrapExtMemIN_UI8,
 			      IMG_UINT8 * psPhysmemWrapExtMemOUT_UI8,
@@ -131,7 +131,7 @@ PhysmemWrapExtMem_exit:
 		}
 	}
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_PHYSMEMWRAPEXTMEM, eError);
 }
 
 /* ***************************************************************************

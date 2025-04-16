@@ -50,6 +50,7 @@
 #include "services_kernel_client.h"
 #include "sync_checkpoint_external.h"
 #include "osfunc_common.h"
+#include "pvr_debug.h"
 
 #define CREATE_TRACE_POINTS
 #include "pvr_fence_trace.h"
@@ -61,6 +62,8 @@
 static struct kmem_cache *pvr_fence_cache;
 static DEFINE_MUTEX(pvr_fence_cache_mutex);
 static u32 pvr_fence_cache_refcount;
+
+static bool pvr_fence_is_foreign(struct pvr_fence *fence);
 
 #define PVR_DUMPDEBUG_LOG(pfnDumpDebugPrintf, pvDumpDebugFile, fmt, ...) \
 	do {                                                             \
@@ -210,6 +213,11 @@ pvr_fence_context_free_deferred(struct pvr_fence_context *fctx)
 				 &deferred_free_list,
 				 fence_head) {
 		list_del(&pvr_fence->fence_head);
+
+		if (pvr_fence_is_foreign(pvr_fence)) {
+			dma_fence_put(pvr_fence->fence);
+		}
+
 		SyncCheckpointFree(pvr_fence->sync_checkpoint);
 		call_rcu(&pvr_fence->rcu, pvr_fence_sched_free);
 		module_put(THIS_MODULE);
@@ -802,7 +810,6 @@ pvr_fence_foreign_release(struct dma_fence *fence)
 
 	if (pvr_fence) {
 		struct pvr_fence_context *fctx = pvr_fence->fctx;
-		struct dma_fence *foreign_fence = pvr_fence->fence;
 
 		PVR_FENCE_TRACE(&pvr_fence->base,
 				"released fence for foreign fence %llu#%d (%s)\n",
@@ -811,11 +818,11 @@ pvr_fence_foreign_release(struct dma_fence *fence)
 		trace_pvr_fence_foreign_release(pvr_fence);
 
 		spin_lock_irqsave(&fctx->list_lock, flags);
+		/* Move the fence to the deferred list where dma_fence_put will be
+		 * called on the foreign fence. */
 		list_move(&pvr_fence->fence_head,
 			  &fctx->deferred_free_list);
 		spin_unlock_irqrestore(&fctx->list_lock, flags);
-
-		dma_fence_put(foreign_fence);
 
 		kref_put(&fctx->kref,
 			 pvr_fence_context_destroy_kref);
@@ -831,6 +838,15 @@ const struct dma_fence_ops pvr_fence_foreign_ops = {
 	.wait = pvr_fence_foreign_wait,
 	.release = pvr_fence_foreign_release,
 };
+
+static inline bool pvr_fence_is_foreign(struct pvr_fence *fence)
+{
+	if (fence->base.ops == &pvr_fence_foreign_ops) {
+		return true;
+	}
+
+	return false;
+}
 
 static void
 pvr_fence_foreign_signal_sync(struct dma_fence *fence, struct dma_fence_cb *cb)
@@ -997,6 +1013,8 @@ pvr_fence_create_from_fence(struct pvr_fence_context *fctx,
 		dma_fence_put(&pvr_fence->base);
 	}
 
+	PVR_ASSERT(pvr_fence_is_foreign(pvr_fence) == true);
+
 	trace_pvr_fence_foreign_create(pvr_fence);
 
 	return pvr_fence;
@@ -1152,7 +1170,7 @@ u32 pvr_fence_dump_info_on_stalled_ufos(struct pvr_fence_context *fctx,
 
 			/* Dump sync info */
 			PVR_DUMPDEBUG_LOG(pfnDummy, NULL,
-					  "\tSyncID = %d, FWAddr = 0x%08x: TLID = %d (Foreign Fence - [%p] %s)",
+					  "\tSyncID = %d, FWAddr = 0x%08x: TLID = %d (Foreign Fence - ["IMG_KM_PTR_FMTSPEC"] %s)",
 					  SyncCheckpointGetId(checkpoint),
 					  fence_ufo_addr,
 					  SyncCheckpointGetTimeline(checkpoint),

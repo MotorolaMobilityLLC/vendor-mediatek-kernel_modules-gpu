@@ -4,6 +4,11 @@ ifneq ($(wildcard $(KO_CODE_PATH)/mt6768),)
         obj-m += mt6768/
 endif
 else
+ifneq (,$(filter $(CONFIG_MTK_GPU_MT6771_SUPPORT),y m))
+ifneq ($(wildcard $(KO_CODE_PATH)/mt6771),)
+        obj-m += mt6771/
+endif
+else
 ifneq (,$(filter $(CONFIG_MTK_GPU_MT6761_SUPPORT),y m))
 ifneq ($(wildcard $(KO_CODE_PATH)/mt6761),)
         obj-m += mt6761/
@@ -55,6 +60,7 @@ ifneq ($(wildcard $(KO_CODE_PATH)/mt6989),)
 endif
 ifneq ($(wildcard $(KO_CODE_PATH)/mt6991),)
         obj-m += mt6991/
+endif
 endif
 endif
 endif

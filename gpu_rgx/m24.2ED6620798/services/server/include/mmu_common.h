@@ -419,6 +419,13 @@ MMU_Free(MMU_CONTEXT *psMMUContext,
 @Input          uiLog2PageSize          Log2 page size of the pages to map
 
 @Return         PVRSRV_OK if the mapping was successful
+                PVRSRV_ERROR_RETRY if SUPPORT_LINUX_OSPAGE_MIGRATION is
+                enabled and migrate is in progress. Requests to MMU_MapPages
+                may return retry if the target PMR to map is
+                in migrate state. This is because in order for migrate
+                to complete higher locking primitives are required to give
+                way to the migrate path. Expect PVRSRV_ERROR_RETRY return
+                from this function if this give way is required.
 */
 /*****************************************************************************/
 PVRSRV_ERROR
@@ -505,7 +512,14 @@ MMUX_MapVRangeToBackingPage(MMU_CONTEXT *psMMUContext,
 
 @Input          uiMappingFlags          Memalloc flags for the mapping
 
-@Return         PVRSRV_OK if the PMR was successfully mapped
+@Return         PVRSRV_OK if the PMR was successfully mapped.
+                PVRSRV_ERROR_RETRY if SUPPORT_LINUX_OSPAGE_MIGRATION is
+                enabled and migrate is in progress. Requests to MMU_MapPages
+                may return retry if the target PMR to map is
+                in migrate state. This is because in order for migrate
+                to complete higher locking primitives are required to give
+                way to the migrate path. Expect PVRSRV_ERROR_RETRY return
+                from this function if this give way is required.
 */
 /*****************************************************************************/
 PVRSRV_ERROR
@@ -538,6 +552,37 @@ MMU_UnmapPMRFast(MMU_CONTEXT *psMMUContext,
                  IMG_DEV_VIRTADDR sDevVAddrBase,
                  IMG_UINT32 ui32PageCount,
                  IMG_UINT32 uiLog2PageSize);
+
+#if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
+/*************************************************************************/ /*!
+@Function       MMU_RemapPage
+
+@Description    Remap a single page from a PMR in place.
+
+@Input          psMMUContext            MMU context to operate on
+
+@Input          uiMappingFlags          Memalloc flags for the mapping
+
+@Input          sDevVAddr               Device virtual address of the page
+
+@Input          uiLog2HeapPageSize      log2 size of the page
+
+@Input          psOriginPMR             PMR to remap
+
+@Input          ui32LogicalPgOffset     Page offset into the PMR of the page
+                                        to remap.
+
+@Return         PVRSRV_OK if the PMR was successfully re-mapped
+*/
+/*****************************************************************************/
+PVRSRV_ERROR
+MMU_RemapPage(MMU_CONTEXT *psMMUContext,
+              PVRSRV_MEMALLOCFLAGS_T uiMappingFlags,
+              IMG_DEV_VIRTADDR sDevVAddr,
+              IMG_UINT32 uiLog2HeapPageSize,
+              PMR *psOriginPMR,
+              IMG_UINT32 ui32LogicalPgOffset);
+#endif
 
 /*************************************************************************/ /*!
 @Function       MMU_AcquireBaseAddr

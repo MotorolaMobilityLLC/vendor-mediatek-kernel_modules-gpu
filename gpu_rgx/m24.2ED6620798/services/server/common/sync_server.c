@@ -546,6 +546,12 @@ PVRSRVSyncRecordAddKM(CONNECTION_DATA *psConnection,
 
 	PVR_UNREFERENCED_PARAMETER(psConnection);
 
+	if (!(GetInfoPageDebugFlagsKM() & DEBUG_FEATURE_FULL_SYNC_TRACKING_ENABLED))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Full sync tracking debug feature not enabled!", __func__));
+		return PVRSRV_ERROR_NOT_SUPPORTED;
+	}
+
 	RGXSRV_HWPERF_ALLOC(psDevNode, SYNC,
 	                    ui32FwBlockAddr + ui32SyncOffset,
 	                    pszClassName,
@@ -615,6 +621,12 @@ PVRSRVSyncRecordRemoveByHandleKM(
 	struct SYNC_RECORD **ppFreedSync;
 	struct SYNC_RECORD *pSync = (struct SYNC_RECORD*)hRecord;
 	PVRSRV_DEVICE_NODE *psDevNode;
+
+	if (!(GetInfoPageDebugFlagsKM() & DEBUG_FEATURE_FULL_SYNC_TRACKING_ENABLED))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Full sync tracking debug feature not enabled!", __func__));
+		return PVRSRV_ERROR_NOT_SUPPORTED;
+	}
 
 	PVR_RETURN_IF_INVALID_PARAM(hRecord);
 

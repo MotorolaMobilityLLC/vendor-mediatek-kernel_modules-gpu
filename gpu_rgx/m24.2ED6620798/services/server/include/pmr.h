@@ -236,8 +236,12 @@ PVRSRV_ERROR
 PMRLockSysPhysAddresses(PMR *psPMR);
 
 PVRSRV_ERROR
+PMRLockSysPhysAddressesN(PMR *psPMR, IMG_UINT32 uiLockCount);
+
+PVRSRV_ERROR
 PMRLockSysPhysAddressesNested(PMR *psPMR,
-                        IMG_UINT32 ui32NestingLevel);
+                           IMG_UINT32 uiLockCount,
+                           IMG_UINT32 ui32NestingLevel);
 
 /*
  * PMRUnlockSysPhysAddresses()
@@ -248,7 +252,12 @@ PVRSRV_ERROR
 PMRUnlockSysPhysAddresses(PMR *psPMR);
 
 PVRSRV_ERROR
-PMRUnlockSysPhysAddressesNested(PMR *psPMR, IMG_UINT32 ui32NestingLevel);
+PMRUnlockSysPhysAddressesN(PMR *psPMR, IMG_UINT32 uiLockCount);
+
+PVRSRV_ERROR
+PMRUnlockSysPhysAddressesNested(PMR *psPMR,
+                             IMG_UINT32 uiLockCount,
+                             IMG_UINT32 ui32NestingLevel);
 
 /*
  * PhysmemPMRExport()
@@ -463,7 +472,7 @@ PMRMMapPMR(PMR *psPMR,
  *
  * Take a reference on the passed in PMR
  */
-void
+PVRSRV_ERROR
 PMRRefPMR(PMR *psPMR);
 
 /*
@@ -480,27 +489,27 @@ PVRSRV_ERROR
 PMRUnrefPMR(PMR *psPMR);
 
 /*
- * PMRRefPMR2()
+ * PMRRefPMRN()
  *
- * Take a reference on the passed in PMR.
+ * Take a reference N-times on the passed in PMR.
  *
  * This function does not perform address locking as opposed to PMRRefPMR().
  */
-void
-PMRRefPMR2(PMR *psPMR);
+PVRSRV_ERROR
+PMRRefPMRN(PMR *psPMR, IMG_UINT32 uiRefCount);
 
 /*
- * PMRUnrefPMR2()
+ * PMRUnrefPMRN()
  *
  * This undoes a call to any of the PhysmemNew* family of APIs
  * (i.e. any PMR factory "constructor").
  *
- * This relinquishes a reference to the PMR, and, where the refcount
+ * This relinquishes N references to the PMR, and, where the refcount
  * reaches 0, causes the PMR to be destroyed (calling the finalizer
  * callback on the PMR, if there is one)
  */
-void
-PMRUnrefPMR2(PMR *psPMR);
+PVRSRV_ERROR
+PMRUnrefPMRN(PMR *psPMR, IMG_UINT32 uiRefCount);
 
 #if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
 /*
@@ -515,65 +524,105 @@ PVRSRV_ERROR
 PMRTryRefPMR(PMR *psPMR);
 
 /*
- * PMRGpuMapDevPageCountIncr()
+ * PMRKernelCpuMapCountIncr()
  *
- * Increment count of the number of current device page GPU mappings of the PMR.
+ * Increment count of the number of current kernel CPU mappings of the PMR.
  */
 void
-PMRGpuMapDevPageCountIncr(PMR *psPMR, IMG_UINT32 uiCount);
+PMRKernelCpuMapCountIncr(PMR *psPMR);
 
 /*
- * PMRGpuMapDevPageCountDecr()
+ * PMRKernelCpuMapCountDecr()
  *
- * Decrement count of the number of current device page GPU mappings of the PMR.
+ * Decrement count of the number of current kernel CPU mappings of the PMR.
  */
 void
-PMRGpuMapDevPageCountDecr(PMR *psPMR, IMG_UINT32 uiCount);
+PMRKernelCpuMapCountDecr(PMR *psPMR);
 
 IMG_BOOL
-PMR_IsGpuMapped(PMR *psPMR);
-#else
-#define PMRGpuMapDevPageCountIncr(...)
-#define PMRGpuMapDevPageCountDecr(...)
+PMR_IsKernelCpuMapped(PMR *psPMR);
 #endif /* #if defined(SUPPORT_LINUX_OSPAGE_MIGRATION) */
 
 /*
- * PMRCpuMapCountIncr()
+ * PMRClientCpuMapCountIncr()
  *
- * Increment count of the number of current CPU mappings of the PMR.
+ * Increment count of the number of current client CPU mappings of the PMR.
  */
 void
-PMRCpuMapCountIncr(PMR *psPMR);
+PMRClientCpuMapCountIncr(PMR *psPMR);
 
 /*
- * PMRCpuMapCountDecr()
+ * PMRClientCpuMapCountDecr()
  *
- * Decrement count of the number of current CPU mappings of the PMR.
+ * Decrement count of the number of current client CPU mappings of the PMR.
  */
 void
-PMRCpuMapCountDecr(PMR *psPMR);
+PMRClientCpuMapCountDecr(PMR *psPMR);
 
 IMG_BOOL
-PMR_IsCpuMapped(PMR *psPMR);
+PMR_IsClientCpuMapped(PMR *psPMR);
+
 
 /*
- * PMRGpuResCountIncr()
+ * PMRLinkGPUMapping()
  *
- * Increment count of the number of current GPU reservations associated with the PMR.
+ * Link a GPU mapping with a PMR creating an association.
  * Must be protected by PMR lock.
  */
+#if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
 void
-PMRGpuResCountIncr(PMR *psPMR);
+PMRLinkGPUMapping(PMR *psPMR, DLLIST_NODE *psMappingNode);
+#else
+void
+PMRLinkGPUMapping(PMR *psPMR);
+#endif
 
 /*
- * PMRGpuResCountDecr()
+ * PMRUnlinkGPUMapping()
  *
- * Decrement count of the number of current GPU reservations associated with the PMR.
+ * Unlink a GPU mapping with a PMR destroying an association.
  * Must be protected by PMR lock.
+ */
+#if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
+void
+PMRUnlinkGPUMapping(PMR *psPMR, DLLIST_NODE *psMappingNode);
+#else
+void
+PMRUnlinkGPUMapping(PMR *psPMR);
+#endif
+
+#if defined(SUPPORT_LINUX_OSPAGE_MIGRATION)
+/*
+ * PMRNotifyMigrateInProgress()
  *
+ * Used to notify the PMR that the pages backing the PMR are
+ * in the process of migration.
  */
 void
-PMRGpuResCountDecr(PMR *psPMR);
+PMRNotifyMigrateInProgress(PMR *psPMR);
+
+/*
+ * PMRNotifyMigrateComplete()
+ *
+ * Used to notify the PMR that migration of backing
+ * pages has completed.
+ */
+void
+PMRNotifyMigrateComplete(PMR *psPMR);
+
+/*
+ * PMRRemapGPUPMR()
+ *
+ * Trigger Remap of a PMR page with each associated mapping.
+ * This is called for UMA page migration and will overwrite
+ * an existing page mapping with the new one at logical
+ * pg offset in the PMR.
+ * PVRSRV_ERROR_DEVICEMEM_REJECT_REMAP_REQUEST can be returned
+ * if remap is not possible for the given page offset.
+ */
+PVRSRV_ERROR
+PMRRemapGPUPMR(PMR *psPMR, IMG_UINT32 ui32LogicalPgOffset);
+#endif
 
 /*
  * PMR_IsGpuMultiMapped()
@@ -650,12 +699,15 @@ PMR_GetTypeStr(const PMR *psPMR);
 IMG_INT32
 PMR_GetRefCount(const PMR *psPMR);
 
+PVRSRV_ERROR
+PMR_IsExportable(const PMR *psPMR);
+
 /* PMR usage type for callers of PMR_DevPhysAddr() */
-typedef enum _PMR_USAGE_TYPE_
-{
-	CPU_USE = 0,
-	DEVICE_USE
-} PMR_USAGE_TYPE;
+typedef IMG_UINT32 PMR_PHYSADDRMODE_TYPE;
+
+#define CPU_USE BIT(0) /* CPU use, disable IPA policy */
+#define DEVICE_USE BIT(1) /* Device use, enable IPA policy */
+#define MAPPING_USE BIT(2) /* Mapping use, dev phys addrs obtained in a mapping path */
 
 /*
  * PMR_DevPhysAddr()
@@ -674,6 +726,16 @@ typedef enum _PMR_USAGE_TYPE_
  *
  * If caller only wants one physical address it is sufficient to pass in:
  * ui32Log2PageSize==0 and ui32NumOfPages==1
+ *
+ * Returns PVRSRV_OK if successful.
+ * PVRSRV_ERROR_RETRY if SUPPORT_LINUX_OSPAGE_MIGRATION is
+ * enabled and migrate is in progress. If we support page migration this
+ * call may return PVRSRV_ERROR_RETRY back to the requester. This is
+ * because the function is used to create device mappings and these mappings
+ * need to be synchronised across both reservations and PMRs. To do this we
+ * must take both locks in any mapping path. In order for migrate to complete,
+ * a UM requested Device mapping must temporarily back off the locks.
+ * Retry signifies this should happen.
  */
 PVRSRV_ERROR
 PMR_DevPhysAddr(const PMR *psPMR,
@@ -682,7 +744,7 @@ PMR_DevPhysAddr(const PMR *psPMR,
                 IMG_DEVMEM_OFFSET_T uiLogicalOffset,
                 IMG_DEV_PHYADDR *psDevAddr,
                 IMG_BOOL *pbValid,
-                PMR_USAGE_TYPE ePMRUsage);
+                PMR_PHYSADDRMODE_TYPE uiPMRUsage);
 
 /*
  * PMR_CpuPhysAddr()
@@ -700,7 +762,8 @@ PMR_CpuPhysAddr(const PMR *psPMR,
                 IMG_UINT32 ui32NumOfPages,
                 IMG_DEVMEM_OFFSET_T uiLogicalOffset,
                 IMG_CPU_PHYADDR *psCpuAddrPtr,
-                IMG_BOOL *pbValid);
+                IMG_BOOL *pbValid,
+                PMR_PHYSADDRMODE_TYPE uiPMRUsage);
 
 /* PMRGetUID()
  *
@@ -712,6 +775,14 @@ PMRGetUID(PMR *psPMR,
 
 IMG_UINT64
 PMRInternalGetUID(PMR *psPMR);
+
+#if defined(PVRSRV_ENABLE_GPU_MEMORY_INFO)
+/* PMRGetSerialNum()
+ *
+ * Used by procfs code to retrieve a PMR serial number
+ * */
+IMG_UINT64 PMRGetSerialNum(PMR *psPMR);
+#endif
 
 #if defined(SUPPORT_PMR_DEFERRED_FREE)
 /*
@@ -751,6 +822,10 @@ PMRQueueZombiesForCleanup(PPVRSRV_DEVICE_NODE psDevNode);
 void
 PMRReviveZombieAndRef(PMR *psPMR);
 #endif /* defined(SUPPORT_PMR_DEFERRED_FREE) */
+
+
+IMG_BOOL
+PMR_SetExclusiveUse(PMR *psPMR, IMG_BOOL bFlag);
 
 /*
  * PMR_ChangeSparseMemUnlocked()
@@ -1184,6 +1259,12 @@ PVRSRV_ERROR
 PMRStoreRIHandle(PMR *psPMR, void *hRIHandle);
 #endif
 
+#if defined(DEBUG)
+void PMRLockHeldAssert(const PMR *psPMR);
+#else
+#define PMRLockHeldAssert(x)
+#endif
+
 /*
  * PMRLockPMR()
  *
@@ -1191,7 +1272,7 @@ PMRStoreRIHandle(PMR *psPMR, void *hRIHandle);
  * Acquires the mutex on the passed in PMR.
  */
 void
-PMRLockPMR(PMR *psPMR);
+PMRLockPMR(const PMR *psPMR);
 
 /*
  * PMRUnlockPMR()
@@ -1200,7 +1281,7 @@ PMRLockPMR(PMR *psPMR);
  * Releases the per-PMR mutex.
  */
 void
-PMRUnlockPMR(PMR *psPMR);
+PMRUnlockPMR(const PMR *psPMR);
 
 #if defined(PVRSRV_INTERNAL_IPA_FEATURE_TESTING)
 PVRSRV_ERROR

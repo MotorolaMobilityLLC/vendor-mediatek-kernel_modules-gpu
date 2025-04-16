@@ -513,7 +513,10 @@ static inline void kbase_csf_scheduler_invoke_tick(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 	if (scheduler->apo_support) {
-		hrtimer_cancel(&scheduler->apo_idle_timer);
+		if (kbdev->csf.scheduler.keep_apo_timer)
+			kbdev->csf.scheduler.keep_apo_timer = false;
+		else
+			hrtimer_cancel(&scheduler->apo_idle_timer);
 
 		ged_get_predict_active_time();
 	}

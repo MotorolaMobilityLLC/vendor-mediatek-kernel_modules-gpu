@@ -69,6 +69,7 @@ typedef struct _PVRSRV_POWER_DEV_TAG_ *PPVRSRV_POWER_DEV;
 struct SYNC_RECORD;
 
 struct _CONNECTION_DATA_;
+struct _DEVMEMINT_CTX_;
 
 /*************************************************************************/ /*!
  @Function      AllocUFOBlockCallback
@@ -504,8 +505,17 @@ typedef struct _PVRSRV_DEVICE_NODE_
 	/* Functions for notification about memory contexts */
 	PVRSRV_ERROR			(*pfnRegisterMemoryContext)(struct _PVRSRV_DEVICE_NODE_	*psDeviceNode,
 														MMU_CONTEXT					*psMMUContext,
+														struct _DEVMEMINT_CTX_		*psDevMemCtx,
 														IMG_HANDLE					*hPrivData);
 	void					(*pfnUnregisterMemoryContext)(IMG_HANDLE hPrivData);
+	/* Callback for validating heap's protection flags. */
+	IMG_BOOL (*pfnValidateAddressPermissions)(struct _PVRSRV_DEVICE_NODE_ *psDevNode,
+	                                          MMU_CONTEXT *psMMUContext,
+	                                          IMG_DEV_VIRTADDR sVDevAddr,
+	                                          PVRSRV_MEMALLOCFLAGS_T uiFlags);
+
+	/* Functions for validation flags for exportable PMRs */
+	IMG_BOOL (*pfnValidateExportableFlags)(PVRSRV_MEMALLOCFLAGS_T uiFlags);
 
 	/* Functions for allocation/freeing of UFOs */
 	AllocUFOBlockCallback	pfnAllocUFOBlock;	/*!< Callback for allocation of a block of UFO memory */
