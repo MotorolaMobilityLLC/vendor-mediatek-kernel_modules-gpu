@@ -738,14 +738,6 @@ static enum hrtimer_restart apo_idle_timer_callback(struct hrtimer *timer)
 
 	return HRTIMER_NORESTART;
 }
-
-static bool mcu_db_is_disabled(struct kbase_device *kbdev)
-{
-	u32 db_notif_disabled = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_CONTROL)) &
-		MCU_CNTRL_DOORBELL_DISABLE_MASK;
-
-	return db_notif_disabled;
-}
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 
 static void release_doorbell(struct kbase_device *kbdev, int doorbell_nr)
@@ -943,33 +935,34 @@ void kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev)
 		 * but it'll eventually be blocked by the scheduler->interrupt_lock.
 		 */
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
-		/* Bypass enqueue */
-		if (!mcu_db_is_disabled(kbdev) &&
-			kbdev->csf.scheduler.apo_support &&
-			kbdev->csf.scheduler.state != SCHED_SLEEPING &&
-			ged_gpu_apo_notify()) {
+		if (kbdev->csf.scheduler.apo_support) {
+			/* Bypass enqueue */
+			if (kbdev->csf.scheduler.state != SCHED_SLEEPING &&
+				ged_gpu_apo_notify()) {
 #if IS_ENABLED(CONFIG_MALI_MTK_DISABLE_SOI)
-			kbase_pm_enable_db_mirror_interrupt(kbdev);
+				kbase_pm_enable_db_mirror_interrupt(kbdev);
 #endif
-			if (!ged_gpu_predict_apo_notify()) {
+				if (!ged_gpu_predict_apo_notify()) {
 #if IS_ENABLED(CONFIG_MALI_MTK_DISABLE_SOI)
-				kbase_pm_disable_db_mirror_interrupt(kbdev);
+					kbase_pm_disable_db_mirror_interrupt(kbdev);
 #endif
-				enqueue_gpu_idle_work(scheduler);
-			} else {
-				if (!hrtimer_active(&scheduler->apo_idle_timer)) {
-					expiry_time = HR_TIMER_DELAY_NSEC(
-						ged_get_apo_wakeup_ns());
-					hrtimer_start(&scheduler->apo_idle_timer,
-						expiry_time,
-						HRTIMER_MODE_REL);
+					enqueue_gpu_idle_work(scheduler);
+				} else {
+					if (!hrtimer_active(&scheduler->apo_idle_timer)) {
+						expiry_time = HR_TIMER_DELAY_NSEC(
+							ged_get_apo_wakeup_ns());
+						hrtimer_start(&scheduler->apo_idle_timer,
+							expiry_time,
+							HRTIMER_MODE_REL);
+					}
 				}
+			/* Handle enqueue */
+			} else {
+				ged_check_predict_power_autosuspend();
+				enqueue_gpu_idle_work(scheduler);
 			}
-		/* Handle enqueue */
-		} else {
-			ged_check_predict_power_autosuspend();
+		} else
 			enqueue_gpu_idle_work(scheduler);
-		}
 #else
 		enqueue_gpu_idle_work(scheduler);
 #endif
