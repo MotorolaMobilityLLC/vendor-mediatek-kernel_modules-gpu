@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 #
-# (C) COPYRIGHT 2023 ARM Limited. All rights reserved.
+# (C) COPYRIGHT 2023-2025 ARM Limited. All rights reserved.
 #
 # This program is free software and is provided to you under the terms of the
 # GNU General Public License version 2 as published by the Free Software
@@ -19,43 +19,112 @@
 #
 
 load(
-    "//build/kernel/kleaf:kernel.bzl",
-    "kernel_module",
+    "@kleaf//build/kernel/kleaf:kernel.bzl",
+    "ddk_headers",
+    "ddk_module",
+    "kernel_module_group",
+)
+load("//config:cflags.bzl", "CFLAGS_MODULE")
+
+package(
+    default_visibility = [
+        "//:__subpackages__",
+        "@kleaf//common:__pkg__",
+    ],
+)
+
+ddk_headers(
+    name = "mali_kernel_headers",
+    hdrs = [
+        "//:kernel_headers",
+        "@kleaf//common:all_headers",
+    ] + glob(["**/*.h"]),
+    includes = [
+        ".",
+        "sources",
+        "sources/ela",
+    ],
+)
+
+kernel_module_group(
+    name = "hwtracing_coresight",
+    srcs = [
+        ":coresight_mali_source_ela",
+        ":coresight_mali_source_etm",
+        ":coresight_mali_source_itm",
+    ],
 )
 
 filegroup(
     name = "hwtracing_coresight_kconfig",
-    srcs = glob([
-        "**/*Kconfig",
-    ]),
-    visibility = [
-        "//common:__pkg__",
-        "//common-modules/mali:__subpackages__",
+    srcs = ["Kconfig"],
+)
+
+filegroup(
+    name = "coresight_mali_defaults",
+    srcs = [
+        "coresight_mali_common.c",
+        "coresight_mali_common.h",
     ],
 )
 
-_hwtracing_coresight_modules = []
-
-kernel_module(
-    name = "hwtracing_coresight",
-    srcs = glob([
-        "**/*.c",
-        "**/*.h",
-        "**/*.S",
-        "**/*Kbuild",
-        "**/*Makefile",
-    ]) + [
-        "//common:kernel_headers",
-        "//common-modules/mali:headers",
-    ],
-    outs = _hwtracing_coresight_modules,
-    kernel_build = "//common:kernel_aarch64",
-    visibility = [
-        "//common:__pkg__",
-        "//common-modules/mali:__subpackages__",
-    ],
-    deps = [
-        "//common-modules/mali/drivers/base/arm:base",
-        "//common-modules/mali/drivers/gpu/arm:gpu",
+filegroup(
+    name = "coresight_mali_source_defaults",
+    srcs = [
+        "sources/coresight_mali_sources.c",
+        "sources/coresight_mali_sources.h",
     ],
 )
+
+ddk_module(
+    name = "coresight_mali_source_ela",
+    srcs = [
+        "sources/ela/coresight-ela600.h",
+        "sources/ela/coresight_mali_source_ela_core.c",
+        ":coresight_mali_defaults",
+        ":coresight_mali_source_defaults",
+    ],
+    out = "coresight_mali_source_ela.ko",
+    hdrs = [
+        ":mali_kernel_headers",
+    ],
+    copts = CFLAGS_MODULE,
+    kconfig = ":hwtracing_coresight_kconfig",
+    kernel_build = "@kleaf//common:kernel_aarch64",
+    deps = ["//drivers/gpu/arm/midgard:mali_kbase"],
+)
+
+ddk_module(
+    name = "coresight_mali_source_itm",
+    srcs = [
+        "sources/itm/coresight_mali_source_itm_core.c",
+        ":coresight_mali_defaults",
+        ":coresight_mali_source_defaults",
+    ],
+    out = "coresight_mali_source_itm.ko",
+    hdrs = [
+        ":mali_kernel_headers",
+    ],
+    copts = CFLAGS_MODULE,
+    kconfig = ":hwtracing_coresight_kconfig",
+    kernel_build = "@kleaf//common:kernel_aarch64",
+    deps = ["//drivers/gpu/arm/midgard:mali_kbase"],
+)
+
+ddk_module(
+    name = "coresight_mali_source_etm",
+    srcs = [
+        "sources/etm/coresight_mali_source_etm_core.c",
+        ":coresight_mali_defaults",
+        ":coresight_mali_source_defaults",
+    ],
+    out = "coresight_mali_source_etm.ko",
+    hdrs = [
+        ":mali_kernel_headers",
+    ],
+    copts = CFLAGS_MODULE,
+    kconfig = ":hwtracing_coresight_kconfig",
+    kernel_build = "@kleaf//common:kernel_aarch64",
+    deps = ["//drivers/gpu/arm/midgard:mali_kbase"],
+)
+

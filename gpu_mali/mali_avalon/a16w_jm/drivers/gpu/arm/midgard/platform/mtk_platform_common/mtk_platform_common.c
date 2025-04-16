@@ -18,7 +18,7 @@
 #include <ged_type.h>
 
 #if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
-#include <mt-plat/aee.h>
+#include <aee.h>
 #endif /* CONFIG_MTK_AEE_FEATURE */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)

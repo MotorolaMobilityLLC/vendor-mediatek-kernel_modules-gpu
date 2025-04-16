@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 #
-# (C) COPYRIGHT 2012-2024 ARM Limited. All rights reserved.
+# (C) COPYRIGHT 2012-2025 ARM Limited. All rights reserved.
 #
 # This program is free software and is provided to you under the terms of the
 # GNU General Public License version 2 as published by the Free Software
@@ -82,7 +82,7 @@ config MALI_IS_FPGA
 	  This is the default HW backend.
 
 menu "Platform specific options"
-source "$(MALI_KCONFIG_EXT_PREFIX)drivers/gpu/arm/midgard/platform/Kconfig"
+#source "$(MALI_KCONFIG_EXT_PREFIX)drivers/gpu/arm/midgard/platform/Kconfig"
 endmenu
 
 config MALI_CSF_SUPPORT
@@ -106,7 +106,8 @@ config MALI_DEVFREQ
 
 config MALI_MIDGARD_DVFS
 	bool "Enable legacy DVFS"
-	depends on MALI_MIDGARD && !MALI_DEVFREQ
+#	depends on MALI_MIDGARD && !MALI_DEVFREQ
+	depends on MALI_MIDGARD
 	default n
 	help
 	  Choose this option to enable legacy DVFS in the Mali Midgard DDK.
@@ -377,6 +378,6 @@ config MALI_TRACE_POWER_GPU_WORK_PERIOD
 	  If unsure, say N.
 
 
-source "$(MALI_KCONFIG_EXT_PREFIX)drivers/gpu/arm/midgard/tests/Kconfig"
+#source "$(MALI_KCONFIG_EXT_PREFIX)drivers/gpu/arm/midgard/tests/Kconfig"
 
 endif

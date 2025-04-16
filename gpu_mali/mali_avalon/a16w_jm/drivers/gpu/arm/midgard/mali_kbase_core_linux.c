@@ -155,7 +155,7 @@
 #include <platform/mtk_platform_common/mtk_platform_qinspect_recovery.h>
 #endif /* CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY */
 
-#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_BM_2)
 #include <gpu_bm.h>
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
 #include <sspm_reservedmem_define.h>
@@ -163,7 +163,7 @@ static phys_addr_t rec_phys_addr, rec_virt_addr;
 static unsigned long long rec_size;
 struct v1_data *gpu_info_ref;
 #endif /* CONFIG_MTK_TINYSYS_SSPM_SUPPORT */
-#endif /* CONFIG_MALI_MTK_GPU_BM_JM */
+#endif /* CONFIG_MALI_MTK_GPU_BM_2 */
 
 #if defined(CONFIG_MALI_MTK_GPU_BM_CSF)
 #include <ged_gpu_bm.h>
@@ -232,7 +232,7 @@ static const struct mali_kbase_capability_def kbase_caps_table[MALI_KBASE_NUM_CA
 static struct mutex kbase_probe_mutex;
 #endif
 
-#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_BM_2)
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
 static void get_rec_addr(void)
 {
@@ -281,7 +281,7 @@ static int mtk_bandwith_resource_init(struct kbase_device *kbdev)
 #endif /* CONFIG_MTK_TINYSYS_SSPM_SUPPORT */
 	return err;
 }
-#endif /* CONFIG_MALI_MTK_GPU_BM_JM */
+#endif /* CONFIG_MALI_MTK_GPU_BM_2 */
 
 /**
  * mali_kbase_supports_cap - Query whether a kbase capability is supported
@@ -7085,11 +7085,11 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 #endif
 	} else {
 
-#if defined(CONFIG_MALI_MTK_GPU_BM_JM)
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_BM_2)
 		err = mtk_bandwith_resource_init(kbdev);
 		if (err)
 			pr_info("@%s: GPU BM init failed (JM)\n", __func__);
-#endif /* CONFIG_MALI_MTK_GPU_BM_JM */
+#endif /* CONFIG_MALI_MTK_GPU_BM_2 */
 
 #if defined(CONFIG_MALI_MTK_GPU_BM_CSF)
 		err = mtk_bandwidth_resource_init();
