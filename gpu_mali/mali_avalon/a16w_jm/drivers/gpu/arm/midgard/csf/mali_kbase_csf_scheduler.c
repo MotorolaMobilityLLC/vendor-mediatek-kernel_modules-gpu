@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2018-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -4226,8 +4226,6 @@ static void scheduler_apply(struct kbase_device *kbdev)
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 	const u32 total_csg_slots = kbdev->csf.global_iface.group_num;
 	const u32 available_csg_slots = scheduler->num_csg_slots_for_tick;
-	u32 suspend_cnt = 0;
-	u32 remain_cnt = 0;
 	u32 resident_cnt = 0;
 	struct kbase_queue_group *group;
 	u32 i;
@@ -4242,9 +4240,7 @@ static void scheduler_apply(struct kbase_device *kbdev)
 			resident_cnt++;
 			if (group->prepared_seq_num >= available_csg_slots) {
 				suspend_queue_group(group);
-				suspend_cnt++;
-			} else
-				remain_cnt++;
+			}
 		}
 	}
 
