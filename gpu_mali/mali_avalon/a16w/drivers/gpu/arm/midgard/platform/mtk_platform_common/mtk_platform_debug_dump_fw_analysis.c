@@ -7,6 +7,7 @@
 #include <mali_kbase_defs.h>
 #include <csf/mali_kbase_csf_firmware_log.h>
 #include <csf/mali_kbase_csf_fw_io.h>
+#include <csf/mali_kbase_csf_trace_buffer.h>
 #include "backend/gpu/mali_kbase_pm_internal.h"
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include "mtk_platform_logbuffer.h"
@@ -117,6 +118,9 @@ void mtk_debug_dump_fw_analysis(struct kbase_device *kbdev)
 	/* Use the DDK native flow - GLB_DEBUG_RUN_MODE_TYPE_NOP for fw analysis dump */
 	uint32_t run_mode = GLB_DEBUG_REQ_RUN_MODE_SET(0, GLB_DEBUG_RUN_MODE_TYPE_NOP);
 	int ret = 0;
+	struct firmware_trace_buffer *tb =
+		kbase_csf_firmware_get_trace_buffer(kbdev, KBASE_CSFFW_LOG_BUF_NAME);
+	struct kbase_csf_firmware_log *fw_log = &kbdev->csf.fw_log;
 
 	/* Check if fw analysis dump enabled */
 	if (fw_analysis_dump_enable == 0)
@@ -150,10 +154,10 @@ void mtk_debug_dump_fw_analysis(struct kbase_device *kbdev)
 
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
 
-	/* Wait finish of CSFFW process nop metadata dump */
+	/* Wait finish of CSFFW process fw analysis dump */
 	ret = wait_for_global_request(fw_io, GLB_REQ_DEBUG_CSF_REQ_MASK);
 	if (!ret) {
-		/* Check if CSFFW process nop metadata dump complete */
+		/* Check if CSFFW process fw analysis dump complete */
 		if (global_debug_request_complete(fw_io, GLB_DEBUG_REQ_DEBUG_RUN_MASK)) {
 			dev_info(kbdev->dev, "FW analysis dump complete!");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
@@ -171,8 +175,22 @@ void mtk_debug_dump_fw_analysis(struct kbase_device *kbdev)
 
 	mutex_unlock(&kbdev->csf.reg_lock);
 
-	/* Dump fw log with nop metadata */
+	/* Dump fw log with fw analysis */
 	kbase_csf_firmware_log_dump_buffer(kbdev);
+
+	/* Only discard the trace buffer when fw debug mask is not enabled.
+	 * To prevent having impact when the fw dump locally.
+	 */
+	if (tb != NULL) {
+		if (kbase_csf_firmware_trace_buffer_get_active_mask64(tb) == 0) {
+			if (atomic_cmpxchg(&fw_log->busy, 0, 1) != 0)
+				return;
+
+			kbase_csf_firmware_trace_buffer_discard_all(tb);
+
+			atomic_set(&fw_log->busy, 0);
+		}
+	}
 }
 
 static void mtk_fw_analysis_dump_worker(struct work_struct *const data)
