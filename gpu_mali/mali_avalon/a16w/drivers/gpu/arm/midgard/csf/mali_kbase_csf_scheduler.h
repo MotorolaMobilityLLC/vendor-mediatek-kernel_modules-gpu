@@ -742,20 +742,6 @@ void kbase_csf_scheduler_force_wakeup(struct kbase_device *kbdev);
 void kbase_csf_scheduler_force_sleep(struct kbase_device *kbdev);
 
 /**
- * kbase_csf_scheduler_revert_all_csg_suspension_preparation() - Revert the maintenance steps
- *                                                               done before suspending all CSGs.
- *
- * @kbdev: Pointer to the device
- *
- * This function should be called if suspension of all CSGs must be aborted
- * after calling prepare_all_csg_suspension(). This requirement does not apply
- * in case of suspension failure, because the driver would trigger a GPU reset.
- *
- * Return: 0 on success, otherwise error.
- */
-int kbase_csf_scheduler_revert_all_csg_suspension_preparation(struct kbase_device *kbdev);
-
-/**
  * kbase_csf_scheduler_check_gls_success() - Save CSG slots state after suspend
  *
  * @kbdev: Pointer to the device

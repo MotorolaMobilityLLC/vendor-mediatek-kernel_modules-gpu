@@ -948,18 +948,9 @@ int kbase_pm_force_mcu_wakeup_after_sleep(struct kbase_device *kbdev)
 	return kbase_pm_wait_for_desired_state(kbdev);
 }
 
-/**
- * pm_handle_mcu_sleep_on_runtime_suspend() - Handle RT suspend when the MCU
- *                                            SM is in IN_SLEEP state
- *
- * @kbdev: The KBase device
- * @wake_up_sched: Whether the scheduler should be woken up after a successful
- *                 suspension
- */
 static int pm_handle_mcu_sleep_on_runtime_suspend(struct kbase_device *kbdev, bool *wake_up_sched)
 {
 	unsigned long flags;
-	bool suspension_aborted = false;
 	int ret;
 
 	lockdep_assert_held(&kbdev->csf.scheduler.lock);
@@ -1016,10 +1007,6 @@ static int pm_handle_mcu_sleep_on_runtime_suspend(struct kbase_device *kbdev, bo
 	if (kbdev->pm.active_count || kbdev->pm.backend.poweroff_wait_in_progress) {
 		dev_dbg(kbdev->dev,
 			"Device became active on runtime suspend after suspending Scheduler");
-		suspension_aborted = true;
-		if (is_gpu_level_suspend_supported(kbdev))
-			kbase_csf_scheduler_revert_all_csg_suspension_preparation(kbdev);
-
 		ret = -EBUSY;
 	}
 
@@ -1029,13 +1016,13 @@ static int pm_handle_mcu_sleep_on_runtime_suspend(struct kbase_device *kbdev, bo
 			dev_warn(kbdev->dev, "Wait for power down failed on runtime suspend");
 	}
 
-	/* CSG slots' state must be checked and saved if we have attempted to
-	 * power down. There are several possibilities:
+	/* CSG slots' state must be checked and saved regardless of whether
+	 * the device has become active since. There are several possibilities:
 	 * 1. GPU suspended successfully, scheduler doesn't need resuming.
 	 * 2. GPU suspended successfully, scheduler needs to resume.
 	 * 3. GPU failed to suspend i.e., not all slots suspended successfully:
 	 *    we trigger GPU reset. */
-	if (is_gpu_level_suspend_supported(kbdev) && likely(!suspension_aborted))
+	if (is_gpu_level_suspend_supported(kbdev))
 		if (!kbase_csf_scheduler_check_gls_success(kbdev)) {
 
 			/* The suspend of CSGs failed,
@@ -1046,46 +1033,6 @@ static int pm_handle_mcu_sleep_on_runtime_suspend(struct kbase_device *kbdev, bo
 
 			ret = -EBUSY;
 		}
-
-	if (!ret)
-		*wake_up_sched = kbase_csf_scheduler_finalize_gpu_suspend(kbdev);
-
-	return ret;
-}
-
-/**
- * pm_handle_mcu_off_on_runtime_suspend() - Handle RT suspend when the MCU SM
- *                                          is in OFF state
- *
- * @kbdev: The KBase device
- * @wake_up_sched: Whether the scheduler should be woken up after a successful
- *                 suspension
- */
-static int pm_handle_mcu_off_on_runtime_suspend(struct kbase_device *kbdev, bool *wake_up_sched)
-{
-	int ret = 0;
-
-	lockdep_assert_held(&kbdev->csf.scheduler.lock);
-	lockdep_assert_held(&kbdev->pm.lock);
-
-	if (!is_gpu_level_suspend_supported(kbdev))
-		return 0;
-
-	ret = kbase_csf_scheduler_handle_runtime_suspend(kbdev);
-
-	/* If GPU-level suspension is supported then all CSGs must have been
-	 * suspended automatically when the MCU becomes halted. We'd need to
-	 * check and clean up the CSG slots now.
-	 */
-	if (!kbase_csf_scheduler_check_gls_success(kbdev)) {
-		/* The suspend of CSGs failed,
-		 * trigger the GPU reset to be in a deterministic state.
-		 */
-		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
-			kbase_reset_gpu(kbdev);
-
-		ret = -EBUSY;
-	}
 
 	if (!ret)
 		*wake_up_sched = kbase_csf_scheduler_finalize_gpu_suspend(kbdev);
@@ -1184,18 +1131,11 @@ int kbase_pm_handle_runtime_suspend(struct kbase_device *kbdev)
 	}
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
-	switch (mcu_state) {
-	case KBASE_MCU_OFF:
-		ret = pm_handle_mcu_off_on_runtime_suspend(kbdev, &wake_up_sched);
-		break;
-	case KBASE_MCU_IN_SLEEP:
+	if (mcu_state == KBASE_MCU_IN_SLEEP) {
 		ret = pm_handle_mcu_sleep_on_runtime_suspend(kbdev, &wake_up_sched);
-		break;
-	default:
-		break;
+		if (ret)
+			goto unlock;
 	}
-	if (ret)
-		goto unlock;
 
 	/* Disable interrupts and turn off the GPU clocks */
 	if (!kbase_pm_clock_off(kbdev)) {
