@@ -25,6 +25,7 @@ struct kbase_device *kbdev;
 
 static DEFINE_MUTEX(gpu_pmu_info_lock);
 static void MTK_LTR_gpu_pmu_kbase_setup(int flag, unsigned int interval_ns) {
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 	union kbase_ioctl_kinstr_prfcnt_setup setup;
 
 	int ret;
@@ -40,6 +41,9 @@ static void MTK_LTR_gpu_pmu_kbase_setup(int flag, unsigned int interval_ns) {
 	ret = MTK_kbase_vinstr_hwcnt_reader_setup(kbdev->kinstr_prfcnt_ctx, &setup);
 	//1ms = 1000000ns
 	MTK_kbasep_vinstr_hwcnt_set_interval(interval_ns);
+#else
+	return;
+#endif /* CONFIG_MALI_MTK_GPU_PMU */
 }
 
 
@@ -49,6 +53,7 @@ void MTK_LTR_gpu_pmu_start(unsigned int interval_ns) {
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_LOW_POWER)
 	return;
 #else
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 	int pm_tool = MTK_get_mtk_pm();
 	mutex_lock(&gpu_pmu_info_lock);
 	if (pm_tool == pm_swpm) {
@@ -65,12 +70,16 @@ void MTK_LTR_gpu_pmu_start(unsigned int interval_ns) {
 		init_flag = gpm_kernel_side;
 
 	mutex_unlock(&gpu_pmu_info_lock);
+#else
+	return;
+#endif /* CONFIG_MALI_MTK_GPU_PMU */
 #endif
 
 }
 EXPORT_SYMBOL(MTK_LTR_gpu_pmu_start);
 
 void MTK_LTR_gpu_pmu_start_swpm(unsigned int interval_ns){
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 	int pm_tool = MTK_get_mtk_pm();
 	mutex_lock(&gpu_pmu_info_lock);
 	//Get the first device - it doesn't matter in this case
@@ -95,6 +104,9 @@ void MTK_LTR_gpu_pmu_start_swpm(unsigned int interval_ns){
 	gpu_send_enable_ipi(GPU_PM_SWITCH, 0);
 	init_flag = gpm_kernel_side;
 	mutex_unlock(&gpu_pmu_info_lock);
+#else
+	return;
+#endif /* CONFIG_MALI_MTK_GPU_PMU */
 }
 EXPORT_SYMBOL(MTK_LTR_gpu_pmu_start_swpm);
 
@@ -103,6 +115,7 @@ void MTK_LTR_gpu_pmu_stop(void){
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_LOW_POWER)
 	return;
 #else
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 	mutex_lock(&gpu_pmu_info_lock);
 	if (init_flag != gpm_off) {
 		if (init_flag == gpm_sspm_side) {
@@ -115,6 +128,9 @@ void MTK_LTR_gpu_pmu_stop(void){
 		init_flag = gpm_off;
 	}
 	mutex_unlock(&gpu_pmu_info_lock);
+#else
+	return;
+#endif /* CONFIG_MALI_MTK_GPU_PMU */
 #endif
 
 }
@@ -137,6 +153,7 @@ void MTK_LTR_gpu_pmu_resume(void){
 EXPORT_SYMBOL(MTK_LTR_gpu_pmu_resume);
 
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 int MTK_LTR_gpu_pmu_init(void) {
 	mtk_ltr_gpu_pmu_start_fp = MTK_LTR_gpu_pmu_start;
 	mtk_ltr_gpu_pmu_stop_fp = MTK_LTR_gpu_pmu_stop;
@@ -148,3 +165,4 @@ void MTK_LTR_gpu_pmu_destroy(void) {
 	mtk_ltr_gpu_pmu_start_fp = NULL;
 	mtk_ltr_gpu_pmu_stop_fp = NULL;
 }
+#endif /* CONFIG_MALI_MTK_GPU_PMU */

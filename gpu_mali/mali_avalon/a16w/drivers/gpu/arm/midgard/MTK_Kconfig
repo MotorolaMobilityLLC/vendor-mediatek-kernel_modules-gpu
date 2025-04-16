@@ -152,6 +152,10 @@ config MALI_PMU_CPB128
 	bool ""
 	default n
 
+config MALI_MTK_GPU_PMU
+	bool ""
+	default n
+
 config MALI_MTK_MGMM
 	bool ""
 	default n

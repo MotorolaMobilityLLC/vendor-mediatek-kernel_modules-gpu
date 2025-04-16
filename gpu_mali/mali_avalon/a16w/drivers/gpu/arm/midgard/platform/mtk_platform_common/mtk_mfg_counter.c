@@ -10,9 +10,9 @@
 #include <mali_kbase_gator_api.h>
 #include <linux/string.h>
 #include <linux/math64.h>
-#if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 #include <mali_kbase_kinstr_prfcnt.h>
-#endif
+#endif /* CONFIG_MALI_MTK_GPU_PMU */
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/uaccess.h>
@@ -594,10 +594,10 @@ static int mali_get_gpu_pmu_init(struct GPU_PMU *pmus, int pmu_size, int *ret_si
 		int nr_hwc_blocks, name_offset, data_offset;
 
 		spin_lock(&counter_info_lock);
-#if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 		if (MTK_get_mtk_pm() != pm_non)
 			MTK_kbasep_vinstr_hwcnt_set_interval(0);
-#endif
+#endif /* CONFIG_MALI_MTK_GPU_PMU */
 		cnt = block_type = 0;
 		nr_hwc_blocks = info.nr_hwc_blocks;
 		for (i = 0; i < nr_hwc_blocks; i++) {
@@ -701,12 +701,12 @@ int mali_get_gpu_pmu_deinit(void)
 	kfree(mali_pmus);
 	binited = 0;
 	mfg_is_power_on = 0;
-#if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 	if (MTK_get_mtk_pm() == pm_ltr)
 		MTK_kbasep_vinstr_hwcnt_set_interval(8000000);
 	else if (MTK_get_mtk_pm() == pm_swpm)
 		MTK_kbasep_vinstr_hwcnt_set_interval(1000000);
-#endif
+#endif /* CONFIG_MALI_MTK_GPU_PMU */
 	spin_unlock(&counter_info_lock);
 
 	return PMU_OK;
