@@ -44,7 +44,9 @@
 #include <uapi/linux/eventpoll.h>
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 #include <platform/mtk_mfg_counter.h>
+#endif /* CONFIG_MALI_MTK_GPU_PMU */
 #ifdef CONFIG_MTK_PERF_TRACKER
 #include <perf_tracker.h>
 #endif
@@ -61,6 +63,7 @@
 /* The maximum allowed buffers per client */
 #define MAX_BUFFER_COUNT 32
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 #define PRINT_BUFFER_SIZE 1024
 
 #define NS_PER_SEC (1E9)
@@ -68,6 +71,7 @@
 #define KINSTR_PRFCNT_PERIOD_NS (100 * NSEC_PER_MSEC) /* 100 ms */
 #define HWCNT_READER_API PRFCNT_READER_API_VERSION
 #define POLL_TIMEOUT_MS (1000) /* 1 s */
+#endif /* CONFIG_MALI_MTK_GPU_PMU */
 
 /**
  * struct kbase_kinstr_prfcnt_context - IOCTL interface for userspace hardware
@@ -280,6 +284,7 @@ static __poll_t kbasep_kinstr_prfcnt_hwcnt_reader_poll(struct file *filp,
 }
 
 /* MTK GPU PMU */
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 u64 *kernel_dump;
 //check the mtk tool using now
 int mtk_pm_tool = pm_non;
@@ -290,7 +295,7 @@ static struct kbase_kinstr_prfcnt_client *mtk_cli = NULL;
 struct mtk_gpu_perf{
 	uint64_t counter[VINSTR_PERF_COUNTER_LAST];
 };
-
+#endif /* CONFIG_MALI_MTK_GPU_PMU */
 /**
  * kbasep_kinstr_prfcnt_next_dump_time_ns() - Calculate the next periodic
  *                                            dump time.
@@ -677,7 +682,9 @@ static int kbasep_kinstr_prfcnt_client_dump(struct kbase_kinstr_prfcnt_client *c
 	int read_idx;
 	size_t available_samples_count;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 	struct kbase_hwcnt_dump_buffer *tmp_buf;
+#endif /* CONFIG_MALI_MTK_GPU_PMU */
 
 	WARN_ON(!cli);
 	lockdep_assert_held(&cli->kinstr_ctx->lock);
@@ -693,6 +700,8 @@ static int kbasep_kinstr_prfcnt_client_dump(struct kbase_kinstr_prfcnt_client *c
 	WARN_ON(available_samples_count < 1);
 	/* Reserve one slot to store the implicit sample taken on CMD_STOP */
 	available_samples_count -= 1;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 	if ((size_t)(write_idx - read_idx) == available_samples_count && mtk_pm_tool!=pm_ltr) {
 		/* For periodic sampling, the current active dump
 		 * will be accumulated in the next sample, when
@@ -702,6 +711,17 @@ static int kbasep_kinstr_prfcnt_client_dump(struct kbase_kinstr_prfcnt_client *c
 			cli->sample_flags |= SAMPLE_FLAG_OVERFLOW;
 		return -EBUSY;
 	}
+#else
+	if ((size_t)(write_idx - read_idx) == available_samples_count) {
+		/* For periodic sampling, the current active dump
+		 * will be accumulated in the next sample, when
+		 * a buffer becomes available.
+		 */
+		if (event_id == BASE_HWCNT_READER_EVENT_PERIODIC)
+			cli->sample_flags |= SAMPLE_FLAG_OVERFLOW;
+		return -EBUSY;
+	}
+#endif /* CONFIG_MALI_MTK_GPU_PMU */
 
 	/* For the rest of the function, use the actual sample_count
 	 * that represents the real size of the array.
@@ -709,6 +729,7 @@ static int kbasep_kinstr_prfcnt_client_dump(struct kbase_kinstr_prfcnt_client *c
 	write_idx %= cli->sample_arr.sample_count;
 
 	/* MTK GPU PMU */
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 	if (ds5_used) {
 		/* Check if there is a place to copy HWC block into. */
 		if (write_idx - read_idx == cli->sample_arr.sample_count) {
@@ -719,6 +740,7 @@ static int kbasep_kinstr_prfcnt_client_dump(struct kbase_kinstr_prfcnt_client *c
 	} else {
 		tmp_buf = &cli->tmp_buf;
 	}
+#endif /* CONFIG_MALI_MTK_GPU_PMU */
 
 	ret = kbase_hwcnt_virtualizer_client_dump(cli->hvcli, &ts_start_ns, &ts_end_ns,
 						  &cli->tmp_buf);
@@ -727,10 +749,12 @@ static int kbasep_kinstr_prfcnt_client_dump(struct kbase_kinstr_prfcnt_client *c
 		cli->sample_flags |= SAMPLE_FLAG_ERROR;
 
 	/* MTK GPU PMU */
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 	if (mtk_pm_tool == pm_ltr && ds5_used == 0) {
 		kernel_dump = tmp_buf->dump_buf;
 		MTK_update_gpu_LTR();
 	}
+#endif /* CONFIG_MALI_MTK_GPU_PMU */
 
 	/* Make the sample ready and copy it to the userspace mapped buffer */
 	kbasep_kinstr_prfcnt_client_output_sample(cli, write_idx, user_data, ts_start_ns,
@@ -1063,6 +1087,7 @@ error_out:
 	return err;
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 /**
  * kbasep_vinstr_hwcnt_reader_ioctl_set_interval() - Set interval ioctl command.
  * @cli:      Non-NULL pointer to vinstr client.
@@ -1095,8 +1120,7 @@ static long kbasep_kinstr_hwcnt_reader_ioctl_set_interval(
 
 	return 0;
 }
-
-
+#endif /* CONFIG_MALI_MTK_GPU_PMU */
 
 /**
  * kbasep_kinstr_prfcnt_hwcnt_reader_ioctl() - hwcnt reader's ioctl.
@@ -1130,10 +1154,12 @@ static long kbasep_kinstr_prfcnt_hwcnt_reader_ioctl(struct file *filp, unsigned 
 		if (err)
 			return -EFAULT;
 		rcode = kbasep_kinstr_prfcnt_cmd(cli, &control_cmd);
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 		if (mtk_pm_tool != pm_non) {
 			MTK_kbasep_vinstr_hwcnt_set_interval(0);
 			ds5_used = 1;
 		}
+#endif /* CONFIG_MALI_MTK_GPU_PMU */
 	} break;
 	case _IOC_NR(KBASE_IOCTL_KINSTR_PRFCNT_GET_SAMPLE): {
 		struct prfcnt_sample_access sample_access;
@@ -1157,17 +1183,6 @@ static long kbasep_kinstr_prfcnt_hwcnt_reader_ioctl(struct file *filp, unsigned 
 		if (err)
 			return -EFAULT;
 		rcode = kbasep_kinstr_prfcnt_put_sample(cli, &sample_access);
-	} break;
-	case _IOC_NR(KBASE_HWCNT_READER_SET_INTERVAL): {
-		rcode = kbasep_kinstr_hwcnt_reader_ioctl_set_interval(
-			cli, (u32)arg);
-		if ((u32)arg == 0 && mtk_pm_tool != pm_non) {
-			ds5_used = 0;
-			if (mtk_pm_tool == pm_ltr)
-				MTK_kbasep_vinstr_hwcnt_set_interval(8000000);
-			else if (mtk_pm_tool == pm_swpm)
-				MTK_kbasep_vinstr_hwcnt_set_interval(1000000);
-                }
 	} break;
 	default:
 		rcode = -EINVAL;
@@ -1262,6 +1277,7 @@ static int kbasep_kinstr_prfcnt_hwcnt_reader_release(struct inode *inode, struct
 	struct kbase_kinstr_prfcnt_client *cli = filp->private_data;
 
 	CSTD_UNUSED(inode);
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 	if (ds5_used) {
 		mutex_lock(&cli->kinstr_ctx->lock);
 
@@ -1274,7 +1290,7 @@ static int kbasep_kinstr_prfcnt_hwcnt_reader_release(struct inode *inode, struct
 
 		kbasep_kinstr_prfcnt_client_destroy(cli);
 	}
-
+#endif /* CONFIG_MALI_MTK_GPU_PMU */
 	return 0;
 }
 
@@ -1931,6 +1947,7 @@ int kbasep_kinstr_prfcnt_client_create(struct kbase_kinstr_prfcnt_context *kinst
 		case KINSTR_PRFCNT_DUMP_BUFFER:
 			kbase_hwcnt_gpu_enable_map_from_cm(&cli->enable_map,
 							   &cli->config.enable_cm);
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 			if(mtk_pm_tool==pm_ltr) {
 				cli->config.enable_cm.fe_bm[0] = 0xFFFFFFFFFFFFFFFF;
 				cli->config.enable_cm.fe_bm[1] = 0xFFFFFFFFFFFFFFFF;
@@ -1941,6 +1958,7 @@ int kbasep_kinstr_prfcnt_client_create(struct kbase_kinstr_prfcnt_context *kinst
 				cli->config.enable_cm.mmu_l2_bm[0] = 0xFFFFFFFFFFFFFFFF;
 				cli->config.enable_cm.mmu_l2_bm[1] = 0xFFFFFFFFFFFFFFFF;
 			}
+#endif /* CONFIG_MALI_MTK_GPU_PMU */
 			cli->sample_count = cli->config.buffer_count;
 			cli->sample_size =
 				kbasep_kinstr_prfcnt_get_sample_size(cli, kinstr_ctx->metadata);
@@ -2301,6 +2319,7 @@ free_buf:
 	return err;
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 void kbasep_vinstr_dump_worker(struct work_struct *work)
 {
 	return;
@@ -2494,9 +2513,10 @@ void MTK_update_gpu_LTR(void)
 		}
 	}
 
-#if IS_ENABLED(CONFIG_MTK_PERF_TRACKER) && IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT) // for legacy project only 
+#if IS_ENABLED(CONFIG_MTK_PERF_TRACKER) && IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT) // for legacy project only
 	//format_gpu_data(sbin_data_print, sizeof(sbin_data_print), gpu_perf_counter.counter, VINSTR_PERF_COUNTER_LAST);
 	//trace_perf_index_sbin(sbin_data_print, VINSTR_PERF_COUNTER_LAST, sbin_data_ctl);
 	trace_perf_index_gpu(gpu_perf_counter.counter, VINSTR_PERF_COUNTER_LAST);
 #endif
 }
+#endif /* CONFIG_MALI_MTK_GPU_PMU */

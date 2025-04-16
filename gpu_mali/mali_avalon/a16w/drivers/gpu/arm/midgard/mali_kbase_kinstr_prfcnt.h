@@ -36,12 +36,14 @@ struct kbase_ioctl_hwcnt_reader_setup;
 struct kbase_ioctl_kinstr_prfcnt_enum_info;
 union kbase_ioctl_kinstr_prfcnt_setup;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 typedef enum {
 	pm_non,
 	pm_ltr,
 	pm_swpm,
 	pm_met
 } mtk_pm_tool_used;
+#endif /* CONFIG_MALI_MTK_GPU_PMU */
 
 /**
  * kbase_kinstr_prfcnt_init() - Initialize a kinstr_prfcnt context.
@@ -207,6 +209,7 @@ int kbasep_kinstr_populate_prfcnt_enum_list(const struct kbase_hwcnt_metadata *m
 					    struct prfcnt_enum_item *item_array, size_t array_size);
 
 /* MTK GPU PMU */
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_PMU)
 int MTK_kbase_vinstr_hwcnt_reader_setup(
 	struct kbase_kinstr_prfcnt_context *kinstr_ctx,
 	union kbase_ioctl_kinstr_prfcnt_setup *setup);
@@ -215,6 +218,7 @@ int MTK_get_mtk_pm(void);
 void MTK_kbasep_vinstr_hwcnt_set_interval(unsigned int interval);
 void MTK_kbasep_vinstr_hwcnt_release(void);
 void MTK_update_gpu_LTR(void);
+#endif /* CONFIG_MALI_MTK_GPU_PMU */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_HWCNT_HINT)
 void hwcnt_hint(bool is_init);
