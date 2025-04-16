@@ -6590,14 +6590,8 @@ bool kbase_csf_scheduler_finalize_gpu_suspend(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
 
-	if (is_gpu_level_suspend_supported(kbdev)) {
-		/* Only transition to SCHED_SUSPENDED with GLS because
-		 * scheduler would have transitioned to this state already if
-		 * all CSGs were suspended successfully.
-		 */
-		scheduler->state = SCHED_SUSPENDED;
-		KBASE_KTRACE_ADD(kbdev, SCHED_SUSPENDED, NULL, scheduler->state);
-	}
+	scheduler->state = SCHED_SUSPENDED;
+	KBASE_KTRACE_ADD(kbdev, SCHED_SUSPENDED, NULL, scheduler->state);
 
 	wake_up_all(&kbdev->csf.event_wait);
 
@@ -8720,10 +8714,6 @@ int kbase_csf_scheduler_handle_runtime_suspend(struct kbase_device *kbdev)
 		return ret;
 	}
 
-	if (!is_gpu_level_suspend_supported(kbdev)) {
-		scheduler->state = SCHED_SUSPENDED;
-		KBASE_KTRACE_ADD(kbdev, SCHED_SUSPENDED, NULL, scheduler->state);
-	}
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
 	hrtimer_cancel(&scheduler->gpu_metrics_timer);
 #endif
