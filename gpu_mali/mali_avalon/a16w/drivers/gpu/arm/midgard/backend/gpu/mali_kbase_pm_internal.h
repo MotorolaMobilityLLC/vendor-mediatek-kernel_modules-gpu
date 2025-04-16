@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -35,6 +35,19 @@
 #include <ged_dvfs.h>
 extern bool shall_scheduler_sleep;
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
+
+/**
+ * enum mask_type - used to determine which mask is being updated
+ *
+ * @SYSFS_COREMASK: core mask requested via sysfs
+ * @DEVFREQ_COREMASK: core mask requested via devfreq
+ */
+enum mask_type {
+	SYSFS_COREMASK,
+#ifdef CONFIG_MALI_DEVFREQ
+	DEVFREQ_COREMASK
+#endif
+};
 
 /**
  * kbase_pm_dev_idle - The GPU is idle.
@@ -625,6 +638,51 @@ void kbase_pm_cache_snoop_enable(struct kbase_device *kbdev);
  */
 void kbase_pm_cache_snoop_disable(struct kbase_device *kbdev);
 
+/**
+ * kbase_pm_ca_set_gov_core_mask - Set governor core mask
+ * @kbdev:	          Device pointer.
+ * @core_mask_type:   which mask is being used to update register.
+ * @core_mask:        New core mask.
+ *
+ * This function is used to change the available core mask as defined via either sysfs or devfreq.
+ */
+void kbase_pm_ca_set_gov_core_mask(struct kbase_device *kbdev, enum mask_type core_mask_type,
+				   u64 core_mask);
+
+/**
+ * kbase_pm_ca_set_gov_core_mask_nolock - Set governor core mask with lock already taken
+ * @kbdev:	          Device pointer.
+ * @core_mask_type:   which mask is being used to update register.
+ * @core_mask:        New core mask.
+ *
+ * This function is used to change the available core mask as defined via either sysfs or devfreq.
+ */
+void kbase_pm_ca_set_gov_core_mask_nolock(struct kbase_device *kbdev, enum mask_type core_mask_type,
+					  u64 core_mask);
+
+
+/**
+ * kbase_pm_ca_set_gov_core_mask - Set governor core mask
+ * @kbdev:	          Device pointer.
+ * @core_mask_type:   which mask is being used to update register.
+ * @core_mask:        New core mask.
+ *
+ * This function is used to change the available core mask as defined via either sysfs or devfreq.
+ */
+void kbase_pm_ca_set_gov_core_mask(struct kbase_device *kbdev, enum mask_type core_mask_type,
+				   u64 core_mask);
+
+/**
+ * kbase_pm_ca_set_gov_core_mask_nolock - Set governor core mask with lock already taken
+ * @kbdev:	          Device pointer.
+ * @core_mask_type:   which mask is being used to update register.
+ * @core_mask:        New core mask.
+ *
+ * This function is used to change the available core mask as defined via either sysfs or devfreq.
+ */
+void kbase_pm_ca_set_gov_core_mask_nolock(struct kbase_device *kbdev, enum mask_type core_mask_type,
+					  u64 core_mask);
+
 #ifdef CONFIG_MALI_DEVFREQ
 /**
  * kbase_devfreq_set_core_mask - Set devfreq core mask
@@ -871,6 +929,9 @@ static inline bool kbase_pm_gpu_sleep_allowed(struct kbase_device *kbdev)
  */
 static inline bool kbase_pm_fw_sleep_on_idle_allowed(struct kbase_device *kbdev)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+	unsigned long long api_boost_interval_ns = 0;
+#endif
 #if IS_ENABLED(CONFIG_PM)
 	if (unlikely(kbdev->dev->power.autosuspend_delay <= 0))
 		return false;
@@ -878,6 +939,14 @@ static inline bool kbase_pm_fw_sleep_on_idle_allowed(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 	if (unlikely((int) ged_get_apo_autosuspend_delay_ms() == 0))
+		return false;
+
+	if (unlikely(get_api_sync_flag() == 1))
+		return false;
+
+	api_boost_interval_ns = ged_get_api_boost_interval();
+	if (unlikely(api_boost_interval_ns > 0 &&
+				api_boost_interval_ns < ged_get_apo_thr_ns()))
 		return false;
 #endif
 
