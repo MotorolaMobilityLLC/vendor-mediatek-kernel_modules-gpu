@@ -372,5 +372,9 @@ config MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT
 	bool "Set oom_event_worker to single RT kthread"
 	default n
 
+config MALI_MTK_RESET_OPT
+	bool "Optimization for the reset flow"
+	default n
+
 endmenu
 
