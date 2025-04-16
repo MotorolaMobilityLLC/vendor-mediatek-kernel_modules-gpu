@@ -77,7 +77,7 @@ static PVRSRV_ERROR _RGXTDMCreateTransferContextpsTransferContextIntRelease(void
 static_assert(RGXFWIF_RF_CMD_SIZE <= IMG_UINT32_MAX,
 	      "RGXFWIF_RF_CMD_SIZE must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXTDMCreateTransferContext(IMG_UINT32 ui32DispatchTableEntry,
 					IMG_UINT8 * psRGXTDMCreateTransferContextIN_UI8,
 					IMG_UINT8 * psRGXTDMCreateTransferContextOUT_UI8,
@@ -270,10 +270,10 @@ RGXTDMCreateTransferContext_exit:
 	if (!bHaveEnoughSpace && pArrayArgsBuffer)
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXTDMCREATETRANSFERCONTEXT, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXTDMDestroyTransferContext(IMG_UINT32 ui32DispatchTableEntry,
 					 IMG_UINT8 * psRGXTDMDestroyTransferContextIN_UI8,
 					 IMG_UINT8 * psRGXTDMDestroyTransferContextOUT_UI8,
@@ -326,10 +326,10 @@ PVRSRVBridgeRGXTDMDestroyTransferContext(IMG_UINT32 ui32DispatchTableEntry,
 
 RGXTDMDestroyTransferContext_exit:
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXTDMDESTROYTRANSFERCONTEXT, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXTDMSetTransferContextPriority(IMG_UINT32 ui32DispatchTableEntry,
 					     IMG_UINT8 * psRGXTDMSetTransferContextPriorityIN_UI8,
 					     IMG_UINT8 * psRGXTDMSetTransferContextPriorityOUT_UI8,
@@ -397,10 +397,10 @@ RGXTDMSetTransferContextPriority_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXTDMSETTRANSFERCONTEXTPRIORITY, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXTDMNotifyWriteOffsetUpdate(IMG_UINT32 ui32DispatchTableEntry,
 					  IMG_UINT8 * psRGXTDMNotifyWriteOffsetUpdateIN_UI8,
 					  IMG_UINT8 * psRGXTDMNotifyWriteOffsetUpdateOUT_UI8,
@@ -467,7 +467,7 @@ RGXTDMNotifyWriteOffsetUpdate_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXTDMNOTIFYWRITEOFFSETUPDATE, eError);
 }
 
 static_assert(PVRSRV_MAX_SYNCS <= IMG_UINT32_MAX,
@@ -479,7 +479,7 @@ static_assert(RGXFWIF_DM_INDEPENDENT_KICK_CMD_SIZE <= IMG_UINT32_MAX,
 static_assert(PVRSRV_MAX_SYNCS <= IMG_UINT32_MAX,
 	      "PVRSRV_MAX_SYNCS must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXTDMSubmitTransfer2(IMG_UINT32 ui32DispatchTableEntry,
 				  IMG_UINT8 * psRGXTDMSubmitTransfer2IN_UI8,
 				  IMG_UINT8 * psRGXTDMSubmitTransfer2OUT_UI8,
@@ -884,7 +884,7 @@ RGXTDMSubmitTransfer2_exit:
 	if (!bHaveEnoughSpace && pArrayArgsBuffer)
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXTDMSUBMITTRANSFER2, eError);
 }
 
 static PVRSRV_ERROR _RGXTDMGetSharedMemorypsCLIPMRMemIntRelease(void *pvData)
@@ -894,7 +894,7 @@ static PVRSRV_ERROR _RGXTDMGetSharedMemorypsCLIPMRMemIntRelease(void *pvData)
 	return eError;
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXTDMGetSharedMemory(IMG_UINT32 ui32DispatchTableEntry,
 				  IMG_UINT8 * psRGXTDMGetSharedMemoryIN_UI8,
 				  IMG_UINT8 * psRGXTDMGetSharedMemoryOUT_UI8,
@@ -964,10 +964,10 @@ RGXTDMGetSharedMemory_exit:
 		}
 	}
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXTDMGETSHAREDMEMORY, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXTDMReleaseSharedMemory(IMG_UINT32 ui32DispatchTableEntry,
 				      IMG_UINT8 * psRGXTDMReleaseSharedMemoryIN_UI8,
 				      IMG_UINT8 * psRGXTDMReleaseSharedMemoryOUT_UI8,
@@ -1017,10 +1017,10 @@ PVRSRVBridgeRGXTDMReleaseSharedMemory(IMG_UINT32 ui32DispatchTableEntry,
 
 RGXTDMReleaseSharedMemory_exit:
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXTDMRELEASESHAREDMEMORY, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXTDMSetTransferContextProperty(IMG_UINT32 ui32DispatchTableEntry,
 					     IMG_UINT8 * psRGXTDMSetTransferContextPropertyIN_UI8,
 					     IMG_UINT8 * psRGXTDMSetTransferContextPropertyOUT_UI8,
@@ -1091,7 +1091,7 @@ RGXTDMSetTransferContextProperty_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXTDMSETTRANSFERCONTEXTPROPERTY, eError);
 }
 
 static_assert(PVRSRV_MAX_SYNCS <= IMG_UINT32_MAX,
@@ -1103,7 +1103,7 @@ static_assert(RGXFWIF_DM_INDEPENDENT_KICK_CMD_SIZE <= IMG_UINT32_MAX,
 static_assert(PVRSRV_MAX_SYNCS <= IMG_UINT32_MAX,
 	      "PVRSRV_MAX_SYNCS must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgeRGXTDMSubmitTransfer3(IMG_UINT32 ui32DispatchTableEntry,
 				  IMG_UINT8 * psRGXTDMSubmitTransfer3IN_UI8,
 				  IMG_UINT8 * psRGXTDMSubmitTransfer3OUT_UI8,
@@ -1509,7 +1509,7 @@ RGXTDMSubmitTransfer3_exit:
 	if (!bHaveEnoughSpace && pArrayArgsBuffer)
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_RGXTDMSUBMITTRANSFER3, eError);
 }
 
 /* ***************************************************************************

@@ -89,7 +89,7 @@ static PVRSRV_ERROR _PMRExportPMRpsPMRExportIntRelease(void *pvData)
 	return eError;
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgePMRExportPMR(IMG_UINT32 ui32DispatchTableEntry,
 			 IMG_UINT8 * psPMRExportPMRIN_UI8,
 			 IMG_UINT8 * psPMRExportPMROUT_UI8, CONNECTION_DATA * psConnection)
@@ -254,7 +254,7 @@ PMRExportPMR_exit:
 
 	}
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_PMREXPORTPMR, eError);
 }
 
 #else
@@ -263,7 +263,7 @@ PMRExportPMR_exit:
 
 #if defined(SUPPORT_INSECURE_EXPORT)
 
-static IMG_INT
+static size_t
 PVRSRVBridgePMRUnexportPMR(IMG_UINT32 ui32DispatchTableEntry,
 			   IMG_UINT8 * psPMRUnexportPMRIN_UI8,
 			   IMG_UINT8 * psPMRUnexportPMROUT_UI8, CONNECTION_DATA * psConnection)
@@ -351,14 +351,14 @@ PVRSRVBridgePMRUnexportPMR(IMG_UINT32 ui32DispatchTableEntry,
 
 PMRUnexportPMR_exit:
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_PMRUNEXPORTPMR, eError);
 }
 
 #else
 #define PVRSRVBridgePMRUnexportPMR NULL
 #endif
 
-static IMG_INT
+static size_t
 PVRSRVBridgePMRGetUID(IMG_UINT32 ui32DispatchTableEntry,
 		      IMG_UINT8 * psPMRGetUIDIN_UI8,
 		      IMG_UINT8 * psPMRGetUIDOUT_UI8, CONNECTION_DATA * psConnection)
@@ -403,7 +403,7 @@ PMRGetUID_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_PMRGETUID, eError);
 }
 
 static PVRSRV_ERROR _PMRMakeLocalImportHandlepsExtMemIntRelease(void *pvData)
@@ -413,7 +413,7 @@ static PVRSRV_ERROR _PMRMakeLocalImportHandlepsExtMemIntRelease(void *pvData)
 	return eError;
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgePMRMakeLocalImportHandle(IMG_UINT32 ui32DispatchTableEntry,
 				     IMG_UINT8 * psPMRMakeLocalImportHandleIN_UI8,
 				     IMG_UINT8 * psPMRMakeLocalImportHandleOUT_UI8,
@@ -497,10 +497,10 @@ PMRMakeLocalImportHandle_exit:
 		}
 	}
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_PMRMAKELOCALIMPORTHANDLE, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgePMRUnmakeLocalImportHandle(IMG_UINT32 ui32DispatchTableEntry,
 				       IMG_UINT8 * psPMRUnmakeLocalImportHandleIN_UI8,
 				       IMG_UINT8 * psPMRUnmakeLocalImportHandleOUT_UI8,
@@ -536,7 +536,7 @@ PVRSRVBridgePMRUnmakeLocalImportHandle(IMG_UINT32 ui32DispatchTableEntry,
 
 PMRUnmakeLocalImportHandle_exit:
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_PMRUNMAKELOCALIMPORTHANDLE, eError);
 }
 
 #if defined(SUPPORT_INSECURE_EXPORT)
@@ -547,7 +547,7 @@ static PVRSRV_ERROR _PMRImportPMRpsPMRIntRelease(void *pvData)
 	return eError;
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgePMRImportPMR(IMG_UINT32 ui32DispatchTableEntry,
 			 IMG_UINT8 * psPMRImportPMRIN_UI8,
 			 IMG_UINT8 * psPMRImportPMROUT_UI8, CONNECTION_DATA * psConnection)
@@ -632,7 +632,7 @@ PMRImportPMR_exit:
 		}
 	}
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_PMRIMPORTPMR, eError);
 }
 
 #else
@@ -646,7 +646,7 @@ static PVRSRV_ERROR _PMRLocalImportPMRpsPMRIntRelease(void *pvData)
 	return eError;
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgePMRLocalImportPMR(IMG_UINT32 ui32DispatchTableEntry,
 			      IMG_UINT8 * psPMRLocalImportPMRIN_UI8,
 			      IMG_UINT8 * psPMRLocalImportPMROUT_UI8,
@@ -730,10 +730,10 @@ PMRLocalImportPMR_exit:
 		}
 	}
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_PMRLOCALIMPORTPMR, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgePMRUnrefPMR(IMG_UINT32 ui32DispatchTableEntry,
 			IMG_UINT8 * psPMRUnrefPMRIN_UI8,
 			IMG_UINT8 * psPMRUnrefPMROUT_UI8, CONNECTION_DATA * psConnection)
@@ -765,7 +765,7 @@ PVRSRVBridgePMRUnrefPMR(IMG_UINT32 ui32DispatchTableEntry,
 
 PMRUnrefPMR_exit:
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_PMRUNREFPMR, eError);
 }
 
 static PVRSRV_ERROR _PhysmemNewRamBackedPMRpsPMRPtrIntRelease(void *pvData)
@@ -780,7 +780,7 @@ static_assert(PMR_MAX_SUPPORTED_4K_PAGE_COUNT <= IMG_UINT32_MAX,
 static_assert(DEVMEM_ANNOTATION_MAX_LEN <= IMG_UINT32_MAX,
 	      "DEVMEM_ANNOTATION_MAX_LEN must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgePhysmemNewRamBackedPMR(IMG_UINT32 ui32DispatchTableEntry,
 				   IMG_UINT8 * psPhysmemNewRamBackedPMRIN_UI8,
 				   IMG_UINT8 * psPhysmemNewRamBackedPMROUT_UI8,
@@ -963,7 +963,7 @@ PhysmemNewRamBackedPMR_exit:
 	if (!bHaveEnoughSpace && pArrayArgsBuffer)
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_PHYSMEMNEWRAMBACKEDPMR, eError);
 }
 
 static PVRSRV_ERROR _DevmemIntCtxCreatepsDevMemServerContextIntRelease(void *pvData)
@@ -973,7 +973,7 @@ static PVRSRV_ERROR _DevmemIntCtxCreatepsDevMemServerContextIntRelease(void *pvD
 	return eError;
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDevmemIntCtxCreate(IMG_UINT32 ui32DispatchTableEntry,
 			       IMG_UINT8 * psDevmemIntCtxCreateIN_UI8,
 			       IMG_UINT8 * psDevmemIntCtxCreateOUT_UI8,
@@ -1072,10 +1072,10 @@ DevmemIntCtxCreate_exit:
 
 	}
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DEVMEMINTCTXCREATE, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDevmemIntCtxDestroy(IMG_UINT32 ui32DispatchTableEntry,
 				IMG_UINT8 * psDevmemIntCtxDestroyIN_UI8,
 				IMG_UINT8 * psDevmemIntCtxDestroyOUT_UI8,
@@ -1113,7 +1113,7 @@ PVRSRVBridgeDevmemIntCtxDestroy(IMG_UINT32 ui32DispatchTableEntry,
 
 DevmemIntCtxDestroy_exit:
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DEVMEMINTCTXDESTROY, eError);
 }
 
 static PVRSRV_ERROR _DevmemIntHeapCreatepsDevmemHeapPtrIntRelease(void *pvData)
@@ -1123,7 +1123,7 @@ static PVRSRV_ERROR _DevmemIntHeapCreatepsDevmemHeapPtrIntRelease(void *pvData)
 	return eError;
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDevmemIntHeapCreate(IMG_UINT32 ui32DispatchTableEntry,
 				IMG_UINT8 * psDevmemIntHeapCreateIN_UI8,
 				IMG_UINT8 * psDevmemIntHeapCreateOUT_UI8,
@@ -1208,10 +1208,10 @@ DevmemIntHeapCreate_exit:
 		}
 	}
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DEVMEMINTHEAPCREATE, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDevmemIntHeapDestroy(IMG_UINT32 ui32DispatchTableEntry,
 				 IMG_UINT8 * psDevmemIntHeapDestroyIN_UI8,
 				 IMG_UINT8 * psDevmemIntHeapDestroyOUT_UI8,
@@ -1247,10 +1247,10 @@ PVRSRVBridgeDevmemIntHeapDestroy(IMG_UINT32 ui32DispatchTableEntry,
 
 DevmemIntHeapDestroy_exit:
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DEVMEMINTHEAPDESTROY, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDevmemIntMapPMR(IMG_UINT32 ui32DispatchTableEntry,
 			    IMG_UINT8 * psDevmemIntMapPMRIN_UI8,
 			    IMG_UINT8 * psDevmemIntMapPMROUT_UI8, CONNECTION_DATA * psConnection)
@@ -1316,10 +1316,10 @@ DevmemIntMapPMR_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DEVMEMINTMAPPMR, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDevmemIntUnmapPMR(IMG_UINT32 ui32DispatchTableEntry,
 			      IMG_UINT8 * psDevmemIntUnmapPMRIN_UI8,
 			      IMG_UINT8 * psDevmemIntUnmapPMROUT_UI8,
@@ -1366,7 +1366,7 @@ DevmemIntUnmapPMR_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DEVMEMINTUNMAPPMR, eError);
 }
 
 static PVRSRV_ERROR _DevmemIntReserveRangepsReservationIntRelease(void *pvData)
@@ -1376,7 +1376,7 @@ static PVRSRV_ERROR _DevmemIntReserveRangepsReservationIntRelease(void *pvData)
 	return eError;
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDevmemIntReserveRange(IMG_UINT32 ui32DispatchTableEntry,
 				  IMG_UINT8 * psDevmemIntReserveRangeIN_UI8,
 				  IMG_UINT8 * psDevmemIntReserveRangeOUT_UI8,
@@ -1411,7 +1411,8 @@ PVRSRVBridgeDevmemIntReserveRange(IMG_UINT32 ui32DispatchTableEntry,
 	UnlockHandle(psConnection->psHandleBase);
 
 	psDevmemIntReserveRangeOUT->eError =
-	    DevmemIntReserveRange(psDevmemServerHeapInt,
+	    DevmemIntReserveRange(psConnection, OSGetDevNode(psConnection),
+				  psDevmemServerHeapInt,
 				  psDevmemIntReserveRangeIN->sAddress,
 				  psDevmemIntReserveRangeIN->uiLength,
 				  psDevmemIntReserveRangeIN->uiFlags, &psReservationInt);
@@ -1463,7 +1464,7 @@ DevmemIntReserveRange_exit:
 		}
 	}
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DEVMEMINTRESERVERANGE, eError);
 }
 
 static PVRSRV_ERROR _DevmemIntReserveRangeAndMapPMRpsReservationIntRelease(void *pvData)
@@ -1473,7 +1474,7 @@ static PVRSRV_ERROR _DevmemIntReserveRangeAndMapPMRpsReservationIntRelease(void 
 	return eError;
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDevmemIntReserveRangeAndMapPMR(IMG_UINT32 ui32DispatchTableEntry,
 					   IMG_UINT8 * psDevmemIntReserveRangeAndMapPMRIN_UI8,
 					   IMG_UINT8 * psDevmemIntReserveRangeAndMapPMROUT_UI8,
@@ -1521,7 +1522,8 @@ PVRSRVBridgeDevmemIntReserveRangeAndMapPMR(IMG_UINT32 ui32DispatchTableEntry,
 	UnlockHandle(psConnection->psHandleBase);
 
 	psDevmemIntReserveRangeAndMapPMROUT->eError =
-	    DevmemIntReserveRangeAndMapPMR(psDevmemServerHeapInt,
+	    DevmemIntReserveRangeAndMapPMR(psConnection, OSGetDevNode(psConnection),
+					   psDevmemServerHeapInt,
 					   psDevmemIntReserveRangeAndMapPMRIN->sAddress,
 					   psDevmemIntReserveRangeAndMapPMRIN->uiLength,
 					   psPMRInt,
@@ -1582,10 +1584,10 @@ DevmemIntReserveRangeAndMapPMR_exit:
 		}
 	}
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DEVMEMINTRESERVERANGEANDMAPPMR, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDevmemIntUnreserveRange(IMG_UINT32 ui32DispatchTableEntry,
 				    IMG_UINT8 * psDevmemIntUnreserveRangeIN_UI8,
 				    IMG_UINT8 * psDevmemIntUnreserveRangeOUT_UI8,
@@ -1623,7 +1625,7 @@ PVRSRVBridgeDevmemIntUnreserveRange(IMG_UINT32 ui32DispatchTableEntry,
 
 DevmemIntUnreserveRange_exit:
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DEVMEMINTUNRESERVERANGE, eError);
 }
 
 static_assert(PMR_MAX_SUPPORTED_4K_PAGE_COUNT <= IMG_UINT32_MAX,
@@ -1631,7 +1633,7 @@ static_assert(PMR_MAX_SUPPORTED_4K_PAGE_COUNT <= IMG_UINT32_MAX,
 static_assert(PMR_MAX_SUPPORTED_4K_PAGE_COUNT <= IMG_UINT32_MAX,
 	      "PMR_MAX_SUPPORTED_4K_PAGE_COUNT must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgeChangeSparseMem(IMG_UINT32 ui32DispatchTableEntry,
 			    IMG_UINT8 * psChangeSparseMemIN_UI8,
 			    IMG_UINT8 * psChangeSparseMemOUT_UI8, CONNECTION_DATA * psConnection)
@@ -1791,10 +1793,10 @@ ChangeSparseMem_exit:
 	if (!bHaveEnoughSpace && pArrayArgsBuffer)
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_CHANGESPARSEMEM, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDevmemIsVDevAddrValid(IMG_UINT32 ui32DispatchTableEntry,
 				  IMG_UINT8 * psDevmemIsVDevAddrValidIN_UI8,
 				  IMG_UINT8 * psDevmemIsVDevAddrValidOUT_UI8,
@@ -1844,12 +1846,12 @@ DevmemIsVDevAddrValid_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DEVMEMISVDEVADDRVALID, eError);
 }
 
 #if defined(RGX_FEATURE_FBCDC)
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDevmemInvalidateFBSCTable(IMG_UINT32 ui32DispatchTableEntry,
 				      IMG_UINT8 * psDevmemInvalidateFBSCTableIN_UI8,
 				      IMG_UINT8 * psDevmemInvalidateFBSCTableOUT_UI8,
@@ -1899,14 +1901,14 @@ DevmemInvalidateFBSCTable_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DEVMEMINVALIDATEFBSCTABLE, eError);
 }
 
 #else
 #define PVRSRVBridgeDevmemInvalidateFBSCTable NULL
 #endif
 
-static IMG_INT
+static size_t
 PVRSRVBridgeHeapCfgHeapConfigCount(IMG_UINT32 ui32DispatchTableEntry,
 				   IMG_UINT8 * psHeapCfgHeapConfigCountIN_UI8,
 				   IMG_UINT8 * psHeapCfgHeapConfigCountOUT_UI8,
@@ -1925,10 +1927,10 @@ PVRSRVBridgeHeapCfgHeapConfigCount(IMG_UINT32 ui32DispatchTableEntry,
 	    HeapCfgHeapConfigCount(psConnection, OSGetDevNode(psConnection),
 				   &psHeapCfgHeapConfigCountOUT->ui32NumHeapConfigs);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_HEAPCFGHEAPCONFIGCOUNT, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeHeapCfgHeapCount(IMG_UINT32 ui32DispatchTableEntry,
 			     IMG_UINT8 * psHeapCfgHeapCountIN_UI8,
 			     IMG_UINT8 * psHeapCfgHeapCountOUT_UI8, CONNECTION_DATA * psConnection)
@@ -1943,13 +1945,13 @@ PVRSRVBridgeHeapCfgHeapCount(IMG_UINT32 ui32DispatchTableEntry,
 			     psHeapCfgHeapCountIN->ui32HeapConfigIndex,
 			     &psHeapCfgHeapCountOUT->ui32NumHeaps);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_HEAPCFGHEAPCOUNT, eError);
 }
 
 static_assert(DEVMEM_HEAPNAME_MAXLENGTH <= IMG_UINT32_MAX,
 	      "DEVMEM_HEAPNAME_MAXLENGTH must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgeHeapCfgHeapConfigName(IMG_UINT32 ui32DispatchTableEntry,
 				  IMG_UINT8 * psHeapCfgHeapConfigNameIN_UI8,
 				  IMG_UINT8 * psHeapCfgHeapConfigNameOUT_UI8,
@@ -2065,13 +2067,13 @@ HeapCfgHeapConfigName_exit:
 	if (!bHaveEnoughSpace && pArrayArgsBuffer)
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_HEAPCFGHEAPCONFIGNAME, eError);
 }
 
 static_assert(DEVMEM_HEAPNAME_MAXLENGTH <= IMG_UINT32_MAX,
 	      "DEVMEM_HEAPNAME_MAXLENGTH must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgeHeapCfgHeapDetails(IMG_UINT32 ui32DispatchTableEntry,
 			       IMG_UINT8 * psHeapCfgHeapDetailsIN_UI8,
 			       IMG_UINT8 * psHeapCfgHeapDetailsOUT_UI8,
@@ -2187,10 +2189,10 @@ HeapCfgHeapDetails_exit:
 	if (!bHaveEnoughSpace && pArrayArgsBuffer)
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_HEAPCFGHEAPDETAILS, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDevmemIntRegisterPFNotifyKM(IMG_UINT32 ui32DispatchTableEntry,
 					IMG_UINT8 * psDevmemIntRegisterPFNotifyKMIN_UI8,
 					IMG_UINT8 * psDevmemIntRegisterPFNotifyKMOUT_UI8,
@@ -2239,13 +2241,13 @@ DevmemIntRegisterPFNotifyKM_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DEVMEMINTREGISTERPFNOTIFYKM, eError);
 }
 
 static_assert(PVRSRV_PHYS_HEAP_LAST <= IMG_UINT32_MAX,
 	      "PVRSRV_PHYS_HEAP_LAST must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgePhysHeapGetMemInfo(IMG_UINT32 ui32DispatchTableEntry,
 			       IMG_UINT8 * psPhysHeapGetMemInfoIN_UI8,
 			       IMG_UINT8 * psPhysHeapGetMemInfoOUT_UI8,
@@ -2383,10 +2385,10 @@ PhysHeapGetMemInfo_exit:
 	if (!bHaveEnoughSpace && pArrayArgsBuffer)
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_PHYSHEAPGETMEMINFO, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeGetDefaultPhysicalHeap(IMG_UINT32 ui32DispatchTableEntry,
 				   IMG_UINT8 * psGetDefaultPhysicalHeapIN_UI8,
 				   IMG_UINT8 * psGetDefaultPhysicalHeapOUT_UI8,
@@ -2405,10 +2407,10 @@ PVRSRVBridgeGetDefaultPhysicalHeap(IMG_UINT32 ui32DispatchTableEntry,
 	    PVRSRVGetDefaultPhysicalHeapKM(psConnection, OSGetDevNode(psConnection),
 					   &psGetDefaultPhysicalHeapOUT->eHeap);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_GETDEFAULTPHYSICALHEAP, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDevmemGetFaultAddress(IMG_UINT32 ui32DispatchTableEntry,
 				  IMG_UINT8 * psDevmemGetFaultAddressIN_UI8,
 				  IMG_UINT8 * psDevmemGetFaultAddressOUT_UI8,
@@ -2458,12 +2460,12 @@ DevmemGetFaultAddress_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DEVMEMGETFAULTADDRESS, eError);
 }
 
 #if defined(PVRSRV_ENABLE_PROCESS_STATS)
 
-static IMG_INT
+static size_t
 PVRSRVBridgePVRSRVStatsUpdateOOMStat(IMG_UINT32 ui32DispatchTableEntry,
 				     IMG_UINT8 * psPVRSRVStatsUpdateOOMStatIN_UI8,
 				     IMG_UINT8 * psPVRSRVStatsUpdateOOMStatOUT_UI8,
@@ -2481,7 +2483,7 @@ PVRSRVBridgePVRSRVStatsUpdateOOMStat(IMG_UINT32 ui32DispatchTableEntry,
 				     psPVRSRVStatsUpdateOOMStatIN->ui32ui32StatType,
 				     psPVRSRVStatsUpdateOOMStatIN->ui32pid);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_PVRSRVSTATSUPDATEOOMSTAT, eError);
 }
 
 #else
@@ -2495,7 +2497,7 @@ static PVRSRV_ERROR _DevmemXIntReserveRangepsReservationIntRelease(void *pvData)
 	return eError;
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDevmemXIntReserveRange(IMG_UINT32 ui32DispatchTableEntry,
 				   IMG_UINT8 * psDevmemXIntReserveRangeIN_UI8,
 				   IMG_UINT8 * psDevmemXIntReserveRangeOUT_UI8,
@@ -2581,10 +2583,10 @@ DevmemXIntReserveRange_exit:
 		}
 	}
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DEVMEMXINTRESERVERANGE, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDevmemXIntUnreserveRange(IMG_UINT32 ui32DispatchTableEntry,
 				     IMG_UINT8 * psDevmemXIntUnreserveRangeIN_UI8,
 				     IMG_UINT8 * psDevmemXIntUnreserveRangeOUT_UI8,
@@ -2622,10 +2624,10 @@ PVRSRVBridgeDevmemXIntUnreserveRange(IMG_UINT32 ui32DispatchTableEntry,
 
 DevmemXIntUnreserveRange_exit:
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DEVMEMXINTUNRESERVERANGE, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDevmemXIntMapPages(IMG_UINT32 ui32DispatchTableEntry,
 			       IMG_UINT8 * psDevmemXIntMapPagesIN_UI8,
 			       IMG_UINT8 * psDevmemXIntMapPagesOUT_UI8,
@@ -2700,10 +2702,10 @@ DevmemXIntMapPages_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DEVMEMXINTMAPPAGES, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDevmemXIntUnmapPages(IMG_UINT32 ui32DispatchTableEntry,
 				 IMG_UINT8 * psDevmemXIntUnmapPagesIN_UI8,
 				 IMG_UINT8 * psDevmemXIntUnmapPagesOUT_UI8,
@@ -2756,10 +2758,10 @@ DevmemXIntUnmapPages_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DEVMEMXINTUNMAPPAGES, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgeDevmemXIntMapVRangeToBackingPage(IMG_UINT32 ui32DispatchTableEntry,
 					     IMG_UINT8 * psDevmemXIntMapVRangeToBackingPageIN_UI8,
 					     IMG_UINT8 * psDevmemXIntMapVRangeToBackingPageOUT_UI8,
@@ -2814,13 +2816,13 @@ DevmemXIntMapVRangeToBackingPage_exit:
 	/* Release now we have cleaned up look up handles. */
 	UnlockHandle(psConnection->psHandleBase);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_DEVMEMXINTMAPVRANGETOBACKINGPAGE, eError);
 }
 
 static_assert(PVRSRV_PHYS_HEAP_LAST <= IMG_UINT32_MAX,
 	      "PVRSRV_PHYS_HEAP_LAST must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgePhysHeapGetMemInfo2(IMG_UINT32 ui32DispatchTableEntry,
 				IMG_UINT8 * psPhysHeapGetMemInfo2IN_UI8,
 				IMG_UINT8 * psPhysHeapGetMemInfo2OUT_UI8,
@@ -2959,7 +2961,7 @@ PhysHeapGetMemInfo2_exit:
 	if (!bHaveEnoughSpace && pArrayArgsBuffer)
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_PHYSHEAPGETMEMINFO2, eError);
 }
 
 /* ***************************************************************************

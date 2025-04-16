@@ -1325,7 +1325,6 @@ fail_resolve_input_fence:
 #endif /* defined(SUPPORT_BUFFER_SYNC) */
 
 fail_populate_sync_addr_list:
-	PVR_ASSERT(eError != PVRSRV_OK);
 	OSFreeMem(psCmdHelper);
 fail_allochelper:
 
@@ -1334,6 +1333,7 @@ fail_allochelper:
 		SyncCheckpointFreeCheckpointListMem(apsFenceSyncCheckpoints);
 	}
 	OSLockRelease(psTransferContext->hLock);
+	PVR_ASSERT(eError != PVRSRV_OK);
 	return eError;
 }
 

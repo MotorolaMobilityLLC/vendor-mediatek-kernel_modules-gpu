@@ -541,6 +541,7 @@ static IMG_UINT32 MTKCalPowerIndex(void)
 	return (ui32State == 1) ? ui32Result : 0;
 }
 #endif
+
 #ifdef MTK_GPU_DVFS
 static void MTKCalGpuLoading(unsigned int *pui32Loading,
 	unsigned int *pui32Block, unsigned int *pui32Idle,void *Util_Ex)
@@ -594,6 +595,10 @@ static void MTKCalGpuLoading(unsigned int *pui32Loading,
 #endif
 			util_ex->util_active = *pui32Loading;
 			util_ex->delta_time = sGpuUtilStats.ui64GpuStatCumulative * 1000; //unit:ns
+#if 0
+			PVR_DPF((PVR_DBG_ERROR, "Loading: A(%d), I(%d), B(%d)",
+						*pui32Loading, *pui32Idle, *pui32Block));
+#endif
 		}
 	}
 }

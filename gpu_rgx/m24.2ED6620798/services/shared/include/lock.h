@@ -76,6 +76,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define OSLockIsLocked(hLock) ((mutex_is_locked((hLock)) == 1) ? IMG_TRUE : IMG_FALSE)
 #define OSTryLockAcquire(hLock) ((mutex_trylock(hLock) == 1) ? IMG_TRUE : IMG_FALSE)
 
+#if defined(DEBUG)
+#if defined(CONFIG_LOCKDEP)
+#define OSLockHeldAssert(hLock) ({ lockdep_assert_held((hLock)); })
+#else
+#define OSLockHeldAssert(hLock) ({ PVR_ASSERT(OSLockIsLocked((hLock)) == IMG_TRUE); })
+#endif
+#else
+#define OSLockHeldAssert(hLock)
+#endif
+
 #define OSSpinLockCreate(_ppsLock) ({ \
 	PVRSRV_ERROR e = PVRSRV_ERROR_OUT_OF_MEMORY; \
 	*(_ppsLock) = OSAllocMem(sizeof(spinlock_t)); \
@@ -216,6 +226,8 @@ void OSLockRelease(POS_LOCK hLock);
  */ /**************************************************************************/
 IMG_INTERNAL
 IMG_BOOL OSLockIsLocked(POS_LOCK hLock);
+
+#define OSLockHeldAssert(hLock) PVR_ASSERT(OSLockIsLocked((hLock)) == IMG_TRUE)
 
 #if defined(__linux__)
 

@@ -58,9 +58,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "pvrsrv.h"
 
-/* Prefer CMA memory for TL buffers if possible */
-#define TL_USE_CMA 0
-
 #if !defined(EVENT_OBJECT_TIMEOUT_US)
 #error EVENT_OBJECT_TIMEOUT_US should be defined sysinfo.h
 #endif
@@ -150,7 +147,6 @@ PVRSRV_ERROR TLAllocSharedMemIfNull(IMG_HANDLE hStream)
 {
 	PTL_STREAM psStream = (PTL_STREAM) hStream;
 	PVRSRV_ERROR eError;
-	PVRSRV_DEVICE_NODE *psDeviceNode;
 
 	/* CPU Local memory used as these buffers are not accessed by the device.
 	 * CPU Uncached write combine memory used to improve write performance,
@@ -166,22 +162,6 @@ PVRSRV_ERROR TLAllocSharedMemIfNull(IMG_HANDLE hStream)
 	                                    PVRSRV_MEMALLOCFLAG_PHYS_HEAP_HINT(CPU_LOCAL) |  /* TL for now is only used by host driver, so cpulocal mem suffices */
 	                                    PVRSRV_MEMALLOCFLAG_ZERO_ON_ALLOC;
 
-#if TL_USE_CMA
-	/* TL CTRL stream will be allocated as normal memory, os device node might not
-	 * be setup at this point of init and so we cannot allocate CMA.
-	 */
-	if (PVRSRVGetPVRSRVData()->psDeviceNodeList != NULL)
-	{
-
-		uiMemFlags |= PVRSRV_MEMALLOCFLAG_OS_LINUX_PREFER_CMA;
-		psDeviceNode = PVRSRVGetPVRSRVData()->psDeviceNodeList;
-	}
-	else
-#endif
-	{
-		psDeviceNode = PVRSRVGetPVRSRVData()->psHostMemDeviceNode;
-	}
-
 	/* Exit if memory has already been allocated. */
 	if (psStream->pbyBuffer != NULL)
 		return PVRSRV_OK;
@@ -189,7 +169,11 @@ PVRSRV_ERROR TLAllocSharedMemIfNull(IMG_HANDLE hStream)
 	OSSNPrintf(pszBufferLabel, sizeof(pszBufferLabel), "TLStreamBuf-%s",
 	           psStream->szName);
 
-	eError = DevmemAllocateExportable((IMG_HANDLE)psDeviceNode,
+	/* Use HostMemDeviceNode instead of psStream->psDevNode to benefit from faster
+	 * accesses to CPU local memory. When the framework to access CPU_LOCAL device
+	 * memory from GPU is fixed, we'll switch back to use psStream->psDevNode for
+	 * TL buffers */
+	eError = DevmemAllocateExportable((IMG_HANDLE)PVRSRVGetPVRSRVData()->psHostMemDeviceNode,
 	                                  (IMG_DEVMEM_SIZE_T) psStream->ui32Size,
 	                                  (IMG_DEVMEM_ALIGN_T) OSGetPageSize(),
 	                                  ExactLog2(OSGetPageSize()),

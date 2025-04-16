@@ -206,6 +206,9 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 		kbase_pm_disable_db_mirror_interrupt(kbdev);
 		kbdev->pm.backend.exit_gpu_sleep_mode = true;
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+		kbdev->csf.scheduler.keep_apo_timer = true;
+#endif
 		kbase_csf_scheduler_invoke_tick(kbdev);
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	}

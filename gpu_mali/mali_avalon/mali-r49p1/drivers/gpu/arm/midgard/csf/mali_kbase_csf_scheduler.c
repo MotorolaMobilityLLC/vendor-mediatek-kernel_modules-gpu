@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2018-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -687,6 +687,9 @@ static enum hrtimer_restart tick_timer_callback(struct hrtimer *timer)
 	struct kbase_device *kbdev =
 		container_of(timer, struct kbase_device, csf.scheduler.tick_timer);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+	kbdev->csf.scheduler.keep_apo_timer = true;
+#endif
 	kbase_csf_scheduler_invoke_tick(kbdev);
 
 	return HRTIMER_NORESTART;
@@ -2244,6 +2247,8 @@ static void halt_csg_slot(struct kbase_queue_group *group, bool suspend)
 		dev_dbg(kbdev->dev, "Halting(suspend=%d) group %d of context %d_%d on slot %d",
 			suspend, group->handle, group->kctx->tgid, group->kctx->id, slot);
 
+		group->idle_on_stop = (group->run_state == KBASE_CSF_GROUP_IDLE);
+
 		spin_lock_irqsave(&kbdev->csf.scheduler.interrupt_lock, flags);
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
 		if (mtk_common_whitebox_missing_doorbell_enable())
@@ -3512,6 +3517,20 @@ static int scheduler_group_schedule(struct kbase_queue_group *group)
 		new_val = atomic_inc_return(&kbdev->csf.scheduler.non_idle_offslot_grps);
 		KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_NONIDLE_OFFSLOT_GRP_INC, group,
 					 (u64)new_val);
+	} else if (unlikely((group->run_state == KBASE_CSF_GROUP_SUSPENDED) &&
+			    (group->idle_on_stop))) {
+		/* This is a rare case where a previously idle group that was suspended by either
+		 * the LRU optimisation (see evict_lru_or_blocked_csg()) or otherwise preemption
+		 * became active again before the suspension completed. That would cause the group
+		 * to transition to SUSPENDED state rather than SUSPENDED_ON_IDLE/WAIT_SYNC states.
+		 *
+		 * In this state, the group would only be serviced in the next scheduling tick,
+		 * causing stalls. If this happens, we force an in-cycle scheduling tock to ensure
+		 * that new work gets handled in time if appropriate.
+		 */
+		group->idle_on_stop = false;
+		if (scheduler->state != SCHED_SUSPENDED)
+			schedule_in_cycle(group, true);
 	}
 
 	/* Since a group has become active now, check if GPU needs to be
@@ -5371,7 +5390,7 @@ static void gpu_idle_worker(struct work_struct *work)
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
-	if (ged_gpu_apo_support() == APO_2_0_NORMAL_SUPPORT)
+	if ((ged_gpu_apo_support() == APO_2_0_NORMAL_SUPPORT) || (ged_get_apo_autosuspend_delay_ctrl()))
 		kbdev->dev->power.autosuspend_delay = (int)ged_get_apo_autosuspend_delay_ms();
 #endif
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
@@ -7012,7 +7031,7 @@ static void check_group_sync_update_worker(struct work_struct *work)
 	mutex_unlock(&scheduler->lock);
 }
 
-static enum kbase_csf_event_callback_action check_group_sync_update_cb(void *param)
+enum kbase_csf_event_callback_action kbase_csf_scheduler_check_group_sync_update_cb(void *param)
 {
 	struct kbase_context *const kctx = param;
 
@@ -7059,7 +7078,7 @@ int kbase_csf_scheduler_context_init(struct kbase_context *kctx)
 
 	kbase_csf_tiler_heap_reclaim_ctx_init(kctx);
 
-	err = kbase_csf_event_wait_add(kctx, check_group_sync_update_cb, kctx);
+	err = kbase_csf_event_wait_add(kctx, kbase_csf_scheduler_check_group_sync_update_cb, kctx);
 
 	if (err) {
 		dev_err(kbdev->dev, "Failed to register a sync update callback");
@@ -7082,21 +7101,7 @@ alloc_wq_failed:
 
 void kbase_csf_scheduler_context_term(struct kbase_context *kctx)
 {
-	kbase_csf_event_wait_remove(kctx, check_group_sync_update_cb, kctx);
 
-#if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
-	/* Drain a pending SYNC_UPDATE work if any */
-	kbase_csf_scheduler_wait_for_kthread_pending_work(kctx->kbdev,
-							  &kctx->csf.pending_sync_update);
-#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
-	WARN_ON(atomic_read(&kctx->csf.pending_sync_update) != 0 || !list_empty(&kctx->csf.sched.sync_update_work));
-#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
-#else
-	cancel_work_sync(&kctx->csf.sched.sync_update_work);
-	destroy_workqueue(kctx->csf.sched.sync_update_wq);
-#endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
-
-	kbase_ctx_sched_remove_ctx(kctx);
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
 	gpu_metrics_ctx_term(kctx);
 #endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
@@ -7338,7 +7343,7 @@ static int refine_api_sync_flag(struct kbase_device *kbdev)
 {
 	int orig_api_sync_flag = get_api_sync_flag();
 	int temp_api_sync_timeout_min = 0;
-	int temp_api_sync_level = API_SYNC_LEVEL_0;
+	int temp_orig_level = 0;
 
 	if ((orig_api_sync_flag & 0xFFFF0000) == API_SYNC_FLAG_RESET) {
 		kbdev->api_sync_level = API_SYNC_LEVEL_0;
@@ -7351,17 +7356,21 @@ static int refine_api_sync_flag(struct kbase_device *kbdev)
 		/* Upddate api_sync_timeout_ms */
 		kbdev->api_sync_timeout_ms = temp_api_sync_timeout_min * 60000;
 
-		temp_api_sync_level = orig_api_sync_flag & 0xFF;
+		temp_orig_level = orig_api_sync_flag & 0xFF;
 
 		/* Upddate api_sync_level */
-		if (temp_api_sync_level == API_SYNC_LEVEL_1)
+		if (temp_orig_level == API_SYNC_LEVEL_1)
 			kbdev->api_sync_level = API_SYNC_LEVEL_1;
-		else if (temp_api_sync_level == API_SYNC_LEVEL_2)
+		else if (temp_orig_level == API_SYNC_LEVEL_2)
 			kbdev->api_sync_level = API_SYNC_LEVEL_2;
 		else
 			kbdev->api_sync_level = API_SYNC_LEVEL_0;
 
 		return API_SYNC_FLAG_SET;
+	} else if ((orig_api_sync_flag & 0xFF000000) == API_SYNC_FLAG_DEBUG) {
+		kbdev->api_sync_debug_level = orig_api_sync_flag;
+
+		return API_SYNC_FLAG_DEBUG;
 	}
 
 	return orig_api_sync_flag;
@@ -7378,6 +7387,7 @@ static void api_sync_change_pm_policy(struct kbase_device *kbdev)
 		kbdev->api_sync_restore_always_on = true;
 		return;
 	} else if (kbdev->api_sync_restore_always_on == true &&
+		kbdev->api_sync_update_in_progress == false &&
 		cur_policy == &kbase_pm_coarse_demand_policy_ops) {
 		/* Return "always_on" */
 		kbase_pm_set_policy(kbdev, &kbase_pm_always_on_policy_ops);
@@ -7404,7 +7414,7 @@ static void update_api_sync_flag(struct kbase_device *kbdev)
 
 		if (kbdev->final_api_sync_flag == API_SYNC_FLAG_SET &&
 			kbdev->api_sync_force_reset == true) {
-			/* Force to reset flow, need to update timeout & level value  */
+			/* Force to reset flow, need to update timeout & level value */
 			kbdev->api_sync_level = API_SYNC_LEVEL_0;
 			kbdev->api_sync_timeout_ms = API_SYNC_DEFAULT_TIMEOUT_MS;
 
@@ -7412,14 +7422,17 @@ static void update_api_sync_flag(struct kbase_device *kbdev)
 			kbdev->api_sync_update_in_progress = true;
 			api_sync_change_pm_policy(kbdev);
 		} else if ((kbdev->final_api_sync_flag == API_SYNC_FLAG_RESET &&
-			temp_api_sync_flag == API_SYNC_FLAG_SET) ||
-			(kbdev->final_api_sync_flag == API_SYNC_FLAG_SET &&
+			(temp_api_sync_flag == API_SYNC_FLAG_SET ||
+			temp_api_sync_flag == API_SYNC_FLAG_DEBUG)) ||
+			((kbdev->final_api_sync_flag == API_SYNC_FLAG_SET ||
+			kbdev->final_api_sync_flag == API_SYNC_FLAG_DEBUG) &&
 			temp_api_sync_flag == API_SYNC_FLAG_RESET)) {
 			kbdev->temp_api_sync_flag = temp_api_sync_flag;
 			kbdev->api_sync_update_in_progress = true;
 			api_sync_change_pm_policy(kbdev);
 		} else if (((kbdev->final_api_sync_flag & temp_api_sync_flag) == API_SYNC_FLAG_RESET) ||
-			((kbdev->final_api_sync_flag & temp_api_sync_flag) == API_SYNC_FLAG_SET)) {
+			((kbdev->final_api_sync_flag & temp_api_sync_flag) == API_SYNC_FLAG_SET) ||
+			((kbdev->final_api_sync_flag & temp_api_sync_flag) == API_SYNC_FLAG_DEBUG)) {
 			api_sync_change_pm_policy(kbdev);
 		}
 	}
@@ -7671,6 +7684,7 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 	scheduler->apo_support = ged_gpu_apo_support();
 	hrtimer_init(&scheduler->apo_idle_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	scheduler->apo_idle_timer.function = apo_idle_timer_callback;
+	scheduler->keep_apo_timer = false;
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 
 #if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
@@ -7701,6 +7715,7 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 
 	hrtimer_init(&kbdev->api_sync_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	kbdev->api_sync_timer.function = api_sync_timer_callback;
+	kbdev->api_sync_debug_level = API_SYNC_FLAG_DEBUG_INIT;
 #endif
 
 	return kbase_csf_tiler_heap_reclaim_mgr_init(kbdev);
@@ -7784,6 +7799,9 @@ static void scheduler_enable_tick_timer_nolock(struct kbase_device *kbdev)
 		(scheduler->state != SCHED_SLEEPING));
 
 	if (scheduler->total_runnable_grps > 0) {
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+		kbdev->csf.scheduler.keep_apo_timer = true;
+#endif
 		kbase_csf_scheduler_invoke_tick(kbdev);
 		dev_dbg(kbdev->dev, "Re-enabling the scheduler timer\n");
 	} else if (scheduler->state != SCHED_SUSPENDED) {

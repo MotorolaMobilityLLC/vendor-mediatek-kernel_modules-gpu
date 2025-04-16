@@ -461,8 +461,8 @@ static void _UnmapPage(PMR_WRAP_DATA *psWrapData,
 			PVR_DPF((PVR_DBG_ERROR, "%s: Unable to unmap wrapped extmem "
 			        "page - wrong cached mode flags passed. This may leak "
 			        "memory.", __func__));
-			PVR_ASSERT(!"Found non-cpu cache mode flag when unmapping from "
-			           "the cpu");
+			PVR_DPF((PVR_DBG_ERROR, "Found non-cpu cache mode flag when unmapping from "
+					 "the cpu"));
 		}
 		else
 		{
@@ -625,6 +625,15 @@ PMRWriteBytesExtMem(PMR_IMPL_PRIVDATA pvPriv,
                     size_t uiBufSz,
                     size_t *puiNumBytes)
 {
+	PMR_WRAP_DATA *psWrapData = (PMR_WRAP_DATA*) pvPriv;
+
+	if (!BITMASK_HAS(psWrapData->psVMArea->vm_flags, VM_WRITE))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Attempt to write to read only vma.",
+		                        __func__));
+		return PVRSRV_ERROR_PMR_NOT_PERMITTED;
+	}
+
 	return _CopyBytesExtMem(pvPriv,
 	                        uiOffset,
 	                        pcBuffer,
@@ -885,6 +894,8 @@ static inline PVRSRV_ERROR PhysmemValidateParam( IMG_DEVMEM_SIZE_T uiSize,
                                                  IMG_CPU_VIRTADDR pvCpuVAddr,
                                                  PVRSRV_MEMALLOCFLAGS_T uiFlags)
 {
+	PVR_LOG_RETURN_IF_INVALID_PARAM(uiSize != 0, "uiSize");
+
 	if (!access_ok(pvCpuVAddr, uiSize))
 	{
 		PVR_DPF((PVR_DBG_ERROR, "Invalid User mode CPU virtual address"));
@@ -906,6 +917,14 @@ static inline PVRSRV_ERROR PhysmemValidateParam( IMG_DEVMEM_SIZE_T uiSize,
 		PVR_DPF((PVR_DBG_ERROR, "Request for GPU coherency but specifying CPU uncached "
 				"Please use CPU cached flags for coherency."));
 		return PVRSRV_ERROR_UNSUPPORTED_CACHE_MODE;
+	}
+
+	if (uiFlags & PVRSRV_MEMALLOCFLAG_DEVICE_FLAGS_MASK)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Device specific flags not supported. "
+		                        "Passed Flags: 0x%"PVRSRV_MEMALLOCFLAGS_FMTSPEC,
+		                        __func__, uiFlags));
+		return PVRSRV_ERROR_INVALID_FLAGS;
 	}
 
 #if !defined(PVRSRV_WRAP_EXTMEM_WRITE_ATTRIB_ENABLE)
@@ -963,6 +982,7 @@ PhysmemWrapExtMemOS(CONNECTION_DATA * psConnection,
 	PMR_WRAP_DATA *psPrivData;
 	PMR *psPMR;
 	IMG_UINT uiTotalNumPages = (uiSize >> PAGE_SHIFT);
+	IMG_BOOL bIsPMRDestroyed = IMG_FALSE;
 	IMG_UINT i = 0;
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,0,0))
@@ -1062,11 +1082,15 @@ PhysmemWrapExtMemOS(CONNECTION_DATA * psConnection,
 
 	return PVRSRV_OK;
 e3:
-	PMRUnrefPMR(psPMR);
+	(void) PMRUnrefPMR(psPMR);
+	bIsPMRDestroyed = IMG_TRUE;
 e2:
 	OSFreeMem(pui32MappingTable);
 e1:
-	_WrapExtMemReleasePages(psPrivData);
+	if (!bIsPMRDestroyed)
+	{
+		(void)_WrapExtMemReleasePages(psPrivData);
+	}
 e0:
 	return eError;
 }

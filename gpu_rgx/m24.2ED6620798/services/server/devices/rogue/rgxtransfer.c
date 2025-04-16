@@ -1718,8 +1718,6 @@ fail_acquirepowerlock:
 fail_cmdacquire:
 fail_prepare_loop:
 
-	PVR_ASSERT(eError != PVRSRV_OK);
-
 	for (i=0;i<ui32PreparesDone;i++)
 	{
 		SyncAddrListRollbackCheckpoints(psDeviceNode, &psTransferContext->asSyncAddrListFence[i]);
@@ -1794,6 +1792,8 @@ fail_alloc2dhelper:
 fail_alloc3dhelper:
 
 	OSLockRelease(psTransferContext->hLock);
+
+	PVR_ASSERT(eError != PVRSRV_OK);
 	return eError;
 }
 

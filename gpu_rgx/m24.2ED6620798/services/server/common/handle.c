@@ -1120,7 +1120,6 @@ PVRSRV_ERROR PVRSRVAllocSubHandleUnlocked(PVRSRV_HANDLE_BASE *psBase,
 	/* If we were able to allocate the handle then there should be no reason why we
 	 * can't also get it's handle structure. Otherwise something has gone badly wrong.
 	 */
-	PVR_ASSERT(eError == PVRSRV_OK);
 	PVR_LOG_GOTO_IF_FALSE(eError == PVRSRV_OK, "Failed to get parent handle structure",
 	                  ExitFreeHandle);
 
@@ -1411,8 +1410,6 @@ void PVRSRVReleaseHandleUnlocked(PVRSRV_HANDLE_BASE *psBase,
 		        "for base %p of type %s.", __func__, PVRSRVGetErrorString(eError),
 		        (void*) hHandle, HandleTypeToString(eType), psBase,
 		        HandleBaseTypeToString(psBase->eType)));
-
-		PVR_ASSERT(eError == PVRSRV_OK);
 
 		return;
 	}

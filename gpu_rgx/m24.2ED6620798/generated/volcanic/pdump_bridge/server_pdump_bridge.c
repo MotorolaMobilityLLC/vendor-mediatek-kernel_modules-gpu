@@ -70,7 +70,7 @@ static_assert(PVRSRV_PDUMP_MAX_FILENAME_SIZE <= IMG_UINT32_MAX,
 	      "PVRSRV_PDUMP_MAX_FILENAME_SIZE must not be larger than IMG_UINT32_MAX");
 static_assert(4 <= IMG_UINT32_MAX, "4 must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgePDumpImageDescriptor(IMG_UINT32 ui32DispatchTableEntry,
 				 IMG_UINT8 * psPDumpImageDescriptorIN_UI8,
 				 IMG_UINT8 * psPDumpImageDescriptorOUT_UI8,
@@ -241,13 +241,13 @@ PDumpImageDescriptor_exit:
 	if (!bHaveEnoughSpace && pArrayArgsBuffer)
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_PDUMPIMAGEDESCRIPTOR, eError);
 }
 
 static_assert(PVRSRV_PDUMP_MAX_COMMENT_SIZE <= IMG_UINT32_MAX,
 	      "PVRSRV_PDUMP_MAX_COMMENT_SIZE must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgePVRSRVPDumpComment(IMG_UINT32 ui32DispatchTableEntry,
 			       IMG_UINT8 * psPVRSRVPDumpCommentIN_UI8,
 			       IMG_UINT8 * psPVRSRVPDumpCommentOUT_UI8,
@@ -349,10 +349,10 @@ PVRSRVPDumpComment_exit:
 	if (!bHaveEnoughSpace && pArrayArgsBuffer)
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_PVRSRVPDUMPCOMMENT, eError);
 }
 
-static IMG_INT
+static size_t
 PVRSRVBridgePVRSRVPDumpSetFrame(IMG_UINT32 ui32DispatchTableEntry,
 				IMG_UINT8 * psPVRSRVPDumpSetFrameIN_UI8,
 				IMG_UINT8 * psPVRSRVPDumpSetFrameOUT_UI8,
@@ -369,13 +369,13 @@ PVRSRVBridgePVRSRVPDumpSetFrame(IMG_UINT32 ui32DispatchTableEntry,
 	    PDumpSetFrameKM(psConnection, OSGetDevNode(psConnection),
 			    psPVRSRVPDumpSetFrameIN->ui32Frame);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_PVRSRVPDUMPSETFRAME, eError);
 }
 
 static_assert(PVRSRV_PDUMP_MAX_FILENAME_SIZE <= IMG_UINT32_MAX,
 	      "PVRSRV_PDUMP_MAX_FILENAME_SIZE must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgePDumpDataDescriptor(IMG_UINT32 ui32DispatchTableEntry,
 				IMG_UINT8 * psPDumpDataDescriptorIN_UI8,
 				IMG_UINT8 * psPDumpDataDescriptorOUT_UI8,
@@ -515,7 +515,7 @@ PDumpDataDescriptor_exit:
 	if (!bHaveEnoughSpace && pArrayArgsBuffer)
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_PDUMPDATADESCRIPTOR, eError);
 }
 
 /* ***************************************************************************

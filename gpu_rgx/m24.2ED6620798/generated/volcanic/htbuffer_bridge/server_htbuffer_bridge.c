@@ -72,7 +72,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 static_assert(HTB_FLAG_NUM_EL <= IMG_UINT32_MAX,
 	      "HTB_FLAG_NUM_EL must not be larger than IMG_UINT32_MAX");
 
-static IMG_INT
+static size_t
 PVRSRVBridgeHTBControl(IMG_UINT32 ui32DispatchTableEntry,
 		       IMG_UINT8 * psHTBControlIN_UI8,
 		       IMG_UINT8 * psHTBControlOUT_UI8, CONNECTION_DATA * psConnection)
@@ -175,7 +175,7 @@ HTBControl_exit:
 	if (!bHaveEnoughSpace && pArrayArgsBuffer)
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
-	return 0;
+	return offsetof(PVRSRV_BRIDGE_OUT_HTBCONTROL, eError);
 }
 
 /* ***************************************************************************

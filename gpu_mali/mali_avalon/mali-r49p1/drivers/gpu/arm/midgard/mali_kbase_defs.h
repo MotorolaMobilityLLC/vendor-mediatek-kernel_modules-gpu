@@ -167,11 +167,20 @@
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
 #define API_SYNC_FLAG_RESET 0x00060000
 #define API_SYNC_FLAG_SET   0x00070000
+#define API_SYNC_FLAG_DEBUG 0x39000000
+#define API_SYNC_FLAG_DEBUG_INIT (API_SYNC_FLAG_DEBUG | 0x00030000)
+
 #define API_SYNC_LEVEL_0 0
 #define API_SYNC_LEVEL_1 3
 #define API_SYNC_LEVEL_2 6
+
 #define API_SYNC_DEFAULT_TIMEOUT_MS 360000
 #define API_SYNC_MAXIMUM_TIMEOUT_MIN 0xFF
+
+struct api_sync_target_level {
+	int orig_level;
+	int mapping_level;
+};
 #endif
 
 /* Forward declarations */
@@ -1304,6 +1313,7 @@ struct kbase_device {
 	bool api_sync_restore_always_on;
 	unsigned int api_sync_timeout_ms;
 	struct hrtimer api_sync_timer;
+	int api_sync_debug_level;
 #endif
 
 	bool cache_clean_in_progress;

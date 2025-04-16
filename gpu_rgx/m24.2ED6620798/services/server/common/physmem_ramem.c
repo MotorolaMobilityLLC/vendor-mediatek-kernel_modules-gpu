@@ -1507,7 +1507,7 @@ _ExtractPages(PMR_LMALLOCARRAY_DATA *psSrcPageArrayData,
 	PMR_LMALLOCARRAY_DATA* psDstPageArrayData;
 
 	/* Alloc PMR_LMALLOCARRAY_DATA for the extracted pages */
-	eError = _AllocLMPageArray(ui32ExtractPageCount << psSrcPageArrayData->uiLog2ChunkSize,
+	eError = _AllocLMPageArray((IMG_UINT64)ui32ExtractPageCount << psSrcPageArrayData->uiLog2ChunkSize,
 	                           ui32ExtractPageCount,
 	                           psSrcPageArrayData->uiLog2ChunkSize,
 	                           psSrcPageArrayData->ui32Flags,
@@ -1566,7 +1566,7 @@ _ExtractAllPages(PMR_LMALLOCARRAY_DATA *psSrcPageArrayData,
 	}
 
 	/* Alloc PMR_LMALLOCARRAY_DATA for the extracted pages */
-	eError = _AllocLMPageArray(psSrcPageArrayData->iNumChunksAllocated << psSrcPageArrayData->uiLog2ChunkSize,
+	eError = _AllocLMPageArray((IMG_UINT64)psSrcPageArrayData->iNumChunksAllocated << psSrcPageArrayData->uiLog2ChunkSize,
 	                           psSrcPageArrayData->iNumChunksAllocated,
 	                           psSrcPageArrayData->uiLog2ChunkSize,
 	                           psSrcPageArrayData->ui32Flags,

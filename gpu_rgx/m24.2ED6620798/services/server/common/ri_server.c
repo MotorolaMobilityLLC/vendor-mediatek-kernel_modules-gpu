@@ -127,7 +127,7 @@ typedef IMG_UINT64 _RI_BASE_T;
 #define RI_PMR_ENTRY_IMPORTED_DEV_SIZE 3
 #define RI_PMR_ENTRY_IMPORTED_BUF_SIZE (sizeof(RI_PMR_ENTRY_IMPORTED_FRMT_BEGIN)+sizeof(RI_PMR_ENTRY_IMPORTED_FRMT_END) + PVRSRV_MAX_DEVICES * RI_PMR_ENTRY_IMPORTED_DEV_SIZE)
 
-#define RI_PMR_ENTRY_FRMT      "%%sPID:%%-5d DEV:%%s <%%p>\t%%-%ds\t%%-%ds\t0x%%010" IMG_UINT64_FMTSPECx "\t[0x%%010" IMG_UINT64_FMTSPECx "]\t%%s%%s%%c"
+#define RI_PMR_ENTRY_FRMT      "%%sPID:%%-5d DEV:%%s <%%016" IMG_UINT64_FMTSPECx ">\t%%-%ds\t%%-%ds\t0x%%010" IMG_UINT64_FMTSPECx "\t[0x%%010" IMG_UINT64_FMTSPECx "]\t%%s%%s%%c"
 #define RI_PMR_ENTRY_BUF_SIZE  (sizeof(RI_PMR_ENTRY_FRMT)+(3+5+RI_DEV_ID_BUF_SIZE+16+(PVR_ANNOTATION_MAX_LEN/2)+PHYS_HEAP_NAME_SIZE+10+10)+ sizeof(RI_FREED_BY_DRIVER))
 #define RI_PMR_ENTRY_FRMT_SIZE (sizeof(RI_PMR_ENTRY_FRMT))
 
@@ -156,6 +156,7 @@ static IMG_CHAR g_szSysAllocImport[RI_SYS_ALLOC_IMPORT_FRMT_SIZE];
 typedef struct _RI_PMR_INFO_
 {
 	uintptr_t uiAddr;
+	IMG_UINT64 uiSerialNum;
 	PHYS_HEAP *psHeap;
 	PVRSRV_DEVICE_NODE *psDeviceNode;
 	size_t uiLogicalSize;
@@ -235,11 +236,15 @@ struct _RI_LIST_ENTRY_
 			? (void*)(entry)->pmr_info.psPmrInfo \
 			: (void*)(entry)->pmr_info.psPMR \
 	)
-
 #define GET_ADDR(entry) ( \
 		HAS_PMR_INFO(entry) \
 			? (void*)(entry)->pmr_info.psPmrInfo->uiAddr \
 			: (void*)(entry)->pmr_info.psPMR \
+	)
+#define GET_SERIALNUM(entry) ( \
+		HAS_PMR_INFO(entry) \
+			? (entry)->pmr_info.psPmrInfo->uiSerialNum \
+			: PMRGetSerialNum((entry)->pmr_info.psPMR) \
 	)
 #define GET_HEAP(entry) ( \
 		HAS_PMR_INFO(entry) \
@@ -1178,6 +1183,7 @@ static PVRSRV_ERROR _RICreateAndSetPmrInfo(RI_LIST_ENTRY *const psRIEntry)
 	PVR_LOG_RETURN_IF_NOMEM(psPmrInfo, "OSAllocZMemNoStats");
 
 	psPmrInfo->uiAddr = (uintptr_t) psRIEntry->pmr_info.psPMR;
+	psPmrInfo->uiSerialNum = PMRGetSerialNum(psRIEntry->pmr_info.psPMR);
 	psPmrInfo->psHeap = PMR_PhysHeap(psRIEntry->pmr_info.psPMR);
 	psPmrInfo->psDeviceNode = (PVRSRV_DEVICE_NODE *) PMR_DeviceNode(psRIEntry->pmr_info.psPMR);
 	psPmrInfo->uiLogicalSize = PMR_LogicalSize(psRIEntry->pmr_info.psPMR);
@@ -1680,7 +1686,19 @@ IMG_BOOL RIGetListEntryKM(IMG_PID pid,
 					if (szProcName[0] == '\0')
 					{
 						psRISubEntry = IMG_CONTAINER_OF(dllist_get_next_node(&(psRIEntry->sSubListFirst)), RI_SUBLIST_ENTRY, sListNode);
-						OSStringSafeCopy(szProcName, GET_PROC(psRISubEntry), RI_PROC_BUF_SIZE);
+
+						if (psRISubEntry != NULL)
+						{
+							OSStringSafeCopy(szProcName, GET_PROC(psRISubEntry), RI_PROC_BUF_SIZE);
+						}
+						else
+						{
+							PVR_DPF((PVR_DBG_MESSAGE, "%s: No sub-list entry for RI entry "IMG_KM_PTR_FMTSPEC", PMR "IMG_KM_PTR_FMTSPEC" (%s)",
+							 __func__, psRIEntry,
+							GET_ADDR(psRIEntry), GET_NAME(psRIEntry)));
+
+							OSStringSafeCopy(szProcName, "(proc n/a)", RI_PROC_BUF_SIZE);
+						}
 					}
 					bPMRToDisplay = IMG_TRUE;
 				}
@@ -1908,7 +1926,7 @@ static void _GeneratePMREntryString(RI_LIST_ENTRY *psRIEntry,
 	           (bDebugFs ? "" : "   "),
 	           psRIEntry->pid,
 	           (bHostDevice ? "-  " : szDeviceID),
-	           GET_ADDR(psRIEntry),
+	           GET_SERIALNUM(psRIEntry),
 	           pszAnnotationText,
 	           pszHeapText,
 	           GET_LOGICAL_SIZE(psRIEntry),

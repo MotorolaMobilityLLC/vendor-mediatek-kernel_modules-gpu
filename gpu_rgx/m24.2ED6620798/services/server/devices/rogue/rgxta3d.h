@@ -118,6 +118,7 @@ typedef struct _RGX_HWRTDATA_COMMON_COOKIE_
 {
 	DEVMEM_MEMDESC			*psHWRTDataCommonFwMemDesc;
 	RGXFWIF_DEV_VIRTADDR	sHWRTDataCommonFwAddr;
+	DEVMEMINT_RESERVATION	*psPMMListsReservation;
 	IMG_UINT32				ui32RefCount;
 
 } RGX_HWRTDATA_COMMON_COOKIE;
@@ -229,6 +230,36 @@ PVRSRV_ERROR RGXCreateHWRTDataSet(CONNECTION_DATA          *psConnection,
                                   IMG_DEV_VIRTADDR          asVHeapTableDevVAddr[RGXMKIF_NUM_GEOMDATAS],
                                   IMG_DEV_VIRTADDR          psPMMListDevVAddr[RGXMKIF_NUM_RTDATAS],
                                   RGX_FREELIST	           *apsFreeLists[RGXMKIF_NUM_RTDATA_FREELISTS],
+                                  IMG_UINT32                ui32ScreenPixelMax,
+                                  IMG_UINT64                ui64MultiSampleCtl,
+                                  IMG_UINT64                ui64FlippedMultiSampleCtl,
+                                  IMG_UINT32                ui32TPCStride,
+                                  IMG_DEV_VIRTADDR          asTailPtrsDevVAddr[RGXMKIF_NUM_GEOMDATAS],
+                                  IMG_UINT32                ui32TPCSize,
+                                  IMG_UINT32                ui32TEScreen,
+                                  IMG_UINT32                ui32TEAA,
+                                  IMG_UINT32                ui32TEMTILE1,
+                                  IMG_UINT32                ui32TEMTILE2,
+                                  IMG_UINT32                ui32MTileStride,
+                                  IMG_UINT32                ui32ISPMergeLowerX,
+                                  IMG_UINT32                ui32ISPMergeLowerY,
+                                  IMG_UINT32                ui32ISPMergeUpperX,
+                                  IMG_UINT32                ui32ISPMergeUpperY,
+                                  IMG_UINT32                ui32ISPMergeScaleX,
+                                  IMG_UINT32                ui32ISPMergeScaleY,
+                                  IMG_DEV_VIRTADDR          sMacrotileArrayDevVAddr[RGXMKIF_NUM_RTDATAS],
+                                  IMG_DEV_VIRTADDR          sRgnHeaderDevVAddr[RGXMKIF_NUM_RTDATAS],
+                                  IMG_DEV_VIRTADDR          asRTCDevVAddr[RGXMKIF_NUM_GEOMDATAS],
+                                  IMG_UINT32                uiRgnHeaderSize,
+                                  IMG_UINT32                ui32ISPMtileSize,
+                                  IMG_UINT16                ui16MaxRTs,
+                                  RGX_KM_HW_RT_DATASET     *pasKMHWRTDataSet[RGXMKIF_NUM_RTDATAS]);
+
+PVRSRV_ERROR RGXCreateHWRTDataSet2(CONNECTION_DATA          *psConnection,
+                                  PVRSRV_DEVICE_NODE        *psDeviceNode,
+                                  IMG_DEV_VIRTADDR          asVHeapTableDevVAddr[RGXMKIF_NUM_GEOMDATAS],
+                                  DEVMEMINT_RESERVATION     *psPMMListsReservation,
+                                  RGX_FREELIST	             *apsFreeLists[RGXMKIF_NUM_RTDATA_FREELISTS],
                                   IMG_UINT32                ui32ScreenPixelMax,
                                   IMG_UINT64                ui64MultiSampleCtl,
                                   IMG_UINT64                ui64FlippedMultiSampleCtl,
