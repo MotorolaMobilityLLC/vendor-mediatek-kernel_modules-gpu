@@ -452,19 +452,14 @@ static void pm_callback_runtime_gpu_active(struct kbase_device *kbdev)
 	mtk_common_ged_dvfs_write_sysram_last_commit_top_idx();
 	mtk_common_ged_dvfs_write_sysram_last_commit_dual();
 
-	if (pm_runtime_status_suspended(kbdev->dev)) {
-		error = pm_runtime_get_sync(kbdev->dev);
-		KBASE_PLATFORM_LOGD("pm_runtime_get_sync returned %d", error);
-	} else {
-		/* Call the async version here, otherwise there could be
-		 * a deadlock if the runtime suspend operation is ongoing.
-		 * Caller would have taken the kbdev->pm.lock and/or the
-		 * scheduler lock, and the runtime suspend callback function
-		 * will also try to acquire the same lock(s).
-		 */
-		error = pm_runtime_get(kbdev->dev);
-		KBASE_PLATFORM_LOGD("pm_runtime_get returned %d", error);
-	}
+	/* Call the async version here, otherwise there could be
+ 	 * a deadlock if the runtime suspend operation is ongoing.
+	 * Caller would have taken the kbdev->pm.lock and/or the
+	 * scheduler lock, and the runtime suspend callback function
+	 * will also try to acquire the same lock(s).
+	 */
+	error = pm_runtime_get(kbdev->dev);
+	KBASE_PLATFORM_LOGD("pm_runtime_get returned %d", error);
 
 	kbdev->pm.runtime_active = true;
 
