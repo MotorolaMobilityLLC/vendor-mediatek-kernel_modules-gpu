@@ -7466,7 +7466,11 @@ static void wait_for_mcu_sleep_before_sync_update_check(struct kbase_device *kbd
 						kbdev->pm.backend.exit_gpu_sleep_mode ||
 						!kbase_reset_gpu_is_not_pending(kbdev),
 					  timeout))
-		dev_warn(kbdev->dev, "Wait for MCU sleep timed out");
+		dev_warn(kbdev->dev, "Wait for MCU sleep timed out(%d,%d %d %d)",
+														db_notif_disabled,
+														kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_CONTROL)) &MCU_CNTRL_DOORBELL_DISABLE_MASK,
+														kbdev->pm.backend.exit_gpu_sleep_mode,
+														atomic_read(&kbdev->pm.active_count));
 }
 
 static void check_sync_update_in_sleep_mode(struct kbase_device *kbdev)
