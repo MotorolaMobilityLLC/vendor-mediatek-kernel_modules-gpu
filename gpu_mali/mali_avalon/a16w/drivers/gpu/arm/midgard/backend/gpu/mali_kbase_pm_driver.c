@@ -1568,6 +1568,10 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			} else if (~desired_mask_alloc_en & shaders_ready) {
 				kbase_csf_firmware_update_core_attr(kbdev, false, true,
 								    desired_mask_alloc_en);
+#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
+				backend->pre_shader_avail = backend->shaders_avail;
+				backend->update_core_mask = desired_mask_alloc_en;
+#endif
 				backend->mcu_state = KBASE_MCU_HCTL_CORES_DOWN_SCALE_NOTIFY_PEND;
 			} else {
 				backend->mcu_state = KBASE_MCU_HCTL_SHADERS_PEND_ON;
@@ -3180,6 +3184,8 @@ static void kbase_pm_timed_out(struct kbase_device *kbdev, const char *timeout_m
 #endif
 {
 	unsigned long flags;
+	unsigned long long shaders_trans = kbase_pm_get_trans_cores(kbdev, KBASE_PM_CORE_SHADER);
+	unsigned long long shaders_ready = kbase_pm_get_ready_cores(kbdev, KBASE_PM_CORE_SHADER);
 
 	dev_err(kbdev->dev, "%s", timeout_msg);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
@@ -3201,6 +3207,15 @@ static void kbase_pm_timed_out(struct kbase_device *kbdev, const char *timeout_m
 		kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(STACK_READY)));
 	dev_err(kbdev->dev, "\tShader=%016llx\n",
 		kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(SHADER_READY)));
+
+	dev_err(kbdev->dev, "\tShader_ready=%016llx\n",shaders_ready);
+	dev_err(kbdev->dev, "\tShader_trans=%016llx\n",shaders_trans);
+	dev_err(kbdev->dev, "\tShader_avail=%016llx\n",kbdev->pm.backend.shaders_avail);
+#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
+	dev_err(kbdev->dev, "\tpre_Shader_avail=%016llx\n",kbdev->pm.backend.pre_shader_avail);
+	dev_err(kbdev->dev, "\tupdate_core_mask=%016llx\n",kbdev->pm.backend.update_core_mask);
+#endif
+
 	dev_err(kbdev->dev, "\tTiler =%016llx\n",
 		kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(TILER_READY)));
 	dev_err(kbdev->dev, "\tL2    =%016llx\n",

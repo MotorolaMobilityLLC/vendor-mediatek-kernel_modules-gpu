@@ -497,6 +497,8 @@ struct kbase_pm_backend_data {
 	u64 shaders_avail;
 #if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
 	u64 mcu_core_mask;
+	u64 pre_shader_avail;
+	u64 update_core_mask;
 #endif
 	bool mcu_desired;
 	bool policy_change_clamp_state_to_off;
