@@ -36,7 +36,7 @@ filegroup(
             ":base.fragment",
         ] +
         select({
-            "//config:dma_shared_buffer": [":dma_buff.fragment"],
+            "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:dma_shared_buffer": [":dma_buff.fragment"],
             "//conditions:default": [],
         }),
 )
@@ -51,7 +51,7 @@ genrule(
 filegroup(
     name = "coresight_defconfig",
     srcs = select({
-        "//config:mali_coresight": [
+        "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_coresight": [
             ":coresight.fragment",
         ],
         "//conditions:default": [":nocoresight.fragment"],
@@ -62,43 +62,43 @@ filegroup(
     name = "kbaseconfig",
     srcs = ["midgard.fragment"] +
            select({
-               "//config:no_mali": ["nomali.fragment"],
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:no_mali": ["nomali.fragment"],
                "//conditions:default": ["real_hw.fragment"],
            }) +
            select({
-               "//config:mali_expert": ["mali_expert.fragment"],
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_expert": ["mali_expert.fragment"],
                "//conditions:default": [],
            }) +
            select({
-               "//config:mali_sync_file": ["sync_file.fragment"],
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_sync_file": ["sync_file.fragment"],
                "//conditions:default": [],
            }) +
            select({
-               "//config:mali_debug": ["mali_debug.fragment"],
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_debug": ["mali_debug.fragment"],
                "//conditions:default": [],
            }) +
            select({
-               "//config:expert_no_mali": ["mali_expert_no_mali.fragment"],
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:expert_no_mali": ["mali_expert_no_mali.fragment"],
                "//conditions:default": [],
            }) +
            select({
-               "//config:mali_expert_debug": ["mali_expert_debug.fragment"],
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_expert_debug": ["mali_expert_debug.fragment"],
                "//conditions:default": [],
            }) +
            select({
-               "//config:mali_expert_debug_sync_file": ["mali_expert_debug_sync_file.fragment"],
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_expert_debug_sync_file": ["mali_expert_debug_sync_file.fragment"],
                "//conditions:default": [],
            }) +
            select({
-               "//config:mali_debug_kutf": ["debug_kutf.fragment"],
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_debug_kutf": ["debug_kutf.fragment"],
                "//conditions:default": [],
            }) +
            select({
-               "//config:mali_coresight": ["debug_coresight.fragment"],
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_coresight": ["debug_coresight.fragment"],
                "//conditions:default": [],
            }) +
            select({
-               "//config:mali_debug_kutf_devfreq_no_mali": ["debug_kutf_devfreq_no_mali.fragment"],
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_debug_kutf_devfreq_no_mali": ["debug_kutf_devfreq_no_mali.fragment"],
                "//conditions:default": [],
            }),
 )
@@ -107,6 +107,58 @@ genrule(
     name = "kbase_defconfig",
     srcs = [":kbaseconfig"],
     outs = ["common/kbase.defconfig"],
+    cmd = "cat $(SRCS) >> $(OUTS)",
+)
+
+filegroup(
+    name = "kbaseconfig_mt6789",
+    srcs = ["midgard.fragment", "mt6789.fragment"] +
+           select({
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:no_mali": ["nomali.fragment"],
+               "//conditions:default": ["real_hw.fragment"],
+           }) +
+           select({
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_expert": ["mali_expert.fragment"],
+               "//conditions:default": [],
+           }) +
+           select({
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_sync_file": ["sync_file.fragment"],
+               "//conditions:default": [],
+           }) +
+           select({
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_debug": ["mali_debug.fragment"],
+               "//conditions:default": [],
+           }) +
+           select({
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:expert_no_mali": ["mali_expert_no_mali.fragment"],
+               "//conditions:default": [],
+           }) +
+           select({
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_expert_debug": ["mali_expert_debug.fragment"],
+               "//conditions:default": [],
+           }) +
+           select({
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_expert_debug_sync_file": ["mali_expert_debug_sync_file.fragment"],
+               "//conditions:default": [],
+           }) +
+           select({
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_debug_kutf": ["debug_kutf.fragment"],
+               "//conditions:default": [],
+           }) +
+           select({
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_coresight": ["debug_coresight.fragment"],
+               "//conditions:default": [],
+           }) +
+           select({
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_debug_kutf_devfreq_no_mali": ["debug_kutf_devfreq_no_mali.fragment"],
+               "//conditions:default": [],
+           }),
+)
+
+genrule(
+    name = "kbase_defconfig_mt6789",
+    srcs = [":kbaseconfig_mt6789"],
+    outs = ["common/kbase_mt6789.defconfig"],
     cmd = "cat $(SRCS) >> $(OUTS)",
 )
 

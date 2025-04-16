@@ -32,7 +32,7 @@ ddk_headers(
     name = "mali_arbitration_shared_config_defaults",
     includes = ["midgard"] +
                select({
-                   "//config:mali_arbitration": ["arbitration"],
+                   "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_arbitration": ["arbitration"],
                    "//conditions:default": [],
                }),
 )
@@ -41,7 +41,7 @@ filegroup(
     srcs = [
         "//drivers/gpu/arm/midgard:midgard_kconfig",
     ] + select({
-        "//config:mali_arbitration": ["//drivers/gpu/arm/arbitration:arbitration_kconfig"],
+        "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_arbitration": ["//drivers/gpu/arm/arbitration:arbitration_kconfig"],
         "//conditions:default": [],
     }),
 )
@@ -49,10 +49,10 @@ kernel_module_group(
     name = "gpu",
     srcs = ["//drivers/gpu/arm/midgard:mali_kbase"] +
            select({
-               "//config:mali_arbitration": ["//drivers/gpu/arm/arbitration:arbitration"],
+               "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_arbitration": ["//drivers/gpu/arm/arbitration:arbitration"],
                "//conditions:default": [],
            }) + select({
-        "//config:mali_debug_kutf": ["//drivers/gpu/arm/midgard/tests:mali_kutf_tests"],
+        "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w_jm/config:mali_debug_kutf": ["//drivers/gpu/arm/midgard/tests:mali_kutf_tests"],
         "//conditions:default": [],
     }),
 )
