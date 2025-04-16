@@ -1956,11 +1956,7 @@ static void handle_tiler_oom_request_on_cs_resume(struct kbase_device *kbdev,
 	case KBASE_CSF_QUEUE_OOM_ERROR_ABORT:
 		kbase_csf_fw_io_stream_write_mask(&kbdev->csf.fw_io, slot_id, stream_id, CS_REQ,
 						  ~cs_ack, CS_REQ_TILER_OOM_MASK);
-#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
-		kthread_queue_work(kbdev->csf.scheduler.oom_event_kthread_worker, &queue->oom_event_work);
-#else
 		queue_work(queue->kctx->csf.wq, &queue->oom_event_work);
-#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 		break;
 	default:
 		/* Unexpected state reached for resume */
@@ -2523,10 +2519,6 @@ static void process_cs_pending_events(struct kbase_csf_fw_io *fw_io, u32 group_i
 	u32 stream_id = queue->csi_index;
 	u32 ack_xor_req = kbase_csf_fw_io_stream_read(fw_io, group_id, stream_id, CS_ACK) ^
 			  kbase_csf_fw_io_stream_input_read(fw_io, group_id, stream_id, CS_REQ);
-#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
-	struct kbase_device *kbdev = queue->kctx->kbdev;
-#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
-
 	if (is_gpu_level_suspend_supported(fw_io->kbdev) &&
 	    (ack_xor_req & (CS_ACK_FATAL_MASK | CS_ACK_FAULT_MASK))) {
 		enum dumpfault_error_type err_type;
@@ -2553,11 +2545,7 @@ static void process_cs_pending_events(struct kbase_csf_fw_io *fw_io, u32 group_i
 
 	/* If OOM dealing state is error-abort, enqueue a wq item for deferred abort action. */
 	if (queue->oom_track.state == KBASE_CSF_QUEUE_OOM_ERROR_ABORT)
-#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
-		kthread_queue_work(kbdev->csf.scheduler.oom_event_kthread_worker, &queue->oom_event_work);
-#else
 		queue_work(queue->kctx->csf.wq, &queue->oom_event_work);
-#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 
 	/* Tracking pending P.mode request */
 	if (ack_xor_req & CS_REQ_PROTM_PEND_MASK)
@@ -3789,17 +3777,9 @@ static int scheduler_group_schedule(struct kbase_queue_group *group)
 		 * causing stalls. If this happens, we force an in-cycle scheduling tock to ensure
 		 * that new work gets handled in time if appropriate.
 		 */
-
-		/* If scheduler is not suspended and the given group's
-		 * static priority (reflected by the scan_seq_num) is inside
-		 * the current tick slot-range, schedule an async tock.
-		 */
-		if (scheduler->state != SCHED_SUSPENDED) {
-			if (group->scan_seq_num < scheduler->num_csg_slots_for_tick)
-				schedule_in_cycle(group, true);
-		}
-
 		group->idle_on_stop = false;
+		if (scheduler->state != SCHED_SUSPENDED)
+			schedule_in_cycle(group, true);
 	}
 
 	/* Since a group has become active now, check if GPU needs to be
@@ -7418,7 +7398,6 @@ static void wait_for_mcu_sleep_before_sync_update_check(struct kbase_device *kbd
 	long timeout = kbase_csf_timeout_in_jiffies(kbdev->csf.csg_suspend_timeout_ms);
 	bool can_wait_for_mcu_sleep;
 	unsigned long flags;
-	int dbg_db_notif_disabled;
 
 	lockdep_assert_held(&kbdev->csf.scheduler.lock);
 
@@ -7433,13 +7412,6 @@ static void wait_for_mcu_sleep_before_sync_update_check(struct kbase_device *kbd
 	 * which implies that MCU needs to be turned on.
 	 */
 	can_wait_for_mcu_sleep = !kbdev->pm.backend.exit_gpu_sleep_mode && !kbdev->pm.active_count;
-	if (kbase_io_is_gpu_powered(kbdev)) {
-		dbg_db_notif_disabled = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_CONTROL)) &
-					 MCU_CNTRL_DOORBELL_DISABLE_MASK;
-	} else {
-		dbg_db_notif_disabled = -1;
-	}
-
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	if (!can_wait_for_mcu_sleep)
 		return;
@@ -7449,9 +7421,8 @@ static void wait_for_mcu_sleep_before_sync_update_check(struct kbase_device *kbd
 					  kbase_csf_firmware_mcu_halted(kbdev) ||
 						kbdev->pm.backend.exit_gpu_sleep_mode ||
 						!kbase_reset_gpu_is_not_pending(kbdev),
-					  timeout)) {
-		dev_warn(kbdev->dev, "Wait for MCU sleep timed out %d",dbg_db_notif_disabled);
-	}
+					  timeout))
+		dev_warn(kbdev->dev, "Wait for MCU sleep timed out");
 }
 
 static void check_sync_update_in_sleep_mode(struct kbase_device *kbdev)
@@ -8264,11 +8235,6 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 
-#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
-	int ret = 0;
-	struct sched_param param = { .sched_priority = 2 };
-#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
-
 	atomic_set(&scheduler->timer_enabled, true);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
@@ -8345,19 +8311,6 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 		kbase_csf_db_valid_init(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
-	scheduler->oom_event_kthread_worker = kthread_create_worker(0, "mali-oom-kthread");
-	dev_info(kbdev->dev, "kthread_create_worker %p", scheduler->oom_event_kthread_worker);
-	if (IS_ERR(scheduler->oom_event_kthread_worker)) {
-		dev_err(kbdev->dev, "Failed to allocate oom event worker\n");
-		return -ENOMEM;
-	}
-	ret = sched_setscheduler_nocheck(scheduler->oom_event_kthread_worker->task, SCHED_FIFO, &param);
-	if (ret != 0) {
-		dev_warn(kbdev->dev, "Failed to set priority mali-oom-kthread %d\n", ret);
-	}
-#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
-
 	return kbase_csf_tiler_heap_reclaim_mgr_init(kbdev);
 }
 
@@ -8409,13 +8362,6 @@ void kbase_csf_scheduler_term(struct kbase_device *kbdev)
 		kfree(kbdev->csf.scheduler.csg_slots);
 		kbdev->csf.scheduler.csg_slots = NULL;
 	}
-
-#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
-	if(scheduler->oom_event_kthread_worker) {
-		kthread_destroy_worker(scheduler->oom_event_kthread_worker);
-	}
-#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
-
 	KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSF_GROUP_TERMINATED, NULL,
 				 kbase_csf_scheduler_get_nr_active_csgs(kbdev));
 	/* Terminating the MCU shared regions, following the release of slots */
