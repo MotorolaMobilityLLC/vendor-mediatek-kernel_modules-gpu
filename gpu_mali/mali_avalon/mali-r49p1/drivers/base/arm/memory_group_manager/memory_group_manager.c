@@ -1090,8 +1090,15 @@ static struct page *example_mgm_alloc_page(struct memory_group_manager_device *m
 						}
 					}
 				}
-			} else
-				p = alloc_pages(gfp_mask, order);
+			} else {
+				gfp_t horder_gfp_mask;
+				if (order)
+					horder_gfp_mask = ((gfp_mask & ~(__GFP_RECLAIM | __GFP_NOFAIL | __GFP_RETRY_MAYFAIL)) |
+						__GFP_NORETRY | __GFP_NOWARN);
+				else
+					horder_gfp_mask = gfp_mask;
+				p = alloc_pages(horder_gfp_mask, order);
+			}
 		} else
 			p = alloc_pages(gfp_mask, order);
 	}
