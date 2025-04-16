@@ -7,7 +7,7 @@
 #define __MTK_PLATFORM_LOGBUF_H__
 
 #define MTK_LOG_BUFFER_NAME_LEN 64
-#define MTK_LOG_BUFFER_ENTRY_SIZE 256
+#define MTK_LOG_BUFFER_ENTRY_SIZE 512
 
 struct mtk_logbuffer_info {
 	spinlock_t access_lock;
