@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2014-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -134,11 +134,11 @@ static int busy_wait_cache_operation(struct kbase_device *kbdev, u32 irq_bit)
 			BUG_ON(1);
 #endif /* CONFIG_MALI_MTK_TRIGGER_KE */
 
-		if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_NONE)) {
+		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE)) {
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
 			ged_mali_event_update_gpu_reset_nolock(GPU_RESET_BUSY_WAIT_CACHE_OP_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
-			kbase_reset_gpu_locked(kbdev);
+			kbase_reset_gpu(kbdev);
 		}
 
 		return -EBUSY;
@@ -358,11 +358,11 @@ int kbase_gpu_wait_cache_clean_timeout(struct kbase_device *kbdev, unsigned int 
 		mtk_common_debug(MTK_COMMON_DBG_DUMP_GIC_STATUS, NULL, MTK_DBG_HOOK_BITSTUCK_FAIL);
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 
-		if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
+		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
 			ged_mali_event_update_gpu_reset_nolock(GPU_RESET_GPU_WAIT_CACHE_CLEAN_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
-			kbase_reset_gpu_locked(kbdev);
+			kbase_reset_gpu(kbdev);
 		}
 
 		result = -ETIMEDOUT;

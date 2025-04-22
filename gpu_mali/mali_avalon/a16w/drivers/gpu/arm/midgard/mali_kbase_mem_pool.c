@@ -895,7 +895,7 @@ void kbase_mem_pool_free_pages(struct kbase_mem_pool *pool, size_t nr_pages,
 
 	if (!reclaimed) {
 		/* Add to this pool */
-		nr_to_pool = kbase_mem_pool_capacity(pool);
+		nr_to_pool = kbase_mem_pool_capacity(pool) << pool->order;
 		nr_to_pool = min(nr_pages, nr_to_pool);
 
 		kbase_mem_pool_add_array(pool, nr_to_pool, pages, false, dirty);
@@ -942,7 +942,7 @@ void kbase_mem_pool_free_pages_locked(struct kbase_mem_pool *pool, size_t nr_pag
 
 	if (!reclaimed) {
 		/* Add to this pool */
-		nr_to_pool = kbase_mem_pool_capacity(pool);
+		nr_to_pool = kbase_mem_pool_capacity(pool) << pool->order;
 		nr_to_pool = min(nr_pages, nr_to_pool);
 
 		kbase_mem_pool_add_array_locked(pool, nr_to_pool, pages, false, dirty);

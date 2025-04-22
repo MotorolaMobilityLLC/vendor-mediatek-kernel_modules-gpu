@@ -598,12 +598,7 @@ static void update_size(struct memory_group_manager_device *mgm_dev, unsigned in
 		if (alloc)
 			atomic_inc(&data->groups[group_id].size);
 		else {
-#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
-			if (atomic_read(&data->groups[group_id].size) == 0)
-				dev_warn(data->dev, "groups[%u].size == 0\n", group_id);
-#else /* CONFIG_MALI_MTK_MGMM */
 			WARN_ON(atomic_read(&data->groups[group_id].size) == 0);
-#endif /* CONFIG_MALI_MTK_MGMM */
 			atomic_dec(&data->groups[group_id].size);
 		}
 		break;
@@ -612,12 +607,7 @@ static void update_size(struct memory_group_manager_device *mgm_dev, unsigned in
 		if (alloc)
 			atomic_inc(&data->groups[group_id].lp_size);
 		else {
-#if IS_ENABLED(CONFIG_MALI_MTK_MGMM)
-			if (atomic_read(&data->groups[group_id].lp_size) == 0)
-				dev_warn(data->dev, "groups[%u].lp_size == 0\n", group_id);
-#else /* CONFIG_MALI_MTK_MGMM */
 			WARN_ON(atomic_read(&data->groups[group_id].lp_size) == 0);
-#endif /* CONFIG_MALI_MTK_MGMM */
 			atomic_dec(&data->groups[group_id].lp_size);
 		}
 		break;

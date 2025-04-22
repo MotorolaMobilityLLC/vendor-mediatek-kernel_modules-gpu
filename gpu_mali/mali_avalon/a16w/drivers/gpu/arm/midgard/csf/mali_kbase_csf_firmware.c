@@ -563,11 +563,11 @@ static int wait_ready(struct kbase_device *kbdev)
 		BUG_ON(1);
 #endif /* CONFIG_MALI_MTK_TRIGGER_KE */
 
-	if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
+	if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
 		ged_mali_event_update_gpu_reset_nolock(GPU_RESET_CSF_WAIT_READY_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
-		kbase_reset_gpu_locked(kbdev);
+		kbase_reset_gpu(kbdev);
 	}
 
 	return -ETIMEDOUT;
