@@ -195,6 +195,39 @@ platforms = [
             "platform/mtk_platform_common/*.c",
             "platform/{}/*.c".format(p),
         ],
+        exclude = [
+            "platform/mtk_platform_common/mtk_platform_debug_dump_csg.c",
+            "platform/mtk_platform_common/mtk_platform_debug_dump_cpu.c",
+            "platform/mtk_platform_common/mtk_platform_debug_dump_kcpu.c",
+            "platform/mtk_platform_common/mtk_platform_debug_dump_gpu.c",
+            "platform/mtk_platform_common/mtk_platform_debug_dump_gpu_debugfs.c",
+            "platform/mtk_platform_common/mtk_platform_debug_dump_infra_status.c",
+            "platform/mtk_platform_common/mtk_platform_debug_dump_pm_status.c",
+            "platform/mtk_platform_common/mtk_platform_debug_dump_iter_cshw.c",
+            "platform/mtk_platform_common/mtk_platform_debug_dump_queue_data.c",
+            "platform/mtk_platform_common/mtk_platform_debug_dump_as_status.c",
+            "platform/mtk_platform_common/mtk_platform_debug_dump_gic.c",
+            "platform/mtk_platform_common/mtk_platform_qinspect.c",
+            "platform/mtk_platform_common/mtk_platform_qinspect_recovery.c",
+            "platform/mtk_platform_common/mtk_platform_extra_fence_debug.c",
+            "platform/mtk_platform_common/mtk_platform_dvfs_hint_26m_perf_cnting.c",
+            "platform/mtk_platform_common/mtk_platform_dvfs.c",
+            "platform/mtk_platform_common/mtk_platform_whitebox_scheduler.c",
+            "platform/mtk_platform_common/mtk_platform_whitebox_sync_update.c",
+            "platform/mtk_platform_common/mtk_platform_debug_memory.c",
+            "platform/mtk_platform_common/mtk_platform_whitebox_memory_footprint.c",
+            "platform/mtk_platform_common/mtk_platform_whitebox_force_hard_reset.c",
+            "platform/mtk_platform_common/mtk_platform_whitebox_force_terminate_csg.c",
+            "platform/mtk_platform_common/mtk_platform_whitebox_directly_hard_reset.c",
+            "platform/mtk_platform_common/mtk_platform_whitebox_fault_worker.c",
+            "platform/mtk_platform_common/mtk_platform_memtrack.c",
+            "platform/mtk_platform_common/mtk_platform_upf_counter.c",
+            "platform/mtk_platform_common/mtk_platform_whitebox_missing_doorbell.c",
+            "platform/mtk_platform_common/mtk_platform_debug_mmap_logging_debugfs.c",
+            "platform/mtk_platform_common/mtk_platform_diagnosis_mode.c",
+            "platform/mtk_platform_common/mtk_platform_logbuffer.c",
+            "platform/mtk_platform_common/mtk_platform_gpu_idle_test.c",
+        ],
     ),
     out = "mali_kbase_{}_a16w.ko".format(p),
     hdrs = [
@@ -257,6 +290,117 @@ platforms = [
                 "ipa/*.h",
                 "ipa/backend/*.h",
             ]),
+        },
+        "CONFIG_MALI_MTK_DEBUG_DUMP": {
+            True: [
+                "platform/mtk_platform_common/mtk_platform_debug_dump_csg.c",
+                "platform/mtk_platform_common/mtk_platform_debug_dump_cpu.c",
+                "platform/mtk_platform_common/mtk_platform_debug_dump_kcpu.c",
+                "platform/mtk_platform_common/mtk_platform_debug_dump_gpu.c",
+                "platform/mtk_platform_common/mtk_platform_debug_dump_gpu_debugfs.c",
+                "platform/mtk_platform_common/mtk_platform_debug_dump_infra_status.c",
+                "platform/mtk_platform_common/mtk_platform_debug_dump_pm_status.c",
+                "platform/mtk_platform_common/mtk_platform_debug_dump_iter_cshw.c",
+                "platform/mtk_platform_common/mtk_platform_debug_dump_queue_data.c",
+                "platform/mtk_platform_common/mtk_platform_debug_dump_as_status.c",
+                "platform/mtk_platform_common/mtk_platform_debug_dump_gic.c",
+            ],
+        },
+        "CONFIG_MALI_MTK_CROSS_QUEUE_SYNC_RECOVERY": {
+            True: [
+                "platform/mtk_platform_common/mtk_platform_qinspect.c",
+                "platform/mtk_platform_common/mtk_platform_qinspect_recovery.c",
+            ],
+        },
+        "CONFIG_MALI_FENCE_DEBUG": {
+            True: [
+                "platform/mtk_platform_common/mtk_platform_extra_fence_debug.c",
+            ],
+        },
+        "CONFIG_MALI_MTK_GPU_DVFS_HINT_26M_LOADING": {
+            True: [
+                "platform/mtk_platform_common/mtk_platform_dvfs_hint_26m_perf_cnting.c",
+            ],
+        },
+        "CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT": {
+            True: [
+                "platform/mtk_platform_common/mtk_platform_dvfs.c",
+            ],
+        },
+        "CONFIG_MALI_MTK_WHITEBOX_SCHEDULER": {
+            True: [
+                "platform/mtk_platform_common/mtk_platform_whitebox_scheduler.c",
+            ],
+        },
+       "CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE": {
+            True: [
+                "platform/mtk_platform_common/mtk_platform_whitebox_sync_update.c",
+            ],
+        },
+        "CONFIG_MALI_MTK_MEMORY_DEBUG": {
+            True: [
+                "platform/mtk_platform_common/mtk_platform_debug_memory.c",
+            ],
+        },
+        "CONFIG_MALI_MTK_WHITEBOX_MEMORY_FOOTPRINT": {
+            True: [
+                "platform/mtk_platform_common/mtk_platform_whitebox_memory_footprint.c",
+            ],
+        },
+        "CONFIG_MALI_MTK_WHITEBOX_FORCE_HARD_RESET": {
+            True: [
+                "platform/mtk_platform_common/mtk_platform_whitebox_force_hard_reset.c",
+            ],
+        },
+        "CONFIG_MALI_MTK_WHITEBOX_FORCE_TERMINATE_CSG": {
+            True: [
+                "platform/mtk_platform_common/mtk_platform_whitebox_force_terminate_csg.c",
+            ],
+        },
+        "CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET": {
+            True: [
+                "platform/mtk_platform_common/mtk_platform_whitebox_directly_hard_reset.c",
+            ],
+        },
+        "CONFIG_MALI_MTK_WHITEBOX_FAULT_WORKER": {
+            True: [
+                "platform/mtk_platform_common/mtk_platform_whitebox_fault_worker.c",
+            ],
+        },
+        "CONFIG_MALI_MTK_MEMTRACK": {
+            True: [
+                "platform/mtk_platform_common/mtk_platform_memtrack.c",
+            ],
+        },
+        "CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG": {
+            True: [
+                "platform/mtk_platform_common/mtk_platform_upf_counter.c",
+            ],
+        },
+        "CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL": {
+            True: [
+                "platform/mtk_platform_common/mtk_platform_whitebox_missing_doorbell.c",
+            ],
+        },
+        "CONFIG_MALI_MTK_MMAP_LOGGING": {
+            True: [
+                "platform/mtk_platform_common/mtk_platform_debug_mmap_logging_debugfs.c",
+            ],
+        },
+        "CONFIG_MALI_MTK_DIAGNOSIS_MODE": {
+            True: [
+                "platform/mtk_platform_common/mtk_platform_diagnosis_mode.c",
+            ],
+        },
+        "CONFIG_MALI_MTK_LOG_BUFFER": {
+            True: [
+                "platform/mtk_platform_common/mtk_platform_logbuffer.c",
+            ],
+        },
+        "CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST": {
+            True: [
+                "platform/mtk_platform_common/mtk_platform_gpu_idle_test.c",
+            ],
         },
     },
     local_defines = COPTS_KBASE,
