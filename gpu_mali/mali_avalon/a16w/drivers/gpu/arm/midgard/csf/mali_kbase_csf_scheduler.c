@@ -5811,7 +5811,7 @@ static void gpu_idle_worker(struct work_struct *work)
 		/* Update autosuspend_delay setting if ast setting > 0, otherwise it
 		 * must be updated on next power on sequence to fit FW SOI feature.
 		 */
-		if (tmp_ast > 0)
+		if (atomic_read(&kbdev->csf.scheduler.fw_soi_enabled) && (tmp_ast > 0))
 			kbdev->dev->power.autosuspend_delay = tmp_ast;
 #else
 		kbdev->dev->power.autosuspend_delay = tmp_ast;
@@ -5820,7 +5820,7 @@ static void gpu_idle_worker(struct work_struct *work)
 	if (kbdev->api_sync_update_in_progress == true)
 		kbdev->dev->power.autosuspend_delay = 0;
 #if !IS_ENABLED(CONFIG_MALI_MTK_DISABLE_SOI)
-	else if (tmp_ast > 0)
+	else if (atomic_read(&kbdev->csf.scheduler.fw_soi_enabled) && (tmp_ast > 0))
 		kbdev->dev->power.autosuspend_delay = tmp_ast;
 #else
 	else
