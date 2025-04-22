@@ -117,9 +117,9 @@ platforms = [
         "CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE",
     ] if p in ["mt6993"] else [
         "CONFIG_MALI_MTK_MGMM",
-    ] if p in ["mt6895"] else[
-        "CONFIG_MALI_MTK_MGMM",
-    ] if p in ["mt6858"] else[]),
+    ] if p in ["mt6895"] else [
+    ] if p in ["mt6858"] else [
+    ]),
 ) for p in platforms]
 
 [define_mgk_ddk_ko(
