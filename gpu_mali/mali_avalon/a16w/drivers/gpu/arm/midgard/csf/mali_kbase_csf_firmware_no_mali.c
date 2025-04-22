@@ -1347,7 +1347,7 @@ int kbase_csf_firmware_wait_for_gpu_suspend(struct kbase_device *kbdev)
 
 	if (!ret) {
 		kbase_csf_fw_io_set_status_gpu_suspended(&kbdev->csf.fw_io);
-		kbase_hwcnt_backend_csf_on_after_mcu_off(&kbdev->hwcnt_gpu_iface, kbdev);
+		kbase_hwcnt_backend_csf_on_after_mcu_off(&kbdev->hwcnt_gpu_iface);
 	}
 
 	return ret;

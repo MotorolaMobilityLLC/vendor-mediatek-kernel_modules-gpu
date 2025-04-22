@@ -224,8 +224,7 @@ void kbase_hwcnt_backend_csf_on_prfcnt_disable(struct kbase_hwcnt_backend_interf
  *                                              outstanding commands will not be ACKed.
  * @iface: Non-NULL pointer to HWC backend interface.
  */
-void kbase_hwcnt_backend_csf_on_after_mcu_off(struct kbase_hwcnt_backend_interface *iface,
-					      struct kbase_device *kbdev);
+void kbase_hwcnt_backend_csf_on_after_mcu_off(struct kbase_hwcnt_backend_interface *iface);
 
 /**
  * kbase_hwcnt_backend_csf_on_after_mcu_off_reset() - Similar to
@@ -238,8 +237,7 @@ void kbase_hwcnt_backend_csf_on_after_mcu_off(struct kbase_hwcnt_backend_interfa
  *                                              raised prior to the reset.
  * @iface: Non-NULL pointer to HWC backend interface.
  */
-void kbase_hwcnt_backend_csf_on_after_mcu_off_reset(struct kbase_hwcnt_backend_interface *iface,
-						    struct kbase_device *kbdev);
+void kbase_hwcnt_backend_csf_on_after_mcu_off_reset(struct kbase_hwcnt_backend_interface *iface);
 
 /**
  * kbase_hwcnt_backend_csf_on_after_mcu_on() - CSF HWC backend function to be called immediately
@@ -247,8 +245,7 @@ void kbase_hwcnt_backend_csf_on_after_mcu_off_reset(struct kbase_hwcnt_backend_i
  *                                             that it is now valid to send commands to the MCU.
  * @iface: Non-NULL pointer to HWC backend interface.
  */
-void kbase_hwcnt_backend_csf_on_after_mcu_on(struct kbase_hwcnt_backend_interface *iface,
-					     struct kbase_device *kbdev);
+void kbase_hwcnt_backend_csf_on_after_mcu_on(struct kbase_hwcnt_backend_interface *iface);
 
 /**
  * kbase_hwcnt_backend_csf_on_before_mcu_cold_boot() - CSF HWC backend function to be called
