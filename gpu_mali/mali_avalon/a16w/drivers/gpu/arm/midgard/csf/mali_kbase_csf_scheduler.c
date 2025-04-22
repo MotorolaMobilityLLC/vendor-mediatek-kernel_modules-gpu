@@ -5806,27 +5806,37 @@ static void gpu_idle_worker(struct work_struct *work)
 
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 	tmp_ast = (int) ged_get_apo_autosuspend_delay_ms();
-	if ((ged_gpu_apo_support() == APO_2_0_NORMAL_SUPPORT) || (ged_get_apo_autosuspend_delay_ctrl()))
+	if ((ged_gpu_apo_support() == APO_2_0_NORMAL_SUPPORT) || (ged_get_apo_autosuspend_delay_ctrl())) {
 #if !IS_ENABLED(CONFIG_MALI_MTK_DISABLE_SOI)
 		/* Update autosuspend_delay setting if ast setting > 0, otherwise it
 		 * must be updated on next power on sequence to fit FW SOI feature.
 		 */
-		if (atomic_read(&kbdev->csf.scheduler.fw_soi_enabled) && (tmp_ast > 0))
+		if (atomic_read(&kbdev->csf.scheduler.fw_soi_enabled) && (tmp_ast > 0)) {
 			kbdev->dev->power.autosuspend_delay = tmp_ast;
+			ged_trace_ast_cond(1);
+		} else
+			ged_trace_ast_cond(2);
 #else
 		kbdev->dev->power.autosuspend_delay = tmp_ast;
 #endif /* CONFIG_MALI_MTK_DISABLE_SOI */
+	}
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
-	if (kbdev->api_sync_update_in_progress == true)
+	if (kbdev->api_sync_update_in_progress == true) {
 		kbdev->dev->power.autosuspend_delay = 0;
+		ged_trace_ast_cond(3);
+	}
 #if !IS_ENABLED(CONFIG_MALI_MTK_DISABLE_SOI)
-	else if (atomic_read(&kbdev->csf.scheduler.fw_soi_enabled) && (tmp_ast > 0))
+	else if (atomic_read(&kbdev->csf.scheduler.fw_soi_enabled) && (tmp_ast > 0)) {
 		kbdev->dev->power.autosuspend_delay = tmp_ast;
+		ged_trace_ast_cond(4);
+	} else
+		ged_trace_ast_cond(5);
 #else
 	else
 		kbdev->dev->power.autosuspend_delay = tmp_ast;
 #endif /* CONFIG_MALI_MTK_DISABLE_SOI */
 #endif /* CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST && CONFIG_MALI_MTK_API_SYNC_UPDATE */
+	ged_trace_ast(kbdev->dev->power.autosuspend_delay);
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 	scheduler_is_idle_suspendable = scheduler_idle_suspendable(kbdev);
 	if (scheduler_is_idle_suspendable) {

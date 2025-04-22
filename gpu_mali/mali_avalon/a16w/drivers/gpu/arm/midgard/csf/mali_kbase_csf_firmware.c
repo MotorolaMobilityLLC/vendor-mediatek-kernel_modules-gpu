@@ -1865,6 +1865,9 @@ static inline void set_gpu_idle_timer_glb_req(struct kbase_csf_fw_io *fw_io, boo
 	}
 
 	atomic_set(&kbdev->csf.scheduler.gpu_idle_timer_enabled, set);
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) && !IS_ENABLED(CONFIG_MALI_MTK_DISABLE_SOI)
+	ged_trace_idle_timer_enabled(set);
+#endif
 	KBASE_KTRACE_ADD(kbdev, CSF_FIRMWARE_GLB_IDLE_TIMER_CHANGED, NULL, set);
 }
 
@@ -2144,10 +2147,12 @@ static void global_init(struct kbase_device *const kbdev, u64 core_mask)
 					  fw_soi_allowed
 						  << GLB_IDLE_TIMER_CONFIG_SLEEP_ON_IDLE_SHIFT,
 					  GLB_IDLE_TIMER_CONFIG_SLEEP_ON_IDLE_MASK);
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) && !IS_ENABLED(CONFIG_MALI_MTK_DISABLE_SOI)
+	ged_trace_fw_soi_enabled(fw_soi_allowed);
+#endif
 	atomic_set(&kbdev->csf.scheduler.fw_soi_enabled, fw_soi_allowed);
 	dev_dbg(kbdev->dev, "FW Sleep-on-Idle was %s", fw_soi_allowed ? "enabled" : "disabled");
 	KBASE_KTRACE_ADD(kbdev, CSF_FIRMWARE_SLEEP_ON_IDLE_CHANGED, NULL, fw_soi_allowed);
-
 
 	/* The csg suspend timeout is always enabled so customer has the flexibility to update it
 	 * at any time.
@@ -3959,6 +3964,9 @@ void kbase_csf_firmware_soi_update(struct kbase_device *kbdev)
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 	bool const soi_allowed = kbase_pm_fw_sleep_on_idle_allowed(kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) && !IS_ENABLED(CONFIG_MALI_MTK_DISABLE_SOI)
+	ged_trace_scheduler_state(scheduler->state);
+#endif
 	if (likely(!(soi_allowed ^ atomic_read(&kbdev->csf.scheduler.fw_soi_enabled))))
 		return;
 

@@ -443,18 +443,22 @@ static void pm_callback_runtime_gpu_idle(struct kbase_device *kbdev)
 				gAutosuspend_delay_ms = GED_APO_AUTOSUSPEND_DELAY_MS;
 				ged_gpu_autosuspend_timeout_notify(gAutosuspend_delay_ms);
 				pm_runtime_set_autosuspend_delay(kbdev->dev, gAutosuspend_delay_ms);
+				ged_trace_ast_cond(6);
 			} else if (temp_autosuspend_delay_ms != 0) {
 				if (gAutosuspend_delay_ms != temp_autosuspend_delay_ms) {
 					gAutosuspend_delay_ms = temp_autosuspend_delay_ms;
 					ged_gpu_autosuspend_timeout_notify(gAutosuspend_delay_ms);
 					pm_runtime_set_autosuspend_delay(kbdev->dev, gAutosuspend_delay_ms);
+					ged_trace_ast_cond(7);
 				}
 			}
 		} else if (gAutosuspend_delay_ms != temp_autosuspend_delay_ms) {
 			gAutosuspend_delay_ms = temp_autosuspend_delay_ms;
 			ged_gpu_autosuspend_timeout_notify(gAutosuspend_delay_ms);
 			pm_runtime_set_autosuspend_delay(kbdev->dev, gAutosuspend_delay_ms);
+			ged_trace_ast_cond(8);
 		}
+		ged_trace_ast(gAutosuspend_delay_ms);
 	}
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 #if IS_ENABLED(CONFIG_MALI_MIDGARD_DVFS) && IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)

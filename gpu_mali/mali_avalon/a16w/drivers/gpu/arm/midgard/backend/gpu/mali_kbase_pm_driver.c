@@ -1278,6 +1278,9 @@ static void disable_gpu_idle_timer_no_db(struct kbase_device *kbdev)
 	kbase_csf_fw_io_global_write_mask(&kbdev->csf.fw_io, GLB_REQ, GLB_REQ_REQ_IDLE_DISABLE,
 					  GLB_REQ_IDLE_DISABLE_MASK);
 	kbase_csf_fw_io_close(&kbdev->csf.fw_io, flags);
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) || IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MCU)
+	ged_trace_idle_timer_enabled(0);
+#endif
 	atomic_set(&kbdev->csf.scheduler.gpu_idle_timer_enabled, false);
 }
 
