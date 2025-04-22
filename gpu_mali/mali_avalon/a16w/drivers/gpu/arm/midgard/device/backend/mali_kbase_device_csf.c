@@ -503,6 +503,7 @@ static int kbase_csf_firmware_deferred_init(struct kbase_device *kbdev)
 		kbdev->csf.firmware_reloaded = true;
 		//kbdev->csf.firmware_booted_once = true;
 		kbdev->pm.backend.mcu_state = KBASE_MCU_ON;
+		kbdev->csf.firmware_reloaded = true;
 		kbdev->csf.firmware_inited = true;
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 #if IS_ENABLED(CONFIG_MALI_MTK_SLC_ALL_CACHE_MODE)
