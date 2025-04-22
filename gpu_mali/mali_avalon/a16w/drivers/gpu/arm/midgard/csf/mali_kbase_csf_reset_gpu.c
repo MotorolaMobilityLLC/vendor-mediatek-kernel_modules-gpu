@@ -906,48 +906,6 @@ bool kbase_prepare_to_reset_gpu_ext(struct kbase_device *kbdev, unsigned int fla
 }
 #endif /* CONFIG_MALI_MTK_GPU_RESET_DEBUG */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_RESET_DEBUG)
-bool __kbase_prepare_to_reset_gpu_locked(struct kbase_device *kbdev, unsigned int flags)
-#else
-bool kbase_prepare_to_reset_gpu_locked(struct kbase_device *kbdev, unsigned int flags)
-#endif /* CONFIG_MALI_MTK_GPU_RESET_DEBUG */
-{
-	lockdep_assert_held(&kbdev->hwaccess_lock);
-
-	return kbase_prepare_to_reset_gpu(kbdev, flags);
-}
-
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_RESET_DEBUG)
-bool kbase_prepare_to_reset_gpu_ext_locked(struct kbase_device *kbdev, unsigned int flags, const char* file, const char* func)
-{
-	int idx = 0;
-	bool need_reset_flag = false;
-	lockdep_assert_held(&kbdev->hwaccess_lock);
-
-	need_reset_flag = __kbase_prepare_to_reset_gpu_locked(kbdev, flags);
-
-	if (need_reset_flag && kbdev->reset_exception_mask != 0) {
-		dev_err(kbdev->dev, "gpu reset entry: %s,%s", file, func);
-		for (idx = 0; idx < gpu_reset_entry_size; idx++) {
-			if (kbdev->reset_exception_mask & (1u << idx)) {
-				if (strncmp(func, gpu_reset_entry_name[idx], strlen(func)) == 0) {
-					// Add debug dump here
-#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG_DUMP)
-						mtk_common_debug(MTK_COMMON_DBG_DUMP_INFRA_STATUS, NULL, MTK_DBG_HOOK_NA);
-						mtk_common_debug(MTK_COMMON_DBG_DUMP_PM_STATUS, NULL, MTK_DBG_HOOK_NA);
-						mtk_common_debug(MTK_COMMON_DBG_CSF_DUMP_ITER_HWIF_LOCKED, NULL, MTK_DBG_HOOK_NA);
-#endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
-					kbase_csf_firmware_log_dump_buffer(kbdev);
-					BUG_ON(1);
-				}
-			}
-		}
-	}
-
-	return need_reset_flag;
-}
-#endif /* CONFIG_MALI_MTK_GPU_RESET_DEBUG */
-
 void kbase_reset_gpu(struct kbase_device *kbdev)
 {
 	/* Note this is a WARN/atomic_set because it is a software issue for
@@ -969,13 +927,6 @@ void kbase_reset_gpu(struct kbase_device *kbdev)
 	queue_work(kbdev->csf.reset.workq, &kbdev->csf.reset.work);
 }
 KBASE_EXPORT_TEST_API(kbase_reset_gpu);
-
-void kbase_reset_gpu_locked(struct kbase_device *kbdev)
-{
-	lockdep_assert_held(&kbdev->hwaccess_lock);
-
-	kbase_reset_gpu(kbdev);
-}
 
 int kbase_reset_gpu_silent(struct kbase_device *kbdev)
 {

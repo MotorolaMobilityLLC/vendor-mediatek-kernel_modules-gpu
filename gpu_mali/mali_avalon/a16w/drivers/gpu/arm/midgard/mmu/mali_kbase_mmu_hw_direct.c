@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2014-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -210,11 +210,11 @@ static int wait_ready(struct kbase_device *kbdev, unsigned int as_nr)
 		BUG_ON(1);
 #endif /* CONFIG_MALI_MTK_TRIGGER_KE */
 
-	if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
+	if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
 		ged_mali_event_update_gpu_reset_nolock(GPU_RESET_MMU_WAIT_READY_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
-		kbase_reset_gpu_locked(kbdev);
+		kbase_reset_gpu(kbdev);
 	}
 
 	return -ETIMEDOUT;
@@ -259,8 +259,8 @@ static int wait_l2_power_trans_complete(struct kbase_device *kbdev)
 	if (err) {
 		dev_warn(kbdev->dev, "L2_PWRTRANS %016llx set for too long",
 			 kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(L2_PWRTRANS)));
-		if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_NONE))
-			kbase_reset_gpu_locked(kbdev);
+		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
+			kbase_reset_gpu(kbdev);
 	}
 
 	return err;
@@ -340,12 +340,11 @@ static int apply_hw_issue_GPU2019_3901_wa(struct kbase_device *kbdev, u32 *mmu_c
 			mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
 				"wait_cores_power_trans_complete fail, try to do reset\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-			if (kbase_prepare_to_reset_gpu_locked(kbdev,
-							      RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
+			if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
 				ged_mali_event_update_gpu_reset_nolock(GPU_RESET_HW_ISSUE_2019_3901_WA);
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
-				kbase_reset_gpu_locked(kbdev);
+				kbase_reset_gpu(kbdev);
 			}
 			return ret;
 		}

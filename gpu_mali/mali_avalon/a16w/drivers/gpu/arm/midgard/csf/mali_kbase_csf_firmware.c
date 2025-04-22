@@ -564,11 +564,11 @@ static int wait_ready(struct kbase_device *kbdev)
 		BUG_ON(1);
 #endif /* CONFIG_MALI_MTK_TRIGGER_KE */
 
-	if (kbase_prepare_to_reset_gpu_locked(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
+	if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_HWC_UNRECOVERABLE_ERROR)) {
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
 		ged_mali_event_update_gpu_reset_nolock(GPU_RESET_CSF_WAIT_READY_TIMEOUT);
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
-		kbase_reset_gpu_locked(kbdev);
+		kbase_reset_gpu(kbdev);
 	}
 
 	return -ETIMEDOUT;
@@ -3970,8 +3970,12 @@ void kbase_csf_firmware_soi_update(struct kbase_device *kbdev)
 
 	kbase_csf_scheduler_lock(kbdev);
 
-	if (unlikely(atomic_read(&kbdev->pm.active_count) > 1))
+	mutex_lock(&kbdev->pm.lock);
+	if (unlikely(kbdev->pm.active_count > 1)) {
+		mutex_unlock(&kbdev->pm.lock);
 		goto out_unlock_scheduler_lock;
+	}
+	mutex_unlock(&kbdev->pm.lock);
 
 	if ((scheduler->state == SCHED_SUSPENDED) || (scheduler->state == SCHED_SLEEPING))
 		goto out_unlock_scheduler_lock;
@@ -4068,6 +4072,9 @@ int kbase_csf_firmware_soi_disable_on_scheduler_suspend(struct kbase_device *kbd
 	unsigned long flags;
 
 	lockdep_assert_held(&scheduler->lock);
+
+	if (scheduler->state != SCHED_INACTIVE)
+		return 0;
 
 	if (!atomic_read(&kbdev->csf.scheduler.fw_soi_enabled))
 		return 0;
