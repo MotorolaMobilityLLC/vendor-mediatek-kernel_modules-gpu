@@ -1518,11 +1518,9 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 					 * MCU power state notifications to HWC.
 					 */
 					if (!IS_ENABLED(CONFIG_MALI_NO_MALI) &&
-					    !kbdev->csf.firmware_reloaded) {
-						KBASE_KTRACE_ADD(kbdev, _MCU_OFF, NULL, 1);
+					    !kbdev->csf.firmware_reloaded)
 						kbase_hwcnt_backend_csf_on_after_mcu_off(
-							&kbdev->hwcnt_gpu_iface, kbdev);
-					}
+							&kbdev->hwcnt_gpu_iface);
 
 					backend->mcu_state = KBASE_MCU_HCTL_MCU_ON_RECHECK;
 				}
@@ -1711,8 +1709,7 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 				KBASE_KTRACE_ADD(kbdev, CSF_FIRMWARE_MCU_HALTED, NULL,
 						 kbase_csf_ktrace_gpu_cycle_cnt(kbdev));
 
-				KBASE_KTRACE_ADD(kbdev, _MCU_OFF, NULL, 2);
-				kbase_hwcnt_backend_csf_on_after_mcu_off(&kbdev->hwcnt_gpu_iface, kbdev);
+				kbase_hwcnt_backend_csf_on_after_mcu_off(&kbdev->hwcnt_gpu_iface);
 
 				if (kbdev->csf.firmware_hctl_core_pwr)
 					backend->mcu_state = KBASE_MCU_HCTL_SHADERS_READY_OFF;
@@ -1796,8 +1793,7 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			if (kbase_pm_is_mcu_desired(kbdev)) {
 				/* Assume the transition is complete and prepare to goto ON state */
 				WARN_ON_ONCE(backend->l2_state != KBASE_L2_ON);
-				KBASE_KTRACE_ADD(kbdev, _MCU_OFF, NULL, 3);
-				kbase_hwcnt_backend_csf_on_after_mcu_off(&kbdev->hwcnt_gpu_iface, kbdev);
+				kbase_hwcnt_backend_csf_on_after_mcu_off(&kbdev->hwcnt_gpu_iface);
 				backend->mcu_state = KBASE_MCU_IN_SLEEP;
 				break;
 			}
@@ -1807,8 +1803,7 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			if (kbase_csf_firmware_is_mcu_in_sleep(kbdev)) {
 				KBASE_KTRACE_ADD(kbdev, CSF_FIRMWARE_MCU_SLEEP, NULL,
 						 kbase_csf_ktrace_gpu_cycle_cnt(kbdev));
-				KBASE_KTRACE_ADD(kbdev, _MCU_OFF, NULL, 4);
-				kbase_hwcnt_backend_csf_on_after_mcu_off(&kbdev->hwcnt_gpu_iface, kbdev);
+				kbase_hwcnt_backend_csf_on_after_mcu_off(&kbdev->hwcnt_gpu_iface);
 				backend->mcu_state = KBASE_MCU_IN_SLEEP;
 				kbase_pm_enable_db_mirror_interrupt(kbdev);
 				if (!atomic_read(&kbdev->csf.scheduler.fw_soi_enabled))
@@ -1855,9 +1850,8 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 					kbasep_pm_toggle_power_interrupt(kbdev, false);
 
 				backend->mcu_state = KBASE_MCU_ON_HWCNT_ENABLE;
-				KBASE_KTRACE_ADD(kbdev, _MCU_ON, NULL, 3);
 				kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
-				kbase_hwcnt_backend_csf_on_after_mcu_on(&kbdev->hwcnt_gpu_iface, kbdev);
+				kbase_hwcnt_backend_csf_on_after_mcu_on(&kbdev->hwcnt_gpu_iface);
 			}
 			break;
 
@@ -1870,9 +1864,8 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 			/* Reset complete  */
 			if (!backend->in_reset) {
-				KBASE_KTRACE_ADD(kbdev, _MCU_OFF_RESET, NULL, 1);
 				kbase_hwcnt_backend_csf_on_after_mcu_off_reset(
-					&kbdev->hwcnt_gpu_iface, kbdev);
+					&kbdev->hwcnt_gpu_iface);
 				backend->mcu_state = KBASE_MCU_OFF;
 			}
 

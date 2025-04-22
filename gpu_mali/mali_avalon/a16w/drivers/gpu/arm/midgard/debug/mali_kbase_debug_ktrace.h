@@ -89,17 +89,6 @@ static inline bool kbasep_ktrace_initialized(struct kbase_ktrace *ktrace)
 	return ktrace->rbuf != NULL;
 }
 
-#if IS_ENABLED(KBASE_KTRACE_LIMIT_MTK)
-static inline bool kbasep_ktrace_achieve_limit(struct kbase_ktrace *ktrace)
-{
-	if (ktrace->record_limit <= MAX_KTRACE_RECORD_LIMIT) {
-		ktrace->record_limit = ktrace->record_limit + 1;
-		return false;
-	}
-	return true;
-}
-#endif /* KBASE_KTRACE_LIMIT_MTK */
-
 /**
  * kbasep_ktrace_add - internal function to add trace to the ringbuffer.
  * @kbdev:    kbase device

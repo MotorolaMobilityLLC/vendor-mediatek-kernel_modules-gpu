@@ -96,11 +96,6 @@ void kbasep_ktrace_add_csf(struct kbase_device *kbdev, enum kbase_ktrace_code co
 	if (unlikely(!kbasep_ktrace_initialized(&kbdev->ktrace)))
 		return;
 
-#if IS_ENABLED(KBASE_KTRACE_LIMIT_MTK)
-	if (kbasep_ktrace_achieve_limit(&kbdev->ktrace))
-		return;
-#endif /* KBASE_KTRACE_LIMIT_MTK */
-
 	spin_lock_irqsave(&kbdev->ktrace.lock, irqflags);
 
 	/* Reserve and update indices */
@@ -166,11 +161,6 @@ void kbasep_ktrace_add_csf_kcpu(struct kbase_device *kbdev, enum kbase_ktrace_co
 
 	if (unlikely(!kbasep_ktrace_initialized(&kbdev->ktrace)))
 		return;
-
-#if IS_ENABLED(KBASE_KTRACE_LIMIT_MTK)
-	if (kbasep_ktrace_achieve_limit(&kbdev->ktrace))
-		return;
-#endif /* KBASE_KTRACE_LIMIT_MTK */
 
 	spin_lock_irqsave(&kbdev->ktrace.lock, irqflags);
 

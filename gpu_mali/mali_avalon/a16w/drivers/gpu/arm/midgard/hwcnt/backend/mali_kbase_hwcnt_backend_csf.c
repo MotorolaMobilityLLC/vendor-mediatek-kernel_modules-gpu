@@ -19,8 +19,6 @@
  *
  */
 
-#include <mali_kbase.h>
-#include <mali_kbase_defs.h>
 #include "hwcnt/backend/mali_kbase_hwcnt_backend_csf.h"
 #include "hwcnt/mali_kbase_hwcnt_gpu.h"
 
@@ -2860,8 +2858,7 @@ void kbase_hwcnt_backend_csf_on_prfcnt_disable(struct kbase_hwcnt_backend_interf
 }
 
 static void
-kbasep_hwcnt_backend_csf_on_after_mcu_off_nolock(struct kbase_hwcnt_backend_interface *iface,
-						 struct kbase_device *kbdev)
+kbasep_hwcnt_backend_csf_on_after_mcu_off_nolock(struct kbase_hwcnt_backend_interface *iface)
 {
 	struct kbase_hwcnt_backend_csf_info *csf_info;
 	struct kbase_hwcnt_backend_csf *backend_csf;
@@ -2869,10 +2866,6 @@ kbasep_hwcnt_backend_csf_on_after_mcu_off_nolock(struct kbase_hwcnt_backend_inte
 	csf_info = (struct kbase_hwcnt_backend_csf_info *)iface->info;
 
 	csf_info->csf_if->assert_lock_held(csf_info->csf_if->ctx);
-
-	if (!csf_info->mcu_on && kbdev) {
-		KBASE_KTRACE_DUMP(kbdev);
-	}
 
 	WARN_ON(!csf_info->mcu_on);
 	csf_info->mcu_on = false;
@@ -2918,8 +2911,7 @@ kbasep_hwcnt_backend_csf_on_after_mcu_off_nolock(struct kbase_hwcnt_backend_inte
 	kbase_hwcnt_backend_csf_on_prfcnt_sample(iface);
 }
 
-void kbase_hwcnt_backend_csf_on_after_mcu_off(struct kbase_hwcnt_backend_interface *iface,
-					      struct kbase_device *kbdev)
+void kbase_hwcnt_backend_csf_on_after_mcu_off(struct kbase_hwcnt_backend_interface *iface)
 {
 	struct kbase_hwcnt_backend_csf_info *csf_info;
 	unsigned long flags = 0UL;
@@ -2927,12 +2919,11 @@ void kbase_hwcnt_backend_csf_on_after_mcu_off(struct kbase_hwcnt_backend_interfa
 	csf_info = (struct kbase_hwcnt_backend_csf_info *)iface->info;
 
 	csf_info->csf_if->lock(csf_info->csf_if->ctx, &flags);
-	kbasep_hwcnt_backend_csf_on_after_mcu_off_nolock(iface, kbdev);
+	kbasep_hwcnt_backend_csf_on_after_mcu_off_nolock(iface);
 	csf_info->csf_if->unlock(csf_info->csf_if->ctx, flags);
 }
 
-void kbase_hwcnt_backend_csf_on_after_mcu_off_reset(struct kbase_hwcnt_backend_interface *iface,
-						    struct kbase_device *kbdev)
+void kbase_hwcnt_backend_csf_on_after_mcu_off_reset(struct kbase_hwcnt_backend_interface *iface)
 {
 	struct kbase_hwcnt_backend_csf_info *csf_info;
 	unsigned long flags = 0UL;
@@ -2944,12 +2935,11 @@ void kbase_hwcnt_backend_csf_on_after_mcu_off_reset(struct kbase_hwcnt_backend_i
 	 * Hence, only notify the backend about MCU_OFF if it hasn't been done yet.
 	 */
 	if (csf_info->mcu_on)
-		kbasep_hwcnt_backend_csf_on_after_mcu_off_nolock(iface, kbdev);
+		kbasep_hwcnt_backend_csf_on_after_mcu_off_nolock(iface);
 	csf_info->csf_if->unlock(csf_info->csf_if->ctx, flags);
 }
 
-void kbase_hwcnt_backend_csf_on_after_mcu_on(struct kbase_hwcnt_backend_interface *iface,
-					     struct kbase_device *kbdev)
+void kbase_hwcnt_backend_csf_on_after_mcu_on(struct kbase_hwcnt_backend_interface *iface)
 {
 	struct kbase_hwcnt_backend_csf_info *csf_info;
 	struct kbase_hwcnt_backend_csf *backend_csf;
@@ -2960,10 +2950,6 @@ void kbase_hwcnt_backend_csf_on_after_mcu_on(struct kbase_hwcnt_backend_interfac
 
 	csf_info = (struct kbase_hwcnt_backend_csf_info *)iface->info;
 	csf_info->csf_if->lock(csf_info->csf_if->ctx, &flags);
-
-	if (csf_info->mcu_on && kbdev) {
-		KBASE_KTRACE_DUMP(kbdev);
-	}
 
 	WARN_ON(csf_info->mcu_on);
 	csf_info->mcu_on = true;

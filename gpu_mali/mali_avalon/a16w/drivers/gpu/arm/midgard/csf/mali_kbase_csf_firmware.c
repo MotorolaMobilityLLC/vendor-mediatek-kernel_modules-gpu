@@ -491,8 +491,7 @@ static void wait_for_firmware_boot(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_DEBUG_DUMP */
 	}
 
-	KBASE_KTRACE_ADD(kbdev, _MCU_ON, NULL, 1);
-	kbase_hwcnt_backend_csf_on_after_mcu_on(&kbdev->hwcnt_gpu_iface, kbdev);
+	kbase_hwcnt_backend_csf_on_after_mcu_on(&kbdev->hwcnt_gpu_iface);
 
 	kbdev->csf.interrupt_received = false;
 }
@@ -2466,8 +2465,7 @@ void kbase_csf_firmware_reload_completed(struct kbase_device *kbdev)
 						    kbdev->gpu_props.curr_config.l2_slices,
 						    kbdev->gpu_props.curr_config.shader_present,
 						    all_core_masks.pm_core_mask_desired);
-	KBASE_KTRACE_ADD(kbdev, _MCU_ON, NULL, 2);
-	kbase_hwcnt_backend_csf_on_after_mcu_on(&kbdev->hwcnt_gpu_iface, kbdev);
+	kbase_hwcnt_backend_csf_on_after_mcu_on(&kbdev->hwcnt_gpu_iface);
 
 	/* Tell MCU state machine to transit to next state */
 	kbdev->csf.firmware_reloaded = true;
@@ -3439,8 +3437,7 @@ int kbase_csf_firmware_wait_for_gpu_suspend(struct kbase_device *kbdev)
 
 	if (!ret) {
 		kbase_csf_fw_io_set_status_gpu_suspended(&kbdev->csf.fw_io);
-		KBASE_KTRACE_ADD(kbdev, _MCU_OFF, NULL, 5);
-		kbase_hwcnt_backend_csf_on_after_mcu_off(&kbdev->hwcnt_gpu_iface, kbdev);
+		kbase_hwcnt_backend_csf_on_after_mcu_off(&kbdev->hwcnt_gpu_iface);
 	}
 
 	return ret;

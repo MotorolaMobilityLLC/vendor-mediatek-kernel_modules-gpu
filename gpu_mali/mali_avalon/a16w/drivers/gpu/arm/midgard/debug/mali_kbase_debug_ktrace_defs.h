@@ -48,16 +48,13 @@
 
 #ifdef CONFIG_MALI_MIDGARD_ENABLE_TRACE
 #define KBASE_KTRACE_TARGET_RBUF 1
-#define KBASE_KTRACE_LIMIT_MTK 1
 #else /* CONFIG_MALI_MIDGARD_ENABLE_TRACE*/
-#define KBASE_KTRACE_TARGET_RBUF 1
-#define KBASE_KTRACE_LIMIT_MTK 1
+#define KBASE_KTRACE_TARGET_RBUF 0
 #endif /* CONFIG_MALI_MIDGARD_ENABLE_TRACE */
 
 #else /* KBASE_KTRACE_ENABLE */
 #define KBASE_KTRACE_TARGET_FTRACE 0
-#define KBASE_KTRACE_TARGET_RBUF 1
-#define KBASE_KTRACE_LIMIT_MTK 1
+#define KBASE_KTRACE_TARGET_RBUF 0
 #endif /* KBASE_KTRACE_ENABLE */
 
 /*
@@ -111,15 +108,11 @@ union kbase_ktrace_backend;
 
 #define KBASE_KTRACE_FLAG_ALL (KBASE_KTRACE_FLAG_COMMON_ALL | KBASE_KTRACE_FLAG_BACKEND_ALL)
 
-#define KBASE_KTRACE_SHIFT (12) /* 512 entries */
+#define KBASE_KTRACE_SHIFT (9) /* 512 entries */
 #define KBASE_KTRACE_SIZE (1 << KBASE_KTRACE_SHIFT)
 #define KBASE_KTRACE_MASK ((1 << KBASE_KTRACE_SHIFT) - 1)
 
 #define KBASE_KTRACE_CODE(X) KBASE_KTRACE_CODE_##X
-
-#if IS_ENABLED(KBASE_KTRACE_LIMIT_MTK)
-#define MAX_KTRACE_RECORD_LIMIT 1024
-#endif /* KBASE_KTRACE_LIMIT_MTK */
 
 /* Note: compiletime_assert() about this against kbase_ktrace_code_t is in
  * kbase_ktrace_init()
@@ -156,7 +149,7 @@ enum kbase_ktrace_code {
  *             a minimum common set of members.
  */
 struct kbase_ktrace_msg {
-	u64 timestamp;
+	struct timespec64 timestamp;
 	u32 thread_id;
 	u32 cpu;
 	pid_t kctx_tgid;
@@ -170,9 +163,6 @@ struct kbase_ktrace {
 	u16 first_out;
 	u16 next_in;
 	struct kbase_ktrace_msg *rbuf;
-#if IS_ENABLED(KBASE_KTRACE_LIMIT_MTK)
-	u32 record_limit;
-#endif /* KBASE_KTRACE_LIMIT_MTK */
 };
 
 static inline void kbase_ktrace_compiletime_asserts(void)
