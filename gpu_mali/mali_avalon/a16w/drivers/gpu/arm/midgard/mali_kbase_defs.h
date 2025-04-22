@@ -504,7 +504,7 @@ struct kbase_clk_rate_trace_manager {
  */
 struct kbase_pm_device_data {
 	struct mutex lock;
-	atomic_t active_count;
+	int active_count;
 	bool suspending;
 	bool resuming;
 	bool runtime_active;
@@ -1709,6 +1709,7 @@ struct kbase_sub_alloc {
 	struct list_head link;
 	struct page *page;
 	DECLARE_BITMAP(sub_pages, NUM_PAGES_IN_2MB_LARGE_PAGE);
+	int group_id;
 };
 
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
