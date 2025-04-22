@@ -171,6 +171,9 @@ platforms = [
     ] if p in ["mt6993"] else[
         "CONFIG_MALI_MTK_GPU_IOMMU=0",
         "CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP=0",
+    ] if p in ["mt6858"] else[
+        "CONFIG_MALI_MTK_GPU_IOMMU=0",
+        "CONFIG_MALI_MTK_GPU_PMA_PAGE_HEAP=0",
     ]),
 ) for p in platforms]
 
