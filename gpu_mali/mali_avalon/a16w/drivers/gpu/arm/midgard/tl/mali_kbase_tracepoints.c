@@ -200,7 +200,6 @@ static const char *csffw_tl_mcu_state_strings[] = {
 	"ON_CORE_ATTR_UPDATE_PEND",
 	"ON_HWCNT_DISABLE",
 	"ON_HALT",
-	"PEND_OFF",
 	"ON_PEND_HALT",
 	"POWER_DOWN",
 	"RESET_WAIT",
