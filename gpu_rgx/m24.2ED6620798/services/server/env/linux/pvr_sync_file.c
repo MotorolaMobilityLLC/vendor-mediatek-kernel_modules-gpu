@@ -691,6 +691,39 @@ err_get_fence:
 	return err;
 }
 
+static enum PVRSRV_ERROR_TAG
+pvr_sync_finalise_export_fence(PVRSRV_FENCE fence_to_finalise)
+{
+	PVRSRV_ERROR err = PVRSRV_OK;
+	struct dma_fence *fence;
+
+	fence = sync_file_get_fence(fence_to_finalise);
+	if (!fence) {
+		pr_err("%s: Failed to read sync private data for fd %d\n",
+			__func__, fence_to_finalise);
+		err = PVRSRV_ERROR_HANDLE_NOT_FOUND;
+		goto err_get_fence;
+	}
+
+	if (!pvr_is_exp_fence(fence)) {
+		pr_err(FILE_NAME ": %s: Fence not a pvr export fence\n", __func__);
+		err = PVRSRV_ERROR_INVALID_PARAMS;
+		goto err_is_exp_fence;
+	}
+
+	err = pvr_exp_fence_finalise(fence);
+	if (err != PVRSRV_OK) {
+		pr_err("%s: Failed to finalise export fence\n",
+		       __func__);
+	}
+
+err_is_exp_fence:
+	dma_fence_put(fence);
+
+err_get_fence:
+	return err;
+}
+
 /*
  * This is the function that driver code will call in order to request the
  * sync implementation to output debug information relating to any sync
@@ -770,7 +803,7 @@ pvr_sync_fence_get_checkpoints(PVRSRV_FENCE fence_to_pdump, u32 *nr_checkpoints,
 		if (is_pvr_fence(fences[i])) {
 			pvr_fence = to_pvr_fence(fences[i]);
 			if (pvr_fence) {
-				checkpoints[num_used_fences] = pvr_fence_get_checkpoint(pvr_fence);
+				checkpoints[num_used_fences] = pvr_fence_get_and_ref_checkpoint(pvr_fence);
 				++num_used_fences;
 			}
 		} else if (pvr_is_exp_fence(fences[i])) {
@@ -1008,6 +1041,7 @@ enum PVRSRV_ERROR_TAG pvr_sync_register_functions(void)
 #endif
 	pvr_sync_data.sync_checkpoint_ops.pfnExportFenceResolve = pvr_sync_resolve_export_fence;
 	pvr_sync_data.sync_checkpoint_ops.pfnExportFenceRollback = pvr_sync_rollback_export_fence;
+	pvr_sync_data.sync_checkpoint_ops.pfnExportFenceFinalise = pvr_sync_finalise_export_fence;
 
 	return SyncCheckpointRegisterFunctions(&pvr_sync_data.sync_checkpoint_ops);
 }

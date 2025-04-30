@@ -1252,6 +1252,11 @@ PVRSRV_ERROR PVRSRVRGXTDMSubmitTransfer3KM(
 		                            psUpdateSyncCheckpoint, szUpdateFenceName);
 	}
 
+	if (iExportFenceToSignal != PVRSRV_NO_FENCE)
+	{
+		SyncCheckpointFinaliseExportFence(iExportFenceToSignal);
+	}
+
 	OSFreeMem(psCmdHelper);
 
 	/* Drop the references taken on the sync checkpoints in the

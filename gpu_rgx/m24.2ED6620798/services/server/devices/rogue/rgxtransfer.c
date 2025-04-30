@@ -1675,6 +1675,11 @@ PVRSRV_ERROR PVRSRVRGXSubmitTransfer3KM(RGX_SERVER_TQ_CONTEXT	*psTransferContext
 		                            ps3DUpdateSyncCheckpoint, szFenceName);
 	}
 
+	if (iExportFenceToSignal != PVRSRV_NO_FENCE)
+	{
+		SyncCheckpointFinaliseExportFence(iExportFenceToSignal);
+	}
+
 #if defined(RGX_FEATURE_TLA_BIT_MASK)
 	OSFreeMem(pas2DCmdHelper);
 #endif

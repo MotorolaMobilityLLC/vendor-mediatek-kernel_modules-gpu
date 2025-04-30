@@ -916,6 +916,29 @@ SyncCheckpointFinaliseFence(PPVRSRV_DEVICE_NODE psDevNode,
 	return eError;
 }
 
+PVRSRV_ERROR SyncCheckpointFinaliseExportFence(PVRSRV_FENCE hExportFence)
+{
+	PVRSRV_ERROR eError = PVRSRV_OK;
+
+	PVR_ASSERT(hExportFence != PVRSRV_NO_FENCE);
+
+	if (unlikely(!g_psSyncCheckpointPfnStruct || !g_psSyncCheckpointPfnStruct->pfnExportFenceFinalise))
+	{
+		PVR_DPF((PVR_DBG_ERROR,
+		        "%s: ERROR (eError=PVRSRV_ERROR_SYNC_NATIVESYNC_NOT_REGISTERED)",
+		        __func__));
+		eError = PVRSRV_ERROR_SYNC_NATIVESYNC_NOT_REGISTERED;
+		PVR_LOG_ERROR(eError, "pfnExportFenceFinalise is NULL");
+		return eError;
+	}
+
+	eError = g_psSyncCheckpointPfnStruct->pfnExportFenceFinalise(hExportFence);
+	PVR_LOG_IF_ERROR(eError, "g_psSyncCheckpointPfnStruct->pfnExportFenceFinalise");
+
+	return eError;
+}
+
+
 void
 SyncCheckpointFreeCheckpointListMem(void *pvCheckpointListMem)
 {
@@ -3020,6 +3043,10 @@ PVRSRV_ERROR PVRSRVSyncCheckpointSignalledPDumpPolKM(PVRSRV_FENCE hFence)
 								psSyncCheckpoint->ui32PDumpFlags);
 			PVR_LOG_IF_ERROR(eError, "DevmemPDumpDevmemPol32");
 		}
+		/* Drop the reference taken in pfnSyncFenceGetCheckpoints() here as
+		 * we are done with the checkpoint
+		 */
+		SyncCheckpointDropRef(psSyncCheckpoint);
 	}
 
 

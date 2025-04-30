@@ -1978,7 +1978,7 @@ _ApplyCacheMaintenance(PVRSRV_DEVICE_NODE *psDevNode,
 {
 	void * pvAddr;
 
-	if (OSCPUCacheOpAddressType(psDevNode) == OS_CACHE_OP_ADDR_TYPE_VIRTUAL)
+	if (OSCPUCacheOpAddressType(psDevNode, PHYS_HEAP_TYPE_UMA) == OS_CACHE_OP_ADDR_TYPE_VIRTUAL)
 	{
 		pgprot_t pgprot = PAGE_KERNEL;
 

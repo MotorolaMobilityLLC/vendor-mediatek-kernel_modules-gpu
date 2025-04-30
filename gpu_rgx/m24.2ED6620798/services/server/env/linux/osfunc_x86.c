@@ -114,9 +114,10 @@ void OSCPUCacheInvalidateRangeKM(PVRSRV_DEVICE_NODE *psDevNode,
 	x86_flush_cache_range(pvVirtStart, pvVirtEnd);
 }
 
-OS_CACHE_OP_ADDR_TYPE OSCPUCacheOpAddressType(PVRSRV_DEVICE_NODE *psDevNode)
+OS_CACHE_OP_ADDR_TYPE OSCPUCacheOpAddressType(PVRSRV_DEVICE_NODE *psDevNode, PHYS_HEAP_TYPE ePhysHeapType)
 {
 	PVR_UNREFERENCED_PARAMETER(psDevNode);
+	PVR_UNREFERENCED_PARAMETER(ePhysHeapType);
 	return OS_CACHE_OP_ADDR_TYPE_VIRTUAL;
 }
 

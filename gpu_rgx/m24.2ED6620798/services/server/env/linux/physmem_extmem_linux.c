@@ -795,7 +795,7 @@ static PVRSRV_ERROR _FlushUMVirtualRange(PVRSRV_DEVICE_NODE *psDevNode,
 	 * */
 	begin_user_mode_access(&uiUserAccessState);
 	{
-		if (OSCPUCacheOpAddressType(psDevNode) == OS_CACHE_OP_ADDR_TYPE_VIRTUAL)
+		if (OSCPUCacheOpAddressType(psDevNode, PHYS_HEAP_TYPE_UNKNOWN) == OS_CACHE_OP_ADDR_TYPE_VIRTUAL)
 		{
 			IMG_CPU_PHYADDR sCPUPhysStart = {0};
 
@@ -806,7 +806,7 @@ static PVRSRV_ERROR _FlushUMVirtualRange(PVRSRV_DEVICE_NODE *psDevNode,
 								sCPUPhysStart,
 								PVRSRV_CACHE_OP_FLUSH);
 		}
-		else if (OSCPUCacheOpAddressType(psDevNode) == OS_CACHE_OP_ADDR_TYPE_PHYSICAL)
+		else if (OSCPUCacheOpAddressType(psDevNode, PHYS_HEAP_TYPE_UNKNOWN) == OS_CACHE_OP_ADDR_TYPE_PHYSICAL)
 		{
 			IMG_CPU_PHYADDR sCPUPhysStart, sCPUPhysEnd;
 			IMG_UINT i = 0;
@@ -831,7 +831,7 @@ static PVRSRV_ERROR _FlushUMVirtualRange(PVRSRV_DEVICE_NODE *psDevNode,
 				}
 			}
 		}
-		else if (OSCPUCacheOpAddressType(psDevNode) == OS_CACHE_OP_ADDR_TYPE_BOTH)
+		else if (OSCPUCacheOpAddressType(psDevNode, PHYS_HEAP_TYPE_UNKNOWN) == OS_CACHE_OP_ADDR_TYPE_BOTH)
 		{
 			IMG_CPU_PHYADDR sCPUPhysStart, sCPUPhysEnd;
 			void *pvVirtStart, *pvVirtEnd;

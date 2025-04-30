@@ -1126,6 +1126,13 @@ pvr_fence_get_checkpoint(struct pvr_fence *update_fence)
 	return update_fence->sync_checkpoint;
 }
 
+struct SYNC_CHECKPOINT_TAG *
+pvr_fence_get_and_ref_checkpoint(struct pvr_fence *update_fence)
+{
+	SyncCheckpointTakeRef(update_fence->sync_checkpoint);
+	return update_fence->sync_checkpoint;
+}
+
 /**
  * pvr_fence_dump_info_on_stalled_ufos - displays debug
  * information on a native fence associated with any of

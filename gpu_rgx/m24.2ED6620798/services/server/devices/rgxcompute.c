@@ -1162,6 +1162,12 @@ PVRSRV_ERROR PVRSRVRGXKickCDMKM(RGX_SERVER_COMPUTE_CONTEXT	*psComputeContext,
 		                            pvUpdateFenceFinaliseData,
 									psUpdateSyncCheckpoint, pszUpdateFenceName);
 	}
+
+	if (iExportFenceToSignal != PVRSRV_NO_FENCE)
+	{
+		SyncCheckpointFinaliseExportFence(iExportFenceToSignal);
+	}
+
 	/* Drop the references taken on the sync checkpoints in the
 	 * resolved input fence */
 	SyncAddrListDeRefCheckpoints(ui32FenceSyncCheckpointCount,

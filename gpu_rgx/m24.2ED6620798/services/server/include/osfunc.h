@@ -577,10 +577,11 @@ typedef enum
                 This is used to infer whether the virtual or physical address
                 supplied to the OSCPUCacheXXXRangeKM functions can be omitted
                 when called.
-@Input          psDevNode   device on which the allocation was made
+@Input          psDevNode       device on which the allocation was made
+@Input          ePhysHeapType   physical heap type of the allocation
 @Return         OS_CACHE_OP_ADDR_TYPE
 */ /**************************************************************************/
-OS_CACHE_OP_ADDR_TYPE OSCPUCacheOpAddressType(PVRSRV_DEVICE_NODE *psDevNode);
+OS_CACHE_OP_ADDR_TYPE OSCPUCacheOpAddressType(PVRSRV_DEVICE_NODE *psDevNode, PHYS_HEAP_TYPE ePhysHeapType);
 
 /*! CPU Cache attributes available for retrieval, DCache unless specified */
 typedef enum _OS_CPU_CACHE_ATTRIBUTE_

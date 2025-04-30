@@ -67,6 +67,8 @@ enum PVRSRV_ERROR_TAG pvr_exp_fence_assign_checkpoint(PVRSRV_FENCE fence_to_reso
 
 enum PVRSRV_ERROR_TAG pvr_exp_fence_rollback(struct dma_fence *fence);
 
+enum PVRSRV_ERROR_TAG pvr_exp_fence_finalise(struct dma_fence *fence);
+
 bool pvr_is_exp_fence(struct dma_fence *fence);
 
 struct pvr_exp_fence *to_pvr_exp_fence(struct dma_fence *fence);

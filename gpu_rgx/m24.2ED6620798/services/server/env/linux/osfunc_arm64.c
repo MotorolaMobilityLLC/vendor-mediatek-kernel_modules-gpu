@@ -55,7 +55,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "img_defs.h"
 #include "osfunc.h"
 #include "pvr_debug.h"
-
+#include "pvrsrv_memalloc_physheap.h"
 #include "kernel_compatibility.h"
 
 #if defined(CONFIG_OUTER_CACHE)
@@ -213,13 +213,15 @@ void OSCPUCacheInvalidateRangeKM(PVRSRV_DEVICE_NODE *psDevNode,
 }
 
 
-OS_CACHE_OP_ADDR_TYPE OSCPUCacheOpAddressType(PVRSRV_DEVICE_NODE *psDevNode)
+OS_CACHE_OP_ADDR_TYPE OSCPUCacheOpAddressType(PVRSRV_DEVICE_NODE *psDevNode, PHYS_HEAP_TYPE ePhysHeapType)
 {
-	if (!psDevNode->psDevConfig->pvOSDevice)
+	if (!psDevNode->psDevConfig->pvOSDevice || ePhysHeapType != PHYS_HEAP_TYPE_UMA)
 	{
 		/* Host Mem device node doesn't have an associated Linux dev ptr.
 		   Use virtual addr ops instead of asking kernel to do physical
 		   maintenance */
+		/* Heaps other than UMA might not be direct mapped in the kernel causing issues
+		   when using physical address with dma api. */
 		return OS_CACHE_OP_ADDR_TYPE_VIRTUAL;
 	}
 

@@ -279,8 +279,8 @@ X(167, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_STALE_KCCB_CMDS, "Driver ID %u has %u sta
 X(168, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_TA_VCE_PAUSE, "Applying VCE pause", 0) \
 X(169, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_KCCB_UPDATE_RTN_SLOT_DEPRECATED, "OSid %u KCCB slot %u value updated to %u", 3) \
 X(170, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_UNKNOWN_KCCB_COMMAND, "Unknown KCCB Command: KCCBCtl=0x%08x, KCCB=0x%08x, Roff=%u, Woff=%u, Wrap=%u, Cmd=0x%08x, CmdType=0x%08x", 7) \
-X(171, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_UNKNOWN_CCB_COMMAND1, "Unknown Client CCB Command processing fences: FWCtx=0x%08x, CCBCtl=0x%08x, CCB=0x%08x, Roff=%u, Doff=%u, Woff=%u, Wrap=%u, CmdHdr=0x%08x, CmdType=0x%08x, CmdSize=%u", 10) \
-X(172, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_UNKNOWN_CCB_COMMAND2, "Unknown Client CCB Command executing kick: FWCtx=0x%08x, CCBCtl=0x%08x, CCB=0x%08x, Roff=%u, Doff=%u, Woff=%u, Wrap=%u, CmdHdr=0x%08x, CmdType=0x%08x, CmdSize=%u", 10) \
+X(171, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_UNKNOWN_CCB_COMMAND1_DEPRECATED, "Unknown Client CCB Command processing fences: FWCtx=0x%08x, CCBCtl=0x%08x, CCB=0x%08x, Roff=%u, Doff=%u, Woff=%u, Wrap=%u, CmdHdr=0x%08x, CmdType=0x%08x, CmdSize=%u", 10) \
+X(172, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_UNKNOWN_CCB_COMMAND2_DEPRECATED, "Unknown Client CCB Command executing kick: FWCtx=0x%08x, CCBCtl=0x%08x, CCB=0x%08x, Roff=%u, Doff=%u, Woff=%u, Wrap=%u, CmdHdr=0x%08x, CmdType=0x%08x, CmdSize=%u", 10) \
 X(173, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_INVALID_KCCB_KICK_CMD, "Null FWCtx in KCCB kick cmd for Driver ID %u with WOff %u", 2) \
 X(174, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_FLUSHINVAL_CMD_INVALID, "Discarding invalid SLC flushinval command for Driver ID %u, FWCtx 0x%08x", 2) \
 X(175, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_INVALID_NOTIFY_WRITE_OFFSET_UPDATE, "Invalid Write Offset update notification from Driver ID %u: FWCtx 0x%08x, MemCtx 0x%08x", 3) \
@@ -399,6 +399,9 @@ X(288, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_ZERO_LM, "Zeroing local memory after cont
 X(289, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_FAILED_IRQ_CLEAR, "Host failed to clear IRQ DriverID: %u Reg: 0x%08x",2) \
 X(290, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_KILLDM_ABORTED, "Kill DM%u aborted", 1) \
 X(291, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_SOC_CLOCK_SPEED_CHANGE, "SOC clock set to %u Hz", 1) \
+X(298, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_SOC_USC_TIMER_SYNC, "Offset for Core: %u, Cluster: %u: 0x%08x%08x", 4) \
+X(299, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_UNKNOWN_CCB_COMMAND1, "Unknown Client CCB Command processing fences: FWCtx=0x%08x, CCBCtl=0x%08x, Roff=%u, Doff=%u, Woff=%u, Wrap=%u, CmdHdr=0x%08x, CmdType=0x%08x, CmdSize=%u", 9) \
+X(300, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_UNKNOWN_CCB_COMMAND2, "Unknown Client CCB Command executing kick: FWCtx=0x%08x, CCBCtl=0x%08x, Roff=%u, Doff=%u, Woff=%u, Wrap=%u, CmdHdr=0x%08x, CmdType=0x%08x, CmdSize=%u", 9) \
 \
 X(  1, RGXFW_GROUP_MTS, RGXFW_SF_MTS_BG_KICK_DEPRECATED, "Bg Task DM = %u, counted = %u", 2) \
 X(  2, RGXFW_GROUP_MTS, RGXFW_SF_MTS_BG_COMPLETE_DEPRECATED, "Bg Task complete DM = %u", 1) \
@@ -408,7 +411,7 @@ X(  5, RGXFW_GROUP_MTS, RGXFW_SF_MTS_KICK_MTS_BG_ALL_DEPRECATED, "Kick MTS Bg ta
 X(  6, RGXFW_GROUP_MTS, RGXFW_SF_MTS_KICK_MTS_IRQ, "Kick MTS Irq task DM=%u", 1) \
 X(  7, RGXFW_GROUP_MTS, RGXFW_SF_MTS_READYCELLTYPE_DEPRECATED, "Ready queue debug DM = %u, celltype = %u", 2) \
 X(  8, RGXFW_GROUP_MTS, RGXFW_SF_MTS_READYTORUN_DEPRECATED, "Ready-to-run debug DM = %u, item = 0x%x", 2) \
-X(  9, RGXFW_GROUP_MTS, RGXFW_SF_MTS_CMDHEADER, "Client command header DM = %u, client CCB = 0x%x, cmd = 0x%x", 3) \
+X(  9, RGXFW_GROUP_MTS, RGXFW_SF_MTS_CMDHEADER_DEPRECATED, "Client command header DM = %u, client CCB = 0x%x, cmd = 0x%x", 3) \
 X( 10, RGXFW_GROUP_MTS, RGXFW_SF_MTS_READYTORUN, "Ready-to-run debug Driver ID = %u, DM = %u, item = 0x%x", 3) \
 X( 11, RGXFW_GROUP_MTS, RGXFW_SF_MTS_READYCELLTYPE_DEPRECATED2, "Ready queue debug DM = %u, celltype = %u, OSid = %u", 3) \
 X( 12, RGXFW_GROUP_MTS, RGXFW_SF_MTS_BG_KICK_DEPRECATED2, "Bg Task DM = %u, counted = %u, OSid = %u", 3) \
@@ -421,6 +424,7 @@ X( 18, RGXFW_GROUP_MTS, RGXFW_SF_MTS_BG_KICK, "Bg Task Driver ID = %u", 1) \
 X( 19, RGXFW_GROUP_MTS, RGXFW_SF_MTS_KCCBCMD_EXEC, "KCCB Slot %u: Cmd=0x%08x, Driver ID=%u", 3) \
 X( 20, RGXFW_GROUP_MTS, RGXFW_SF_MTS_IRQ_KICK, "Irq Task (EVENT_STATUS=0x%08x)", 1) \
 X( 21, RGXFW_GROUP_MTS, RGXFW_SF_MTS_VZ_SIDEBAND, "VZ sideband test, kicked with DriverID=%u from MTS, OSid for test=%u", 2) \
+X( 22, RGXFW_GROUP_MTS, RGXFW_SF_MTS_CMDHEADER, "Client command header DM = %u, cmd = 0x%x", 2) \
 \
 X(  1, RGXFW_GROUP_CLEANUP, RGXFW_SF_CLEANUP_FWCTX_CLEANUP, "FwCommonContext [0x%08x] cleaned", 1) \
 X(  2, RGXFW_GROUP_CLEANUP, RGXFW_SF_CLEANUP_FWCTX_BUSY, "FwCommonContext [0x%08x] is busy: ReadOffset = %u, WriteOffset = %u", 3) \

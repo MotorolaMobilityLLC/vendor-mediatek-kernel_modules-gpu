@@ -88,6 +88,10 @@ typedef void (*PFN_SYNC_CHECKPOINT_NOHW_SIGNAL_EXPORT_FENCE_FN)(PVRSRV_FENCE fen
 typedef void (*PFN_SYNC_CHECKPOINT_FREE_CHECKPOINT_LIST_MEM_FN)(void *mem_ptr);
 typedef IMG_UINT32 (*PFN_SYNC_CHECKPOINT_DUMP_INFO_ON_STALLED_UFOS_FN)(IMG_UINT32 num_ufos, IMG_UINT32 *vaddrs);
 #if defined(PDUMP)
+/* Implementers of this callback must take references on checkpoints obtained,
+ * these references must then be dropped by users of the callback once final
+ * access to the checkpoint has completed
+ */
 typedef PVRSRV_ERROR (*PFN_SYNC_CHECKPOINT_FENCE_GETCHECKPOINTS_FN)(PVRSRV_FENCE iFence,
 									IMG_UINT32 *puiNumCheckpoints,
 									PSYNC_CHECKPOINT **papsCheckpoints);
@@ -96,6 +100,8 @@ typedef PVRSRV_ERROR (*PFN_SYNC_CHECKPOINT_EXPORT_FENCE_RESOLVE_FN)(PVRSRV_FENCE
                                                              PSYNC_CHECKPOINT_CONTEXT checkpoint_context,
                                                              PSYNC_CHECKPOINT *checkpoint_handle);
 typedef PVRSRV_ERROR (*PFN_SYNC_CHECKPOINT_EXPORT_FENCE_ROLLBACK_FN)(PVRSRV_FENCE iExportFence);
+typedef PVRSRV_ERROR (*PFN_SYNC_CHECKPOINT_EXPORT_FENCE_FINALISE_FN)(PVRSRV_FENCE iExportFence);
+
 
 #define SYNC_CHECKPOINT_IMPL_MAX_STRLEN 20
 
@@ -115,6 +121,8 @@ typedef struct
 #endif
 	PFN_SYNC_CHECKPOINT_EXPORT_FENCE_RESOLVE_FN pfnExportFenceResolve;
 	PFN_SYNC_CHECKPOINT_EXPORT_FENCE_ROLLBACK_FN pfnExportFenceRollback;
+	PFN_SYNC_CHECKPOINT_EXPORT_FENCE_FINALISE_FN pfnExportFenceFinalise;
+
 } PFN_SYNC_CHECKPOINT_STRUCT;
 
 PVRSRV_ERROR SyncCheckpointRegisterFunctions(PFN_SYNC_CHECKPOINT_STRUCT *psSyncCheckpointPfns);
@@ -582,6 +590,29 @@ SyncCheckpointFinaliseFence(PPVRSRV_DEVICE_NODE psDevNode,
                             void *pvFinaliseData,
                             PSYNC_CHECKPOINT psSyncCheckpoint,
                             const IMG_CHAR *pszName);
+
+/*************************************************************************/ /*!
+@Function       SyncCheckpointFinaliseExportFence
+
+@Description    'Finalise' the export fence specified (performs any actions
+                the underlying implementation may need to perform after any
+                potential rollback opportunities have passed)
+                This function in turn calls a function provided by the
+                OS native sync implementation - if the native sync
+                implementation does not need to perform any actions at
+                this time, this function does not need to be registered.
+
+@Input          hFence                  Export fence to be 'finalised'
+
+@Return         PVRSRV_OK if a valid fence and finalise data were provided.
+                PVRSRV_ERROR_INVALID_PARAMS if an invalid fence or finalise
+                data were provided.
+                PVRSRV_ERROR_SYNC_NATIVESYNC_NOT_REGISTERED if the OS native
+                sync has not registered a callback function (permitted).
+*/
+/*****************************************************************************/
+PVRSRV_ERROR
+SyncCheckpointFinaliseExportFence(PVRSRV_FENCE hExportFence);
 
 /*************************************************************************/ /*!
 @Function       SyncCheckpointFreeCheckpointListMem

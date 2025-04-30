@@ -900,7 +900,9 @@ static PVRSRV_ERROR CacheOpPMRExec (PMR *psPMR,
 	OS_CACHE_OP_ADDR_TYPE eCacheOpAddrType;
 
 	psDevNode = PMR_DeviceNode(psPMR);
-	eCacheOpAddrType = OSCPUCacheOpAddressType(psDevNode);
+
+	eCacheOpAddrType = OSCPUCacheOpAddressType(psDevNode,
+	                                           PhysHeapGetType(PMR_PhysHeap(psPMR)));
 
 	if (uiCacheOp == PVRSRV_CACHE_OP_NONE || uiCacheOp == PVRSRV_CACHE_OP_TIMELINE)
 	{

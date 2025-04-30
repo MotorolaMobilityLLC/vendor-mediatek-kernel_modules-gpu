@@ -173,6 +173,8 @@ int pvr_fence_get_checkpoints(struct pvr_fence **pvr_fences, u32 nr_fences,
 			      struct SYNC_CHECKPOINT_TAG **fence_checkpoints);
 struct SYNC_CHECKPOINT_TAG *
 pvr_fence_get_checkpoint(struct pvr_fence *update_fence);
+struct SYNC_CHECKPOINT_TAG *
+pvr_fence_get_and_ref_checkpoint(struct pvr_fence *update_fence);
 
 void pvr_fence_context_signal_fences_nohw(void *data);
 
