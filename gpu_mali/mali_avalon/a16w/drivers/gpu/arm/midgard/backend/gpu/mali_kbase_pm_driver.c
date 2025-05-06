@@ -877,6 +877,14 @@ static void handle_sleep_initiate_state(struct kbase_device *kbdev)
 		 */
 		if (!kbase_csf_global_request_complete(kbdev, GLB_REQ_IDLE_DISABLE_MASK))
 			return;
+
+		/* The global idle being disable which imply FW wouldn't enter sleep
+		 * MCU DB hasn't been disabled and indicate FW is not in the processing
+		 * of sleep. In this case, switch to pend_soi_sleep and MCU is desired*/
+		if (!atomic_read(&kbdev->csf.scheduler.gpu_idle_timer_enabled) &&
+				atomic_read(&kbdev->csf.scheduler.fw_soi_enabled) &&
+				!db_notif_disabled)
+			goto pend_soi_sleep;
 	}
 
 	/* SoI is disabled or unsupported, so send a sleep request to FW.*/
