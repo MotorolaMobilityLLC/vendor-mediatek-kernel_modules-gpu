@@ -7478,7 +7478,7 @@ static void wait_for_mcu_sleep_before_sync_update_check(struct kbase_device *kbd
 														atomic_read(&kbdev->pm.active_count));
 }
 
-static void check_sync_update_in_sleep_mode(struct kbase_device *kbdev)
+static void check_sync_update_for_all_on_slot_groups(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 	u32 const num_groups = kbdev->csf.global_iface.group_num;
@@ -7492,12 +7492,6 @@ static void check_sync_update_in_sleep_mode(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
 
 	lockdep_assert_held(&scheduler->lock);
-
-	/* Wait for MCU to enter the sleep state to ensure that FW has published
-	 * the status of CSGs/CSIs, otherwise we can miss detecting that a GPU
-	 * queue stuck on SYNC_WAIT has been unblocked.
-	 */
-	wait_for_mcu_sleep_before_sync_update_check(kbdev);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE)
 	if (mtk_common_whitebox_sync_update_test_mode() > SYNC_UPDATE_TEST_MODE_NONE) {
@@ -7543,6 +7537,21 @@ static void check_sync_update_in_sleep_mode(struct kbase_device *kbdev)
 			return;
 		}
 	}
+}
+
+static void check_sync_update_in_sleep_mode(struct kbase_device *kbdev)
+{
+	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
+
+	lockdep_assert_held(&scheduler->lock);
+
+	/* Wait for MCU to enter the sleep state to ensure that FW has published
+	 * the status of CSGs/CSIs, otherwise we can miss detecting that a GPU
+	 * queue stuck on SYNC_WAIT has been unblocked.
+	 */
+	wait_for_mcu_sleep_before_sync_update_check(kbdev);
+
+	check_sync_update_for_all_on_slot_groups(kbdev);
 }
 
 /**
@@ -7609,11 +7618,26 @@ static void check_group_sync_update_worker(struct work_struct *work)
 		sync_updated = true;
 	}
 
-	/* If scheduler is in sleep or suspended state, re-activate it
-	 * to serve on-slot CSGs blocked on CQS which has been signaled.
+	/* Check if on-slot CSGS might have been unblocked, in case the MCU has
+	 * already halted because of GPU sleep or Sleep-on-Idle.
 	 */
-	if (!sync_updated && (scheduler->state == SCHED_SLEEPING))
-		check_sync_update_in_sleep_mode(kbdev);
+	if (!sync_updated) {
+		if (scheduler->state == SCHED_SLEEPING) {
+			/* This is the most common case where we've confirmed
+			 * that the MCU has halted.
+			 */
+			check_sync_update_in_sleep_mode(kbdev);
+		} else if (kbdev->pm.backend.db_mirror_interrupt_enabled) {
+			/* If Sleep-on-Idle is enabled then the MCU might have
+			 * halted automatically before the MCU state machine
+			 * has been aligned i.e., before gpu_idle_worker()
+			 * executes. During this time, SYNC update events will
+			 * not wake up the MCU. For this reason, we must
+			 * examine on-slot CSGs here in case some were blocked.
+			 */
+			check_sync_update_for_all_on_slot_groups(kbdev);
+		}
+	}
 
 	KBASE_KTRACE_ADD(kbdev, SCHEDULER_GROUP_SYNC_UPDATE_WORKER_END, kctx, 0u);
 
