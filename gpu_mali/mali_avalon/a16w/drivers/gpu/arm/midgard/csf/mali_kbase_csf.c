@@ -3108,7 +3108,9 @@ static void handle_fatal_event(struct kbase_queue *const queue, u32 group_id, u3
 	kbase_debug_csf_fault_notify(kbdev, queue->kctx, DF_CS_FATAL);
 	if (cs_fatal_exception_type == CS_FATAL_EXCEPTION_TYPE_CS_UNRECOVERABLE) {
 #if IS_ENABLED(CONFIG_MALI_MTK_RESET_OPT)
-		handle_fw_unrecovery(kbdev);
+		if (!kbdev->csf.firmware_unrecoverable) {
+			handle_fw_unrecovery(kbdev);
+		}
 #endif /* CONFIG_MALI_MTK_RESET_OPT */
 		if (kbase_prepare_to_reset_gpu(queue->kctx->kbdev, RESET_FLAGS_NONE)) {
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
