@@ -948,14 +948,7 @@ void kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev)
 #endif
 				predict_apo = ged_gpu_predict_apo_notify();
 
-				if (db_notif_disabled ||
-					(atomic_read(&kbdev->csf.scheduler.fw_soi_enabled) &&
-					atomic_read(&kbdev->csf.scheduler.gpu_idle_timer_enabled))) {
-#if IS_ENABLED(CONFIG_MALI_MTK_DISABLE_SOI)
-					kbase_pm_disable_db_mirror_interrupt(kbdev);
-#endif
-					enqueue_gpu_idle_work(scheduler);
-				} else if (!predict_apo) {
+				if (db_notif_disabled && !predict_apo) {
 #if IS_ENABLED(CONFIG_MALI_MTK_DISABLE_SOI)
 					kbase_pm_disable_db_mirror_interrupt(kbdev);
 #endif
