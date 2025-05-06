@@ -2323,7 +2323,8 @@ static void kbasep_hwcnt_backend_csf_dump_reenable_worker(struct work_struct *wo
 	unsigned long flags = 0ULL;
 	int err;
 
-	WARN_ON(!work);
+	if (!work)
+		return;
 
 	csf_info = container_of(work, struct kbase_hwcnt_backend_csf_info, hwc_dump_reenable_work);
 
@@ -2404,7 +2405,8 @@ static void kbasep_hwcnt_backend_csf_ring_buf_free_worker(struct work_struct *wo
 	struct kbase_hwcnt_backend_csf_if_ring_buf *ring_buf;
 	unsigned long flags = 0UL;
 
-	WARN_ON(!work);
+	if (!work)
+		return;
 
 	csf_info = container_of(work, struct kbase_hwcnt_backend_csf_info, hwc_ring_buf_free_work);
 	csf_info->csf_if->lock(csf_info->csf_if->ctx, &flags);
