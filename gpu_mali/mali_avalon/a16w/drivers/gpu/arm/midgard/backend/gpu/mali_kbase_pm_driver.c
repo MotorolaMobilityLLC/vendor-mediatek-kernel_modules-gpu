@@ -2891,6 +2891,7 @@ void kbase_pm_reset_start_locked(struct kbase_device *kbdev)
 	} else {
 		WARN_ON(backend->mcu_state != KBASE_MCU_OFF);
 	}
+	kbdev->csf.firmware_booted_once = false;
 
 	/* We're in a reset, so hwcnt will have been synchronously disabled by
 	 * this function's caller as part of the reset process. We therefore

@@ -680,7 +680,6 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 			* the firmware full reload.
 			*/
 			kbdev->csf.firmware_full_reload_needed = true;
-			kbdev->csf.firmware_booted_once = false;
 			kbdev->pm.backend.fw_reload_on_reset_worker = false;
 			ret = kbase_csf_reset_gpu_once(kbdev, firmware_inited, true);
 			if (ret != RESET_SUCCESS) {
@@ -922,7 +921,6 @@ void kbase_reset_gpu(struct kbase_device *kbdev)
 #else /* CONFIG_MALI_MTK_LOG_BUFFER */
 	dev_err(kbdev->dev, "Preparing to soft-reset GPU\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
-	kbdev->csf.firmware_booted_once = false;
 	kbase_disjoint_state_up(kbdev);
 
 	queue_work(kbdev->csf.reset.workq, &kbdev->csf.reset.work);
