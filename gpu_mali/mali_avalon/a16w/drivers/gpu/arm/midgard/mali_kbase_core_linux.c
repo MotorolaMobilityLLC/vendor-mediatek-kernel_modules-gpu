@@ -869,7 +869,7 @@ static int kbase_api_mem_alloc_ex(struct kbase_context *kctx,
 {
 	struct kbase_va_region *reg;
 	base_mem_alloc_flags flags = alloc_ex->in.flags;
-	u64 gpu_va;
+	u64 gpu_va = 0;
 
 	/* Calls to this function are inherently asynchronous, with respect to
 	 * MMU operations.
@@ -1311,7 +1311,7 @@ static int kbase_api_sticky_resource_map(struct kbase_context *kctx,
 	int ret;
 	u64 i;
 	u64 gpu_addr[BASE_EXT_RES_COUNT_MAX];
-	size_t copy_size;
+	size_t copy_size = 0;
 
 	if (!map->count || map->count > BASE_EXT_RES_COUNT_MAX)
 		return -EOVERFLOW;
@@ -1354,7 +1354,7 @@ static int kbase_api_sticky_resource_unmap(struct kbase_context *kctx,
 	int ret;
 	u64 i;
 	u64 gpu_addr[BASE_EXT_RES_COUNT_MAX];
-	size_t copy_size;
+	size_t copy_size = 0;
 
 	if (!unmap->count || unmap->count > BASE_EXT_RES_COUNT_MAX)
 		return -EOVERFLOW;

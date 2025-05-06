@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -301,9 +301,7 @@ int kbase_arbiter_pm_early_init(struct kbase_device *kbdev)
 	err = -EPERM;
 
 	if (err) {
-		if (err != -EPERM)
-			dev_err(kbdev->dev, "Failed to initialise arbif module. (err = %d)", err);
-
+		dev_err(kbdev->dev, "Failed to initialise arbif module. (err = %d)", err);
 		goto arbif_init_fail;
 	}
 
