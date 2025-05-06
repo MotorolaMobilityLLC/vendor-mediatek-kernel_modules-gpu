@@ -194,7 +194,7 @@ PVRSRV_ERROR MTKSysPostPowerState(IMG_HANDLE hSysData,
 	if (eNewPowerState == PVRSRV_SYS_POWER_STATE_ON &&
 		eCurrentPowerState == PVRSRV_SYS_POWER_STATE_OFF) {
 #if defined(ENABLE_COMMON_DVFS)
-		ged_dvfs_gpu_clock_switch_notify(1);
+		ged_dvfs_gpu_clock_switch_notify(GED_POWER_ON);
 		mtk_notify_gpu_power_change(1);
 #endif /* ENABLE_COMMON_DVFS */
 		eResult = gpufreq_power_control(GPU_PWR_ON);
