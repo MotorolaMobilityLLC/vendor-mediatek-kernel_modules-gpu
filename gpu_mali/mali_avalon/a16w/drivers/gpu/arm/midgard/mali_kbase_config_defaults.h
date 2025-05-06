@@ -390,7 +390,11 @@ enum {
  * Value chosen is equivalent to the time after which a job is hard stopped
  * which is 5 seconds (assuming the GPU is usually clocked at ~500 MHZ).
  */
+#if IS_ENABLED(CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG)
+#define DEFAULT_PROGRESS_TIMEOUT ((u64)20 * 500 * 1024 * 1024)
+#else
 #define DEFAULT_PROGRESS_TIMEOUT ((u64)5 * 500 * 1024 * 1024)
+#endif /* CONFIG_MALI_MTK_ITER_TIMEOUT_DBG_LOG */
 
 /* Waiting time in clock cycles for the completion of a MMU operation.
  *
