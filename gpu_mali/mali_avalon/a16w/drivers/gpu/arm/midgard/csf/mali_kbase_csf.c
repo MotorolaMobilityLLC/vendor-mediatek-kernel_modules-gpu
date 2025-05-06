@@ -73,6 +73,10 @@
 #include <linux/kthread.h>
 #endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 
+#if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
+#include <aee.h>
+#endif /* CONFIG_MTK_AEE_FEATURE */
+
 #define CS_REQ_EXCEPTION_MASK (CS_REQ_FAULT_MASK | CS_REQ_FATAL_MASK)
 #define CS_ACK_EXCEPTION_MASK (CS_ACK_FAULT_MASK | CS_ACK_FATAL_MASK)
 
@@ -2743,6 +2747,9 @@ static void handle_progress_timer_events(struct kbase_device *const kbdev, unsig
 				kbase_backend_get_timestamp(kbdev), group->handle, group->kctx->tgid,
 				group->kctx->id, csg_nr, group->progress_timer_state, atomic_read(&kbdev->faults_pending));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+#if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
+			aee_kernel_exception("GPU", "Iterator Timeout");
+#endif /* CONFIG_MTK_AEE_FEATURE */
 #else
 			dev_info(
 				kbdev->dev,
