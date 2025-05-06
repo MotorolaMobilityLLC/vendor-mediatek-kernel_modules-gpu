@@ -1064,18 +1064,20 @@ static bool hctl_neural_engines_active(struct kbase_device *kbdev)
 static bool hctl_neural_power_up_done(struct kbase_device *kbdev, u64 shaders_ready)
 {
 	u64 neural_trans, neural_ready;
+	u64 neural_desired = shaders_ready & kbdev->gpu_props.neural_present;
 
 	if (!kbase_csf_dev_has_ne(kbdev))
 		return true;
 
+	WARN_ON_ONCE(!shaders_ready);
 	neural_trans = kbase_pm_get_trans_cores(kbdev, KBASE_PM_CORE_NEURAL);
+	neural_ready = kbase_pm_get_ready_cores(kbdev, KBASE_PM_CORE_NEURAL);
+
 	if (neural_trans)
 		return false;
 
-	WARN_ON_ONCE(!shaders_ready);
-	neural_ready = kbase_pm_get_ready_cores(kbdev, KBASE_PM_CORE_NEURAL);
-	if (neural_ready != shaders_ready) {
-		kbase_pm_invoke(kbdev, KBASE_PM_CORE_NEURAL, ~neural_ready & shaders_ready,
+	if (neural_ready != neural_desired) {
+		kbase_pm_invoke(kbdev, KBASE_PM_CORE_NEURAL, ~neural_ready & neural_desired,
 				ACTION_PWRON);
 		return false;
 	}
@@ -1099,17 +1101,19 @@ static bool hctl_neural_power_up_done(struct kbase_device *kbdev, u64 shaders_re
 static bool hctl_neural_power_down_done(struct kbase_device *kbdev, u64 shaders_ready)
 {
 	u64 neural_trans, neural_ready;
+	u64 neural_desired = shaders_ready & kbdev->gpu_props.neural_present;
 
 	if (!kbase_csf_dev_has_ne(kbdev))
 		return true;
 
 	neural_trans = kbase_pm_get_trans_cores(kbdev, KBASE_PM_CORE_NEURAL);
+	neural_ready = kbase_pm_get_ready_cores(kbdev, KBASE_PM_CORE_NEURAL);
+
 	if (neural_trans)
 		return false;
 
-	neural_ready = kbase_pm_get_ready_cores(kbdev, KBASE_PM_CORE_NEURAL);
-	if (neural_ready != shaders_ready) {
-		kbase_pm_invoke(kbdev, KBASE_PM_CORE_NEURAL, neural_ready & ~shaders_ready,
+	if (neural_ready != neural_desired) {
+		kbase_pm_invoke(kbdev, KBASE_PM_CORE_NEURAL, neural_ready & ~neural_desired,
 				ACTION_PWROFF);
 		return false;
 	}
@@ -1139,7 +1143,7 @@ static bool hctl_base_power_down_done(struct kbase_device *kbdev, u64 shaders_re
 	base_trans = kbase_pm_get_trans_cores(kbdev, KBASE_PM_CORE_BASE);
 	base_ready = kbase_pm_get_ready_cores(kbdev, KBASE_PM_CORE_BASE);
 
-	return (!base_trans && base_ready == shaders_ready);
+	return (!base_trans && ((base_ready & shaders_ready) == shaders_ready));
 }
 
 /**
