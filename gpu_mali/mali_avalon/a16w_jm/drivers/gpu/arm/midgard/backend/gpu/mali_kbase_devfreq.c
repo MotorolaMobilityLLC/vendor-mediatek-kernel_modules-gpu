@@ -35,7 +35,7 @@
 #include <linux/pm_opp.h>
 #include "mali_kbase_devfreq.h"
 #include <platform/mtk_platform_utils.h> /* MTK_INLINE */
-
+#include <mtk_ddk_define.h>  /* MTK_INLINE */
 /**
  * get_voltage() - Get the voltage value corresponding to the nominal frequency
  *                 used by devfreq.

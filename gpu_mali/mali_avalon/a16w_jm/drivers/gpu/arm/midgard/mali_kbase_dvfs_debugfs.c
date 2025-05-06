@@ -22,6 +22,7 @@
 #include "mali_kbase_dvfs_debugfs.h"
 #include <mali_kbase.h>
 #include <linux/seq_file.h>
+#include <mtk_ddk_define.h>  /* MTK_INLINE */
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 

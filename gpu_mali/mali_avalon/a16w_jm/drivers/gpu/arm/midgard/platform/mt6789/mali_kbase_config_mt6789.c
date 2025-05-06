@@ -22,6 +22,8 @@
 #include <platform/mtk_platform_common.h>
 #include <platform/mtk_platform_common/mtk_platform_debug.h>
 #include <ged_dvfs.h>
+#include <mtk_ddk_define.h>
+
 #if IS_ENABLED(CONFIG_MTK_GPU_SWPM_SUPPORT)
 #include "platform/mtk_platform_common/mtk_ltr_pmu.h"
 #endif

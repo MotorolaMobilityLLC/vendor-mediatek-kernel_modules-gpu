@@ -18,7 +18,7 @@
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
  */
-
+#include <mtk_ddk_define.h>  /* MTK_INLINE */
 #include <mali_kbase.h>
 #include <mali_kbase_config_defaults.h>
 #include <hw_access/mali_kbase_hw_access_regmap.h>

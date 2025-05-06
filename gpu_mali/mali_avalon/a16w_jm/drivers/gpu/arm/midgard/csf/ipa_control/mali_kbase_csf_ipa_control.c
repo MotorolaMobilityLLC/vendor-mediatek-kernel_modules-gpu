@@ -23,7 +23,7 @@
 #include <mali_kbase_config_defaults.h>
 #include "backend/gpu/mali_kbase_clk_rate_trace_mgr.h"
 #include "mali_kbase_csf_ipa_control.h"
-
+#include <mtk_ddk_define.h>  /* MTK_INLINE */
 /*
  * Status flags from the STATUS register of the IPA Control interface.
  */

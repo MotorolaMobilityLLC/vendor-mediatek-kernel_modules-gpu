@@ -31,6 +31,9 @@
 
 #include <hw_access/mali_kbase_hw_access_regmap.h>
 
+
+#include <mtk_ddk_define.h>  /* MTK_INLINE */
+
 #if defined(CONFIG_PM_RUNTIME) || defined(CONFIG_PM)
 #define KBASE_PM_RUNTIME 1
 #endif
