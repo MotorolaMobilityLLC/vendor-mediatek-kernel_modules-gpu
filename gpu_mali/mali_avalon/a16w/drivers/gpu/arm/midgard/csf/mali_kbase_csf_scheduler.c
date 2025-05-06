@@ -7431,6 +7431,18 @@ static bool check_sync_update_for_idle_groups_protm(struct kbase_device *kbdev)
  * of all the on-slot groups when a CQS object is signaled and Scheduler was in
  * SLEEPING state.
  */
+
+static bool check_db_notif_disabled(struct kbase_device *kbdev)
+{
+	bool db_notif_disabled;
+	unsigned long flags;
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	db_notif_disabled = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_CONTROL)) &
+								 MCU_CNTRL_DOORBELL_DISABLE_MASK;
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+	return db_notif_disabled;
+}
+
 static void wait_for_mcu_sleep_before_sync_update_check(struct kbase_device *kbdev)
 {
 	/* Handling of sleep request should be relatively quick as GPU
@@ -7469,7 +7481,8 @@ static void wait_for_mcu_sleep_before_sync_update_check(struct kbase_device *kbd
 	if (!kbase_csf_wait_event_timeout(kbdev, kbdev->pm.backend.gpu_in_desired_state_wait,
 					  kbase_csf_firmware_mcu_halted(kbdev) ||
 						kbdev->pm.backend.exit_gpu_sleep_mode ||
-						!kbase_reset_gpu_is_not_pending(kbdev),
+						!kbase_reset_gpu_is_not_pending(kbdev)||
+						!check_db_notif_disabled(kbdev),
 					  timeout))
 		dev_warn(kbdev->dev, "Wait for MCU sleep timed out(%d,%d %d %d)",
 														db_notif_disabled,
