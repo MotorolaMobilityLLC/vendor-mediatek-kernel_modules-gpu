@@ -1101,7 +1101,11 @@ static struct platform_driver
 
 module_platform_driver(protected_memory_allocator_driver);
 
+#if (KERNEL_VERSION(6, 13, 0) > LINUX_VERSION_CODE)
 MODULE_IMPORT_NS(DMA_BUF);
+#else
+MODULE_IMPORT_NS("DMA_BUF");
+#endif
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("ARM Ltd.");
 MODULE_VERSION("1.0");

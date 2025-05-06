@@ -1278,9 +1278,6 @@ static void disable_gpu_idle_timer_no_db(struct kbase_device *kbdev)
 	kbase_csf_fw_io_global_write_mask(&kbdev->csf.fw_io, GLB_REQ, GLB_REQ_REQ_IDLE_DISABLE,
 					  GLB_REQ_IDLE_DISABLE_MASK);
 	kbase_csf_fw_io_close(&kbdev->csf.fw_io, flags);
-#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) || IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MCU)
-	ged_trace_idle_timer_enabled(0);
-#endif
 	atomic_set(&kbdev->csf.scheduler.gpu_idle_timer_enabled, false);
 }
 
@@ -1521,9 +1518,11 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 					 * MCU power state notifications to HWC.
 					 */
 					if (!IS_ENABLED(CONFIG_MALI_NO_MALI) &&
-					    !kbdev->csf.firmware_reloaded)
+					    !kbdev->csf.firmware_reloaded) {
+						KBASE_KTRACE_ADD(kbdev, _MCU_OFF, NULL, 1);
 						kbase_hwcnt_backend_csf_on_after_mcu_off(
-							&kbdev->hwcnt_gpu_iface);
+							&kbdev->hwcnt_gpu_iface, kbdev);
+					}
 
 					backend->mcu_state = KBASE_MCU_HCTL_MCU_ON_RECHECK;
 				}
@@ -1569,10 +1568,6 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			} else if (~desired_mask_alloc_en & shaders_ready) {
 				kbase_csf_firmware_update_core_attr(kbdev, false, true,
 								    desired_mask_alloc_en);
-#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
-				backend->pre_shader_avail = backend->shaders_avail;
-				backend->update_core_mask = desired_mask_alloc_en;
-#endif
 				backend->mcu_state = KBASE_MCU_HCTL_CORES_DOWN_SCALE_NOTIFY_PEND;
 			} else {
 				backend->mcu_state = KBASE_MCU_HCTL_SHADERS_PEND_ON;
@@ -1712,7 +1707,8 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 				KBASE_KTRACE_ADD(kbdev, CSF_FIRMWARE_MCU_HALTED, NULL,
 						 kbase_csf_ktrace_gpu_cycle_cnt(kbdev));
 
-				kbase_hwcnt_backend_csf_on_after_mcu_off(&kbdev->hwcnt_gpu_iface);
+				KBASE_KTRACE_ADD(kbdev, _MCU_OFF, NULL, 2);
+				kbase_hwcnt_backend_csf_on_after_mcu_off(&kbdev->hwcnt_gpu_iface, kbdev);
 
 				if (kbdev->csf.firmware_hctl_core_pwr)
 					backend->mcu_state = KBASE_MCU_HCTL_SHADERS_READY_OFF;
@@ -1796,7 +1792,8 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			if (kbase_pm_is_mcu_desired(kbdev)) {
 				/* Assume the transition is complete and prepare to goto ON state */
 				WARN_ON_ONCE(backend->l2_state != KBASE_L2_ON);
-				kbase_hwcnt_backend_csf_on_after_mcu_off(&kbdev->hwcnt_gpu_iface);
+				KBASE_KTRACE_ADD(kbdev, _MCU_OFF, NULL, 3);
+				kbase_hwcnt_backend_csf_on_after_mcu_off(&kbdev->hwcnt_gpu_iface, kbdev);
 				backend->mcu_state = KBASE_MCU_IN_SLEEP;
 				break;
 			}
@@ -1806,7 +1803,8 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			if (kbase_csf_firmware_is_mcu_in_sleep(kbdev)) {
 				KBASE_KTRACE_ADD(kbdev, CSF_FIRMWARE_MCU_SLEEP, NULL,
 						 kbase_csf_ktrace_gpu_cycle_cnt(kbdev));
-				kbase_hwcnt_backend_csf_on_after_mcu_off(&kbdev->hwcnt_gpu_iface);
+				KBASE_KTRACE_ADD(kbdev, _MCU_OFF, NULL, 4);
+				kbase_hwcnt_backend_csf_on_after_mcu_off(&kbdev->hwcnt_gpu_iface, kbdev);
 				backend->mcu_state = KBASE_MCU_IN_SLEEP;
 				kbase_pm_enable_db_mirror_interrupt(kbdev);
 				if (!atomic_read(&kbdev->csf.scheduler.fw_soi_enabled))
@@ -1824,7 +1822,7 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 				 * and there would be no waiters. The wake_up() call won't have an
 				 * effect if there are no waiters.
 				 */
-				if (likely(!atomic_read(&kbdev->pm.active_count)))
+				if (likely(!kbdev->pm.active_count))
 					wake_up(&backend->gpu_in_desired_state_wait);
 			}
 			break;
@@ -1853,8 +1851,9 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 					kbasep_pm_toggle_power_interrupt(kbdev, false);
 
 				backend->mcu_state = KBASE_MCU_ON_HWCNT_ENABLE;
+				KBASE_KTRACE_ADD(kbdev, _MCU_ON, NULL, 3);
 				kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
-				kbase_hwcnt_backend_csf_on_after_mcu_on(&kbdev->hwcnt_gpu_iface);
+				kbase_hwcnt_backend_csf_on_after_mcu_on(&kbdev->hwcnt_gpu_iface, kbdev);
 			}
 			break;
 
@@ -1867,8 +1866,9 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 			/* Reset complete  */
 			if (!backend->in_reset) {
+				KBASE_KTRACE_ADD(kbdev, _MCU_OFF_RESET, NULL, 1);
 				kbase_hwcnt_backend_csf_on_after_mcu_off_reset(
-					&kbdev->hwcnt_gpu_iface);
+					&kbdev->hwcnt_gpu_iface, kbdev);
 				backend->mcu_state = KBASE_MCU_OFF;
 			}
 
@@ -3180,8 +3180,6 @@ static void kbase_pm_timed_out(struct kbase_device *kbdev, const char *timeout_m
 #endif
 {
 	unsigned long flags;
-	unsigned long long shaders_trans = kbase_pm_get_trans_cores(kbdev, KBASE_PM_CORE_SHADER);
-	unsigned long long shaders_ready = kbase_pm_get_ready_cores(kbdev, KBASE_PM_CORE_SHADER);
 
 	dev_err(kbdev->dev, "%s", timeout_msg);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
@@ -3203,15 +3201,6 @@ static void kbase_pm_timed_out(struct kbase_device *kbdev, const char *timeout_m
 		kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(STACK_READY)));
 	dev_err(kbdev->dev, "\tShader=%016llx\n",
 		kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(SHADER_READY)));
-
-	dev_err(kbdev->dev, "\tShader_ready=%016llx\n",shaders_ready);
-	dev_err(kbdev->dev, "\tShader_trans=%016llx\n",shaders_trans);
-	dev_err(kbdev->dev, "\tShader_avail=%016llx\n",kbdev->pm.backend.shaders_avail);
-#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
-	dev_err(kbdev->dev, "\tpre_Shader_avail=%016llx\n",kbdev->pm.backend.pre_shader_avail);
-	dev_err(kbdev->dev, "\tupdate_core_mask=%016llx\n",kbdev->pm.backend.update_core_mask);
-#endif
-
 	dev_err(kbdev->dev, "\tTiler =%016llx\n",
 		kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(TILER_READY)));
 	dev_err(kbdev->dev, "\tL2    =%016llx\n",
@@ -4138,8 +4127,13 @@ static int kbase_pm_do_reset(struct kbase_device *kbdev)
 		rtdata.timed_out = false;
 
 		/* Create a timer to use as a timeout on the reset */
+#if KERNEL_VERSION(6, 13, 0) <= LINUX_VERSION_CODE
+		hrtimer_setup_on_stack(&rtdata.timer, kbasep_reset_timeout, CLOCK_MONOTONIC,
+			       HRTIMER_MODE_REL);
+#else
 		hrtimer_init_on_stack(&rtdata.timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 		rtdata.timer.function = kbasep_reset_timeout;
+#endif
 		goto whitebox_directly_hard_reset;
 	}
 #endif /* CONFIG_MALI_MTK_WHITEBOX_DIRECTLY_HARD_RESET */
