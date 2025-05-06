@@ -195,10 +195,20 @@ void mtk_debug_dump_fw_analysis(struct kbase_device *kbdev)
 
 static void mtk_fw_analysis_dump_worker(struct work_struct *const data)
 {
+	int err;
 	struct kbase_device *kbdev = container_of(data, struct kbase_device, mtk_fw_analysis_dump_work);
 
-	if (kbase_io_is_gpu_powered(kbdev))
-		mtk_debug_dump_fw_analysis(kbdev);
+	if (kbase_io_is_gpu_powered(kbdev)) {
+		/* Power up the GPU */
+		kbase_csf_scheduler_pm_active(kbdev);
+		/* Ensure MCU is active before requesting the fw dump. */
+		err = kbase_csf_scheduler_killable_wait_mcu_active(kbdev);
+		if (!err) {
+			mtk_debug_dump_fw_analysis(kbdev);
+		}
+		/* Power down the GPU */
+		kbase_csf_scheduler_pm_idle(kbdev);
+	}
 	else {
 		dev_info(kbdev->dev, "GPU power off, bypass FW analysis dump");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
@@ -246,6 +256,7 @@ static ssize_t mtk_debug_fw_analysis_dump_enable_write(struct file *file, const 
 	int ret = 0;
 	int temp = 0;
 	int original_setting = 0;
+	int err;
 	CSTD_UNUSED(ppos);
 
 	ret = kstrtoint_from_user(ubuf, count, 0, &temp);
@@ -264,11 +275,11 @@ static ssize_t mtk_debug_fw_analysis_dump_enable_write(struct file *file, const 
 
 		/* Power up the GPU */
 		kbase_csf_scheduler_pm_active(kbdev);
-		kbase_pm_wait_for_l2_powered(kbdev);
 
-		/* Trigger FW analysis dump */
-		mtk_debug_dump_fw_analysis(kbdev);
-
+		err = kbase_csf_scheduler_killable_wait_mcu_active(kbdev);
+		if (!err) {
+			mtk_debug_dump_fw_analysis(kbdev);
+		}
 		/* Power down the GPU */
 		kbase_csf_scheduler_pm_idle(kbdev);
 
