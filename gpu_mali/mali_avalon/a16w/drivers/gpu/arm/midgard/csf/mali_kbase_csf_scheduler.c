@@ -8108,7 +8108,13 @@ static int kbase_csf_scheduler_kthread(void *data)
 
 		/* Drain pending GPU suspend work */
 		if (atomic_read(&scheduler->pending_runtime_suspend_work) == true) {
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+			MALI_KTHREAD_WORK_START(scheduler, "kbase_pm_handle_runtime_suspend");
 			kbdev->pm.runtime_suspend_result = kbase_pm_handle_runtime_suspend(kbdev);
+			MALI_KTHREAD_WORK_END(scheduler, "kbase_pm_handle_runtime_suspend");
+#else
+			kbdev->pm.runtime_suspend_result = kbase_pm_handle_runtime_suspend(kbdev);
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 			atomic_set(&scheduler->pending_runtime_suspend_work, false);
 		}
 
@@ -8129,8 +8135,17 @@ static int kbase_csf_scheduler_kthread(void *data)
 		/* Update GLB_IDLE timer/FW Sleep-on-Idle config (which might
 		 * have been disabled during FW boot et. al.).
 		 */
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+		MALI_KTHREAD_WORK_START(scheduler, "kbase_csf_firmware_soi_update");
+		kbase_csf_firmware_soi_update(kbdev);
+		MALI_KTHREAD_WORK_END(scheduler, "kbase_csf_firmware_soi_update");
+		MALI_KTHREAD_WORK_START(scheduler, "kbase_csf_firmware_glb_idle_timer_update");
+		kbase_csf_firmware_glb_idle_timer_update(kbdev);
+		MALI_KTHREAD_WORK_END(scheduler, "kbase_csf_firmware_glb_idle_timer_update");
+#else
 		kbase_csf_firmware_soi_update(kbdev);
 		kbase_csf_firmware_glb_idle_timer_update(kbdev);
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 
 		dev_dbg(kbdev->dev, "Waking up for event after a scheduling iteration.");
 		wake_up_all(&kbdev->csf.event_wait);
