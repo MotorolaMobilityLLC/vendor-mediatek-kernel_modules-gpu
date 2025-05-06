@@ -2743,6 +2743,7 @@ static void handle_progress_timer_events(struct kbase_device *const kbdev, unsig
 				kbase_backend_get_timestamp(kbdev), group->handle, group->kctx->tgid,
 				group->kctx->id, csg_nr, group->progress_timer_state, atomic_read(&kbdev->faults_pending));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+			BUG_ON(1);
 #else
 			dev_info(
 				kbdev->dev,
