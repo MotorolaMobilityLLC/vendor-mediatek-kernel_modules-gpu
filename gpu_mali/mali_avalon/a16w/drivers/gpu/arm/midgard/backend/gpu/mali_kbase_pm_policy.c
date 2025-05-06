@@ -343,6 +343,18 @@ void kbase_pm_set_policy(struct kbase_device *kbdev, const struct kbase_pm_polic
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
+	/* Update the GPU sleep allowed/Sleep-on-Idle policy ahead of the
+	 * policy change since the scheduler's suspension makes use of this
+	 * flag.
+	 */
+	if (IS_ENABLED(CONFIG_PM)) {
+		if (new_policy_csf_pm_sched_flags & CSF_DYNAMIC_PM_SCHED_IGNORE_IDLE)
+			set_bit(KBASE_GPU_IGNORE_IDLE_EVENT, &kbdev->pm.backend.gpu_sleep_allowed);
+		else
+			clear_bit(KBASE_GPU_IGNORE_IDLE_EVENT,
+				  &kbdev->pm.backend.gpu_sleep_allowed);
+	}
+
 	if (sched_suspend) {
 		/* Update the suspend flag to reflect actually suspend being done ! */
 		sched_suspend = !kbase_csf_scheduler_pm_suspend_no_lock(kbdev);
@@ -393,14 +405,6 @@ void kbase_pm_set_policy(struct kbase_device *kbdev, const struct kbase_pm_polic
 	/* New policy in place, release the clamping on mcu/L2 off state */
 	kbdev->pm.backend.policy_change_clamp_state_to_off = false;
 	kbase_pm_update_state(kbdev);
-
-	if (IS_ENABLED(CONFIG_PM)) {
-		if (kbase_pm_idle_groups_sched_suspendable(kbdev))
-			clear_bit(KBASE_GPU_IGNORE_IDLE_EVENT,
-				  &kbdev->pm.backend.gpu_sleep_allowed);
-		else
-			set_bit(KBASE_GPU_IGNORE_IDLE_EVENT, &kbdev->pm.backend.gpu_sleep_allowed);
-	}
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 

@@ -1840,6 +1840,12 @@ struct kbase_csf_user_reg {
  *                               be fully re-loaded. This may be set when the
  *                               boot or re-init of MCU fails after a successful
  *                               soft reset.
+ * @firmware_booted_once:   Indicates whether FW has successfully booted in
+ *                          normal mode once. This is used to skip waiting for
+ *                          subsequent FW boots and proceed directly to global
+ *                          initialization. This flag would be cleared if we
+ *                          need to wait for the FW to boot again, such as
+ *                          during full reload or GPU reset.
  * @firmware_hctl_core_pwr: Flag for indicating that the host diver is in
  *                          charge of the shader core's power transitions, and
  *                          the mcu_core_pwroff timeout feature is disabled
@@ -1935,6 +1941,7 @@ struct kbase_csf_device {
 	bool firmware_reloaded;
 	bool firmware_reload_needed;
 	bool firmware_full_reload_needed;
+	bool firmware_booted_once;
 	bool firmware_hctl_core_pwr;
 	bool firmware_unrecoverable;
 	struct work_struct firmware_reload_work;

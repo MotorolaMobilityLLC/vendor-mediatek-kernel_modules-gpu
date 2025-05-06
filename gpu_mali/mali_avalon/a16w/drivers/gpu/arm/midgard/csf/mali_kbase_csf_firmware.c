@@ -2474,6 +2474,7 @@ void kbase_csf_firmware_reload_completed(struct kbase_device *kbdev)
 
 	/* Tell MCU state machine to transit to next state */
 	kbdev->csf.firmware_reloaded = true;
+	kbdev->csf.firmware_booted_once = true;
 	kbase_pm_update_state(kbdev);
 }
 KBASE_EXPORT_TEST_API(kbase_csf_firmware_reload_completed);

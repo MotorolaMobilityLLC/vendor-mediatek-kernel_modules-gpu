@@ -1384,7 +1384,11 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			break;
 
 		case KBASE_MCU_PEND_ON_RELOAD:
-			if (kbdev->csf.firmware_reloaded) {
+			/* Host only needs to wait for the first reload,
+			 * subsequent reloads could be skipped as the shared
+			 * pages have already been set up.
+			 */
+			if (kbdev->csf.firmware_reloaded || kbdev->csf.firmware_booted_once) {
 				kbase_csf_firmware_global_reinit(kbdev, desired_mask_alloc_en);
 				if (!kbdev->csf.firmware_hctl_core_pwr)
 					kbasep_pm_toggle_power_interrupt(kbdev, false);
@@ -1393,7 +1397,12 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			break;
 
 		case KBASE_MCU_ON_GLB_REINIT_PEND:
-			if (kbase_csf_firmware_global_reinit_complete(kbdev)) {
+			/* We must wait for the FW to finish loading here
+			 * by means of receiving the first IRQ post-boot
+			 * to ensure consistency with H/W counter backend.
+			 */
+			if (kbdev->csf.firmware_reloaded &&
+			    kbase_csf_firmware_global_reinit_complete(kbdev)) {
 				backend->shaders_avail = desired_mask_alloc_en;
 #if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
 				if (mtk_common_ged_dvfs_get_gov_mask_enable() == 0) {
