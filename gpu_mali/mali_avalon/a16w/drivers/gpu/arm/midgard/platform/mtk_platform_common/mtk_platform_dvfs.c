@@ -257,8 +257,13 @@ int mtk_set_core_mask(u64 core_mask)
 {
 	struct kbase_device *kbdev = (struct kbase_device *)mtk_common_get_kbdev();
 	int ret = 0;
+	u64 final_core_mask = 0;
 
-	kbase_devfreq_set_core_mask(kbdev, core_mask);
+	final_core_mask = core_mask & (u64)gpufreq_get_shader_present();
+	if (final_core_mask > 0)
+		kbase_devfreq_set_core_mask(kbdev, final_core_mask);
+	else
+		return 1;
 
 	/* TODO: need to check get_core_mask hang issue, to verity the scaling result */
 	// current_mask = kbdev->pm.backend.ca_cores_enabled;
