@@ -1326,7 +1326,6 @@ struct kbase_csf_scheduler {
 	struct list_head protm_event_work_grps;
 #endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
-	unsigned int apo_support;
 	struct hrtimer apo_idle_timer;
 	bool keep_apo_timer;
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
