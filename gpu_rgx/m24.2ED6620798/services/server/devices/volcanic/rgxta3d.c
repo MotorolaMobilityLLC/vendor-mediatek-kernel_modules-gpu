@@ -2254,6 +2254,9 @@ PVRSRV_ERROR RGXCreateZSBufferKM(CONNECTION_DATA * psConnection,
 
 	PVR_UNREFERENCED_PARAMETER(psConnection);
 
+	PVR_LOG_RETURN_IF_INVALID_PARAM((PMR_Flags(psPMR) & PVRSRV_MEMALLOCFLAG_DEVICE_FLAG(PMMETA_PROTECT)) == 0U,
+	    "ZS-Buffer cannot be mapped with PMMETA_PROTECT.");
+
 	/* Allocate host data structure */
 	psZSBuffer = OSAllocZMem(sizeof(*psZSBuffer));
 	if (psZSBuffer == NULL)

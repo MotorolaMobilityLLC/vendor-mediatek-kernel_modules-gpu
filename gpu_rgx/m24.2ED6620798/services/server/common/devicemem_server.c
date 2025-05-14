@@ -1734,6 +1734,27 @@ static INLINE PVRSRV_ERROR ReserveRangeParamValidation(DEVMEMINT_HEAP *psDevmemH
 	return PVRSRV_OK;
 }
 
+/*************************************************************************/ /*!
+@Function       _DevmemGetRemapPolicy
+@Description    Checks whether a virtual address can have its PTE changed
+                from a valid entry to another valid entry.
+
+@Return         MMU_PTE_REMAP_POLICY enum.
+*/ /**************************************************************************/
+static INLINE MMU_PTE_REMAP_POLICY _DevmemGetRemapPolicy(IMG_DEV_VIRTADDR sReservationVAddr)
+{
+	/* It is enough to check only one address as reservation ranges are verified
+	 * to come from a single heap
+	 */
+	if (sReservationVAddr.uiAddr >= RGX_PMMETA_PROTECT_HEAP_BASE &&
+	    sReservationVAddr.uiAddr < RGX_PMMETA_PROTECT_HEAP_BASE + RGX_PMMETA_PROTECT_HEAP_SIZE)
+	{
+		return MMU_PTE_REMAP_POLICY_BLOCK;
+	}
+
+	return MMU_PTE_REMAP_POLICY_ALLOW;
+}
+
 PVRSRV_ERROR
 DevmemXIntReserveRange(DEVMEMINT_HEAP *psDevmemHeap,
                        IMG_DEV_VIRTADDR sReservationVAddr,
@@ -1751,6 +1772,12 @@ DevmemXIntReserveRange(DEVMEMINT_HEAP *psDevmemHeap,
 	                                     uiVirtualSize);
 	PVR_LOG_RETURN_IF_ERROR(eError, "ReserveRangeParamValidation");
 
+
+	if (_DevmemGetRemapPolicy(sReservationVAddr) == MMU_PTE_REMAP_POLICY_BLOCK)
+	{
+		/* Don't allow devmem X to operate on heaps that disallow remap */
+		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_INVALID_PARAMS, ErrorReturnError);
+	}
 
 	if (!DevmemIntHeapAcquire(psDevmemHeap))
 	{
@@ -2374,6 +2401,7 @@ DevmemIntMapPMR(DEVMEMINT_RESERVATION *psReservation, PMR *psPMR)
 	IMG_UINT32 uiLog2HeapContiguity = psReservation->psDevmemHeap->uiLog2PageSize;
 	PVRSRV_MEMALLOCFLAGS_T uiMapFlags = psReservation->uiFlags;
 	IMG_BOOL bIsSparse = IMG_FALSE;
+	MMU_PTE_REMAP_POLICY eRemapPolicy;
 	void *pvTmpBuf = NULL;
 	IMG_UINT32 i;
 
@@ -2410,6 +2438,14 @@ DevmemIntMapPMR(DEVMEMINT_RESERVATION *psReservation, PMR *psPMR)
 
 	/*Check if the PMR that needs to be mapped is sparse */
 	bIsSparse = PMR_IsSparse(psPMR);
+
+	eRemapPolicy = _DevmemGetRemapPolicy(sReservationVAddr);
+	if (eRemapPolicy == MMU_PTE_REMAP_POLICY_BLOCK && bIsSparse)
+	{
+		/* Don't allow sparse mappings if remap is disallowed */
+		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_INVALID_PARAMS, ErrorReturnError);
+	}
+
 	if (bIsSparse)
 	{
 		IMG_DEV_PHYADDR *psDevPAddr;
@@ -2480,7 +2516,8 @@ DevmemIntMapPMR(DEVMEMINT_RESERVATION *psReservation, PMR *psPMR)
 			                        psPMR,
 			                        (IMG_DEVMEM_SIZE_T) ui32NumDevPages << uiLog2HeapContiguity,
 			                        uiMapFlags,
-			                        uiLog2HeapContiguity);
+			                        uiLog2HeapContiguity,
+			                        eRemapPolicy);
 			if (eError == PVRSRV_OK)
 			{
 				break;
@@ -2510,7 +2547,8 @@ DevmemIntMapPMR(DEVMEMINT_RESERVATION *psReservation, PMR *psPMR)
 		                        psPMR,
 		                        (IMG_DEVMEM_SIZE_T) ui32NumDevPages << uiLog2HeapContiguity,
 		                        uiMapFlags,
-		                        uiLog2HeapContiguity);
+		                        uiLog2HeapContiguity,
+		                        eRemapPolicy);
 		PVR_GOTO_IF_ERROR(eError, ErrorUnlockPhysAddr);
 	}
 #endif
@@ -2634,6 +2672,14 @@ DevmemIntUnmapPMR(DEVMEMINT_RESERVATION *psReservation)
 
 	OSLockAcquireNested(psReservation->hLock, psReservation->eLockClass);
 	PVR_GOTO_IF_INVALID_PARAM(psReservation->psMappedPMR != NULL, eError, ErrUnlockRes);
+	
+	if (_DevmemGetRemapPolicy(sReservationVAddr) == MMU_PTE_REMAP_POLICY_BLOCK)
+	{
+		/* For reservations with MMU_PTE_REMAP_POLICY_BLOCK remap policy
+		 * don't allow unmapping acquired reservations.
+		 */
+		PVR_GOTO_IF_INVALID_PARAM(psReservation->i32DevResAcquisitionCount == 0, eError, ErrUnlockRes);
+	}
 	PMRLockPMR(psReservation->psMappedPMR);
 
 	bIsSparse = PMR_IsSparse(psReservation->psMappedPMR);

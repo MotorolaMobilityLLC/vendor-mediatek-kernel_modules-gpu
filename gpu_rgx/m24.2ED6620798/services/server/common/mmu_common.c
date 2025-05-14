@@ -4069,7 +4069,8 @@ MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
                PMR *psPMR,
                IMG_DEVMEM_SIZE_T uiSizeBytes,
                PVRSRV_MEMALLOCFLAGS_T uiMappingFlags,
-               IMG_UINT32 uiLog2HeapPageSize)
+               IMG_UINT32 uiLog2HeapPageSize,
+               MMU_PTE_REMAP_POLICY eRemapPolicy)
 {
 	PVRSRV_ERROR eError = PVRSRV_OK;
 
@@ -4244,6 +4245,13 @@ MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
 						sDevVAddrRunning.uiAddr += (1 << uiLog2HeapPageSize);
 					}
 
+					if (eRemapPolicy == MMU_PTE_REMAP_POLICY_BLOCK &&
+					    pui64LevelBase[uiPTEIndex + uiChunkStart + i] & psConfig->uiValidEnMask &&
+					    (uiProtFlags & psConfig->uiValidEnMask))
+					{
+						/* Don't remap */
+						PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_MMU_REMAP_BLOCKED, unlock_mmu_context);
+					}
 					pui64LevelBase[uiPTEIndex + uiChunkStart + i] =
 						(((asDevPAddr[i].uiAddr >> uiAddrLog2Align) << uiAddrShift) & uiAddrMask) | uiProtFlags | uiParityBit;
 				}
@@ -4260,7 +4268,13 @@ MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
 					PVR_ASSERT(ui64PxE64 == (ui64PxE64 & 0xffffffffU));
 					PVR_ASSERT(!bSetParity);
 #endif
-
+					if (eRemapPolicy == MMU_PTE_REMAP_POLICY_BLOCK &&
+					    pui32LevelBase[uiPTEIndex + uiChunkStart + i] & (IMG_UINT32)psConfig->uiValidEnMask &&
+					    (uiProtFlags & (IMG_UINT32)psConfig->uiValidEnMask))
+					{
+						/* Don't remap */
+						PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_MMU_REMAP_BLOCKED, unlock_mmu_context);
+					}
 					pui32LevelBase[uiPTEIndex + uiChunkStart + i] =
 					    (((asDevPAddr[i].uiAddr >> uiAddrLog2Align) << uiAddrShift) & uiAddrMask) | uiProtFlags;
 				}
@@ -4362,11 +4376,14 @@ MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
 	return PVRSRV_OK;
 
 unlock_mmu_context:
-	/* Unmap starting from the address passed as an argument. */
-	(void) MMU_UnmapPMRFastUnlocked(psMMUContext,
-	                                sDevVAddrBaseCopy,
-	                                uiNumPages,
-	                                uiLog2HeapPageSize);
+	if (eError != PVRSRV_ERROR_MMU_REMAP_BLOCKED)
+	{
+		/* Unmap starting from the address passed as an argument. */
+		(void) MMU_UnmapPMRFastUnlocked(psMMUContext,
+		                                sDevVAddrBaseCopy,
+		                                uiNumPages,
+		                                uiLog2HeapPageSize);
+	}
 	OSLockRelease(psMMUContext->hLock);
 put_mmu_context:
 	_MMU_PutPTConfig(psMMUContext, hPriv);

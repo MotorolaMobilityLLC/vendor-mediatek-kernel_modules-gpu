@@ -494,6 +494,12 @@ MMUX_MapVRangeToBackingPage(MMU_CONTEXT *psMMUContext,
                             IMG_UINT32 ui32MapPageCount,
                             IMG_UINT32 uiLog2HeapPageSize);
 
+/* Guides the MMU when remapping valid entries to other valid entries */
+typedef enum {
+	MMU_PTE_REMAP_POLICY_ALLOW = 0,
+	MMU_PTE_REMAP_POLICY_BLOCK
+} MMU_PTE_REMAP_POLICY;
+
 /*************************************************************************/ /*!
 @Function       MMU_MapPMRFast
 
@@ -512,6 +518,10 @@ MMUX_MapVRangeToBackingPage(MMU_CONTEXT *psMMUContext,
 
 @Input          uiMappingFlags          Memalloc flags for the mapping
 
+@Input          uiLog2PageSize          log2 size of the page
+
+@Input          eRemapPolicy            Policy of remapping PTEs
+
 @Return         PVRSRV_OK if the PMR was successfully mapped.
                 PVRSRV_ERROR_RETRY if SUPPORT_LINUX_OSPAGE_MIGRATION is
                 enabled and migrate is in progress. Requests to MMU_MapPages
@@ -528,7 +538,8 @@ MMU_MapPMRFast(MMU_CONTEXT *psMMUContext,
                PMR *psPMR,
                IMG_DEVMEM_SIZE_T uiSizeBytes,
                PVRSRV_MEMALLOCFLAGS_T uiMappingFlags,
-               IMG_UINT32 uiLog2PageSize);
+               IMG_UINT32 uiLog2PageSize,
+               MMU_PTE_REMAP_POLICY eRemapPolicy);
 
 /*************************************************************************/ /*!
 @Function       MMU_UnmapPMRFast
