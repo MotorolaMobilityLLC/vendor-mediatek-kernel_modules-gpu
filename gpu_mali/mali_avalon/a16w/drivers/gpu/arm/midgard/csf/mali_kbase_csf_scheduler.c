@@ -259,13 +259,20 @@ struct gpu_metrics_event {
 #define GPU_METRICS_CSG_MASK 0x1f
 #define GPU_METRICS_CSG_GET(val) ((val)&GPU_METRICS_CSG_MASK)
 
+enum trace_buffer_read_error {
+	GPU_METRICS_READ_NO_ERROR,
+	GPU_METRICS_READ_INVALID_SLOT_NUMBER,
+	GPU_METRICS_READ_INVALID_RESIDENT_GROUP,
+	GPU_METRICS_READ_INVALID_EVENT_DATA,
+};
+
 /**
  * gpu_metrics_read_event() - Read a GPU metrics trace from trace buffer
  *
  * @kbdev:    Pointer to the device
  * @kctx:     Kcontext that is derived from CSG slot field of a GPU metrics.
- * @prev_act: Previous CSG activity transition in a GPU metrics.
- * @cur_act:  Current CSG activity transition in a GPU metrics.
+ * @prev_act: Previous GPU metrics CSG activity transition.
+ * @cur_act:  Current GPU metrics CSG activity transition.
  * @ts:       CSG activity transition timestamp in a GPU metrics.
  *
  * This function reads firmware trace buffer, named 'gpu_metrics' and
@@ -276,42 +283,56 @@ struct gpu_metrics_event {
  *
  * Return: true on success.
  */
-static bool gpu_metrics_read_event(struct kbase_device *kbdev, struct kbase_context **kctx,
-				   bool *prev_act, bool *cur_act, uint64_t *ts)
+static enum trace_buffer_read_error gpu_metrics_read_event(struct kbase_device *kbdev,
+							   struct kbase_context **kctx,
+							   enum gpu_metrics_activity *prev_act,
+							   enum gpu_metrics_activity *cur_act,
+							   uint64_t *ts)
 {
 	struct firmware_trace_buffer *tb = kbdev->csf.scheduler.gpu_metrics_tb;
 	struct gpu_metrics_event e;
+	enum trace_buffer_read_error err = GPU_METRICS_READ_NO_ERROR;
 
 	if (kbase_csf_firmware_trace_buffer_read_data(tb, (u8 *)&e, GPU_METRICS_EVENT_SIZE) ==
 	    GPU_METRICS_EVENT_SIZE) {
 		const u8 slot = GPU_METRICS_CSG_GET(e.csg_slot_act);
+		struct kbase_csf_csg_slot *csg_slot;
 		struct kbase_queue_group *group;
 
 		if (WARN_ON_ONCE(slot >= kbdev->csf.global_iface.group_num)) {
-			dev_err(kbdev->dev, "invalid CSG slot (%u)", slot);
-			return false;
+			/* The caller may ignore this so we just print a warning. */
+			dev_warn(kbdev->dev, "invalid CSG slot (%u)", slot);
+			return GPU_METRICS_READ_INVALID_SLOT_NUMBER;
 		}
-
-		group = kbdev->csf.scheduler.csg_slots[slot].resident_group;
+		csg_slot = &kbdev->csf.scheduler.csg_slots[slot];
+		group = csg_slot->resident_group;
 
 		if (unlikely(!group)) {
-			dev_err(kbdev->dev, "failed to find CSG group from CSG slot (%u)", slot);
-			return false;
+			/* The caller may ignore this so we just print a warning. */
+			dev_warn(kbdev->dev, "failed to find CSG group from CSG slot (%u)", slot);
+			return GPU_METRICS_READ_INVALID_RESIDENT_GROUP;
 		}
 
 		*cur_act = GPU_METRICS_ACT_GET(e.csg_slot_act);
 		*ts = kbase_backend_time_convert_gpu_to_cpu(kbdev, e.timestamp);
 		*kctx = group->kctx;
 
-		*prev_act = group->prev_act;
-		group->prev_act = *cur_act;
+		*prev_act = csg_slot->prev_act;
+		csg_slot->prev_act = *cur_act;
 
-		return true;
+		if (*prev_act == GPU_METRICS_ACT_RESET && *cur_act == GPU_METRICS_ACT_IDLE) {
+			dev_info(
+				kbdev->dev,
+				"idle event received after reset! (prev_act = %u, cur_act = %u) slot %u, group %pK",
+				*prev_act, *cur_act, slot, group);
+		}
+	} else {
+		dev_err(kbdev->dev,
+			"Invalid size of GPU metrics event data read from trace buffer");
+		err = GPU_METRICS_READ_INVALID_EVENT_DATA;
 	}
 
-	dev_err(kbdev->dev, "failed to read a GPU metrics from trace buffer");
-
-	return false;
+	return err;
 }
 
 /**
@@ -350,10 +371,13 @@ static u64 drain_gpu_metrics_trace_buffer(struct kbase_device *kbdev)
 
 	while (!kbase_csf_firmware_trace_buffer_is_empty(kbdev->csf.scheduler.gpu_metrics_tb)) {
 		struct kbase_context *kctx;
-		bool prev_act;
-		bool cur_act;
+		enum gpu_metrics_activity prev_act;
+		enum gpu_metrics_activity cur_act;
 
-		if (gpu_metrics_read_event(kbdev, &kctx, &prev_act, &cur_act, &ts)) {
+		enum trace_buffer_read_error err =
+			gpu_metrics_read_event(kbdev, &kctx, &prev_act, &cur_act, &ts);
+
+		if (err == GPU_METRICS_READ_NO_ERROR) {
 			if (prev_act == cur_act) {
 				/* Error handling
 				 *
@@ -367,19 +391,38 @@ static u64 drain_gpu_metrics_trace_buffer(struct kbase_device *kbdev)
 				dev_err(kbdev->dev,
 					"Invalid activity state transition. (prev_act = %u, cur_act = %u)",
 					prev_act, cur_act);
-				if (cur_act) {
+				if (cur_act == GPU_METRICS_ACT_ACTIVE) {
 					kbase_gpu_metrics_ctx_end_activity(kctx, ts);
 					kbase_gpu_metrics_ctx_start_activity(kctx, ts);
 				}
 			} else {
 				/* Normal handling */
-				if (cur_act)
+				if (cur_act == GPU_METRICS_ACT_ACTIVE)
 					kbase_gpu_metrics_ctx_start_activity(kctx, ts);
-				else
+				else if (cur_act == GPU_METRICS_ACT_IDLE &&
+					 prev_act == GPU_METRICS_ACT_ACTIVE)
 					kbase_gpu_metrics_ctx_end_activity(kctx, ts);
 			}
-		} else
+		} else if (err == GPU_METRICS_READ_INVALID_SLOT_NUMBER ||
+			   err == GPU_METRICS_READ_INVALID_RESIDENT_GROUP) {
+			dev_dbg(kbdev->dev, "Ignoring GPU metrics read error %d, continuing...",
+				err);
+			/*
+			 * These errors can be ignored while draining the buffer.
+			 * Continue to drain any remaining events in the buffer.
+			 */
+		} else {
+			/*
+			 * Break the loop and return for any other errors - we only have
+			 * GPU_METRICS_READ_INVALID_EVENT_DATA for now which occurs when the size of
+			 * the event data is found in trace buffer is incorrect.
+			 * If the event sizes or offsets are not what is expected we may not be
+			 * able to hit the empty buffer condition used to exit this while loop.
+			 */
+			KBASE_DEBUG_ASSERT_MSG(
+				false, "Unhandled error %d from gpu_metrics_read_event()", err);
 			break;
+		}
 	}
 
 	return (ts >= ts_before_drain ? ts + 1 : ts_before_drain);
@@ -425,6 +468,8 @@ static void emit_gpu_metrics_to_frontend_for_off_slot_group(struct kbase_queue_g
 {
 	struct kbase_device *kbdev = group->kctx->kbdev;
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
+	int slot_num = kbase_csf_scheduler_group_get_slot(group);
+	struct kbase_csf_csg_slot *csg_slot = &kbdev->csf.scheduler.csg_slots[slot_num];
 	u64 ts;
 
 	lockdep_assert_held(&scheduler->lock);
@@ -438,9 +483,9 @@ static void emit_gpu_metrics_to_frontend_for_off_slot_group(struct kbase_queue_g
 	/* If the group is marked as active even after going off the slot, then it implies
 	 * that the CSG suspend/terminate request didn't complete.
 	 */
-	if (unlikely(group->prev_act)) {
+	if (unlikely(csg_slot->prev_act == GPU_METRICS_ACT_ACTIVE)) {
 		kbase_gpu_metrics_ctx_end_activity(group->kctx, ts);
-		group->prev_act = 0;
+		csg_slot->prev_act = GPU_METRICS_ACT_IDLE;
 	}
 	kbase_gpu_metrics_emit_tracepoint(kbdev, ts);
 }
@@ -6833,6 +6878,9 @@ static void scheduler_inner_reset(struct kbase_device *kbdev)
 	u32 const num_groups = kbdev->csf.global_iface.group_num;
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 	unsigned long flags;
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+	int i;
+#endif
 
 	WARN_ON(kbase_csf_scheduler_get_nr_active_csgs(kbdev));
 
@@ -6846,6 +6894,9 @@ static void scheduler_inner_reset(struct kbase_device *kbdev)
 	cancel_delayed_work_sync(&scheduler->ping_work);
 
 	mutex_lock(&scheduler->lock);
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+	spin_lock_bh(&scheduler->gpu_metrics_lock);
+#endif
 
 	spin_lock_irqsave(&scheduler->interrupt_lock, flags);
 	bitmap_fill(scheduler->csgs_events_enable_mask, BASEP_QUEUE_GROUP_MAX);
@@ -6854,6 +6905,11 @@ static void scheduler_inner_reset(struct kbase_device *kbdev)
 					 0u);
 	scheduler->active_protm_grp = NULL;
 	memset(kbdev->csf.scheduler.csg_slots, 0, num_groups * sizeof(struct kbase_csf_csg_slot));
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+	for (i = 0; i < num_groups; i++)
+		kbdev->csf.scheduler.csg_slots[i].prev_act = GPU_METRICS_ACT_RESET;
+#endif
+
 	bitmap_zero(kbdev->csf.scheduler.csg_inuse_bitmap, num_groups);
 	spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 
@@ -6874,6 +6930,9 @@ static void scheduler_inner_reset(struct kbase_device *kbdev)
 		KBASE_KTRACE_ADD(kbdev, SCHED_SUSPENDED, NULL, scheduler->state);
 	}
 
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+	spin_unlock_bh(&scheduler->gpu_metrics_lock);
+#endif
 	mutex_unlock(&scheduler->lock);
 }
 

@@ -735,12 +735,6 @@ struct kbase_queue_group {
 	void *csg_reg;
 	u8 csg_reg_bind_retries;
 	u32 sched_act_seq_num;
-#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
-	/**
-	 * @prev_act: Previous CSG activity transition in a GPU metrics.
-	 */
-	bool prev_act;
-#endif
 };
 
 /**
@@ -1053,6 +1047,20 @@ struct kbase_csf_reset_gpu {
 	atomic_t state;
 };
 
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+/**
+ * enum gpu_metrics_activity - GPU metrics CSG activity transitions
+ *
+ * @GPU_METRICS_ACT_IDLE: transition to idle
+ * @GPU_METRICS_ACT_ACTIVE: transition to active
+ * @GPU_METRICS_ACT_RESET: transition to reset
+ */
+enum gpu_metrics_activity {
+	GPU_METRICS_ACT_IDLE,
+	GPU_METRICS_ACT_ACTIVE,
+	GPU_METRICS_ACT_RESET,
+};
+#endif
 /**
  * struct kbase_csf_csg_slot - Object containing members for tracking the state
  *                             of CSG slots.
@@ -1064,6 +1072,12 @@ struct kbase_csf_csg_slot {
 	struct kbase_queue_group *resident_group;
 	atomic_t state;
 	u8 priority;
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+	/**
+	 * @prev_act: Previous GPU metrics CSG activity transition.
+	 */
+	enum gpu_metrics_activity prev_act;
+#endif
 };
 
 /**

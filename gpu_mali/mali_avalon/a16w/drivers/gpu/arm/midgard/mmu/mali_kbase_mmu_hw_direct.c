@@ -664,6 +664,8 @@ void kbase_mmu_hw_clear_fault(struct kbase_device *kbdev, struct kbase_as *as,
 
 	CSTD_UNUSED(type);
 
+	WARN_ON_ONCE(!mmu_register_updateable(kbdev));
+
 	spin_lock_irqsave(&kbdev->mmu_mask_change, flags);
 
 	/*
@@ -695,6 +697,8 @@ void kbase_mmu_hw_enable_fault(struct kbase_device *kbdev, struct kbase_as *as,
 	u32 irq_mask;
 
 	CSTD_UNUSED(type);
+
+	WARN_ON_ONCE(!mmu_register_updateable(kbdev));
 
 	/* Enable the page fault IRQ
 	 * (and bus fault IRQ as well in case one occurred)

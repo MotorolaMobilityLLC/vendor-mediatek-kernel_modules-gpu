@@ -1343,9 +1343,6 @@ static int create_queue_group(struct kbase_context *const kctx,
 		goto exit;
 	}
 
-#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
-	group->prev_act = false;
-#endif
 	group->kctx = kctx;
 	group->handle = group_handle;
 	group->csg_nr = KBASEP_CSG_NR_INVALID;

@@ -399,6 +399,12 @@ static void mmu_flush_pa_range(struct kbase_device *kbdev, phys_addr_t phys, siz
 	}
 }
 
+bool mmu_register_updateable(struct kbase_device *kbdev)
+{
+	return (kbdev->pm.backend.l2_state != KBASE_L2_OFF) &&
+	       (kbdev->pm.backend.l2_state != KBASE_L2_PEND_OFF);
+}
+
 /**
  * mmu_invalidate() - Perform an invalidate operation on MMU caches.
  * @kbdev:      The Kbase device.
@@ -417,7 +423,7 @@ static void mmu_invalidate(struct kbase_device *kbdev, struct kbase_context *kct
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
-	if (kbdev->pm.backend.gpu_ready && (!kctx || kctx->as_nr >= 0)) {
+	if (mmu_register_updateable(kbdev) && (!kctx || kctx->as_nr >= 0)) {
 		as_nr = kctx ? kctx->as_nr : as_nr;
 		if (kbase_mmu_hw_do_unlock(kbdev, &kbdev->as[as_nr], op_param))
 			dev_err(kbdev->dev,
@@ -476,7 +482,7 @@ static void mmu_flush_invalidate_as(struct kbase_device *kbdev, struct kbase_as 
 	mutex_lock(&kbdev->mmu_hw_mutex);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
-	if (kbdev->pm.backend.gpu_ready && kbase_mmu_hw_do_flush(kbdev, as, op_param)) {
+	if (mmu_register_updateable(kbdev) && kbase_mmu_hw_do_flush(kbdev, as, op_param)) {
 		dev_err(kbdev->dev, "Flush for GPU page table update did not complete");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 		mtk_logbuffer_type_print(kbdev, MTK_LOGBUFFER_TYPE_CRITICAL | MTK_LOGBUFFER_TYPE_EXCEPTION,
@@ -558,7 +564,7 @@ static void mmu_flush_invalidate_on_gpu_ctrl(struct kbase_device *kbdev, struct 
 	mutex_lock(&kbdev->mmu_hw_mutex);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
-	if (kbdev->pm.backend.gpu_ready && (!kctx || kctx->as_nr >= 0)) {
+	if (mmu_register_updateable(kbdev) && (!kctx || kctx->as_nr >= 0)) {
 		as_nr = kctx ? kctx->as_nr : as_nr;
 		if (kbase_mmu_hw_do_flush_on_gpu_ctrl(kbdev, &kbdev->as[as_nr], op_param)) {
 			dev_err(kbdev->dev, "Flush for GPU page table update did not complete");
@@ -1463,6 +1469,13 @@ fault_done:
 	release_ctx(kbdev, kctx);
 
 	atomic_dec(&kbdev->faults_pending);
+	/*
+	 * Call kbase_pm_update_state here so that L2 power down
+	 * could be performed after faults_pending reset to 0.
+	 */
+	spin_lock_irqsave(&kbdev->hwaccess_lock, hwaccess_flags);
+	kbase_pm_update_state(kbdev);
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, hwaccess_flags);
 	dev_dbg(kbdev->dev, "Leaving page_fault_worker %pK", (void *)data);
 #if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
 	// if worker execute too long, trigger debug message
@@ -3017,7 +3030,7 @@ static void mmu_flush_invalidate_teardown_pages(struct kbase_device *kbdev,
 
 		for (i = 0; !flush_done && i < phys_page_nr; i++) {
 			spin_lock_irqsave(&kbdev->hwaccess_lock, irq_flags);
-			if (kbdev->pm.backend.gpu_ready && (!kctx || kctx->as_nr >= 0))
+			if (mmu_register_updateable(kbdev) && (!kctx || kctx->as_nr >= 0))
 				mmu_flush_pa_range(kbdev, as_phys_addr_t(phys[i]), PAGE_SIZE,
 						   KBASE_MMU_OP_FLUSH_MEM);
 			else
@@ -3738,7 +3751,7 @@ static int mmu_migrate_pgd_sub_page(phys_addr_t old_pgd_phys, phys_addr_t new_pg
 	}
 	/* Prevent transitional phases in L2 by starting the transaction */
 	mmu_page_migration_transaction_begin(kbdev);
-	if (kbdev->pm.backend.gpu_ready && mmut->kctx->as_nr >= 0) {
+	if (mmu_register_updateable(kbdev) && mmut->kctx->as_nr >= 0) {
 		int as_nr = mmut->kctx->as_nr;
 		struct kbase_as *as = &kbdev->as[as_nr];
 
@@ -3831,7 +3844,7 @@ static int mmu_migrate_pgd_sub_page(phys_addr_t old_pgd_phys, phys_addr_t new_pg
 	 * and the failure can be ignored.
 	 */
 	spin_lock_irqsave(&kbdev->hwaccess_lock, hwaccess_flags);
-	if (kbdev->pm.backend.gpu_ready && mmut->kctx->as_nr >= 0) {
+	if (mmu_register_updateable(kbdev) && mmut->kctx->as_nr >= 0) {
 		int as_nr = mmut->kctx->as_nr;
 		struct kbase_as *as = &kbdev->as[as_nr];
 		int local_ret = kbase_mmu_hw_do_unlock_no_addr(kbdev, as, &op_param);
@@ -3963,7 +3976,7 @@ int kbase_mmu_migrate_pgd_page(struct tagged_addr old_pgd_phys, struct tagged_ad
 		}
 
 		spin_lock_irqsave(&kbdev->hwaccess_lock, hwaccess_flags);
-		if (kbdev->pm.backend.gpu_ready && mmut->kctx->as_nr >= 0) {
+		if (mmu_register_updateable(kbdev) && mmut->kctx->as_nr >= 0) {
 			struct kbase_mmu_hw_op_param op_param = {
 				.vpfn = 0,
 				.nr = ~0U,
@@ -4142,7 +4155,7 @@ int kbase_mmu_migrate_data_page(struct tagged_addr old_phys, struct tagged_addr 
 	}
 	/* Prevent transitional phases in L2 by starting the transaction */
 	mmu_page_migration_transaction_begin(kbdev);
-	if (kbdev->pm.backend.gpu_ready && mmut->kctx->as_nr >= 0) {
+	if (mmu_register_updateable(kbdev) && mmut->kctx->as_nr >= 0) {
 		int as_nr = mmut->kctx->as_nr;
 		struct kbase_as *as = &kbdev->as[as_nr];
 
@@ -4235,7 +4248,7 @@ int kbase_mmu_migrate_data_page(struct tagged_addr old_phys, struct tagged_addr 
 	 * and the failure can be ignored.
 	 */
 	spin_lock_irqsave(&kbdev->hwaccess_lock, hwaccess_flags);
-	if (kbdev->pm.backend.gpu_ready && mmut->kctx->as_nr >= 0) {
+	if (mmu_register_updateable(kbdev) && mmut->kctx->as_nr >= 0) {
 		int as_nr = mmut->kctx->as_nr;
 		struct kbase_as *as = &kbdev->as[as_nr];
 		int local_ret = kbase_mmu_hw_do_unlock_no_addr(kbdev, as, &op_param);
@@ -4450,7 +4463,7 @@ void kbase_mmu_flush_pa_range(struct kbase_device *kbdev, struct kbase_context *
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, irq_flags);
 	if (mmu_flush_cache_on_gpu_ctrl(kbdev) && (flush_op != KBASE_MMU_OP_NONE) &&
-	    kbdev->pm.backend.gpu_ready && (!kctx || kctx->as_nr >= 0))
+	    mmu_register_updateable(kbdev) && (!kctx || kctx->as_nr >= 0))
 		mmu_flush_pa_range(kbdev, phys, size, KBASE_MMU_OP_FLUSH_PT);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, irq_flags);
 }
@@ -4807,6 +4820,7 @@ void kbase_mmu_bus_fault_worker(struct work_struct *data)
 	struct kbase_context *kctx;
 	struct kbase_device *kbdev;
 	struct kbase_fault *fault;
+	unsigned long hwaccess_flags;
 
 	faulting_as = container_of(data, struct kbase_as, work_busfault);
 	fault = &faulting_as->bf_data;
@@ -4853,6 +4867,13 @@ void kbase_mmu_bus_fault_worker(struct work_struct *data)
 	release_ctx(kbdev, kctx);
 
 	atomic_dec(&kbdev->faults_pending);
+	/*
+	 * Call kbase_pm_update_state here so that L2 power down
+	 * could be performed after faults_pending reset to 0.
+	 */
+	spin_lock_irqsave(&kbdev->hwaccess_lock, hwaccess_flags);
+	kbase_pm_update_state(kbdev);
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, hwaccess_flags);
 }
 
 void kbase_flush_mmu_wqs(struct kbase_device *kbdev)

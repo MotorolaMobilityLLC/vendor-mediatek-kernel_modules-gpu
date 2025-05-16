@@ -1992,8 +1992,10 @@ static bool can_power_down_l2(struct kbase_device *kbdev)
 {
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
-	/* Defer the power-down if MMU is in process of page migration. */
-	return !kbdev->mmu_page_migrate_in_progress;
+	/* Defer the power-down if MMU is in process of page migration or
+	 * page/bus fault is being handled.
+	 */
+	return !kbdev->mmu_page_migrate_in_progress && !atomic_read(&kbdev->faults_pending);
 }
 
 static bool can_power_up_l2(struct kbase_device *kbdev)
@@ -2705,7 +2707,6 @@ static bool kbase_pm_is_in_desired_state_nolock(struct kbase_device *kbdev)
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
 	in_desired_state = kbase_pm_l2_is_in_desired_state(kbdev);
-
 	in_desired_state &= kbase_pm_mcu_is_in_desired_state(kbdev);
 
 	return in_desired_state;
@@ -2729,8 +2730,7 @@ static bool kbase_pm_is_in_desired_state_with_l2_powered(struct kbase_device *kb
 	unsigned long flags;
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-	if (kbase_pm_is_in_desired_state_nolock(kbdev) &&
-	    (kbdev->pm.backend.l2_state == KBASE_L2_ON))
+	if (kbase_pm_is_in_desired_state_nolock(kbdev) && kbdev->pm.backend.l2_state == KBASE_L2_ON)
 		in_desired_state = true;
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
@@ -3642,12 +3642,6 @@ static void update_user_reg_page_mapping(struct kbase_device *kbdev)
 	mutex_unlock(&kbdev->csf.reg_lock);
 }
 
-/*
- * pmu layout:
- * 0x0000: PMU TAG (RO) (0xCAFECAFE)
- * 0x0004: PMU VERSION ID (RO) (0x00000000)
- * 0x0008: CLOCK ENABLE (RW) (31:1 SBZ, 0 CLOCK STATE)
- */
 void kbase_pm_clock_on(struct kbase_device *kbdev, bool is_resume)
 {
 	struct kbase_pm_backend_data *backend = &kbdev->pm.backend;
