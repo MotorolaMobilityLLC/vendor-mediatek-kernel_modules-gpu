@@ -70,6 +70,9 @@ enum kbase_csffw_tl_msg_id {
 	CSFFW_TL_EVENT_CS_ACQUIRE_ITER,
 	CSFFW_TL_EVENT_CS_RELEASE_ITER,
 	CSFFW_TL_EVENT_BOOT_START,
+	CSFFW_TL_EVENT_GEOMETRY_DESIRED_READY_CHANGE,
+	CSFFW_TL_EVENT_SHADER_DESIRED_READY_CHANGE,
+	CSFFW_TL_EVENT_NEURAL_DESIRED_READY_CHANGE,
 	CSFFW_TRACEPOINT_COUNT,
 };
 
@@ -289,6 +292,14 @@ struct kbase_csffw_tl_event_cs_release_iter_msg {
 	u32 iter;
 	u32 iterator_type;
 } __packed __aligned(4);
+
+struct kbase_csffw_tl_event_shader_desired_ready_change_msg {
+	u32 msg_id;
+	u64 timestamp;
+	u64 cycle_counter;
+	u64 shader_desired_ready;
+} __packed __aligned(4);
+
 #endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
@@ -520,6 +531,11 @@ int kbase_csf_tl_reader_flush_buffer(struct kbase_csf_tl_reader *self)
 				struct kbase_csffw_tl_event_cs_release_iter_msg *msg2 =
 					(struct kbase_csffw_tl_event_cs_release_iter_msg *)csffw_data_it;
 				kbase_tl_systrace("E|7788|%s connection-6%d1|%lld", tl_iter_type_strings[msg2->iterator_type], msg2->iterator_type, msg2->timestamp);
+			} else if (msg->msg_id == CSFFW_TL_EVENT_SHADER_DESIRED_READY_CHANGE) {
+				struct kbase_csffw_tl_event_shader_desired_ready_change_msg *msg2 =
+					(struct kbase_csffw_tl_event_shader_desired_ready_change_msg *)csffw_data_it;
+				kbase_tl_systrace("E|7788|Shader Ready-900|%lld",  msg2->timestamp);
+				kbase_tl_systrace("B|7788|Shader Ready-900|%lld|%lld",  msg2->shader_desired_ready, msg2->timestamp);
 			}
 #endif /* CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG */
 		}
