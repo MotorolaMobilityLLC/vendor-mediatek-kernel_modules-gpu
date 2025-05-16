@@ -53,6 +53,11 @@ ddk_headers(
     ],
 )
 
+filegroup(
+    name = "base_kconfig",
+    srcs = ["Kconfig"],
+)
+
 kernel_module_group(
     name = "base",
     srcs = [
@@ -65,11 +70,6 @@ kernel_module_group(
                ],
                "//conditions:default": [],
            }),
-)
-
-filegroup(
-    name = "base_kconfig",
-    srcs = ["Kconfig"],
 )
 
 platforms = [

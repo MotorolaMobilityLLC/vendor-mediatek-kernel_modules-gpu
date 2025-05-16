@@ -34,12 +34,18 @@ package(
 )
 
 ddk_headers(
-    name = "mali_kernel_headers",
+    name = "coresight_kernel_headers",
     hdrs = [
         "//:kernel_headers",
         "@kleaf//common:all_headers",
-    ]+ glob(["**/*.h"]),
-    includes = [".", "sources", "sources/ela"]
+    ] + glob(["**/*.h"]),
+    defconfigs = ["//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config/fragment:coresight_defconfig"],
+    includes = [
+        ".",
+        "sources",
+        "sources/ela",
+    ],
+    kconfigs = [":hwtracing_coresight_kconfig"],
 )
 
 kernel_module_group(
@@ -56,73 +62,52 @@ filegroup(
     srcs = ["Kconfig"]
 )
 
-filegroup(
-    name = "coresight_mali_defaults",
-    srcs = [
-        "coresight_mali_common.c",
-        "coresight_mali_common.h",
-    ],
-)
-
-filegroup(
-    name = "coresight_mali_source_defaults",
-    srcs = [
-        "sources/coresight_mali_sources.c",
-        "sources/coresight_mali_sources.h",
-    ],
-)
-
 ddk_module(
     name = "coresight_mali_source_ela",
     srcs = [
+        "coresight_mali_common.c",
+        "sources/coresight_mali_sources.c",
         "sources/ela/coresight-ela600.h",
         "sources/ela/coresight_mali_source_ela_core.c",
-        ":coresight_mali_defaults",
-        ":coresight_mali_source_defaults",
     ],
     out = "coresight_mali_source_ela.ko",
     hdrs = [
-        ":mali_kernel_headers",
+        ":coresight_kernel_headers",
     ],
     copts = CFLAGS_MODULE,
-    defconfig = "//config/fragment:coresight_defconfig",
-    kconfig = ":hwtracing_coresight_kconfig",
-    kernel_build = "@kleaf//common:kernel_aarch64",
+    kernel_build = "@kleaf//common:kernel",
     deps = ["//drivers/gpu/arm/midgard:mali_kbase"]
 )
 
 ddk_module(
     name = "coresight_mali_source_itm",
     srcs = [
+        "coresight_mali_common.c",
+        "sources/coresight_mali_sources.c",
         "sources/itm/coresight_mali_source_itm_core.c",
-        ":coresight_mali_defaults",
-        ":coresight_mali_source_defaults",
     ],
     out = "coresight_mali_source_itm.ko",
     hdrs = [
-        ":mali_kernel_headers",
+        ":coresight_kernel_headers",
     ],
     copts = CFLAGS_MODULE,
-    defconfig = "//config/fragment:coresight_defconfig",
-    kconfig = ":hwtracing_coresight_kconfig",
-    kernel_build = "@kleaf//common:kernel_aarch64",
+    kernel_build = "@kleaf//common:kernel",
     deps = ["//drivers/gpu/arm/midgard:mali_kbase"]
 )
 
 ddk_module(
     name = "coresight_mali_source_etm",
     srcs = [
+        "coresight_mali_common.c",
+        "sources/coresight_mali_sources.c",
         "sources/etm/coresight_mali_source_etm_core.c",
-        ":coresight_mali_defaults",
-        ":coresight_mali_source_defaults",
     ],
     out = "coresight_mali_source_etm.ko",
     hdrs = [
-        ":mali_kernel_headers",
+        ":coresight_kernel_headers",
     ],
     copts = CFLAGS_MODULE,
-    defconfig = "//config/fragment:coresight_defconfig",
-    kconfig = ":hwtracing_coresight_kconfig",
-    kernel_build = "@kleaf//common:kernel_aarch64",
+    kernel_build = "@kleaf//common:kernel",
     deps = ["//drivers/gpu/arm/midgard:mali_kbase"]
 )
+

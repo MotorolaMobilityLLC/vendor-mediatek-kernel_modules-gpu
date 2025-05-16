@@ -18,6 +18,12 @@
 #
 #
 
+KUTF_CFLAGS = [
+    "-Wno-sign-compare",
+    "-Wno-unused-but-set-variable",
+    "-Wno-unused-parameter",
+]
+
 CFLAGS_MODULE = [
     "-Wall",
     "-Werror",
@@ -25,23 +31,16 @@ CFLAGS_MODULE = [
     "-Wunused",
     "-Wno-unused-parameter",
     "-Wmissing-declarations",
-    # "-Wmissing-format-attribute",
     "-Wno-missing-prototypes",
     "-Wold-style-definition",
-    # "-Wunused-but-set-variable",
     "-Wunused-const-variable",
-    # "-Wpacked-not-aligned",
-    # "-Wstringop-truncation",
     "-Wno-sign-compare",
     "-Wno-shift-negative-value",
     "-Wno-cast-function-type",
     "-Wframe-larger-than=4096",
-    # "-Werror=designated-init",
     "-Wdisabled-optimization",
-    # "-Wlogical-op",
     "-Wno-missing-field-initializers",
     "-Wno-type-limits",
-    # "-Wmaybe-uninitialized",
     "-Wno-unused-macros",
     "-Wno-unused-variable",
     "-Wno-unused-function",
@@ -49,7 +48,23 @@ CFLAGS_MODULE = [
     "-Wno-visibility",
 ]
 
-COPTS_CORESIGHT = [
+# + select({
+#    "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_gcov_kernel": [
+#        "-DGCOV_PROFILE=1",
+#        "-ftest-coverage",
+#        "-fprofile-arcs",
+#    ],
+#    "//conditions:default": [],
+#}) + select({
+#    "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_kcov": [
+#        "-DKCOV=1",
+#        "-DKCOV_ENABLE_COMPARISONS=1",
+#        "-fsanitize-coverage=trace-cmp",
+#    ],
+#    "//conditions:default": [],
+#})
+
+CFLAGS_CORESIGHT = [
     "-Wmissing-include-dirs",
     "-Wunused-but-set-variable",
     "-Wunused-const-variable",
@@ -66,7 +81,7 @@ COPTS_KBASE = [
     "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_customer_release": ["MALI_CUSTOMER_RELEASE=1"],
     "//conditions:default": ["MALI_CUSTOMER_RELEASE=0"],
 }) + select({
-    "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_kutf": ["MALI_KERNEL_TEST_API=1"],
+    "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_debug_kutf": ["MALI_KERNEL_TEST_API=1"],
     "//conditions:default": ["MALI_KERNEL_TEST_API=0"],
 }) + select({
     "//conditions:default": [
@@ -86,25 +101,11 @@ COPTS_KBASE = [
     ],
 }) + select({
     "//conditions:default": [
-        "MALI_RELEASE_NAME=\"r54p1-00dev0\"",
+        "MALI_RELEASE_NAME=\"r54p0-00dev2\"",
     ],
-    "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_release_name_r54p1-00dev0": [
-        "MALI_RELEASE_NAME=\"r54p1-00dev0\"",
+    "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_release_name_r54p0-00dev2": [
+        "MALI_RELEASE_NAME=\"r54p0-00dev2\"",
     ],
-})  + select({
-    "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:cov_kernel": [
-        "GCOV_PROFILE=1",
-        "-ftest-coverage",
-        "-fprofile-arcs",
-    ],
-    "//conditions:default": [],
-}) + select({
-    "//vendor/mediatek/kernel_modules/gpu/gpu_mali/mali_avalon/a16w/config:mali_kcov": [
-        "KCOV=1",
-        "KCOV_ENABLE_COMPARISONS=1",
-        "-fsanitize-coverage=trace-cmp",
-    ],
-    "//conditions:default": [],
 })
 
 COPTS_MTK = [

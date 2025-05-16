@@ -32,6 +32,8 @@ package(
     ],
 )
 
+#Base Module Configs
+
 bool_flag(
     name = "DMA_SHARED_BUFFER",
     build_setting_default = False,
@@ -45,13 +47,14 @@ config_setting(
 )
 
 
+#Generic C flags defines
 bool_flag(
     name = "MALI_GCOV_KERNEL",
     build_setting_default = False,
 )
 
 config_setting(
-    name = "cov_kernel",
+    name = "mali_gcov_kernel",
     flag_values = {":MALI_GCOV_KERNEL": "true"},
 )
 
@@ -65,26 +68,15 @@ config_setting(
     flag_values = {":MALI_KCOV": "true"},
 )
 
-string_flag(
-    name = "MALI_CONFIG",
-    build_setting_default = "MALI",
-    values = [
-        "NO_MALI",
-        "MALI",
-    ],
+bool_flag(
+    name = "MALI_NO_MALI",
+    build_setting_default = False,
 )
 
 config_setting(
-    name = "no_mali",
+    name = "mali_no_mali",
     flag_values = {
-        ":MALI_CONFIG": "NO_MALI",
-    },
-)
-
-config_setting(
-    name = "mali",
-    flag_values = {
-        ":MALI_CONFIG": "MALI",
+        ":MALI_NO_MALI": "true",
     },
 )
 
@@ -117,7 +109,6 @@ config_setting(
     name = "mali_coresight",
     flag_values = {
         ":MALI_CORESIGHT": "true",
-        ":MALI_DEBUG": "true",
     },
 )
 
@@ -132,16 +123,6 @@ config_setting(
 )
 
 bool_flag(
-    name = "MALI_KUTF",
-    build_setting_default = False,
-)
-
-config_setting(
-    name = "mali_kutf",
-    flag_values = {":MALI_KUTF": "true"},
-)
-
-bool_flag(
     name = "MALI_SYNC_FILE",
     build_setting_default = False,
 )
@@ -153,10 +134,9 @@ config_setting(
     },
 )
 
-
 bool_flag(
     name = "MALI_CUSTOMER_RELEASE",
-    build_setting_default = True,
+    build_setting_default = False,
 )
 
 config_setting(
@@ -166,6 +146,14 @@ config_setting(
     },
 )
 
+
+selects.config_setting_group(
+    name = "mali_debug_kutf",
+    match_all = [
+        ":mali_expert",
+        ":mali_debug",
+    ],
+)
 
 selects.config_setting_group(
     name = "mali_expert_debug",
@@ -179,31 +167,14 @@ selects.config_setting_group(
     name = "expert_no_mali",
     match_all = [
         ":mali_expert",
-        ":no_mali",
-    ],
-)
-
-selects.config_setting_group(
-    name = "mali_debug_kutf",
-    match_all = [
-        ":mali_kutf",
-        ":mali_expert_debug",
-    ],
-)
-
-selects.config_setting_group(
-    name = "mali_debug_kutf_devfreq_no_mali",
-    match_all = [
-        ":mali_debug_kutf",
-        ":no_mali",
-        ":mali_devfreq",
+        ":mali_no_mali",
     ],
 )
 
 selects.config_setting_group(
     name = "mali_expert_debug_sync_file",
     match_all = [
-        ":mali_expert_debug",
+        ":mali_debug_kutf",
         ":mali_sync_file",
     ],
 )
@@ -255,14 +226,14 @@ config_setting(
 
 string_flag(
     name = "mali_release_name",
-    build_setting_default = "r54p1-00dev0",
+    build_setting_default = "not_released",
     values = [
         "not_released",
-        "r54p1-00dev0",
+        "r54p0-00dev2",
     ],
 )
 
 config_setting(
-    name = "mali_release_name_r54p1-00dev0",
-    flag_values = {":mali_release_name": "r54p1-00dev0"},
+    name = "mali_release_name_r54p0-00dev2",
+    flag_values = {":mali_release_name": "r54p0-00dev2"},
 )

@@ -75,6 +75,7 @@ config MALI_NO_MALI_DEFAULT_GPU
 
 menu "Platform specific options"
 #source "$(MALI_KCONFIG_EXT_PREFIX)drivers/gpu/arm/midgard/platform/Kconfig"
+
 endmenu
 
 config MALI_CSF_SUPPORT
@@ -337,8 +338,5 @@ config MALI_TRACE_POWER_GPU_WORK_PERIOD
 
 	  If unsure, say N.
 
-
-
-#source "$(MALI_KCONFIG_EXT_PREFIX)drivers/gpu/arm/midgard/tests/Kconfig"
 
 endif
