@@ -1335,9 +1335,9 @@ page_fault_retry:
 		}
 		KBASE_TLSTREAM_AUX_PAGEFAULT(kbdev, kctx->id, as_no, (u64)new_pages);
 		KBASE_TLSTREAM_REGION_GROW_ON_FAULT(kbdev, kctx->id,
-						    region->start_pfn << PAGE_SHIFT,
-						    region->nr_pages * PAGE_SIZE, region->nr_pages,
-						    (u64)new_pages);
+						    region->start_pfn << PAGE_SHIFT, fault->addr,
+						    region->nr_pages * PAGE_SIZE,
+						    current_backed_size, (u64)new_pages);
 
 		if (region->flags & BASEP_MEM_ACTIVE_JIT_ALLOC) {
 			KBASE_TLSTREAM_JIT_GROW_ON_FAULT(kbdev, kctx->id,

@@ -867,7 +867,8 @@ void __kbase_tlstream_region_alloc(
 	u64 va,
 	u64 size,
 	u64 initial_commit,
-	u64 extension
+	u64 extension,
+	u64 flags
 );
 
 void __kbase_tlstream_region_free(
@@ -890,7 +891,8 @@ void __kbase_tlstream_region_commit(
 void __kbase_tlstream_region_grow_on_fault(
 	struct kbase_tlstream *stream,
 	u32 kernel_ctx_id,
-	u64 va,
+	u64 start_va,
+	u64 fault_va,
 	u64 size,
 	u64 old_pages,
 	u64 new_pages
@@ -3868,6 +3870,7 @@ struct kbase_tlstream;
  * @size: The size of the allocated region.
  * @initial_commit: The number of physical pages to allocate up front.
  * @extension: The number of extra pages to allocate on GPU fault to grow the region.
+ * @flags: The memory allocation flags.
  */
 #define KBASE_TLSTREAM_REGION_ALLOC(	\
 	kbdev,	\
@@ -3875,7 +3878,8 @@ struct kbase_tlstream;
 	va,	\
 	size,	\
 	initial_commit,	\
-	extension	\
+	extension,	\
+	flags	\
 	)	\
 	do {	\
 		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
@@ -3886,7 +3890,8 @@ struct kbase_tlstream;
 				va,	\
 				size,	\
 				initial_commit,	\
-				extension	\
+				extension,	\
+				flags	\
 				);	\
 	} while (0)
 
@@ -3954,7 +3959,8 @@ struct kbase_tlstream;
  *
  * @kbdev: Kbase device
  * @kernel_ctx_id: Unique ID for the KBase Context
- * @va: The VA of the memory region.
+ * @start_va: The start VA of the memory region.
+ * @fault_va: The faulting VA of the memory region.
  * @size: The size of the memory region.
  * @old_pages: Number of physical pages previously backing the region.
  * @new_pages: New total number of physical pages backing the region.
@@ -3962,7 +3968,8 @@ struct kbase_tlstream;
 #define KBASE_TLSTREAM_REGION_GROW_ON_FAULT(	\
 	kbdev,	\
 	kernel_ctx_id,	\
-	va,	\
+	start_va,	\
+	fault_va,	\
 	size,	\
 	old_pages,	\
 	new_pages	\
@@ -3973,7 +3980,8 @@ struct kbase_tlstream;
 			__kbase_tlstream_region_grow_on_fault(	\
 				__TL_DISPATCH_STREAM(kbdev, obj),	\
 				kernel_ctx_id,	\
-				va,	\
+				start_va,	\
+				fault_va,	\
 				size,	\
 				old_pages,	\
 				new_pages	\

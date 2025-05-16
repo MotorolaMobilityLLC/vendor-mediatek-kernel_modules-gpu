@@ -736,8 +736,8 @@ static const char *csffw_tl_mcu_state_strings[] = {
 		"kernel_ctx_id,pages,new_total_pages") \
 	TRACEPOINT_DESC(KBASE_REGION_ALLOC, \
 		"Memory region allocated, backed by physical pages.", \
-		"@ILLLL", \
-		"kernel_ctx_id,va,size,initial_commit,extension") \
+		"@ILLLLL", \
+		"kernel_ctx_id,va,size,initial_commit,extension,flags") \
 	TRACEPOINT_DESC(KBASE_REGION_FREE, \
 		"Destroy memory region.", \
 		"@ILLL", \
@@ -748,8 +748,8 @@ static const char *csffw_tl_mcu_state_strings[] = {
 		"kernel_ctx_id,va,size,old_pages,new_pages") \
 	TRACEPOINT_DESC(KBASE_REGION_GROW_ON_FAULT, \
 		"Extend region on fault.", \
-		"@ILLLL", \
-		"kernel_ctx_id,va,size,old_pages,new_pages") \
+		"@ILLLLL", \
+		"kernel_ctx_id,start_va,fault_va,size,old_pages,new_pages") \
 	TRACEPOINT_DESC(KBASE_REGION_SHRINK, \
 		"Reduce region.", \
 		"@ILLLL", \
@@ -4295,7 +4295,8 @@ void __kbase_tlstream_region_alloc(
 	u64 va,
 	u64 size,
 	u64 initial_commit,
-	u64 extension
+	u64 extension,
+	u64 flags
 )
 {
 	const u32 msg_id = KBASE_REGION_ALLOC;
@@ -4305,6 +4306,7 @@ void __kbase_tlstream_region_alloc(
 		+ sizeof(size)
 		+ sizeof(initial_commit)
 		+ sizeof(extension)
+		+ sizeof(flags)
 		;
 	char *buffer;
 	unsigned long acq_flags;
@@ -4324,6 +4326,8 @@ void __kbase_tlstream_region_alloc(
 		pos, &initial_commit, sizeof(initial_commit));
 	pos = kbasep_serialize_bytes(buffer,
 		pos, &extension, sizeof(extension));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &flags, sizeof(flags));
 
 	kbase_tlstream_msgbuf_release(stream, acq_flags);
 }
@@ -4405,7 +4409,8 @@ void __kbase_tlstream_region_commit(
 void __kbase_tlstream_region_grow_on_fault(
 	struct kbase_tlstream *stream,
 	u32 kernel_ctx_id,
-	u64 va,
+	u64 start_va,
+	u64 fault_va,
 	u64 size,
 	u64 old_pages,
 	u64 new_pages
@@ -4414,7 +4419,8 @@ void __kbase_tlstream_region_grow_on_fault(
 	const u32 msg_id = KBASE_REGION_GROW_ON_FAULT;
 	const size_t msg_size = sizeof(msg_id) + sizeof(u64)
 		+ sizeof(kernel_ctx_id)
-		+ sizeof(va)
+		+ sizeof(start_va)
+		+ sizeof(fault_va)
 		+ sizeof(size)
 		+ sizeof(old_pages)
 		+ sizeof(new_pages)
@@ -4430,7 +4436,9 @@ void __kbase_tlstream_region_grow_on_fault(
 	pos = kbasep_serialize_bytes(buffer,
 		pos, &kernel_ctx_id, sizeof(kernel_ctx_id));
 	pos = kbasep_serialize_bytes(buffer,
-		pos, &va, sizeof(va));
+		pos, &start_va, sizeof(start_va));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &fault_va, sizeof(fault_va));
 	pos = kbasep_serialize_bytes(buffer,
 		pos, &size, sizeof(size));
 	pos = kbasep_serialize_bytes(buffer,

@@ -538,7 +538,7 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 		atomic64_inc(&kctx->num_fixed_allocs);
 
 	KBASE_TLSTREAM_REGION_ALLOC(kctx->kbdev, kctx->id, *gpu_va, va_pages * PAGE_SIZE,
-				    commit_pages, extension);
+				    commit_pages, extension, *flags);
 
 	return reg;
 
