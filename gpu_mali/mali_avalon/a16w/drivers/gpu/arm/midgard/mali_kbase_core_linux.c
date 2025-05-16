@@ -1032,13 +1032,6 @@ static int kbase_api_get_cpu_gpu_timeinfo(struct kbase_context *kctx,
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_MALI_NO_MALI)
-static int kbase_api_hwcnt_set(struct kbase_context *kctx, struct kbase_ioctl_hwcnt_values *values)
-{
-	return gpu_model_set_dummy_prfcnt_user_sample(u64_to_user_ptr(values->data), values->size);
-}
-#endif /* CONFIG_MALI_NO_MALI */
-
 static int kbase_api_disjoint_query(struct kbase_context *kctx,
 				    struct kbase_ioctl_disjoint_query *query)
 {
@@ -2036,12 +2029,6 @@ static long kbase_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 					 kbase_api_get_cpu_gpu_timeinfo,
 					 union kbase_ioctl_get_cpu_gpu_timeinfo, kctx);
 		break;
-#if IS_ENABLED(CONFIG_MALI_NO_MALI)
-	case KBASE_IOCTL_HWCNT_SET:
-		KBASE_HANDLE_IOCTL_IN(KBASE_IOCTL_HWCNT_SET, kbase_api_hwcnt_set,
-				      struct kbase_ioctl_hwcnt_values, kctx);
-		break;
-#endif /* CONFIG_MALI_NO_MALI */
 	case KBASE_IOCTL_CS_EVENT_SIGNAL:
 		KBASE_HANDLE_IOCTL(KBASE_IOCTL_CS_EVENT_SIGNAL, kbasep_cs_event_signal, kctx);
 		break;

@@ -145,6 +145,15 @@ enum tl_msg_id_obj {
 	KBASE_TL_KBASE_DEVICE_L2_CORE_STATE,
 	KBASE_TL_KBASE_DEVICE_MCU_STATE,
 	KBASE_TL_KBASE_DEVICE_SHADER_CORE_STATE,
+	KBASE_JIT_ALLOC,
+	KBASE_JIT_GROW_ON_FAULT,
+	KBASE_JIT_FREE,
+	KBASE_TILER_HEAP_INIT,
+	KBASE_TILER_HEAP_TERM,
+	KBASE_TILER_HEAP_CHUNK_ALLOC,
+	KBASE_TILER_HEAP_CHUNK_FREE,
+	KBASE_TILER_HEAP_CONTEXT_ALLOC,
+	KBASE_TILER_HEAP_CONTEXT_FREE,
 	KBASE_TL_KBASE_CSFFW_FW_DISABLING,
 	KBASE_TL_KBASE_CSFFW_FW_OFF,
 	KBASE_TL_KBASE_CSFFW_TLSTREAM_OVERFLOW,
@@ -672,6 +681,42 @@ static const char *csffw_tl_mcu_state_strings[] = {
 		"KBase device updates Shader Core state", \
 		"@IL", \
 		"kbase_device_id,new_state") \
+	TRACEPOINT_DESC(KBASE_JIT_ALLOC, \
+		"KBase JIT allocation", \
+		"@ILLL", \
+		"kernel_ctx_id,virtual_address,va_pages,commit_pages") \
+	TRACEPOINT_DESC(KBASE_JIT_GROW_ON_FAULT, \
+		"KBase JIT growing on fault", \
+		"@ILLL", \
+		"kernel_ctx_id,start_va,fault_va,new_pages") \
+	TRACEPOINT_DESC(KBASE_JIT_FREE, \
+		"KBase JIT free", \
+		"@ILLL", \
+		"kernel_ctx_id,virtual_address,va_pages,commit_pages") \
+	TRACEPOINT_DESC(KBASE_TILER_HEAP_INIT, \
+		"KBase initialization of a Tiler Heap", \
+		"@ILLL", \
+		"kernel_ctx_id,heap,heap_id,chunk_size") \
+	TRACEPOINT_DESC(KBASE_TILER_HEAP_TERM, \
+		"KBase initialization of a Tiler Heap", \
+		"@IL", \
+		"kernel_ctx_id,heap") \
+	TRACEPOINT_DESC(KBASE_TILER_HEAP_CHUNK_ALLOC, \
+		"KBase Tiler Heap chunk allocation", \
+		"@ILL", \
+		"kernel_ctx_id,heap,chunk") \
+	TRACEPOINT_DESC(KBASE_TILER_HEAP_CHUNK_FREE, \
+		"KBase Tiler Heap chunk free", \
+		"@ILL", \
+		"kernel_ctx_id,heap,chunk") \
+	TRACEPOINT_DESC(KBASE_TILER_HEAP_CONTEXT_ALLOC, \
+		"KBase Tiler Heap context allocation", \
+		"@ILLL", \
+		"kernel_ctx_id,heap,heap_ctx,heap_ctx_page_count") \
+	TRACEPOINT_DESC(KBASE_TILER_HEAP_CONTEXT_FREE, \
+		"KBase Tiler Heap context free", \
+		"@IL", \
+		"kernel_ctx_id,heap") \
 	TRACEPOINT_DESC(KBASE_TL_KBASE_CSFFW_FW_DISABLING, \
 		"CSF FW is being disabled", \
 		"@L", \
@@ -3845,6 +3890,297 @@ void __kbase_tlstream_tl_kbase_csffw_fw_request_halt(
 	kbase_tl_systrace("B|7788|CSFFW State-300|%s|%lld", csffw_tl_fw_state_strings[CSFFW_TL_FW_REQUEST_HALT], ktime_get_raw_ns());
 }
 #endif /* IS_ENABLED(CONFIG_MALI_MTK_TIMELINE_TRACE_DEBUG) */
+
+void __kbase_tlstream_jit_alloc(
+	struct kbase_tlstream *stream,
+	u32 kernel_ctx_id,
+	u64 virtual_address,
+	u64 va_pages,
+	u64 commit_pages
+)
+{
+	const u32 msg_id = KBASE_JIT_ALLOC;
+	const size_t msg_size = sizeof(msg_id) + sizeof(u64)
+		+ sizeof(kernel_ctx_id)
+		+ sizeof(virtual_address)
+		+ sizeof(va_pages)
+		+ sizeof(commit_pages)
+		;
+	char *buffer;
+	unsigned long acq_flags;
+	size_t pos = 0;
+
+	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
+
+	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
+	pos = kbasep_serialize_timestamp(buffer, pos);
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &kernel_ctx_id, sizeof(kernel_ctx_id));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &virtual_address, sizeof(virtual_address));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &va_pages, sizeof(va_pages));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &commit_pages, sizeof(commit_pages));
+
+	kbase_tlstream_msgbuf_release(stream, acq_flags);
+}
+
+void __kbase_tlstream_jit_grow_on_fault(
+	struct kbase_tlstream *stream,
+	u32 kernel_ctx_id,
+	u64 start_va,
+	u64 fault_va,
+	u64 new_pages
+)
+{
+	const u32 msg_id = KBASE_JIT_GROW_ON_FAULT;
+	const size_t msg_size = sizeof(msg_id) + sizeof(u64)
+		+ sizeof(kernel_ctx_id)
+		+ sizeof(start_va)
+		+ sizeof(fault_va)
+		+ sizeof(new_pages)
+		;
+	char *buffer;
+	unsigned long acq_flags;
+	size_t pos = 0;
+
+	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
+
+	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
+	pos = kbasep_serialize_timestamp(buffer, pos);
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &kernel_ctx_id, sizeof(kernel_ctx_id));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &start_va, sizeof(start_va));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &fault_va, sizeof(fault_va));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &new_pages, sizeof(new_pages));
+
+	kbase_tlstream_msgbuf_release(stream, acq_flags);
+}
+
+void __kbase_tlstream_jit_free(
+	struct kbase_tlstream *stream,
+	u32 kernel_ctx_id,
+	u64 virtual_address,
+	u64 va_pages,
+	u64 commit_pages
+)
+{
+	const u32 msg_id = KBASE_JIT_FREE;
+	const size_t msg_size = sizeof(msg_id) + sizeof(u64)
+		+ sizeof(kernel_ctx_id)
+		+ sizeof(virtual_address)
+		+ sizeof(va_pages)
+		+ sizeof(commit_pages)
+		;
+	char *buffer;
+	unsigned long acq_flags;
+	size_t pos = 0;
+
+	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
+
+	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
+	pos = kbasep_serialize_timestamp(buffer, pos);
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &kernel_ctx_id, sizeof(kernel_ctx_id));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &virtual_address, sizeof(virtual_address));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &va_pages, sizeof(va_pages));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &commit_pages, sizeof(commit_pages));
+
+	kbase_tlstream_msgbuf_release(stream, acq_flags);
+}
+
+void __kbase_tlstream_tiler_heap_init(
+	struct kbase_tlstream *stream,
+	u32 kernel_ctx_id,
+	u64 heap,
+	u64 heap_id,
+	u64 chunk_size
+)
+{
+	const u32 msg_id = KBASE_TILER_HEAP_INIT;
+	const size_t msg_size = sizeof(msg_id) + sizeof(u64)
+		+ sizeof(kernel_ctx_id)
+		+ sizeof(heap)
+		+ sizeof(heap_id)
+		+ sizeof(chunk_size)
+		;
+	char *buffer;
+	unsigned long acq_flags;
+	size_t pos = 0;
+
+	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
+
+	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
+	pos = kbasep_serialize_timestamp(buffer, pos);
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &kernel_ctx_id, sizeof(kernel_ctx_id));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &heap, sizeof(heap));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &heap_id, sizeof(heap_id));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &chunk_size, sizeof(chunk_size));
+
+	kbase_tlstream_msgbuf_release(stream, acq_flags);
+}
+
+void __kbase_tlstream_tiler_heap_term(
+	struct kbase_tlstream *stream,
+	u32 kernel_ctx_id,
+	u64 heap
+)
+{
+	const u32 msg_id = KBASE_TILER_HEAP_TERM;
+	const size_t msg_size = sizeof(msg_id) + sizeof(u64)
+		+ sizeof(kernel_ctx_id)
+		+ sizeof(heap)
+		;
+	char *buffer;
+	unsigned long acq_flags;
+	size_t pos = 0;
+
+	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
+
+	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
+	pos = kbasep_serialize_timestamp(buffer, pos);
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &kernel_ctx_id, sizeof(kernel_ctx_id));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &heap, sizeof(heap));
+
+	kbase_tlstream_msgbuf_release(stream, acq_flags);
+}
+
+void __kbase_tlstream_tiler_heap_chunk_alloc(
+	struct kbase_tlstream *stream,
+	u32 kernel_ctx_id,
+	u64 heap,
+	u64 chunk
+)
+{
+	const u32 msg_id = KBASE_TILER_HEAP_CHUNK_ALLOC;
+	const size_t msg_size = sizeof(msg_id) + sizeof(u64)
+		+ sizeof(kernel_ctx_id)
+		+ sizeof(heap)
+		+ sizeof(chunk)
+		;
+	char *buffer;
+	unsigned long acq_flags;
+	size_t pos = 0;
+
+	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
+
+	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
+	pos = kbasep_serialize_timestamp(buffer, pos);
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &kernel_ctx_id, sizeof(kernel_ctx_id));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &heap, sizeof(heap));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &chunk, sizeof(chunk));
+
+	kbase_tlstream_msgbuf_release(stream, acq_flags);
+}
+
+void __kbase_tlstream_tiler_heap_chunk_free(
+	struct kbase_tlstream *stream,
+	u32 kernel_ctx_id,
+	u64 heap,
+	u64 chunk
+)
+{
+	const u32 msg_id = KBASE_TILER_HEAP_CHUNK_FREE;
+	const size_t msg_size = sizeof(msg_id) + sizeof(u64)
+		+ sizeof(kernel_ctx_id)
+		+ sizeof(heap)
+		+ sizeof(chunk)
+		;
+	char *buffer;
+	unsigned long acq_flags;
+	size_t pos = 0;
+
+	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
+
+	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
+	pos = kbasep_serialize_timestamp(buffer, pos);
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &kernel_ctx_id, sizeof(kernel_ctx_id));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &heap, sizeof(heap));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &chunk, sizeof(chunk));
+
+	kbase_tlstream_msgbuf_release(stream, acq_flags);
+}
+
+void __kbase_tlstream_tiler_heap_context_alloc(
+	struct kbase_tlstream *stream,
+	u32 kernel_ctx_id,
+	u64 heap,
+	u64 heap_ctx,
+	u64 heap_ctx_page_count
+)
+{
+	const u32 msg_id = KBASE_TILER_HEAP_CONTEXT_ALLOC;
+	const size_t msg_size = sizeof(msg_id) + sizeof(u64)
+		+ sizeof(kernel_ctx_id)
+		+ sizeof(heap)
+		+ sizeof(heap_ctx)
+		+ sizeof(heap_ctx_page_count)
+		;
+	char *buffer;
+	unsigned long acq_flags;
+	size_t pos = 0;
+
+	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
+
+	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
+	pos = kbasep_serialize_timestamp(buffer, pos);
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &kernel_ctx_id, sizeof(kernel_ctx_id));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &heap, sizeof(heap));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &heap_ctx, sizeof(heap_ctx));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &heap_ctx_page_count, sizeof(heap_ctx_page_count));
+
+	kbase_tlstream_msgbuf_release(stream, acq_flags);
+}
+
+void __kbase_tlstream_tiler_heap_context_free(
+	struct kbase_tlstream *stream,
+	u32 kernel_ctx_id,
+	u64 heap
+)
+{
+	const u32 msg_id = KBASE_TILER_HEAP_CONTEXT_FREE;
+	const size_t msg_size = sizeof(msg_id) + sizeof(u64)
+		+ sizeof(kernel_ctx_id)
+		+ sizeof(heap)
+		;
+	char *buffer;
+	unsigned long acq_flags;
+	size_t pos = 0;
+
+	buffer = kbase_tlstream_msgbuf_acquire(stream, msg_size, &acq_flags);
+
+	pos = kbasep_serialize_bytes(buffer, pos, &msg_id, sizeof(msg_id));
+	pos = kbasep_serialize_timestamp(buffer, pos);
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &kernel_ctx_id, sizeof(kernel_ctx_id));
+	pos = kbasep_serialize_bytes(buffer,
+		pos, &heap, sizeof(heap));
+
+	kbase_tlstream_msgbuf_release(stream, acq_flags);
+}
 
 void __kbase_tlstream_tl_kbase_csffw_fw_disabling(
 	struct kbase_tlstream *stream,

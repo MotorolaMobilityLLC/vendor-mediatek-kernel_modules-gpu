@@ -2805,6 +2805,7 @@ int kbase_csf_firmware_early_init(struct kbase_device *kbdev)
 	INIT_LIST_HEAD(&kbdev->csf.firmware_timeline_metadata);
 	INIT_LIST_HEAD(&kbdev->csf.firmware_trace_buffers.list);
 	INIT_LIST_HEAD(&kbdev->csf.user_reg.list);
+	kbdev->csf.firmware_booted_once = false;
 	INIT_WORK(&kbdev->csf.firmware_reload_work, kbase_csf_firmware_reload_worker);
 	INIT_WORK(&kbdev->csf.glb_fatal_work, kbase_csf_glb_fatal_worker);
 

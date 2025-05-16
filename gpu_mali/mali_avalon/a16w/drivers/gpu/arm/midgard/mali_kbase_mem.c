@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -3365,6 +3365,8 @@ struct kbase_va_region *kbase_jit_allocate(struct kbase_context *kctx,
 	}
 
 	trace_mali_jit_alloc(reg, info->id);
+	KBASE_TLSTREAM_JIT_ALLOC(kctx->kbdev, kctx->id, reg->start_pfn << PAGE_SHIFT,
+				 info->va_pages, info->commit_pages);
 
 	kctx->jit_current_allocations++;
 	kctx->jit_current_allocations_per_bin[info->bin_id]++;
@@ -3427,6 +3429,8 @@ void kbase_jit_free(struct kbase_context *kctx, struct kbase_va_region *reg)
 	kctx->jit_current_allocations_per_bin[reg->jit_bin_id]--;
 
 	trace_jit_stats(kctx, reg->jit_bin_id, UINT_MAX);
+	KBASE_TLSTREAM_JIT_FREE(kctx->kbdev, kctx->id, reg->start_pfn << PAGE_SHIFT, reg->nr_pages,
+				reg->nr_pages);
 
 	kbase_gpu_vm_lock_with_pmode_sync(kctx);
 	if (unlikely(atomic_read(&reg->cpu_alloc->kernel_mappings))) {

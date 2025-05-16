@@ -696,6 +696,7 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 		 * the firmware full reload.
 		 */
 		kbdev->csf.firmware_full_reload_needed = true;
+		kbdev->csf.firmware_booted_once = false;
 		ret = kbase_csf_reset_gpu_once(kbdev, firmware_inited, true);
 		if (ret != RESET_SUCCESS) {
 			dev_err(kbdev->dev,

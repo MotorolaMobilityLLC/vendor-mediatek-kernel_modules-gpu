@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2021-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2021-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -72,6 +72,18 @@
 #define HWCNT_READER_API PRFCNT_READER_API_VERSION
 #define POLL_TIMEOUT_MS (1000) /* 1 s */
 #endif /* CONFIG_MALI_MTK_GPU_PMU */
+
+/**
+ * enum base_hwcnt_reader_event - hwcnt dumping events
+ * @BASE_HWCNT_READER_EVENT_MANUAL:   manual request for dump
+ * @BASE_HWCNT_READER_EVENT_PERIODIC: periodic dump
+ * @BASE_HWCNT_READER_EVENT_COUNT:    number of supported events
+ */
+enum base_hwcnt_reader_event {
+	BASE_HWCNT_READER_EVENT_MANUAL,
+	BASE_HWCNT_READER_EVENT_PERIODIC,
+	BASE_HWCNT_READER_EVENT_COUNT
+};
 
 /**
  * struct kbase_kinstr_prfcnt_context - IOCTL interface for userspace hardware

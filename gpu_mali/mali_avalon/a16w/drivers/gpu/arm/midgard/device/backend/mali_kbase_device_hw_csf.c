@@ -98,7 +98,7 @@ static void kbase_gpu_fault_interrupt(struct kbase_device *kbdev)
 
 }
 
-static void handle_db_mirror_irq(struct kbase_device *kbdev);
+void handle_db_mirror_irq(struct kbase_device *kbdev);
 
 void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 {
@@ -222,8 +222,10 @@ KBASE_EXPORT_TEST_API(kbase_gpu_interrupt);
  * handle_db_mirror_irq - Handle DB_MIRROR IRQ
  *
  * @kbdev:    Kbase device pointer
+ *
+ * Note: This function is declared non-static to facilitate testing.
  */
-static void handle_db_mirror_irq(struct kbase_device *kbdev)
+void handle_db_mirror_irq(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 	unsigned long flags;

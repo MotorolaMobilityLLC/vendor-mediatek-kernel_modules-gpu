@@ -405,7 +405,6 @@ void kbase_pm_set_policy(struct kbase_device *kbdev, const struct kbase_pm_polic
 	/* New policy in place, release the clamping on mcu/L2 off state */
 	kbdev->pm.backend.policy_change_clamp_state_to_off = false;
 	kbase_pm_update_state(kbdev);
-
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	/* If any core power state changes were previously attempted, but

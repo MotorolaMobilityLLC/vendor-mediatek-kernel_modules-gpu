@@ -1335,6 +1335,12 @@ page_fault_retry:
 		}
 		KBASE_TLSTREAM_AUX_PAGEFAULT(kbdev, kctx->id, as_no, (u64)new_pages);
 
+		if (region->flags & BASEP_MEM_ACTIVE_JIT_ALLOC) {
+			KBASE_TLSTREAM_JIT_GROW_ON_FAULT(kbdev, kctx->id,
+							 region->start_pfn << PAGE_SHIFT,
+							 fault->addr, (u64)new_pages);
+		}
+
 		{
 			if (kbase_reg_is_valid(kbdev, MMU_AS_OFFSET(as_no, FAULTEXTRA)))
 				trace_mali_mmu_page_fault_extra_grow(region, fault, new_pages);
