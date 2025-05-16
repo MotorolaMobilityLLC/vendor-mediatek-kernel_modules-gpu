@@ -7546,7 +7546,16 @@ static void check_sync_update_for_all_on_slot_groups(struct kbase_device *kbdev)
 		if (check_sync_update_for_on_slot_group(group)) {
 			/* SYNC_UPDATE event shall invalidate GPU idle event */
 			atomic_set(&scheduler->gpu_no_longer_idle, true);
-			scheduler_wakeup(kbdev, true);
+			if ((scheduler->state != SCHED_SUSPENDED) &&
+				(scheduler->state != SCHED_SLEEPING)) {
+				unsigned long flags;
+
+				spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+				kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
+				spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+			} else {
+				scheduler_wakeup(kbdev, true);
+			}
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST)
 			if (ged_gpu_power_stress_test_enable()==2){
 				if (kbase_csf_scheduler_wait_mcu_active(kbdev)) {
