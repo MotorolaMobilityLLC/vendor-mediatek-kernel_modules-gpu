@@ -1811,6 +1811,13 @@ static int kbase_kcpu_fence_force_signal_process(struct kbase_kcpu_command_queue
 		ret = 0;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
+	/* If one has multiple enqueued fence signal commands, re-arm the timer */
+	if (atomic_dec_return(&kcpu_queue->fence_signal_pending_cnt) > 0) {
+		fence_signal_timeout_start(kcpu_queue);
+	}
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
+
 	KBASE_KTRACE_ADD_CSF_KCPU(kctx->kbdev, KCPU_FENCE_SIGNAL, kcpu_queue,
 				  fence_info->fence->context, fence_info->fence->seqno);
 
