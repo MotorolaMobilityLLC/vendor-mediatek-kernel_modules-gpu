@@ -234,6 +234,6 @@ string_flag(
 )
 
 config_setting(
-    name = "mali_release_name_r54p0-00dev2",
-    flag_values = {":mali_release_name": "r54p0-00dev2"},
+    name = "mali_release_name_r54p1-08bet0",
+    flag_values = {":mali_release_name": "r54p1-08bet0"},
 )
