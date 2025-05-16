@@ -3950,7 +3950,7 @@ out_region:
 static void kbase_common_reg_unmap(struct kbase_device *const kbdev)
 {
 	if (kbdev->reg) {
-		mali_iounmap(kbdev->reg);
+		mali_iounmap((void __force __iomem *)kbdev->reg);
 		release_mem_region(kbdev->reg_start, kbdev->reg_size);
 		kbdev->reg = NULL;
 		kbdev->reg_start = 0;

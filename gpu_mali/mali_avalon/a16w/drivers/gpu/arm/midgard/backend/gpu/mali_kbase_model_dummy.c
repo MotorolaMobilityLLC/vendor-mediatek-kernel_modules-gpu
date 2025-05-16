@@ -903,10 +903,10 @@ static void find_gpu_rev(char *new_gpu_name, const char *gpu)
 	{
 #ifdef CONFIG_GPU_HWVER
 		if (!strcmp(CONFIG_GPU_HWVER, "r0p0"))
-			strncat(new_gpu_name, "_r0p0", GPU_REV_STR_LEN);
+			strncat(new_gpu_name, "_r0p0", GPU_REV_STR_LEN + 1);
 		else if (!strcmp(CONFIG_GPU_HWVER, "r1p0"))
 #endif /* CONFIG_GPU_HWVER defined */
-			strncat(new_gpu_name, "_r1p0", GPU_REV_STR_LEN);
+			strncat(new_gpu_name, "_r1p0", GPU_REV_STR_LEN + 1);
 	}
 }
 

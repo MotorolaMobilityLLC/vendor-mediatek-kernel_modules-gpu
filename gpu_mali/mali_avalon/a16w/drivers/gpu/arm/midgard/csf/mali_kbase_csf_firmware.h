@@ -190,6 +190,9 @@ void kbase_csf_ring_doorbell(struct kbase_device *kbdev, int doorbell_nr);
  *
  * @kbdev:    An instance of the GPU platform device
  * @req_mask: Bits in the GLB_REQ register to check
+ *
+ * Return: true if all bits in the req_mask are set in the GLB_ACK register,
+ *         false otherwise.
  */
 bool kbase_csf_global_request_complete(struct kbase_device *kbdev, u32 const req_mask);
 
