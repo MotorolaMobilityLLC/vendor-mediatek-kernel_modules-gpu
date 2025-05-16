@@ -3129,7 +3129,7 @@ static void save_csg_slot(struct kbase_queue_group *group, bool csg_status_updat
  * Return whether there is a kctx address fault associated with the group
  * for which the clean-up is done.
  */
-static bool cleanup_csg_slot(struct kbase_queue_group *group)
+static bool cleanup_csg_slot(struct kbase_queue_group *group, bool is_GLS)
 {
 	struct kbase_context *kctx = group->kctx;
 	struct kbase_device *kbdev = kctx->kbdev;
@@ -3140,6 +3140,7 @@ static bool cleanup_csg_slot(struct kbase_queue_group *group)
 	unsigned long flags, fw_io_flags;
 	u32 csg_req, csg_ack, i;
 	bool as_fault = false;
+	u32 glb_db_req, glb_db_ack;
 
 	lockdep_assert_held(&kbdev->csf.scheduler.lock);
 
@@ -3193,6 +3194,18 @@ static bool cleanup_csg_slot(struct kbase_queue_group *group)
 	 */
 	kbase_csf_fw_io_open_force(&kbdev->csf.fw_io, &fw_io_flags);
 	kbase_csf_handle_csg_sync_update(kbdev, slot, group, csg_req, csg_ack);
+
+	if (is_GLS == true) {
+		glb_db_req = kbase_csf_fw_io_global_input_read(&kbdev->csf.fw_io, GLB_DB_REQ);
+		glb_db_ack = kbase_csf_fw_io_global_read(&kbdev->csf.fw_io, GLB_DB_ACK);
+
+		if((glb_db_req ^ glb_db_ack) & (1 << slot))
+		{
+			dev_warn(kbdev->dev, "pending GLB_DB in slot %d", slot);
+			kbase_csf_fw_io_global_write_mask(&kbdev->csf.fw_io, GLB_DB_REQ, glb_db_ack, (1 << slot));
+		}
+	}
+
 	kbase_csf_fw_io_close(&kbdev->csf.fw_io, fw_io_flags);
 
 	/* Check progress time out event */
@@ -3706,7 +3719,7 @@ void kbase_csf_scheduler_group_deschedule(struct kbase_queue_group *group)
 			term_csg_slot(group);
 
 		/* Treat the csg been terminated */
-		as_faulty = cleanup_csg_slot(group);
+		as_faulty = cleanup_csg_slot(group, false);
 		/* remove from the scheduler list */
 		sched_evict_group(group, as_faulty, false);
 	}
@@ -4129,7 +4142,7 @@ static void program_suspending_csg_slots(struct kbase_device *kbdev)
 						KBASE_TLSTREAM_TL_KBASE_DEVICE_SUSPEND_CSG(
 							kbdev, kbdev->id, i);
 					save_csg_slot(group, true);
-					as_fault = cleanup_csg_slot(group);
+					as_fault = cleanup_csg_slot(group, false);
 					/* If AS fault detected, evict it */
 					if (as_fault) {
 						sched_evict_group(group, true, true);
@@ -4521,7 +4534,7 @@ void kbase_csf_scheduler_evict_ctx_slots(struct kbase_device *kbdev, struct kbas
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
 			term_csg_slot(group);
-			as_fault = cleanup_csg_slot(group);
+			as_fault = cleanup_csg_slot(group, false);
 			/* remove the group from the scheduler list */
 			sched_evict_group(group, as_fault, false);
 			/* signal Userspace that CSG is being terminated */
@@ -6112,7 +6125,7 @@ static int wait_csg_slots_suspend(struct kbase_device *kbdev, unsigned long *slo
 							kbdev, kbdev->id, i);
 
 					save_csg_slot(group, true);
-					if (cleanup_csg_slot(group)) {
+					if (cleanup_csg_slot(group, false)) {
 						sched_evict_group(group, true, true);
 					}
 				}
@@ -6612,7 +6625,7 @@ bool kbase_csf_scheduler_check_gls_success(struct kbase_device *kbdev)
 
 		save_csg_slot(group, false);
 		group->idle_on_stop = (group->run_state == KBASE_CSF_GROUP_IDLE);
-		if (cleanup_csg_slot(group))
+		if (cleanup_csg_slot(group, true))
 			sched_evict_group(group, true, true);
 	}
 
@@ -6797,7 +6810,7 @@ static bool scheduler_handle_reset_in_protected_mode(struct kbase_device *kbdev)
 		if (!group || (group == protm_grp))
 			continue;
 
-		cleanup_csg_slot(group);
+		cleanup_csg_slot(group, false);
 		group->run_state = KBASE_CSF_GROUP_SUSPENDED;
 		KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSF_GROUP_SUSPENDED, group, group->run_state);
 
