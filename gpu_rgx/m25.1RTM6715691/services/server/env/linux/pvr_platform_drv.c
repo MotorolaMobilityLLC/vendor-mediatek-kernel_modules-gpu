@@ -62,6 +62,9 @@
 #include "pvrmodule.h"
 #include "sysinfo.h"
 
+#if defined(MTK_MINI_PORTING)
+#include "mtk_mfgsys.h"
+#endif
 
 /* This header must always be included last */
 #include "kernel_compatibility.h"
@@ -70,6 +73,7 @@ MODULE_IMPORT_NS(DMA_BUF);
 
 static struct drm_driver pvr_drm_platform_driver;
 
+#if !defined(MTK_MINI_PORTING)
 #if defined(MODULE) && !defined(PVR_LDM_PLATFORM_PRE_REGISTERED)
 static unsigned int pvr_num_devices = 1;
 static struct platform_device **pvr_devices;
@@ -104,6 +108,7 @@ MODULE_PARM_DESC(num_devices,
 		 STRINGIFY(PVRSRV_MAX_DEVICES) ")");
 #endif /* defined(NO_HARDWARE) */
 #endif /* defined(MODULE) && !defined(PVR_LDM_PLATFORM_PRE_REGISTERED) */
+#endif /* MTK_MINI_PORTING */
 
 static struct platform_device_id pvr_platform_ids[] = {
 #if defined(SYS_RGX_DEV_NAME)
@@ -126,6 +131,7 @@ static struct platform_device_id pvr_platform_ids[] = {
 
 static int pvr_devices_register(void)
 {
+#if !defined(MTK_MINI_PORTING)
 #if defined(MODULE) && !defined(PVR_LDM_PLATFORM_PRE_REGISTERED)
 	struct platform_device_info pvr_dev_info = {
 		.name = NULL,
@@ -168,12 +174,14 @@ static int pvr_devices_register(void)
 		}
 	}
 #endif /* defined(MODULE) && !defined(PVR_LDM_PLATFORM_PRE_REGISTERED) */
+#endif /* MTK_MINI_PORTING */
 
 	return 0;
 }
 
 static void pvr_devices_unregister(void)
 {
+#if !defined(MTK_MINI_PORTING)
 #if defined(MODULE) && !defined(PVR_LDM_PLATFORM_PRE_REGISTERED)
 	unsigned int i;
 
@@ -185,6 +193,7 @@ static void pvr_devices_unregister(void)
 	kfree(pvr_devices);
 	pvr_devices = NULL;
 #endif /* defined(MODULE) && !defined(PVR_LDM_PLATFORM_PRE_REGISTERED) */
+#endif /* MTK_MINI_PORTING */
 }
 
 static int pvr_probe(struct platform_device *pdev)
@@ -193,7 +202,9 @@ static int pvr_probe(struct platform_device *pdev)
 	int ret;
 
 	DRM_DEBUG_DRIVER("device %p\n", &pdev->dev);
-
+#if defined(MTK_MINI_PORTING)
+	MTK_LOGI("@%s: start to probe pvrsrvkm driver\n", __func__);
+#endif
 	ddev = drm_dev_alloc(&pvr_drm_platform_driver, &pdev->dev);
 	if (IS_ERR(ddev))
 		return PTR_ERR(ddev);
@@ -212,7 +223,9 @@ static int pvr_probe(struct platform_device *pdev)
 	ret = drm_dev_register(ddev, 0);
 	if (ret)
 		goto err_drm_dev_unload;
-
+#if defined(MTK_MINI_PORTING)
+	MTK_LOGI("@%s: pvrsrvkm driver probe done\n", __func__);
+#endif
 	return 0;
 
 err_drm_dev_unload:
@@ -290,8 +303,14 @@ static int __init pvr_init(void)
 	int err;
 
 	DRM_DEBUG_DRIVER("\n");
-
+#if defined(MTK_MINI_PORTING)
+	MTK_LOGI("@%s: start to initialize pvrsrvkm driver\n", __func__);
+#endif
 	pvr_drm_platform_driver = pvr_drm_generic_driver;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)) && \
+	(LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0))
+	pvr_drm_platform_driver.set_busid = drm_platform_set_busid;
+#endif
 
 	err = PVRSRVDriverInit();
 	if (err)

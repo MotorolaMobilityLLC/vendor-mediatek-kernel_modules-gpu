@@ -1557,7 +1557,6 @@ DevmemSubAllocate(IMG_UINT8 uiPreAllocMultiplier,
 		if (eError != PVRSRV_OK)
 		{
 			PVR_LOG_ERROR(eError, "BridgeRIWriteMEMDESCEntry");
-			psMemDesc->hRIHandle = NULL;
 		}
 	}
 #else /* if defined(PVRSRV_ENABLE_GPU_MEMORY_INFO) */

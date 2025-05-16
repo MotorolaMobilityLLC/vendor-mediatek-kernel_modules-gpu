@@ -133,6 +133,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "rgxpdump_common.h"
 #endif
 
+
 static PVRSRV_ERROR RGXDevInitCompatCheck(PVRSRV_DEVICE_NODE *psDeviceNode);
 static PVRSRV_ERROR RGXSoftReset(PVRSRV_DEVICE_NODE *psDeviceNode, IMG_UINT64 ui64ResetValue1, IMG_UINT64 ui64ResetValue2);
 static PVRSRV_ERROR RGXPhysMemDeviceHeapsInit(PVRSRV_DEVICE_NODE *psDeviceNode);
@@ -156,6 +157,10 @@ static void RGXDeInitFwRawHeap(DEVMEM_HEAP_BLUEPRINT *psDevMemHeap);
 #define RGX_MMU_PAGE_SIZE_MIN RGX_MMU_PAGE_SIZE_4KB
 #define RGX_MMU_PAGE_SIZE_MAX RGX_MMU_PAGE_SIZE_2MB
 
+#define RGX_DISABLE_GENERIC_FAULT              0x1
+#define RGX_DISABLE_SLC_PAGE_FAULT_TRIGGER     0x2
+#define RGX_DISABLE_FW_SCRATCH_TRIGGER         0x4
+
 #define VAR(x) #x
 
 static void RGXDeInitHeaps(DEVICE_MEMORY_INFO *psDevMemoryInfo, PVRSRV_DEVICE_NODE *psDeviceNode);
@@ -176,37 +181,47 @@ static INLINE IMG_UINT32 RGXHostSafetyEvents(PVRSRV_RGXDEV_INFO *psDevInfo)
 	}
 	else
 	{
-		IMG_UINT32 ui32SafetyEventStatus = OSReadHWReg32(psDevInfo->pvRegsBaseKM, RGX_CR_SAFETY_EVENT_STATUS__ROGUEXE);
-		return (ui32SafetyEventStatus & psDevInfo->ui32HostSafetyEventMask);
+		IMG_UINT32 ui32EventStatus = OSReadHWReg32(psDevInfo->pvRegsBaseKM, RGX_CR_EVENT_STATUS);
+
+		return (ui32EventStatus & psDevInfo->ui32HostSafetyEventMask);
 	}
 }
 
 /*************************************************************************/ /*!
-@Function       RGXSafetyEventCheck
-@Description    Clears the Event Status register and checks if any of the
-                safety events need Host handling
-@Input          psDevInfo    Device Info structure
-@Return         IMG_BOOL     Are there any safety events for Host to handle ?
+@Function       GetContextResetReason
+@Description    Maps a bit corresponding to an uncorrected FW fault reported in
+                RGX_CR_FAULT_FW_STATUS register into RGX_CONTEXT_RESET_REASON value
+@Input          ui32FaultFlag Offset into the bitmask of uncorrected FW faults
+                psDevInfo Device Info structure
+@Return         RGX_CONTEXT_RESET_REASON Reset Reason
  */ /**************************************************************************/
-static INLINE IMG_BOOL RGXSafetyEventCheck(PVRSRV_RGXDEV_INFO *psDevInfo)
+static inline RGX_CONTEXT_RESET_REASON GetContextResetReason(PVRSRV_RGXDEV_INFO *psDevInfo, IMG_UINT32 ui32FaultFlag)
 {
-	IMG_BOOL bSafetyEvent = IMG_FALSE;
+	RGX_CONTEXT_RESET_REASON eResetReason;
 
-	if (psDevInfo->ui32HostSafetyEventMask != 0)
+	if (ui32FaultFlag == RGX_CR_FAULT_FW_STATUS_MMU_PTE_PARITY_DETECT_SHIFT)
 	{
-		IMG_UINT32 ui32EventStatus = OSReadHWReg32(psDevInfo->pvRegsBaseKM, RGX_CR_EVENT_STATUS);
+		IMG_UINT32 ui32ParityStatus = OSReadHWReg32(psDevInfo->pvRegsBaseKM, RGX_CR_MMU_PT_PARITY_STATUS);
+		OSWriteHWReg32(psDevInfo->pvRegsBaseKM, RGX_CR_MMU_PT_PARITY_CLEAR, ui32ParityStatus);
 
-		if (BIT_ISSET(ui32EventStatus, RGX_CR_EVENT_STATUS__ROGUEXE__SAFETY_SHIFT))
-		{
-			/* clear the safety event */
-			OSWriteHWReg32(psDevInfo->pvRegsBaseKM, RGX_CR_EVENT_CLEAR, RGX_CR_EVENT_CLEAR__ROGUEXE__SAFETY_EN);
+		PVR_DPF((PVR_DBG_ERROR, "%s: MMU PTE parity errors: 0x%x", __func__, ui32ParityStatus));
 
-			/* report if there is anything for the Host to handle */
-			bSafetyEvent = (RGXHostSafetyEvents(psDevInfo) != 0);
-		}
+		eResetReason = RGX_CONTEXT_RESET_REASON_FW_PTE_PARITY_ERR;
+	}
+	else if (ui32FaultFlag == RGX_CR_FAULT_FW_STATUS_PARITY_DETECT_SHIFT)
+	{
+		eResetReason = RGX_CONTEXT_RESET_REASON_FW_PARITY_ERR;
+	}
+	else if (ui32FaultFlag == RGX_CR_FAULT_FW_STATUS_LOCKSTEP_DETECT_SHIFT)
+	{
+		eResetReason = RGX_CONTEXT_RESET_REASON_DCLS_ERR;
+	}
+	else
+	{
+		eResetReason = RGX_CONTEXT_RESET_REASON_FW_ECC_ERR;
 	}
 
-	return bSafetyEvent;
+	return eResetReason;
 }
 
 /*************************************************************************/ /*!
@@ -232,18 +247,19 @@ static void RGXSafetyEventHandler(PVRSRV_RGXDEV_INFO *psDevInfo)
 	{
 		RGX_CONTEXT_RESET_REASON eResetReason = RGX_CONTEXT_RESET_REASON_NONE;
 		IMG_UINT32 ui32HostSafetyStatus = RGXHostSafetyEvents(psDevInfo);
+		IMG_UINT32 ui32HostSafetyStatusBitPos = 0;
 
 		if (ui32HostSafetyStatus != 0)
 		{
 			/* clear the safety bus events handled by the Host */
-			OSWriteHWReg32(psDevInfo->pvRegsBaseKM, RGX_CR_SAFETY_EVENT_CLEAR__ROGUEXE, ui32HostSafetyStatus);
+			OSWriteHWReg32(psDevInfo->pvRegsBaseKM, RGX_CR_EVENT_CLEAR, ui32HostSafetyStatus);
 
-			if (BIT_ISSET(ui32HostSafetyStatus, RGX_CR_SAFETY_EVENT_STATUS__ROGUEXE__FAULT_FW_SHIFT))
+			if (BIT_ISSET(ui32HostSafetyStatus, RGX_CR_EVENT_STATUS_FAULT_FW_SHIFT))
 			{
 				IMG_UINT32 ui32FaultFlag;
 				IMG_UINT32 ui32FaultFW = OSReadHWReg32(psDevInfo->pvRegsBaseKM, RGX_CR_FAULT_FW_STATUS);
-				IMG_UINT32 ui32CorrectedBitOffset = RGX_CR_FAULT_FW_STATUS_CPU_CORRECT_SHIFT -
-													RGX_CR_FAULT_FW_STATUS_CPU_DETECT_SHIFT;
+				IMG_UINT32 ui32CorrectedBitOffset = RGX_CR_FAULT_FW_STATUS_MMU_CORRECT_SHIFT -
+													RGX_CR_FAULT_FW_STATUS_MMU_DETECT_SHIFT;
 
 				PVR_DPF((PVR_DBG_ERROR, "%s: Firmware safety fault status: 0x%X", __func__, ui32FaultFW));
 
@@ -253,7 +269,7 @@ static void RGXSafetyEventHandler(PVRSRV_RGXDEV_INFO *psDevInfo)
 					{
 						PVR_DPF((PVR_DBG_ERROR, "%s: Firmware safety hardware fault detected (0x%lX).",
 							 __func__, BIT(ui32FaultFlag)));
-						eResetReason = RGX_CONTEXT_RESET_REASON_FW_ECC_ERR;
+						eResetReason = GetContextResetReason(psDevInfo, ui32FaultFlag);
 					}
 					else if BIT_ISSET(ui32FaultFW, ui32FaultFlag + ui32CorrectedBitOffset)
 					{
@@ -261,7 +277,11 @@ static void RGXSafetyEventHandler(PVRSRV_RGXDEV_INFO *psDevInfo)
 							 __func__, BIT(ui32FaultFlag)));
 
 						/* Only report this if we haven't detected a more serious error */
-						if (eResetReason != RGX_CONTEXT_RESET_REASON_FW_ECC_ERR)
+						if (eResetReason != RGX_CONTEXT_RESET_REASON_FW_ECC_ERR &&
+						    eResetReason != RGX_CONTEXT_RESET_REASON_FW_PTE_PARITY_ERR &&
+							eResetReason != RGX_CONTEXT_RESET_REASON_FW_PARITY_ERR &&
+							eResetReason != RGX_CONTEXT_RESET_REASON_DCLS_ERR)
+
 						{
 							eResetReason = RGX_CONTEXT_RESET_REASON_FW_ECC_OK;
 						}
@@ -271,12 +291,28 @@ static void RGXSafetyEventHandler(PVRSRV_RGXDEV_INFO *psDevInfo)
 				OSWriteHWReg32(psDevInfo->pvRegsBaseKM, RGX_CR_FAULT_FW_CLEAR, ui32FaultFW);
 			}
 
-			if (BIT_ISSET(ui32HostSafetyStatus, RGX_CR_SAFETY_EVENT_STATUS__ROGUEXE__WATCHDOG_TIMEOUT_SHIFT))
+#if defined(RGX_FEATURE_ERYX_TOP_INFRASTRUCTURE)
+			ui32HostSafetyStatusBitPos = RGX_CR_EVENT_STATUS_WDT_TIMEOUT_SHIFT;
+#else
+#if defined(RGX_FEATURE_PIPELINED_DATAMASTERS_VERSION_MAX_VALUE_IDX)
+			if (RGX_IS_FEATURE_VALUE_SUPPORTED(psDevInfo, PIPELINED_DATAMASTERS_VERSION)  &&
+				RGX_GET_FEATURE_VALUE(psDevInfo, PIPELINED_DATAMASTERS_VERSION) > 0)
+			{
+				ui32HostSafetyStatusBitPos = RGX_CR_EVENT_STATUS__AXT_IF_EQ2_AND_PIPEDM_GT0__WDT_TIMEOUT_SHIFT;
+			}
+			else
+#endif
+			{
+				ui32HostSafetyStatusBitPos = RGX_CR_EVENT_STATUS__AXT_IF_EQ2_AND_PIPEDM_EQ0__WDT_TIMEOUT_SHIFT;
+			}
+#endif
+
+			if (BIT_ISSET(ui32HostSafetyStatus, ui32HostSafetyStatusBitPos))
 			{
 				volatile RGXFWIF_POW_STATE ePowState;
 
 				RGXFwSharedMemCacheOpValue(psDevInfo->psRGXFWIfFwSysData->ePowState,
-										   INVALIDATE);
+				                           INVALIDATE);
 				ePowState = psDevInfo->psRGXFWIfFwSysData->ePowState;
 
 				if (ePowState != RGXFWIF_POW_OFF)
@@ -284,7 +320,8 @@ static void RGXSafetyEventHandler(PVRSRV_RGXDEV_INFO *psDevInfo)
 					PVR_DPF((PVR_DBG_ERROR, "%s: Safety Watchdog Trigger !", __func__));
 
 					/* Only report this if we haven't detected a more serious error */
-					if (eResetReason != RGX_CONTEXT_RESET_REASON_FW_ECC_ERR)
+					if (eResetReason != RGX_CONTEXT_RESET_REASON_FW_ECC_ERR &&
+					    eResetReason != RGX_CONTEXT_RESET_REASON_FW_PTE_PARITY_ERR)
 					{
 						eResetReason = RGX_CONTEXT_RESET_REASON_FW_WATCHDOG;
 					}
@@ -309,7 +346,7 @@ static void RGXSafetyEventHandler(PVRSRV_RGXDEV_INFO *psDevInfo)
 					sErrorData.eResetReason = eResetReason;
 
 					psDevConfig->pfnSysDevErrorNotify(psDevConfig->hSysData,
-													  &sErrorData);
+					                                  &sErrorData);
 				}
 			}
 		}
@@ -318,6 +355,7 @@ static void RGXSafetyEventHandler(PVRSRV_RGXDEV_INFO *psDevInfo)
 	PVRSRVPowerUnlock(psDeviceNode);
 }
 
+#if defined(RGX_FEATURE_META_MAX_VALUE_IDX)
 static __maybe_unused IMG_BOOL RGXAckIrqMETA(PVRSRV_RGXDEV_INFO *psDevInfo)
 {
 	return RGXAckHwIrq(psDevInfo,
@@ -326,6 +364,7 @@ static __maybe_unused IMG_BOOL RGXAckIrqMETA(PVRSRV_RGXDEV_INFO *psDevInfo)
 					   RGX_CR_META_SP_MSLVIRQSTATUS,
 					   RGX_CR_META_SP_MSLVIRQSTATUS_TRIGVECT2_CLRMSK);
 }
+#endif
 
 #if defined(RGX_FEATURE_MIPS_BIT_MASK)
 static IMG_BOOL RGXAckIrqMIPS(PVRSRV_RGXDEV_INFO *psDevInfo)
@@ -340,42 +379,17 @@ static IMG_BOOL RGXAckIrqMIPS(PVRSRV_RGXDEV_INFO *psDevInfo)
 
 static PVRSRV_ERROR RGXSetAckIrq(PVRSRV_RGXDEV_INFO *psDevInfo)
 {
-	if ((RGX_IS_FEATURE_SUPPORTED(psDevInfo, IRQ_PER_OS)) && (!PVRSRV_VZ_MODE_IS(NATIVE, DEVINFO, psDevInfo)))
-	{
-		psDevInfo->pfnRGXAckIrq = RGXAckIrqDedicated;
-	}
-	else if (PVRSRV_VZ_MODE_IS(GUEST, DEVINFO, psDevInfo))
+#if defined(RGX_SINGLE_IRQ_WORKAROUND)
+	/* Register appropriate mechanism for clearing hw interrupts */
+	if (PVRSRV_VZ_MODE_IS(GUEST, DEVINFO, psDevInfo))
 	{
 		psDevInfo->pfnRGXAckIrq = NULL;
 	}
 	else
-	{
-		/* native and host drivers must clear the unique GPU physical interrupt */
-		if (RGX_IS_FEATURE_SUPPORTED(psDevInfo, MIPS))
-		{
-			psDevInfo->pfnRGXAckIrq = RGXAckIrqMIPS;
-		}
-		else if (RGX_IS_FEATURE_VALUE_SUPPORTED(psDevInfo, META))
-		{
-			psDevInfo->pfnRGXAckIrq = RGXAckIrqMETA;
-		}
-		else if (RGX_IS_FEATURE_SUPPORTED(psDevInfo, RISCV_FW_PROCESSOR))
-		{
-			psDevInfo->pfnRGXAckIrq = RGXAckIrqDedicated;
-		}
-		else
-		{
-			PVR_DPF((PVR_DBG_ERROR, "%s: GPU IRQ clearing mechanism not implemented "
-									"for this architecture.", __func__));
-			return PVRSRV_ERROR_NOT_IMPLEMENTED;
-		}
-	}
-
-#if defined(RGX_IRQ_HYPERV_HANDLER)
-	/* The hypervisor receives and acknowledges the GPU irq, then it injects an
-	 * irq only in the recipient OS. The KM driver doesn't handle the GPU irq line */
-	psDevInfo->pfnRGXAckIrq = NULL;
 #endif
+	{
+		psDevInfo->pfnRGXAckIrq = RGXAckIrqDedicated;
+	}
 
 	return PVRSRV_OK;
 }
@@ -394,7 +408,7 @@ static IMG_BOOL RGX_LISRHandler(void *pvData)
 
 	if (psDevInfo->bRGXPowered)
 	{
-		IMG_BOOL bSafetyEvent = RGXSafetyEventCheck(psDevInfo);
+		IMG_BOOL bSafetyEvent = (RGXHostSafetyEvents(psDevInfo) != 0);
 
 		if ((psDevInfo->pfnRGXAckIrq == NULL) || psDevInfo->pfnRGXAckIrq(psDevInfo) || bSafetyEvent)
 		{
@@ -548,7 +562,13 @@ static void RGX_MISRHandler_Main (void *pvData)
 	/* Prioritise safety event check, any error or request in FWCCB over other activities */
 	/* Only execute SafetyEventHandler if RGX_FEATURE_SAFETY_EVENT is on */
 	if (PVRSRV_GET_DEVICE_FEATURE_VALUE(psDeviceNode, ECC_RAMS) > 0 ||
-		PVRSRV_IS_FEATURE_SUPPORTED(psDeviceNode, WATCHDOG_TIMER))
+#if defined(RGX_FEATURE_WATCHDOG_TIMER_BIT_MASK)
+		PVRSRV_IS_FEATURE_SUPPORTED(psDeviceNode, WATCHDOG_TIMER) ||
+#endif
+#if defined(RGX_FEATURE_RISCV_DUAL_LOCKSTEP_BIT_MASK)
+		PVRSRV_IS_FEATURE_SUPPORTED(psDeviceNode, RISCV_DUAL_LOCKSTEP) ||
+#endif
+		PVRSRV_GET_DEVICE_FEATURE_VALUE(psDeviceNode, FAULT_DECODE_VERSION) >= 2)
 	{
 		/* Handle Safety events if necessary */
 		RGXSafetyEventHandler(psDeviceNode->pvDevice);
@@ -715,7 +735,7 @@ static PVRSRV_ERROR RGXSetPowerParams(PVRSRV_RGXDEV_INFO   *psDevInfo,
 #endif
 
 #if defined(SUPPORT_TRUSTED_DEVICE) && defined(RGX_PREMAP_FW_HEAPS)
-	/* Rogue drivers with security support and premapped fw heaps
+	/* Volcanic drivers with security support and premapped fw heaps
 	 * always have their fw heap premapped by the TEE */
 	bPremappedFw = IMG_TRUE;
 #else
@@ -742,7 +762,10 @@ static PVRSRV_ERROR RGXSetPowerParams(PVRSRV_RGXDEV_INFO   *psDevInfo,
 		sKernelMMUCtxPCAddr.uiAddr = sDevPAddr.uiAddr;
 		psDevInfo->sLayerParams.sPCAddr = sKernelMMUCtxPCAddr;
 	}
-	else if (RGX_IS_FEATURE_VALUE_SUPPORTED(psDevInfo, META) ||
+	else if (
+#if defined(RGX_FEATURE_META_MAX_VALUE_IDX)
+		RGX_IS_FEATURE_VALUE_SUPPORTED(psDevInfo, META) ||
+#endif
 	    RGX_IS_FEATURE_SUPPORTED(psDevInfo, RISCV_FW_PROCESSOR))
 	{
 		eError = MMU_AcquireBaseAddr(psDevInfo->psKernelMMUCtx,
@@ -842,7 +865,10 @@ static PVRSRV_ERROR RGXSetPowerParams(PVRSRV_RGXDEV_INFO   *psDevInfo,
 	{
 		PVRSRV_TD_POWER_PARAMS sTDPowerParams;
 
-		if (RGX_IS_FEATURE_VALUE_SUPPORTED(psDevInfo, META) ||
+		if (
+#if defined(RGX_FEATURE_META_MAX_VALUE_IDX)
+			RGX_IS_FEATURE_VALUE_SUPPORTED(psDevInfo, META) ||
+#endif
 		    RGX_IS_FEATURE_SUPPORTED(psDevInfo, RISCV_FW_PROCESSOR))
 		{
 			sTDPowerParams.sPCAddr = psDevInfo->sLayerParams.sPCAddr;
@@ -968,7 +994,7 @@ PVRSRV_ERROR RGXSystemGetFabricCoherency(PVRSRV_DEVICE_CONFIG *psDevConfig,
 #endif /* !defined(NO_HARDWARE) */
 
 	OSCreateAppHintState(&pvAppHintState);
-	ui32AppHintDefault = RGX_CR_SOC_AXI_COHERENCY_SUPPORT_FULL_ACE_COHERENCY;
+	ui32AppHintDefault = RGX_CR_SOC_AXI_COHERENCY_SUPPORT_ACE_LITE_COHERENCY;
 	OSGetAppHintUINT32(APPHINT_NO_DEVICE, pvAppHintState, FabricCoherencyOverride,
 						 &ui32AppHintDefault, &ui32AppHintFabricCoherency);
 	OSFreeAppHintState(pvAppHintState);
@@ -989,16 +1015,12 @@ PVRSRV_ERROR RGXSystemGetFabricCoherency(PVRSRV_DEVICE_CONFIG *psDevConfig,
 		eAppHintCacheSnoopingMode = PVRSRV_DEVICE_SNOOP_CPU_ONLY;
 		break;
 
-	case RGX_CR_SOC_AXI_COHERENCY_SUPPORT_FULL_ACE_COHERENCY:
-		eAppHintCacheSnoopingMode = PVRSRV_DEVICE_SNOOP_CROSS;
-		break;
-
 	default:
 		PVR_DPF((PVR_DBG_ERROR,
 				"Invalid FabricCoherencyOverride AppHint %d, ignoring",
 				ui32AppHintFabricCoherency));
 		eAppHintCacheSnoopingMode = PVRSRV_DEVICE_SNOOP_CROSS;
-		ui32AppHintFabricCoherency = RGX_CR_SOC_AXI_COHERENCY_SUPPORT_FULL_ACE_COHERENCY;
+		ui32AppHintFabricCoherency = RGX_CR_SOC_AXI_COHERENCY_SUPPORT_ACE_LITE_COHERENCY;
 		break;
 	}
 
@@ -1104,25 +1126,17 @@ static MMU_DEVICEATTRIBS *RGXDevMMUAttributes(PVRSRV_DEVICE_NODE *psDeviceNode,
 	return psMMUDevAttrs;
 }
 
+
 /*
 	RGXDevSnoopMode
 */
 static PVRSRV_DEVICE_SNOOP_MODE RGXDevSnoopMode(PVRSRV_DEVICE_NODE *psDeviceNode)
 {
-	PVRSRV_RGXDEV_INFO *psDevInfo;
-
-	PVR_ASSERT(psDeviceNode != NULL);
-	PVR_ASSERT(psDeviceNode->pvDevice != NULL);
-
-	psDevInfo = (PVRSRV_RGXDEV_INFO *) psDeviceNode->pvDevice;
-
-	if (RGX_IS_FEATURE_SUPPORTED(psDevInfo, AXI_ACELITE))
-	{
-		return PVRSRV_DEVICE_SNOOP_CPU_ONLY;
-	}
+	PVR_UNREFERENCED_PARAMETER(psDeviceNode);
 
 	return PVRSRV_DEVICE_SNOOP_NONE;
 }
+
 
 /*
  * RGXInitDevPart2
@@ -1138,7 +1152,6 @@ PVRSRV_ERROR RGXInitDevPart2(PVRSRV_DEVICE_NODE	*psDeviceNode,
 	IMG_UINT32			ui32AllPowUnitsMask = (1 << psDevInfo->sDevFeatureCfg.ui32MAXPowUnitCount) - 1;
 	IMG_UINT32			ui32AllRACMask = (1 << psDevInfo->sDevFeatureCfg.ui32MAXRACCount) - 1;
 #endif
-
 #if defined(PDUMP) && defined(NO_HARDWARE)
 	IMG_UINT32 ui32PDumpFlags = PDUMP_FLAGS_DEINIT;
 #endif
@@ -1217,12 +1230,8 @@ PVRSRV_ERROR RGXInitDevPart2(PVRSRV_DEVICE_NODE	*psDeviceNode,
 	}
 #endif
 
-#if defined(MTK_MINI_PORTING)
-	spin_lock_init(&psDevInfo->sGPUUtilLock);
-#else
 	eError = OSLockCreate(&psDevInfo->hGPUUtilLock);
 	PVR_LOG_GOTO_IF_ERROR(eError, "OSLockCreate(GPUUtilLock)", ErrorExit);
-#endif /* MTK_MINI_PORTING */
 
 #if !defined(NO_HARDWARE)
 	/* Setup GPU utilisation stats update callback */
@@ -1313,37 +1322,16 @@ PVRSRV_ERROR RGXInitDevPart2(PVRSRV_DEVICE_NODE	*psDeviceNode,
 #if defined(PDUMP)
 #if defined(NO_HARDWARE)
 	/* Capture the HWPERF buffer as the last thing we do */
+	PDUMPIF(psDeviceNode, "ENABLE_HWPERF", ui32PDumpFlags);
 	PDUMPCOMMENTWITHFLAGS(psDeviceNode, ui32PDumpFlags, "** Dump HWPerf Buffer");
-
-	if (psDeviceNode->pfnCheckDeviceFeature)
-	{
-#if defined(RGX_FEATURE_MIPS_BIT_MASK)
-		if (PVRSRV_IS_FEATURE_SUPPORTED(psDeviceNode, MIPS))
-		{
-			/* MIPS does not create Page Cat for FW memory area, hwperf buffer
-			 * resides in this area. We can't use Virtual SAB since we can't activate
-			 * the MMU context with the MMU command without a PC
-			 */
-			PMRPDumpSaveToFileWFlags(psDevInfo->psRGXFWIfHWPerfBufMemDesc->psImport->hPMR,
-			                         0,
-			                         psDevInfo->ui32RGXFWIfHWPerfBufSize,
-			                         0,
-			                         "out.hwperf",
-			                         0,
-			                         ui32PDumpFlags);
-		}
-		else
-#endif
-		{
-			PDumpSaveToFileVirtualNoValidate(psDeviceNode,
-			                                 psDevInfo->psRGXFWIfHWPerfBufMemDesc,
-			                                 0,
-			                                 psDevInfo->ui32RGXFWIfHWPerfBufSize,
-			                                 "out.hwperf",
-			                                 0,
-			                                 ui32PDumpFlags);
-		}
-	}
+	PDumpSaveToFileVirtualNoValidate(psDeviceNode,
+	                                 psDevInfo->psRGXFWIfHWPerfBufMemDesc,
+	                                 0,
+	                                 psDevInfo->ui32RGXFWIfHWPerfBufSize,
+	                                 "out.hwperf",
+	                                 0,
+	                                 ui32PDumpFlags);
+	PDUMPFI(psDeviceNode, "ENABLE_HWPERF", ui32PDumpFlags);
 	PDUMPCOMMENTWITHFLAGS(psDeviceNode, PDUMP_FLAGS_DEINIT, "Wait for the FW to signal idle");
 
 	/* Kick the FW once, in case it still needs to detect and set the idle state */
@@ -1404,30 +1392,29 @@ PVRSRV_ERROR RGXInitDevPart2(PVRSRV_DEVICE_NODE	*psDeviceNode,
 #endif /* !defined(NO_HARDWARE) */
 
 #if defined(PDUMP)
-    if (PVRSRVSystemSnoopingOfCPUCache(psDevConfig))
-    {
-        PDUMPCOMMENTWITHFLAGS(psDeviceNode, PDUMP_FLAGS_CONTINUOUS,
-                              "System has CPU cache snooping");
-    }
-    else
-    {
-        PDUMPCOMMENTWITHFLAGS(psDeviceNode, PDUMP_FLAGS_CONTINUOUS,
-                              "System has NO cache snooping");
-    }
+	if (!(RGX_IS_FEATURE_SUPPORTED(psDevInfo, S7_CACHE_HIERARCHY)))
+	{
+		if (PVRSRVSystemSnoopingOfCPUCache(psDevConfig))
+		{
+			PDUMPCOMMENTWITHFLAGS(psDeviceNode, PDUMP_FLAGS_CONTINUOUS,
+				              "System has CPU cache snooping");
+		}
+		else
+		{
+			PDUMPCOMMENTWITHFLAGS(psDeviceNode, PDUMP_FLAGS_CONTINUOUS,
+			                      "System has NO cache snooping");
+		}
+	}
 #endif
 
-#if defined(RGX_FEATURE_COMPUTE_ONLY_BIT_MASK)
-	if (!RGX_IS_FEATURE_SUPPORTED(psDevInfo, COMPUTE_ONLY))
-#endif
-	{
-		eError = PVRSRVTQLoadShaders(psDeviceNode);
-		PVR_LOG_GOTO_IF_ERROR(eError, "PVRSRVTQLoadShaders", ErrorExit);
-	}
+	eError = PVRSRVTQLoadShaders(psDeviceNode);
+	PVR_LOG_GOTO_IF_ERROR(eError, "PVRSRVTQLoadShaders", ErrorExit);
 
 #if defined(SUPPORT_SECURE_ALLOC_KM)
 	eError = OSAllocateSecBuf(psDeviceNode, RGXFWIF_KM_GENERAL_HEAP_RESERVED_SIZE, "SharedSecMem", &psDevInfo->psGenHeapSecMem);
 	PVR_LOG_GOTO_IF_ERROR(eError, "OSAllocateSecBuf", ErrorExit);
 #endif
+
 
 	psDevInfo->bDevInit2Done = IMG_TRUE;
 
@@ -1495,19 +1482,11 @@ PVRSRV_ERROR RGXLoadAndGetFWData(PVRSRV_DEVICE_NODE *psDeviceNode,
 	eErr = OSLoadFirmware(psDeviceNode, pszLoadedFwStr, OS_FW_VERIFY_FUNCTION, ppsRGXFW);
 	if (eErr == PVRSRV_ERROR_NOT_FOUND)
 	{
-#if defined(MTK_MINI_PORTING)
-	pszLoadedFwStr = RGX_FW_FILENAME;
-#else
- 	pszLoadedFwStr = aszFWFilenameStr;
-#endif
+		pszLoadedFwStr = aszFWpFilenameStr;
 		eErr = OSLoadFirmware(psDeviceNode, pszLoadedFwStr, OS_FW_VERIFY_FUNCTION, ppsRGXFW);
 		if (eErr == PVRSRV_ERROR_NOT_FOUND)
 		{
-#if defined(MTK_MINI_PORTING)
 			pszLoadedFwStr = RGX_FW_FILENAME;
-#else
-			pszLoadedFwStr = aszFWFilenameStr;
-#endif
 			eErr = OSLoadFirmware(psDeviceNode, pszLoadedFwStr, OS_FW_VERIFY_FUNCTION, ppsRGXFW);
 			if (eErr == PVRSRV_ERROR_NOT_FOUND)
 			{
@@ -1528,7 +1507,19 @@ PVRSRV_ERROR RGXLoadAndGetFWData(PVRSRV_DEVICE_NODE *psDeviceNode,
 #if defined(PDUMP)
 PVRSRV_ERROR RGXInitHWPerfCounters(PVRSRV_DEVICE_NODE *psDeviceNode)
 {
-	return PVRSRV_OK;
+	RGXFWIF_KCCB_CMD sKccbCmd;
+	PVRSRV_ERROR eError;
+
+	PVRSRV_VZ_RET_IF_MODE(GUEST, DEVNODE, psDeviceNode, PVRSRV_ERROR_NOT_SUPPORTED);
+
+	/* Fill in the command structure with the parameters needed */
+	sKccbCmd.eCmdType = RGXFWIF_KCCB_CMD_HWPERF_CONFIG_ENABLE_BLKS_DIRECT;
+
+	eError = RGXSendCommandWithPowLock(psDeviceNode->pvDevice,
+	                                   &sKccbCmd,
+	                                   PDUMP_FLAGS_CONTINUOUS);
+
+	return eError;
 }
 #endif
 
@@ -1771,7 +1762,7 @@ void RGXDeInitDestroyFWKernelMemoryContext(PVRSRV_DEVICE_NODE *psDeviceNode)
 	if (psDevInfo->psKernelDevmemCtx)
 	{
 		eError = DevmemDestroyContext(psDevInfo->psKernelDevmemCtx);
-		PVR_ASSERT(eError == PVRSRV_OK);
+		PVR_LOG_IF_ERROR(eError, "DevmemDestroyContext");
 	}
 
 #if defined(RGX_PREMAP_FW_HEAPS)
@@ -1886,12 +1877,11 @@ PVRSRV_ERROR RGXAllocateFWMemoryRegion(PVRSRV_DEVICE_NODE *psDeviceNode,
 
 	PDUMPCOMMENT(psDeviceNode, "Allocate FW %s memory", pszText);
 
-	eError = DevmemFwAllocateExportable(psDeviceNode,
-										ui32Size,
-										1ULL << uiLog2Align,
-										uiMemAllocFlags,
-										pszText,
-										ppsMemDescPtr);
+	eError = DevmemFwAllocate(psDeviceNode->pvDevice,
+	                          ui32Size,
+	                          uiMemAllocFlags,
+	                          pszText,
+	                          ppsMemDescPtr);
 
 	return eError;
 }
@@ -1949,7 +1939,6 @@ static PVRSRV_ERROR RGXDevInitCompatCheck_KMBuildOptions_FWAgainstDriver(PVRSRV_
 	{
 		psFWInfoHeader = &psDevInfo->sFWInfoHeader;
 		ui32BuildOptionsFWKMPart = psFWInfoHeader->ui32Flags & RGX_BUILD_OPTIONS_MASK_FW;
-
 		if (PVRSRV_VZ_MODE_IS(HOST, DEVINFO, psDevInfo) && BITMASK_HAS(psFWInfoHeader->ui32Flags, OPTIONS_NUM_DRIVERS_SUPPORTED_CHECK_EN))
 		{
 			ui8FwOsCount = (psFWInfoHeader->ui32Flags & OPTIONS_NUM_DRIVERS_SUPPORTED_MASK) >> OPTIONS_NUM_DRIVERS_SUPPORTED_SHIFT;
@@ -2270,9 +2259,17 @@ static void _RGXSoftResetToggle(PVRSRV_RGXDEV_INFO *psDevInfo,
                                 IMG_UINT64  ui64ResetValue2)
 {
 	OSWriteHWReg64(psDevInfo->pvRegsBaseKM, RGX_CR_SOFT_RESET, ui64ResetValue1);
+	if (RGX_GET_FEATURE_VALUE(psDevInfo, POWER_ISLAND_VERSION) == 1)
+	{
+		OSWriteHWReg64(psDevInfo->pvRegsBaseKM, RGX_CR_SOFT_RESET_SPU, ui64ResetValue2);
+	}
 
 	/* Read soft-reset to fence previous write in order to clear the SOCIF pipeline */
 	(void) OSReadHWReg64(psDevInfo->pvRegsBaseKM, RGX_CR_SOFT_RESET);
+	if (RGX_GET_FEATURE_VALUE(psDevInfo, POWER_ISLAND_VERSION) == 1)
+	{
+		(void) OSReadHWReg64(psDevInfo->pvRegsBaseKM, RGX_CR_SOFT_RESET_SPU);
+	}
 }
 
 /**************************************************************************/ /*!
@@ -2283,7 +2280,7 @@ static void _RGXSoftResetToggle(PVRSRV_RGXDEV_INFO *psDevInfo,
                                 to a module to reset (via the SOFT_RESET
                                 register).
 @Input          ui64ResetValue2 A mask for which each bit set corresponds
-                                to a module to reset (via the SOFT_RESET2
+                                to a module to reset (via the SOFT_RESET_SPU
                                 register).
 @Return         PVRSRV_ERROR
 */ /***************************************************************************/
@@ -2311,6 +2308,19 @@ static PVRSRV_ERROR RGXSoftReset(PVRSRV_DEVICE_NODE *psDeviceNode,
 	{
 		ui64SoftResetMask = RGX_CR_SOFT_RESET_MASKFULL;
 	}
+
+#if defined(RGX_CR_SOFT_RESET2_MASKFULL)
+	if ((RGX_IS_FEATURE_SUPPORTED(psDevInfo, S7_TOP_INFRASTRUCTURE)) &&
+			((ui64ResetValue2 & RGX_CR_SOFT_RESET2_MASKFULL) != ui64ResetValue2))
+	{
+		bSoftReset = IMG_TRUE;
+	}
+#elif defined(RGX_CR_SOFT_RESET_SPU_MASKFULL)
+	if ((ui64ResetValue2 & RGX_CR_SOFT_RESET_SPU_MASKFULL) != ui64ResetValue2)
+	{
+		bSoftReset = IMG_TRUE;
+	}
+#endif
 
 	if (((ui64ResetValue1 & ui64SoftResetMask) != ui64ResetValue1) || bSoftReset)
 	{
@@ -2482,7 +2492,7 @@ PVRSRV_ERROR RGXInitAllocFWImgMem(PVRSRV_DEVICE_NODE   *psDeviceNode,
 	eError = RGXAllocateFWMemoryRegion(psDeviceNode,
 	                                   uiFWCodeLen,
 	                                   uiMemAllocFlags,
-	                                   "FwExCodeRegion",
+	                                   "FwCodeRegion",
 	                                   &psDevInfo->psRGXFWCodeMemDesc);
 
 	if (eError != PVRSRV_OK)
@@ -2552,7 +2562,7 @@ PVRSRV_ERROR RGXInitAllocFWImgMem(PVRSRV_DEVICE_NODE   *psDeviceNode,
 	                                   uiFWDataLen,
 	                                   RGX_FWCODEDATA_ALLOCFLAGS |
 	                                   PVRSRV_MEMALLOCFLAG_PHYS_HEAP_HINT(FW_PRIV_DATA),
-	                                   "FwExDataRegion",
+	                                   "FwDataRegion",
 	                                   &psDevInfo->psRGXFWDataMemDesc);
 
 	if (eError != PVRSRV_OK)
@@ -2584,7 +2594,7 @@ PVRSRV_ERROR RGXInitAllocFWImgMem(PVRSRV_DEVICE_NODE   *psDeviceNode,
 		eError = RGXAllocateFWMemoryRegion(psDeviceNode,
 		                                   uiFWCorememCodeLen,
 		                                   uiMemAllocFlags,
-		                                   "FwExCorememCodeRegion",
+		                                   "FwCorememCodeRegion",
 		                                   &psDevInfo->psRGXFWCorememCodeMemDesc);
 
 		if (eError != PVRSRV_OK)
@@ -2626,7 +2636,7 @@ PVRSRV_ERROR RGXInitAllocFWImgMem(PVRSRV_DEVICE_NODE   *psDeviceNode,
 		eError = RGXAllocateFWMemoryRegion(psDeviceNode,
 				uiFWCorememDataLen,
 				uiMemAllocFlags,
-				"FwExCorememDataRegion",
+				"FwCorememDataRegion",
 				&psDevInfo->psRGXFWIfCorememDataStoreMemDesc);
 
 		if (eError != PVRSRV_OK)
@@ -2996,15 +3006,11 @@ static void DevPart2DeInitRGX(PVRSRV_DEVICE_NODE *psDeviceNode)
 	}
 #endif
 
-#if defined(RGX_FEATURE_COMPUTE_ONLY_BIT_MASK)
-	if (!RGX_IS_FEATURE_SUPPORTED(psDevInfo, COMPUTE_ONLY))
-#endif
+
+	if ((psDevInfo->hTQUSCSharedMem != NULL) &&
+		(psDevInfo->hTQCLISharedMem != NULL))
 	{
-		if ((psDevInfo->hTQUSCSharedMem != NULL) &&
-		    (psDevInfo->hTQCLISharedMem != NULL))
-		{
-			PVRSRVTQUnloadShaders(psDeviceNode);
-		}
+		PVRSRVTQUnloadShaders(psDeviceNode);
 	}
 
 #if !defined(NO_HARDWARE)
@@ -3364,6 +3370,7 @@ struct RGX_HEAP_INFO_TAG
 	PFN_HEAP_DEINIT    pfnDeInit;
 	IMG_UINT32         ui32HeapInstanceFlags;
 };
+
 /* RGX_GENERAL_HEAP_RESERVED_TOTAL_BYTES is the total amount of reserved space, to be specified in gasRGXHeapLayoutApp[] */
 #define RGX_GENERAL_HEAP_RESERVED_TOTAL_BYTES	(RGX_HEAP_UM_GENERAL_RESERVED_SIZE + RGXFWIF_KM_GENERAL_HEAP_RESERVED_SIZE)
 
@@ -3568,44 +3575,6 @@ static IMG_BOOL BRN63142IsPresent(PVRSRV_RGXDEV_INFO *psDevInfo, const RGX_HEAP_
 }
 #endif
 
-static IMG_BOOL FBCDescriptorIsPresent(PVRSRV_RGXDEV_INFO *psDevInfo, const RGX_HEAP_INFO *pksHeapInfo)
-{
-	PVR_UNREFERENCED_PARAMETER(pksHeapInfo);
-
-	if (RGX_GET_FEATURE_VALUE(psDevInfo, FBC_MAX_DEFAULT_DESCRIPTORS))
-	{
-		return IMG_TRUE;
-	}
-
-	return IMG_FALSE;
-}
-
-static IMG_BOOL FBCLargeDescriptorIsPresent(PVRSRV_RGXDEV_INFO *psDevInfo, const RGX_HEAP_INFO *pksHeapInfo)
-{
-	PVR_UNREFERENCED_PARAMETER(pksHeapInfo);
-
-	if (RGX_GET_FEATURE_VALUE(psDevInfo, FBC_MAX_LARGE_DESCRIPTORS))
-	{
-		return IMG_TRUE;
-	}
-
-	return IMG_FALSE;
-}
-
-static IMG_BOOL TextureStateIsPresent(PVRSRV_RGXDEV_INFO *psDevInfo, const RGX_HEAP_INFO *pksHeapInfo)
-{
-	PVR_UNREFERENCED_PARAMETER(pksHeapInfo);
-#if defined(RGX_FEATURE_BINDLESS_IMAGE_AND_TEXTURE_STATE_BIT_MASK)
-	if (RGX_IS_FEATURE_SUPPORTED(psDevInfo, BINDLESS_IMAGE_AND_TEXTURE_STATE))
-	{
-		return IMG_TRUE;
-	}
-#else
-	PVR_UNREFERENCED_PARAMETER(psDevInfo);
-#endif
-	return IMG_FALSE;
-}
-
 /* FW Feature Present function prototypes */
 
 #if defined(FIX_HW_BRN_65101_BIT_MASK)
@@ -3650,43 +3619,52 @@ static IMG_BOOL FWVZConfigPresent(PVRSRV_RGXDEV_INFO* psDevInfo, const RGX_HEAP_
 	return (pksHeapInfo->ui64HeapBase == RGX_FIRMWARE_CONFIG_HEAP_BASE) ? IMG_TRUE : IMG_FALSE;
 }
 
-/* Blueprint array. note: not all heaps are available to clients*/
+static IMG_BOOL FWVZMainHeapPresent(PVRSRV_RGXDEV_INFO* psDevInfo, const RGX_HEAP_INFO* pksHeapInfo)
+{
+	/* Used to determine the correct table row to instantiate as a heap by checking
+	 * the Heap base at run time VS the current table instance
+	 */
+	return (pksHeapInfo->ui64HeapBase == RGX_FIRMWARE_MAIN_HEAP_BASE) ? IMG_TRUE : IMG_FALSE;
+}
+
+static IMG_BOOL BPHandlerHeapPresent(PVRSRV_RGXDEV_INFO* psDevInfo, const RGX_HEAP_INFO* pksHeapInfo)
+{
+	PVR_UNREFERENCED_PARAMETER(psDevInfo);
+	PVR_UNREFERENCED_PARAMETER(pksHeapInfo);
+
+#if defined(SUPPORT_USC_BREAKPOINT)
+	return IMG_TRUE;
+#else
+	return IMG_FALSE;
+#endif
+}
 
 static RGX_HEAP_INFO gasRGXHeapLayoutApp[] =
 {
-	/* Name                             HeapBase                                 HeapLength                               HeapReservedRegionLength                     Log2ImportAlignment pfnIsHeapPresent             pfnDynamicBaseSize pfnInit           pfnDeInit          HeapInstanceFlags   */
-	{RGX_GENERAL_SVM_HEAP_IDENT,        RGX_GENERAL_SVM_HEAP_BASE,               RGX_GENERAL_SVM_HEAP_SIZE,               0,                                           0,                  NULL,                        SVMHeapDynamic,    NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
-	{RGX_GENERAL_HEAP_IDENT,            RGX_GENERAL_HEAP_BASE,                   RGX_GENERAL_HEAP_SIZE,                   RGX_GENERAL_HEAP_RESERVED_TOTAL_BYTES,       0,                  BRN65273IsPresent,           NULL,              GeneralHeapInit,  GeneralHeapDeInit, HEAP_INST_DEFAULT_VALUE },
-	{RGX_GENERAL_HEAP_IDENT,            RGX_GENERAL_BRN_65273_HEAP_BASE,         RGX_GENERAL_BRN_65273_HEAP_SIZE,         RGX_GENERAL_HEAP_RESERVED_TOTAL_BYTES,       0,                  BRN65273IsPresent,           NULL,              NULL,             NULL,              HEAP_INST_BRN_ALT_VALUE },
-	{RGX_GENERAL_NON4K_HEAP_IDENT,      RGX_GENERAL_NON4K_HEAP_BASE,             RGX_GENERAL_NON4K_HEAP_SIZE,             0,                                           0,                  BRN65273IsPresent,           NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE | HEAP_INST_NON4K_FLAG },
-	{RGX_GENERAL_NON4K_HEAP_IDENT,      RGX_GENERAL_NON4K_BRN_65273_HEAP_BASE,   RGX_GENERAL_NON4K_BRN_65273_HEAP_SIZE,   0,                                           0,                  BRN65273IsPresent,           NULL,              NULL,             NULL,              HEAP_INST_BRN_ALT_VALUE | HEAP_INST_NON4K_FLAG },
-	{RGX_PDSCODEDATA_HEAP_IDENT,        RGX_PDSCODEDATA_HEAP_BASE,               RGX_PDSCODEDATA_HEAP_SIZE,               RGX_HEAP_PDS_RESERVED_TOTAL_SIZE,            0,                  BRN65273IsPresent,           NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
-	{RGX_PDSCODEDATA_HEAP_IDENT,        RGX_PDSCODEDATA_BRN_65273_HEAP_BASE,     RGX_PDSCODEDATA_BRN_65273_HEAP_SIZE,     RGX_HEAP_PDS_RESERVED_TOTAL_SIZE,            0,                  BRN65273IsPresent,           NULL,              NULL,             NULL,              HEAP_INST_BRN_ALT_VALUE },
-	{RGX_RGNHDR_BRN_63142_HEAP_IDENT,   RGX_RGNHDR_BRN_63142_HEAP_BASE,          RGX_RGNHDR_BRN_63142_HEAP_SIZE,          0,                                           0,                  BRN63142IsPresent,           NULL,              NULL,             NULL,              HEAP_INST_BRN_DEP_VALUE },
-	{RGX_USCCODE_HEAP_IDENT,            RGX_USCCODE_HEAP_BASE,                   RGX_USCCODE_HEAP_SIZE,                   RGX_HEAP_USC_RESERVED_TOTAL_SIZE,            0,                  BRN65273IsPresent,           NULL,              USCHeapInit,      HeapDeInit,        HEAP_INST_DEFAULT_VALUE },
-	{RGX_USCCODE_HEAP_IDENT,            RGX_USCCODE_BRN_65273_HEAP_BASE,         RGX_USCCODE_BRN_65273_HEAP_SIZE,         RGX_HEAP_USC_RESERVED_TOTAL_SIZE,            0,                  BRN65273IsPresent,           NULL,              USCHeapInit,      HeapDeInit,        HEAP_INST_BRN_ALT_VALUE },
-	{RGX_TQ3DPARAMETERS_HEAP_IDENT,     RGX_TQ3DPARAMETERS_HEAP_BASE,            RGX_TQ3DPARAMETERS_HEAP_SIZE,            0,                                           0,                  BRN65273IsPresent,           NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
-	{RGX_TQ3DPARAMETERS_HEAP_IDENT,     RGX_TQ3DPARAMETERS_BRN_65273_HEAP_BASE,  RGX_TQ3DPARAMETERS_BRN_65273_HEAP_SIZE,  0,                                           0,                  BRN65273IsPresent,           NULL,              NULL,             NULL,              HEAP_INST_BRN_ALT_VALUE },
-	{RGX_VK_CAPT_REPLAY_HEAP_IDENT,     RGX_VK_CAPT_REPLAY_HEAP_BASE,            RGX_VK_CAPT_REPLAY_HEAP_SIZE,            0,                                           0,                  NULL,                        NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
-	{RGX_FBCDC_HEAP_IDENT,              RGX_FBCDC_HEAP_BASE,                     RGX_FBCDC_HEAP_SIZE,                     0,                                           0,                  FBCDescriptorIsPresent,      NULL,              NULL,             NULL,              HEAP_INST_FEAT_DEP_VALUE},
-	{RGX_FBCDC_LARGE_HEAP_IDENT,        RGX_FBCDC_LARGE_HEAP_BASE,               RGX_FBCDC_LARGE_HEAP_SIZE,               0,                                           0,                  FBCLargeDescriptorIsPresent, NULL,              NULL,             NULL,              HEAP_INST_FEAT_DEP_VALUE},
-	{RGX_CMP_MISSION_RMW_HEAP_IDENT,    RGX_CMP_MISSION_RMW_HEAP_BASE,           RGX_CMP_MISSION_RMW_HEAP_SIZE,           0,                                           0,                  NULL,                        NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
-	{RGX_CMP_SAFETY_RMW_HEAP_IDENT,     RGX_CMP_SAFETY_RMW_HEAP_BASE,            RGX_CMP_SAFETY_RMW_HEAP_SIZE,            0,                                           0,                  NULL,                        NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
-	{RGX_TEXTURE_STATE_HEAP_IDENT,      RGX_TEXTURE_STATE_HEAP_BASE,             RGX_TEXTURE_STATE_HEAP_SIZE,             0,                                           0,                  TextureStateIsPresent,       NULL,              NULL,             NULL,              HEAP_INST_FEAT_DEP_VALUE},
-	{RGX_VISIBILITY_TEST_HEAP_IDENT,    RGX_VISIBILITY_TEST_HEAP_BASE,           RGX_VISIBILITY_TEST_HEAP_SIZE,           0,                                           0,                  BRN65273IsPresent,           NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
-	{RGX_VISIBILITY_TEST_HEAP_IDENT,    RGX_VISIBILITY_TEST_BRN_65273_HEAP_BASE, RGX_VISIBILITY_TEST_BRN_65273_HEAP_SIZE, 0,                                           0,                  BRN65273IsPresent,           NULL,              NULL,             NULL,              HEAP_INST_BRN_ALT_VALUE },
-	{RGX_MMU_INIA_BRN_65273_HEAP_IDENT, RGX_MMU_INIA_BRN_65273_HEAP_BASE,        RGX_MMU_INIA_BRN_65273_HEAP_SIZE,        0,                                           0,                  BRN65273IsPresent,           NULL,              NULL,             NULL,              HEAP_INST_BRN_DEP_VALUE },
-	{RGX_MMU_INIB_BRN_65273_HEAP_IDENT, RGX_MMU_INIB_BRN_65273_HEAP_BASE,        RGX_MMU_INIB_BRN_65273_HEAP_SIZE,        0,                                           0,                  BRN65273IsPresent,           NULL,              NULL,             NULL,              HEAP_INST_BRN_DEP_VALUE },
-	{RGX_PMMETA_PROTECT_HEAP_IDENT,     RGX_PMMETA_PROTECT_HEAP_BASE,            RGX_PMMETA_PROTECT_HEAP_SIZE,            0,                                           0,                  NULL,                        NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE }
+	/* Name                             HeapBase                                 HeapLength                               HeapReservedRegionLength                     Log2ImportAlignment pfnIsHeapPresent      pfnDynamicBaseSize pfnInit           pfnDeInit          HeapInstanceFlags   */
+	{RGX_GENERAL_SVM_HEAP_IDENT,        RGX_GENERAL_SVM_HEAP_BASE,               RGX_GENERAL_SVM_HEAP_SIZE,               0,                                           0,                  NULL,                 SVMHeapDynamic,    NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
+	{RGX_GENERAL_HEAP_IDENT,            RGX_GENERAL_HEAP_BASE,                   RGX_GENERAL_HEAP_SIZE,                   RGX_GENERAL_HEAP_RESERVED_TOTAL_BYTES,       0,                  NULL,                 NULL,              GeneralHeapInit,  GeneralHeapDeInit, HEAP_INST_DEFAULT_VALUE },
+	{RGX_GENERAL_NON4K_HEAP_IDENT,      RGX_GENERAL_NON4K_HEAP_BASE,             RGX_GENERAL_NON4K_HEAP_SIZE,             0,                                           0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE | HEAP_INST_NON4K_FLAG },
+	{RGX_PDSCODEDATA_HEAP_IDENT,        RGX_PDSCODEDATA_HEAP_BASE,               RGX_PDSCODEDATA_HEAP_SIZE,               RGX_HEAP_PDS_RESERVED_TOTAL_SIZE,            0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
+	{RGX_USCCODE_HEAP_IDENT,            RGX_USCCODE_HEAP_BASE,                   RGX_USCCODE_HEAP_SIZE,                   RGX_HEAP_USC_RESERVED_TOTAL_SIZE,            0,                  NULL,                 NULL,              USCHeapInit,      HeapDeInit,        HEAP_INST_DEFAULT_VALUE },
+	{RGX_USCCODE_BPH_HEAP_IDENT,        RGX_USCCODE_BPH_HEAP_BASE,               RGX_USCCODE_BPH_HEAP_SIZE,               0,                                           0,                  BPHandlerHeapPresent, NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
+	{RGX_VK_CAPT_REPLAY_HEAP_IDENT,     RGX_VK_CAPT_REPLAY_HEAP_BASE,            RGX_VK_CAPT_REPLAY_HEAP_SIZE,            0,                                           0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
+	{RGX_COMPONENT_CTRL_HEAP_IDENT,     RGX_COMPONENT_CTRL_HEAP_BASE,            RGX_COMPONENT_CTRL_HEAP_SIZE,            0,                                           0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
+	{RGX_FBCDC_HEAP_IDENT,              RGX_FBCDC_HEAP_BASE,                     RGX_FBCDC_HEAP_SIZE,                     0,                                           0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
+	{RGX_FBCDC_LARGE_HEAP_IDENT,        RGX_FBCDC_LARGE_HEAP_BASE,               RGX_FBCDC_LARGE_HEAP_SIZE,               0,                                           0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
+	{RGX_PDS_INDIRECT_STATE_HEAP_IDENT, RGX_PDS_INDIRECT_STATE_HEAP_BASE,        RGX_PDS_INDIRECT_STATE_HEAP_SIZE,        0,                                           0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
+	{RGX_CMP_MISSION_RMW_HEAP_IDENT,    RGX_CMP_MISSION_RMW_HEAP_BASE,           RGX_CMP_MISSION_RMW_HEAP_SIZE,           0,                                           0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
+	{RGX_CMP_SAFETY_RMW_HEAP_IDENT,     RGX_CMP_SAFETY_RMW_HEAP_BASE,            RGX_CMP_SAFETY_RMW_HEAP_SIZE,            0,                                           0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
+	{RGX_TEXTURE_STATE_HEAP_IDENT,      RGX_TEXTURE_STATE_HEAP_BASE,             RGX_TEXTURE_STATE_HEAP_SIZE,             RGX_HEAP_TEX_STATE_RESERVED_TOTAL_SIZE,      0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
+	{RGX_VISIBILITY_TEST_HEAP_IDENT,    RGX_VISIBILITY_TEST_HEAP_BASE,           RGX_VISIBILITY_TEST_HEAP_SIZE,           0,                                           0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
+	{RGX_PMMETA_PROTECT_HEAP_IDENT,     RGX_PMMETA_PROTECT_HEAP_BASE,            RGX_PMMETA_PROTECT_HEAP_SIZE,            0,                                           0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE }
 };
 
 static RGX_HEAP_INFO gasRGXHeapLayoutFW[] =
 {
 	/* Name                          HeapBase                        HeapLength                                      HeapReservedRegionLength Log2ImportAlignment pfnIsHeapPresent     pfnDynamicBaseSize pfnInit pfnDeInit HeapInstanceFlags*/
-	{RGX_FIRMWARE_MAIN_HEAP_IDENT,   RGX_FIRMWARE_MAIN_HEAP_BASE,    RGX_FIRMWARE_DEFAULT_MAIN_HEAP_SIZE,            0,                       0,                  FWBRN65101IsPresent, NULL,              NULL,   NULL,      HEAP_INST_DEFAULT_VALUE},
-	{RGX_FIRMWARE_MAIN_HEAP_IDENT,   RGX_FIRMWARE_MAIN_HEAP_BASE,    RGX_FIRMWARE_HOST_MIPS_MAIN_HEAP_SIZE_NORMAL,   0,                       0,                  FWBRN65101IsPresent, NULL,              NULL,   NULL,      HEAP_INST_DEFAULT_VALUE},
-	{RGX_FIRMWARE_MAIN_HEAP_IDENT,   RGX_FIRMWARE_MAIN_HEAP_BASE,    RGX_FIRMWARE_HOST_MIPS_MAIN_HEAP_SIZE_BRN65101, 0,                       0,                  FWBRN65101IsPresent, NULL,              NULL,   NULL,      HEAP_INST_BRN_ALT_VALUE},
-	{RGX_FIRMWARE_CONFIG_HEAP_IDENT, RGX_FIRMWARE_CONFIG_HEAP_BASE,  RGX_FIRMWARE_CONFIG_HEAP_SIZE,                  0,                       0,                  FWVZConfigPresent,   NULL,              NULL,   NULL,      HEAP_INST_DEFAULT_VALUE},
+	{RGX_FIRMWARE_MAIN_HEAP_IDENT,   RGX_FIRMWARE_MAIN_HEAP_BASE,    RGX_FIRMWARE_DEFAULT_MAIN_HEAP_SIZE,            0,                       0,                  FWVZMainHeapPresent, NULL,              NULL,   NULL,     HEAP_INST_DEFAULT_VALUE},
+	{RGX_FIRMWARE_CONFIG_HEAP_IDENT, RGX_FIRMWARE_CONFIG_HEAP_BASE,  RGX_FIRMWARE_CONFIG_HEAP_SIZE,                  0,                       0,                  FWVZConfigPresent,   NULL,              NULL,   NULL,     HEAP_INST_DEFAULT_VALUE},
 };
 
 static INLINE IMG_BOOL IsFwHeapLayout(const RGX_HEAP_INFO *psHeapInfo)
@@ -3700,8 +3678,9 @@ static INLINE void CheckHeapAlignment(const RGX_HEAP_INFO *psHeapInfo,
 {
 	IMG_UINT64 uiAlignment = RGX_HEAP_BASE_SIZE_ALIGN - 1;
 
-	if (IsFwHeapLayout(psHeapInfo) ||
-	    RGX_IS_BRN_SUPPORTED(psDevInfo, 65273))
+	PVR_UNREFERENCED_PARAMETER(psDevInfo);
+
+	if (IsFwHeapLayout(psHeapInfo))
 	{
 		/*
 		 * 1) Main heap starts at 2MB offset 0xEC10000000UL
@@ -3981,8 +3960,6 @@ static PVRSRV_ERROR RGXInitHeaps(PVRSRV_RGXDEV_INFO *psDevInfo,
 	if (RGX_GET_FEATURE_VALUE(psDevInfo, MMU_VERSION) >= 4)
 	{
 		IMG_UINT32 i;
-		const IMG_UINT32 ui32GeneralNon4KHeapPageSize = (1 << psDevInfo->psDeviceNode->ui32Non4KPageSizeLog2);
-		const IMG_UINT32 ui32RgxDefaultPageSize = (1 << RGXHeapDerivePageSize(OSGetPageShift()));
 
 		/*
 		 * Initialise all MMU Page Size Range Config register to the default page size
@@ -3990,28 +3967,7 @@ static PVRSRV_ERROR RGXInitHeaps(PVRSRV_RGXDEV_INFO *psDevInfo,
 		 */
 		for (i = 0; i < ARRAY_SIZE(psDevInfo->aui64MMUPageSizeRangeValue); ++i)
 		{
-			psDevInfo->aui64MMUPageSizeRangeValue[i] =
-					RGXMMUInit_GetConfigRangeValue(ui32RgxDefaultPageSize,
-												   0,
-												   (1 << RGX_CR_MMU_PAGE_SIZE_RANGE_ONE_END_ADDR_ALIGNSHIFT));
-		}
-
-
-		/* set the last MMU config range covering the entire virtual memory to the OS's page size */
-		psDevInfo->aui64MMUPageSizeRangeValue[RGX_MAX_NUM_MMU_PAGE_SIZE_RANGES - 1] =
-				RGXMMUInit_GetConfigRangeValue(ui32RgxDefaultPageSize, 0, (1ULL << 40));
-
-		/*
-		 * If the Non4K heap has a different page size than the OS's page size
-		 * (used as default for all other heaps), configure one MMU config range
-		 * for the Non4K heap
-		 */
-		if (ui32GeneralNon4KHeapPageSize != ui32RgxDefaultPageSize)
-		{
-			psDevInfo->aui64MMUPageSizeRangeValue[0] =
-					RGXMMUInit_GetConfigRangeValue(ui32GeneralNon4KHeapPageSize,
-												   RGX_GENERAL_NON4K_HEAP_BASE,
-												   RGX_GENERAL_NON4K_HEAP_SIZE);
+			psDevInfo->aui64MMUPageSizeRangeValue[i] = RGXMMUInitRangeValue(i);
 		}
 	}
 #endif
@@ -4311,8 +4267,10 @@ static PVRSRV_ERROR RGXInitPrivateFwPhysHeaps(PVRSRV_DEVICE_NODE *psDeviceNode)
 			ui64FwPrivateHeapSize = ui64FwCodeHeapSize;
 		}
 
-		PVR_LOG_GOTO_IF_FALSE((ui64FwSharedHeapSize + ui64FwPrivateHeapSize) == RGX_FIRMWARE_RAW_HEAP_SIZE,
-		                      "Invalid firmware physical heap size.", FailDeinit);
+				PVR_LOG_GOTO_IF_FALSE((ui64FwSharedHeapSize +
+									   ui64FwPrivateHeapSize) ==
+									   RGX_FIRMWARE_RAW_HEAP_SIZE,
+									   "Invalid firmware physical heap size.", FailDeinit);
 	}
 #endif
 
@@ -4443,7 +4401,6 @@ static PVRSRV_ERROR RGXDeviceFWMainHeapMemCheck(PVRSRV_DEVICE_NODE *psDeviceNode
 
 PVRSRV_ERROR RGXGetNon4KHeapPageShift(const void *hPrivate, IMG_UINT32 *pui32Log2Non4KPgShift)
 {
-	IMG_UINT32 ui32GeneralNon4KHeapPageSize;
 	IMG_UINT32 uiLog2OSPageShift = OSGetPageShift();
 
 	/* We support Non4K pages only on platforms with 4KB pages. On all platforms
@@ -4456,26 +4413,34 @@ PVRSRV_ERROR RGXGetNon4KHeapPageShift(const void *hPrivate, IMG_UINT32 *pui32Log
 	}
 	else
 	{
-		void *pvAppHintState = NULL;
 		IMG_UINT32 ui32AppHintDefault = PVRSRV_APPHINT_GENERALNON4KHEAPPAGESIZE;
+		IMG_UINT32 ui32GeneralNon4KHeapPageSize;
+		IMG_UINT32 ui32GeneralNon4KValidHeapPageSize;
 		IMG_UINT32 ui32Log2Non4KPgShift;
 
+#if defined(SUPPORT_TRUSTED_DEVICE)
+		/* The TEE-DDK is not aware of REE-DDK apphints. Stick to default */
+		ui32GeneralNon4KHeapPageSize = ui32AppHintDefault;
+#else
+		void *pvAppHintState = NULL;
 		/* Get the page size for the dummy page from the NON4K heap apphint */
 		OSCreateAppHintState(&pvAppHintState);
 		OSGetAppHintUINT32(APPHINT_NO_DEVICE, pvAppHintState,
-		                   GeneralNon4KHeapPageSize, &ui32AppHintDefault,
-		                   &ui32GeneralNon4KHeapPageSize);
+		                     GeneralNon4KHeapPageSize, &ui32AppHintDefault,
+		                     &ui32GeneralNon4KHeapPageSize);
 		OSFreeAppHintState(pvAppHintState);
-
-		/* Validate the specified parameter to be one of the supported values */
+#endif
+		/* Validate that the given ui32GeneralNon4KHeapPageSize is one of the
+		 * supported range of values.
+		 */
 		ui32Log2Non4KPgShift = RGXHeapDerivePageSize(ExactLog2(ui32GeneralNon4KHeapPageSize));
-		if (ui32AppHintDefault != ui32GeneralNon4KHeapPageSize)
+		ui32GeneralNon4KValidHeapPageSize = (1U << ui32Log2Non4KPgShift);
+		if (ui32GeneralNon4KValidHeapPageSize != ui32GeneralNon4KHeapPageSize)
 		{
-			PVR_DPF((PVR_DBG_ERROR,
-			         "%s: Invalid Non4K Page-size, default=%u, requested=%u,"
-			         " actual=%u, pageshift 0x%x",
-			         __func__, ui32AppHintDefault, ui32GeneralNon4KHeapPageSize,
-			         (1U << ui32Log2Non4KPgShift), ui32Log2Non4KPgShift));
+			PVR_DPF((PVR_DBG_ERROR, "%s: Invalid Non4K Heap Size: Requested"
+			         " Heap size=%u, actual=%u, pageshift 0x%x",
+			         __func__, ui32GeneralNon4KHeapPageSize,
+			         ui32GeneralNon4KValidHeapPageSize, ui32Log2Non4KPgShift));
 		}
 
 		if (ui32Log2Non4KPgShift == 0U)
@@ -4485,6 +4450,7 @@ PVRSRV_ERROR RGXGetNon4KHeapPageShift(const void *hPrivate, IMG_UINT32 *pui32Log
 
 		*pui32Log2Non4KPgShift = ui32Log2Non4KPgShift;
 	}
+
 
 #if defined(FIX_HW_BRN_71317_BIT_MASK)
 	if (RGX_DEVICE_HAS_BRN(hPrivate, 71317))
@@ -4545,15 +4511,14 @@ PVRSRV_ERROR RGXRegisterDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 	psDeviceNode->sDevId.pszPDumpRegName	= RGX_PDUMPREG_NAME;
 	psDeviceNode->sDevId.pszPDumpDevName	= PhysHeapPDumpMemspaceName(psDeviceNode->apsPhysHeap[PVRSRV_PHYS_HEAP_GPU_LOCAL]);
 	psDeviceNode->pfnPDumpInitDevice = &RGXResetPDump;
+	psDeviceNode->ui64FBCClearColour = RGX_FBC_CC_DEFAULT;
+
 #endif /* PDUMP */
 
 	OSAtomicWrite(&psDeviceNode->eHealthStatus, PVRSRV_DEVICE_HEALTH_STATUS_OK);
 	OSAtomicWrite(&psDeviceNode->eHealthReason, PVRSRV_DEVICE_HEALTH_REASON_NONE);
 
-	/* Configure MMU specific stuff */
-	RGXMMUInit_Register(psDeviceNode);
-
-	psDeviceNode->pfnInvalFBSCTable = NULL;
+	psDeviceNode->pfnInvalFBSCTable = RGXInvalidateFBSCTable;
 
 	psDeviceNode->pfnValidateOrTweakPhysAddrs = NULL;
 
@@ -4562,7 +4527,7 @@ PVRSRV_ERROR RGXRegisterDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 	psDeviceNode->pfnGetDeviceSnoopMode = RGXDevSnoopMode;
 	psDeviceNode->pfnMMUCacheInvalidate = RGXMMUCacheInvalidate;
 	psDeviceNode->pfnMMUCacheInvalidateKick = RGXMMUCacheInvalidateKick;
-	psDeviceNode->pfnMMUCacheInvalidateKickAndWait = RGXMMUCacheInvalidateKickAndWait;
+	psDeviceNode->pfnMMUCacheInvalidateKickAndWait = NULL;
 #if defined(RGX_BRN71422_TARGET_HARDWARE_PHYSICAL_ADDR)
 	psDeviceNode->pfnMMUTopLevelPxWorkarounds = RGXMapBRN71422TargetPhysicalAddress;
 #else
@@ -4601,6 +4566,7 @@ PVRSRV_ERROR RGXRegisterDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 	/* Register callback for soft resetting some device modules */
 	psDeviceNode->pfnSoftReset = RGXSoftReset;
 
+
 	/* Register callback for resetting the HWR logs */
 	psDeviceNode->pfnResetHWRLogs = RGXResetHWRLogs;
 
@@ -4626,9 +4592,6 @@ PVRSRV_ERROR RGXRegisterDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 
 	/* Register callback for checking a device's FW Main physical heap for sufficient free memory */
 	psDeviceNode->pfnCheckForSufficientFWPhysMem = RGXDeviceFWMainHeapMemCheck;
-
-	/* Register callback for determining the appropriate LMA allocation policy for a phys heap */
-	psDeviceNode->pfnPhysHeapGetLMAPolicy = RGXPhysHeapGetLMAPolicy;
 
 	/*********************
 	 * Device info setup *
@@ -4708,7 +4671,6 @@ PVRSRV_ERROR RGXRegisterDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 
 	dllist_init(&(psDevInfo->sRenderCtxtListHead));
 	dllist_init(&(psDevInfo->sComputeCtxtListHead));
-	dllist_init(&(psDevInfo->sTransferCtxtListHead));
 	dllist_init(&(psDevInfo->sTDMCtxtListHead));
 	dllist_init(&(psDevInfo->sKickSyncCtxtListHead));
 
@@ -4769,7 +4731,7 @@ PVRSRV_ERROR RGXRegisterDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 	eError = OSSpinLockCreate(&psDevInfo->sDVFSGpuUtilStats.hSpinlock);
 	if (eError != PVRSRV_OK)
 	{
-		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to create DVFS GPU stats lock", __func__));
+		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to create PDVFS GPU stats lock", __func__));
 		goto e14;
 	}
 #endif
@@ -4830,7 +4792,10 @@ PVRSRV_ERROR RGXRegisterDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 	 * check on the features until we have reached here as the BVNC is
 	 * not setup before now.
 	 */
-#if !defined(NO_HARDWARE)
+#if defined(NO_HARDWARE) || (defined(SUPPORT_TRUSTED_DEVICE) && !defined(SUPPORT_SECURITY_VALIDATION))
+	/* secure register bank not accessible or unused */
+	psDevInfo->pvSecureRegsBaseKM = 0;
+#else
 	if (RGX_IS_FEATURE_VALUE_SUPPORTED(psDevInfo, HOST_SECURITY_VERSION) &&
 		(RGX_GET_FEATURE_VALUE(psDevInfo, HOST_SECURITY_VERSION) > 1))
 	{
@@ -4861,7 +4826,7 @@ PVRSRV_ERROR RGXRegisterDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 	{
 		psDevInfo->pvSecureRegsBaseKM = psDevInfo->pvRegsBaseKM;
 	}
-#endif /* !NO_HARDWARE */
+#endif /* defined(NO_HARDWARE) || defined(SUPPORT_TRUSTED_DEVICE) */
 #endif /* defined(RGX_FEATURE_HOST_SECURITY_VERSION_MAX_VALUE_IDX) */
 
 #if defined(RGX_FEATURE_MIPS_BIT_MASK)
@@ -4870,8 +4835,11 @@ PVRSRV_ERROR RGXRegisterDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 #endif
 
 	eError = RGXGetNon4KHeapPageShift(&psDevInfo->sLayerParams,
-	                                &psDeviceNode->ui32Non4KPageSizeLog2);
+									 &psDeviceNode->ui32Non4KPageSizeLog2);
 	PVR_LOG_GOTO_IF_ERROR(eError, "RGXGetNon4KHeapPageSize", e17);
+
+	/* Configure MMU specific stuff */
+	RGXMMUInit_Register(psDeviceNode);
 
 	eError = RGXInitHeaps(psDevInfo, psDevMemoryInfo);
 	if (eError != PVRSRV_OK)
@@ -4897,12 +4865,6 @@ PVRSRV_ERROR RGXRegisterDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 		psDeviceNode->pfnFwMMUInit = RGXMipsMMUInit_Register;
 	}
 #endif
-
-	if (NULL != psDeviceNode->psDevConfig->pfnSysDevFeatureDepInit)
-	{
-		psDeviceNode->psDevConfig->pfnSysDevFeatureDepInit(psDeviceNode->psDevConfig,
-				psDevInfo->sDevFeatureCfg.paui64Features[RGX_FEATURE_AXI_ACELITE_ARRAY_INDEX]);
-	}
 
 	/* Initialise the device dependent bridges */
 	eError = RGXRegisterBridges(psDevInfo);

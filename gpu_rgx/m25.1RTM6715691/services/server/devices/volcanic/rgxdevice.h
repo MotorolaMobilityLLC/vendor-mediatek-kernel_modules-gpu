@@ -795,9 +795,12 @@ typedef struct _PVRSRV_RGXDEV_INFO_
 	/* Pointer to function that checks if the physical GPU IRQ
 	 * line has been asserted and clears it if so */
 	IMG_BOOL (*pfnRGXAckIrq) (struct _PVRSRV_RGXDEV_INFO_ *psDevInfo);
-
+#if defined(MTK_MINI_PORTING)
+	spinlock_t				sGPUUtilLock;
+#else
 	POS_LOCK				hGPUUtilLock; /*!< Lock serialising access to the aaui32DmActiveTimeTicks
 											array from SysData in shared device memory */
+#endif /* MTK_MINI_PORTING */
 
 	/* Register configuration */
 	RGX_REG_CONFIG			sRegConfig;

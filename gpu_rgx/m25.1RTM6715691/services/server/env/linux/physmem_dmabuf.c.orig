@@ -43,9 +43,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
 
 #include <linux/version.h>
-#if defined(MTK_FULL_PORTING)
-#include <linux/printk.h>
-#endif
 
 #include "physmem_dmabuf.h"
 #include "physmem_dmabuf_internal.h"
@@ -1253,13 +1250,7 @@ static void PMRFinalizeDmaBuf(PMR_IMPL_PRIVDATA pvPriv)
 #endif
 
 	psPrivData->ui32PhysPageCount = 0;
-	
-	/* MTK: since ion will not fill sg table for secbuf */
-	/* check if psSgTable is null, then skip unmapping */
-#if defined(MTK_MINI_PORTING)
-	if (!psSgTable)
-		goto exit;
-#endif
+
 	_pvr_dma_buf_unmap_attachment(psAttachment, psSgTable, DMA_BIDIRECTIONAL);
 
 	if (psPrivData->bPoisonOnFree)
@@ -1270,9 +1261,7 @@ static void PMRFinalizeDmaBuf(PMR_IMPL_PRIVDATA pvPriv)
 
 		PVR_ASSERT(err != 0);
 	}
-#if defined(MTK_MINI_PORTING)
-exit:
-#endif
+
 	if (psPrivData->pfnDestroy)
 	{
 		psPrivData->pfnDestroy(psPrivData->psPhysHeap, psPrivData->psAttachment);
@@ -1615,132 +1604,6 @@ PhysmemCreateNewDmaBufBackedPMR(PHYS_HEAP *psHeap,
 	{
 		ui32PageCount += PAGE_ALIGN(pvr_sg_length(sg)) / PAGE_SIZE;
 	}
-#if defined(MTK_MINI_PORTING)
-	/* MTK: since ion will not fill sg table for secbuf */
-	/* check if the page number is 0, then skip mapping.*/
-	if (ui32PageCount != 0)
-	{
-		if (WARN_ON(!ui32PageCount))
-		{
-			PVR_DPF((PVR_DBG_ERROR, "%s: Number of phys. pages must not be zero",
-					__func__));
-			eError = PVRSRV_ERROR_INVALID_PARAMS;
-			goto errUnmap;
-		}
-
-		/* Obtain actual page count of dma buf */
-		ui32ActualDmaBufPageCount = psAttachment->dmabuf->size / PAGE_SIZE;
-
-		if (WARN_ON(ui32ActualDmaBufPageCount < ui32NumPhysChunks * uiPagesPerChunk))
-		{
-			PVR_DPF((PVR_DBG_ERROR, "%s: Requested physical chunks greater than "
-						"number of physical dma buf pages",
-	       					__func__));
-			eError = PVRSRV_ERROR_INVALID_PARAMS;
-			goto errUnmap;
-		}
-
-		psPrivData->ui32PhysPageCount = ui32ActualDmaBufPageCount;
-		psPrivData->psSgTable = table;
-		ui32PageCount = 0;
-		sg = table->sgl;
-		uiSglOffset = 0;
-
-
-		/* Fill physical address array */
-		for (i = 0; i < ui32NumPhysChunks; i++)
-		{
-			for (j = 0; j < uiPagesPerChunk; j++)
-			{
-				IMG_UINT32 uiIdx = pui32MappingTable[i] * uiPagesPerChunk + j;
-
-				psPrivData->pasDevPhysAddr[uiIdx].uiAddr =
-						sg_dma_address(sg) + uiSglOffset;
-
-				/* Get the next offset for the current sgl or the next sgl */
-				uiSglOffset += PAGE_SIZE;
-				if (uiSglOffset >= pvr_sg_length(sg))
-				{
-					sg = sg_next(sg);
-					uiSglOffset = 0;
-
-					/* Check that we haven't looped */
-					if (WARN_ON(sg == table->sgl))
-					{
-						PVR_DPF((PVR_DBG_ERROR, "%s: Failed to fill phys. address "
-								"array",
-								__func__));
-						eError = PVRSRV_ERROR_INVALID_PARAMS;
-						goto errUnmap;
-					}
-				}
-			}
-		}
-
-#if defined(PVRSRV_ENABLE_PROCESS_STATS)
-	PVRSRVStatsIncrMemAllocStat(PVRSRV_MEM_ALLOC_TYPE_DMA_BUF_IMPORT,
-	                            psPrivData->ui32PhysPageCount << PAGE_SHIFT,
-	                            OSGetCurrentClientProcessIDKM());
-#endif
-
-		uiPMRFlags = (PMR_FLAGS_T)(uiFlags & PVRSRV_MEMALLOCFLAGS_PMRFLAGSMASK);
-
-		/*
-		* Check no significant bits were lost in cast due to different
-		* bit widths for flags
-		*/
-		PVR_ASSERT(uiPMRFlags == (uiFlags & PVRSRV_MEMALLOCFLAGS_PMRFLAGSMASK));
-
-		if (OSSNPrintf((IMG_CHAR *)pszAnnotation, DEVMEM_ANNOTATION_MAX_LEN, "ImpDmaBuf:%s", (IMG_CHAR *)pszName) < 0)
-		{
-			pszAnnotation[0] = '\0';
-		}
-		else
-		{
-			pszAnnotation[DEVMEM_ANNOTATION_MAX_LEN-1] = '\0';
-		}
-
-		eError = PMRCreatePMR(psHeap,
-				      ui32NumVirtChunks * uiChunkSize,
-				      ui32NumPhysChunks,
-				      ui32NumVirtChunks,
-				      pui32MappingTable,
-				      PAGE_SHIFT,
-				      uiPMRFlags,
-				      pszAnnotation,
-				      &_sPMRDmaBufFuncTab,
-				      psPrivData,
-				      PMR_TYPE_DMABUF,
-				      ppsPMRPtr,
-				      PDUMP_NONE);
-	}
-	else
-	{
-		uiPMRFlags = 0;
-		eError = PMRCreatePMR(psHeap,
-				      psDmaBuf->size,
-				      1,
-				      1,
-				      pui32MappingTable,
-				      PAGE_SHIFT,
-				      uiPMRFlags,
-				      "IMPORTED_DMABUF",
-				      &_sPMRDmaBufFuncTab,
-				      psPrivData,
-				      PMR_TYPE_DMABUF,
-				      ppsPMRPtr,
-				      PDUMP_NONE);
-
-	}
-#else /* MTK_MINI_PORTING */
-	/*
-	 * We do a two pass process: first work out how many pages there
-	 * are and second, fill in the data.
-	 */
-	for_each_sg(table->sgl, sg, table->nents, i)
-	{
-		ui32PageCount += PAGE_ALIGN(pvr_sg_length(sg)) / PAGE_SIZE;
-	}
 
 	if (WARN_ON(!ui32PageCount))
 	{
@@ -1835,8 +1698,6 @@ PhysmemCreateNewDmaBufBackedPMR(PHYS_HEAP *psHeap,
 			      PMR_TYPE_DMABUF,
 			      ppsPMRPtr,
 			      PDUMP_NONE);
-#endif /* MTK_MINI_PORTING */
-
 	if (eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to create PMR (%s)",

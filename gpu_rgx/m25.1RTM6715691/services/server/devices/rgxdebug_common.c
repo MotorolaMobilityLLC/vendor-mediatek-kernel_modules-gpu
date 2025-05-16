@@ -67,6 +67,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #if defined(SUPPORT_SOC_TIMER)
 #include "rgxtimecorr.h"
 #endif
+#if defined(MTK_FULL_PORTING)
+#include "mtk_version.h"
+#endif
 
 #define MAX_FW_DESCRIPTION_LENGTH	(600U)
 
@@ -2828,6 +2831,9 @@ void RGXDebugRequestProcess(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 
 	PVR_DUMPDEBUG_LOG("------[ RGX Info ]------");
 	PVR_DUMPDEBUG_LOG("Device Node (Info): "IMG_KM_PTR_FMTSPEC" ("IMG_KM_PTR_FMTSPEC")", psDevInfo->psDeviceNode, psDevInfo);
+#if defined(MTK_FULL_PORTING)
+	PVR_DUMPDEBUG_LOG("MTK Version String: %s", MTK_DEBUG_VERSION_STR);
+#endif /* MTK_FULL_PORTING */
 	DevicememHistoryDumpRecordStats(psDevInfo->psDeviceNode, pfnDumpDebugPrintf, pvDumpDebugFile);
 	PVR_DUMPDEBUG_LOG("RGX BVNC: %d.%d.%d.%d (%s)", psDevInfo->sDevFeatureCfg.ui32B,
 											   psDevInfo->sDevFeatureCfg.ui32V,

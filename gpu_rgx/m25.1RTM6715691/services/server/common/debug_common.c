@@ -66,6 +66,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "rgxmmudefs_km.h"
 #endif
 
+#if defined(MTK_MINI_PORTING)
+#include "mtk_version.h"
+#endif
+
 static DI_ENTRY *gpsVersionDIEntry;
 static DI_ENTRY *gpsStatusDIEntry;
 
@@ -236,6 +240,9 @@ static int _VersionDIShow(OSDI_IMPL_ENTRY *psEntry, void *pvPriv)
 			DIPrintf(psEntry, "Driver Version: %s (%s) (%s) build options: "
 			         "0x%08lx %s\n", PVRVERSION_STRING, PVR_ARCH_NAME,
 			         PVR_BUILD_TYPE, RGX_BUILD_OPTIONS_KM, PVR_BUILD_DIR);
+#if defined(MTK_MINI_PORTING)
+			DIPrintf(psEntry, "MTK Version String: %s\n", MTK_DEBUG_VERSION_STR);
+#endif
 		}
 	}
 	else if (pvPriv != NULL)

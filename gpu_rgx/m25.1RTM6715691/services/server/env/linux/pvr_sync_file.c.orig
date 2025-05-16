@@ -777,10 +777,9 @@ pvr_sync_fence_get_checkpoints(PVRSRV_FENCE fence_to_pdump, u32 *nr_checkpoints,
 
 	if (dma_fence_is_array(fence)) {
 		struct dma_fence_array *array = to_dma_fence_array(fence);
-		if (array) {
+
 		fences = array->fences;
 		num_fences = array->num_fences;
-		}
 	} else {
 		fences = &fence;
 		num_fences = 1;
