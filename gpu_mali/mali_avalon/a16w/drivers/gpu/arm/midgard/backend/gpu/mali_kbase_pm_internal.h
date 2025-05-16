@@ -876,10 +876,6 @@ static inline bool kbase_pm_fw_sleep_on_idle_allowed(struct kbase_device *kbdev)
 		return false;
 #endif
 
-#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
-	if (unlikely((int) ged_get_apo_autosuspend_delay_ms() == 0))
-		return false;
-#endif
 
 	return kbdev->pm.backend.gpu_sleep_allowed == KBASE_GPU_FW_SLEEP_ON_IDLE_ALLOWED;
 }
