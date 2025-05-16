@@ -5463,7 +5463,30 @@ static struct kbase_queue_group *get_tock_top_group(struct kbase_csf_scheduler *
 static int prepare_all_csg_suspension(struct kbase_device *kbdev)
 {
 	int ret = 0;
+	u32 i;
 
+	/* Wait for all pending slot state transitions to complete */
+	for (i = 0; i != kbdev->csf.global_iface.group_num; ++i) {
+		if (atomic_read(&kbdev->csf.scheduler.csg_slots[i].state) == CSG_SLOT_READY2RUN) {
+			const unsigned int fw_timeout_ms =
+				kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_TIMEOUT);
+			long remaining = kbase_csf_timeout_in_jiffies(fw_timeout_ms);
+
+			dev_dbg(kbdev->dev, "slot %d wait for up-running\n", i);
+			remaining = kbase_csf_fw_io_wait_event_timeout(&kbdev->csf.fw_io,
+								       kbdev->csf.event_wait,
+								       csg_slot_running(kbdev, i),
+								       remaining);
+			if (!remaining)
+				dev_warn(kbdev->dev,
+					 "[%llu] slot %d timeout (%d ms) on up-running\n",
+					 kbase_backend_get_cycle_cnt(kbdev), i, fw_timeout_ms);
+			else if (remaining == -KBASE_CSF_FW_IO_WAIT_GPU_LOST) {
+				/* Skip this idle in case of GPU_LOST */
+				return -ENODEV;
+			}
+		}
+	}
 
 	return ret;
 }
@@ -6644,6 +6667,7 @@ bool kbase_csf_scheduler_check_gls_success(struct kbase_device *kbdev)
 		struct kbase_csf_csg_slot *csg_slot = &scheduler->csg_slots[i];
 		struct kbase_queue_group *group = csg_slot->resident_group;
 		unsigned long flags;
+		unsigned long fw_io_flags = 0;
 
 		if (group == NULL)
 			continue;
@@ -6670,6 +6694,14 @@ bool kbase_csf_scheduler_check_gls_success(struct kbase_device *kbdev)
 			all_slots_stopped = false;
 			continue;
 		}
+		/* Align CSG_REQ.STATE for this group which has suspended successfully */
+		spin_lock_irqsave(&kbdev->csf.scheduler.interrupt_lock, flags);
+		if (!kbase_csf_fw_io_open(&kbdev->csf.fw_io, &fw_io_flags)) {
+			kbase_csf_fw_io_group_write_mask(&kbdev->csf.fw_io, i, CSG_REQ,
+							 CSG_REQ_STATE_SUSPEND, CSG_REQ_STATE_MASK);
+			kbase_csf_fw_io_close(&kbdev->csf.fw_io, fw_io_flags);
+		}
+		spin_unlock_irqrestore(&kbdev->csf.scheduler.interrupt_lock, flags);
 
 		/* Only emit suspend, if there was no AS fault */
 		if (kctx_as_enabled(group->kctx) && !group->faulted)
