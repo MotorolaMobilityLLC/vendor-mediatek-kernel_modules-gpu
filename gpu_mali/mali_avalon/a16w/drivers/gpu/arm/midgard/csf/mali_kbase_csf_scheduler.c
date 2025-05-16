@@ -913,8 +913,6 @@ void kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev)
 	bool can_suspend_on_idle;
 #if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 	ktime_t expiry_time;
-	bool db_notif_disabled = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_CONTROL)) &
-			    MCU_CNTRL_DOORBELL_DISABLE_MASK;
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
@@ -952,10 +950,6 @@ void kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev)
 #endif
 					enqueue_gpu_idle_work(scheduler);
 				} else {
-					if (db_notif_disabled) {
-						kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
-					}
-
 					if (!hrtimer_active(&scheduler->apo_idle_timer)) {
 						expiry_time = HR_TIMER_DELAY_NSEC(
 							ged_get_apo_wakeup_ns());
