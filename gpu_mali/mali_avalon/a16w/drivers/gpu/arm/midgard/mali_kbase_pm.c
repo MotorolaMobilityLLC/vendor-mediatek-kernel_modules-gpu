@@ -45,7 +45,7 @@ kbasep_pm_context_active_handle_suspend_locked(struct kbase_device *kbdev,
 					       enum kbase_pm_suspend_handler suspend_handler,
 					       bool sched_lock_held)
 {
-	int c;
+	int c, r;
 
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
 	dev_dbg(kbdev->dev, "%s - reason = %d, pid = %d\n", __func__, suspend_handler,
@@ -61,8 +61,7 @@ kbasep_pm_context_active_handle_suspend_locked(struct kbase_device *kbdev,
 	/* If there is an Arbiter, wait for Arbiter to grant GPU back to KBase
 	 * so suspend request can be handled.
 	 */
-	if (kbase_arbiter_pm_ctx_active_handle_suspend(kbdev, suspend_handler, sched_lock_held))
-		return 1;
+	r = kbase_arbiter_pm_ctx_active_handle_suspend(kbdev, suspend_handler, sched_lock_held);
 
 	if (kbase_pm_is_suspending(kbdev)) {
 		switch (suspend_handler) {
@@ -75,6 +74,8 @@ kbasep_pm_context_active_handle_suspend_locked(struct kbase_device *kbdev,
 
 		case KBASE_PM_SUSPEND_HANDLER_NOT_POSSIBLE:
 			fallthrough;
+		case KBASE_PM_SUSPEND_HANDLER_ALWAYS_INCREASE:
+			break;
 		default:
 			KBASE_DEBUG_ASSERT_MSG(false, "unreachable");
 			break;
@@ -84,6 +85,9 @@ kbasep_pm_context_active_handle_suspend_locked(struct kbase_device *kbdev,
 	KBASE_KTRACE_ADD(kbdev, PM_CONTEXT_ACTIVE, NULL, (u64)c);
 
 	if (c == 1) {
+		if (r)
+			return (suspend_handler != KBASE_PM_SUSPEND_HANDLER_ALWAYS_INCREASE);
+
 		/* First context active: Power on the GPU and
 		 * any cores requested by the policy
 		 */

@@ -957,6 +957,8 @@ int kbase_arbiter_pm_ctx_active_handle_suspend(struct kbase_device *kbdev,
 					res = 1;
 				break;
 			case KBASE_PM_SUSPEND_HANDLER_VM_GPU_GRANTED:
+				fallthrough;
+			case KBASE_PM_SUSPEND_HANDLER_ALWAYS_INCREASE:
 				break;
 			default:
 				WARN(1, "Unknown suspend_handler\n");

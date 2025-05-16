@@ -5713,7 +5713,7 @@ static bool scheduler_suspend_on_idle_gls(struct kbase_device *kbdev)
 
 out_activate_pm:
 	if (pm_ref_dropped)
-		scheduler_pm_active_handle_suspend(kbdev, KBASE_PM_SUSPEND_HANDLER_DONT_REACTIVATE,
+		scheduler_pm_active_handle_suspend(kbdev, KBASE_PM_SUSPEND_HANDLER_ALWAYS_INCREASE,
 						   false);
 out_revert_all_csg_suspension_preparation:
 	kbase_csf_scheduler_revert_all_csg_suspension_preparation(kbdev);
