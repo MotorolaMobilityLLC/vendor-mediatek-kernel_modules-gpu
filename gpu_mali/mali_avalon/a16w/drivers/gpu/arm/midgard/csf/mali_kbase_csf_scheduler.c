@@ -42,6 +42,11 @@
 #include "mali_kbase_csf_mcu_shared_reg.h"
 #include <linux/version_compat_defs.h>
 #include <hwcnt/mali_kbase_hwcnt_context.h>
+
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+#include <gpu_pdma.h>
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
+
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
 #include <mali_kbase_gpu_metrics.h>
 #include <csf/mali_kbase_csf_trace_buffer.h>
@@ -6716,6 +6721,9 @@ static int suspend_active_queue_groups(struct kbase_device *kbdev, unsigned long
 	u32 num_groups = kbdev->csf.global_iface.group_num;
 	struct kbase_queue_group *group;
 	u32 slot_num;
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+	int ret;
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 
 	lockdep_assert_held(&scheduler->lock);
 	for (slot_num = 0; slot_num < num_groups; slot_num++) {
@@ -6726,7 +6734,15 @@ static int suspend_active_queue_groups(struct kbase_device *kbdev, unsigned long
 		}
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+	ret = wait_csg_slots_suspend(kbdev, slot_mask);
+
+	pdma_zombie_entry_clean_up();
+
+	return ret;
+#else
 	return wait_csg_slots_suspend(kbdev, slot_mask);
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 }
 
 static int suspend_active_queue_groups_on_reset(struct kbase_device *kbdev)
