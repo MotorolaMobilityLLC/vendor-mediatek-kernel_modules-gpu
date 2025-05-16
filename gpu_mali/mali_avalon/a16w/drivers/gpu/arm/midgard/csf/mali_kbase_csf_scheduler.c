@@ -8072,7 +8072,12 @@ static void api_boost_change_pm_policy(struct kbase_device *kbdev)
 
 static void update_api_sync_flag(struct kbase_device *kbdev)
 {
-	int temp_api_sync_flag = refine_api_sync_flag(kbdev);
+	int temp_api_sync_flag = 0;
+
+	if (kbdev->pm.suspending)
+		return;
+
+	temp_api_sync_flag = refine_api_sync_flag(kbdev);
 
 	if (kbdev->api_sync_update_in_progress == false) {
 		if (ged_gpu_apo_api_sync_support() &&
