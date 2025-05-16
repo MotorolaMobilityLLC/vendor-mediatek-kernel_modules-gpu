@@ -1334,6 +1334,10 @@ page_fault_retry:
 			goto fault_done;
 		}
 		KBASE_TLSTREAM_AUX_PAGEFAULT(kbdev, kctx->id, as_no, (u64)new_pages);
+		KBASE_TLSTREAM_REGION_GROW_ON_FAULT(kbdev, kctx->id,
+						    region->start_pfn << PAGE_SHIFT,
+						    region->nr_pages * PAGE_SIZE, region->nr_pages,
+						    (u64)new_pages);
 
 		if (region->flags & BASEP_MEM_ACTIVE_JIT_ALLOC) {
 			KBASE_TLSTREAM_JIT_GROW_ON_FAULT(kbdev, kctx->id,
@@ -3933,6 +3937,11 @@ int kbase_mmu_migrate_pgd_page(struct tagged_addr old_pgd_phys, struct tagged_ad
 		goto unlock;
 	}
 
+	if (kbase_mem_is_pmode_deferral_required(kbdev)) {
+		ret = -EAGAIN;
+		goto unlock;
+	}
+
 	for (sub_page_index = 0; sub_page_index < GPU_PAGES_PER_CPU_PAGE; sub_page_index++) {
 		if (!page_md->data.pt_mapped.pgd_vpfn_level[sub_page_index])
 			continue;
@@ -4152,13 +4161,22 @@ int kbase_mmu_migrate_data_page(struct tagged_addr old_phys, struct tagged_addr 
 	 */
 	spin_lock_irqsave(&kbdev->hwaccess_lock, hwaccess_flags);
 	if (unlikely(!kbase_pm_l2_allow_mmu_page_migration(kbdev))) {
-		/* Defer the migration as L2 is in a transitional phase */
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, hwaccess_flags);
 		mutex_unlock(&kbdev->mmu_hw_mutex);
-		dev_dbg(kbdev->dev, "%s: L2 in transtion, abort PGD page migration", __func__);
+		dev_dbg(kbdev->dev, "%s: L2 in transition, abort PGD page migration", __func__);
 		ret = -EAGAIN;
-		goto l2_state_defer_out;
+		goto defer_out;
 	}
+
+	if (unlikely(kbase_mem_is_pmode_deferral_required(kbdev))) {
+		/* Defer the migration if we're in pmode */
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, hwaccess_flags);
+		mutex_unlock(&kbdev->mmu_hw_mutex);
+		dev_dbg(kbdev->dev, "%s: In protectd mode, abort PGD page migration", __func__);
+		ret = -EAGAIN;
+		goto defer_out;
+	}
+
 	/* Prevent transitional phases in L2 by starting the transaction */
 	mmu_page_migration_transaction_begin(kbdev);
 	if (mmu_register_updateable(kbdev) && mmut->kctx->as_nr >= 0) {
@@ -4292,7 +4310,7 @@ int kbase_mmu_migrate_data_page(struct tagged_addr old_phys, struct tagged_addr 
 	/* Old page metatdata pointer cleared as it now owned by the new page */
 	set_page_private(as_page(old_phys), 0);
 
-l2_state_defer_out:
+defer_out:
 	kunmap_pgd(phys_to_page(pgd), pgd_page);
 pgd_page_map_error:
 get_pgd_at_level_error:

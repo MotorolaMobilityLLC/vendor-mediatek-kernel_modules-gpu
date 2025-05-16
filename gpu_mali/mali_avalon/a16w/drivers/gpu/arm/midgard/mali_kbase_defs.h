@@ -528,10 +528,13 @@ struct kbase_pm_device_data {
 
 /**
  * struct kbase_mem_pool - Page based memory pool for kctx/kbdev
+ *
+ * @link_to_ctrl:              For hook onto the deferred_mem_pools_list
  * @kbdev:                     Kbase device where memory is used
  * @cur_size:                  Number of free pages currently in the pool (may exceed
  *                             @max_size in some corner cases)
  * @max_size:                  Maximum number of free pages in the pool
+ * @deferred_size:             Number of pages in deferred_pages_list
  * @order:                     order = 0 refers to a pool of small pages
  *                             order != 0 refers to a pool of 2 MB pages, so
  *                             order = 9 (when small page size is 4KB,  2^9 *  4KB = 2 MB)
@@ -543,10 +546,16 @@ struct kbase_pm_device_data {
  * @pool_lock:                 Lock protecting the pool - must be held when modifying
  *                             @cur_size and @page_list
  * @page_list:                 List of free pages in the pool
+ * @deferred_pages_list:       List of deferred pages.
+ *                             This is to implement page quarantine for pages
+ *                             freed during protected mode.
+ *                             Pages will be returned to free pages list
+ *                             when GPU leaves protected mode.
  * @reclaim:                   Shrinker for kernel reclaim of free pages
  * @isolation_in_progress_cnt: Number of pages in pool undergoing page isolation.
  *                             This is used to avoid race condition between pool termination
  *                             and page isolation for page migration.
+ * @defer_seq:                 Sequence number for last protected mode entries
  * @dying:                     true if the pool is being terminated, and any ongoing
  *                             operations should be abandoned
  * @pool_supports_reclaim:     Whether this pool supports page reclaiming.
@@ -555,15 +564,19 @@ struct kbase_pm_device_data {
  *                             memory from it - eg during a grow operation.
  */
 struct kbase_mem_pool {
+	struct list_head link_to_ctrl;
 	struct kbase_device *kbdev;
 	size_t cur_size;
 	size_t max_size;
+	atomic_t deferred_size;
 	u8 order;
 	u8 group_id;
 	spinlock_t pool_lock;
 	struct list_head page_list;
+	struct list_head deferred_pages_list;
 	DEFINE_KBASE_SHRINKER reclaim;
 	atomic_t isolation_in_progress_cnt;
+	atomic_t defer_seq;
 
 	bool dying;
 	bool pool_supports_reclaim;

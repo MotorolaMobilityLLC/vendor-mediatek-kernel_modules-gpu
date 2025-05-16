@@ -68,6 +68,14 @@
 #define CSF_FIRMWARE_ENTRY_SHARED (1ul << 30)
 #define CSF_FIRMWARE_ENTRY_ZERO (1ul << 31)
 
+#define CSF_SCHED_PROTM_EVENT_ENTER (1 << 0)
+#define CSF_SCHED_PROTM_EVENT_ENTER_FW_ACK (1 << 1)
+#define CSF_SCHED_PROTM_EVENT_RESERVED_FLAG (1 << 2)
+#define CSF_SCHED_PROTM_EVENT_NR_FLAGS (3)
+#define CSF_SCHED_PROTM_EVENT_FLAGS_MASK ((1 << CSF_SCHED_PROTM_EVENT_NR_FLAGS) - 1)
+#define MAX_PROTM_EVENT_SEQ_NR (INT_MAX >> CSF_SCHED_PROTM_EVENT_NR_FLAGS)
+#define GET_PROTM_EVENT_ID_SEQ(event_id) ((event_id) >> CSF_SCHED_PROTM_EVENT_NR_FLAGS)
+
 /**
  * enum kbase_csf_queue_bind_state - bind state of the queue
  *
@@ -1138,6 +1146,49 @@ struct kbase_csf_mcu_shared_regions {
 };
 
 /**
+ * struct kbase_csf_protm_mem_pages_defer_ctrl - Control data for managing the quarantined
+ *                                       pages that are released back to a pool during a
+ *                                       p.mode session.
+ *
+ * @mem_pools_op_lock:  Lock for synchronising the access to the internal pool lists etc.
+ * @mem_pools_list:     List that parks the pools where pages are qurantined for deferred
+ *                      release operations.
+ * @op_pending_list:    internal list holding the mem_pools that are potentially ready to be
+ *                      released, before transition to in-flight state by the worker thread.
+ * @op_inflight_list:   List holding the single mem_pool that is in-flight with the release
+ *                      operation by the worker thread, after the associated p.mode session
+ *                      has completed
+ * @drop_op_pool:       Handshake delegating the deferral of control to remove the in-flight
+ *                      mem_pool, after returning from the in-flight call-back in which
+ *                      release of the deferred pages is attempted.
+ * @drop_op_pool_wait:  Event signalling back to the op_pool removal requester that the
+ *                      delegated task has been completed.
+ * @mem_pools_op_workq: Workqueue for performing thread context pages release operations.
+ * @mem_pools_op_work:  Work-item for triggering the release worker.
+ * @pools_term_wq:      Wait-mechanism for pools that have quarantined pages undergoing a
+ *                      pool termination, which needs to be deferred until the relevant p.mode
+ *                      session has completed.
+ * @protm_event_id:     P.mode event_id, consists of a sequence number and a flags field. The
+ *                      latter has a bit width of CSF_SCHED_PROTM_EVENT_NR_FLAGS (lowest-bits).
+ * @do_quarantine:      Flag indicatin the quarantining action is required or not for a GPU.
+ *                      When it's false, no quarantine actions need to be undertaken.
+ */
+struct kbase_csf_protm_mem_pages_defer_ctrl {
+	spinlock_t mem_pools_op_lock;
+	struct list_head mem_pools_list;
+	struct list_head op_pending_list;
+	struct list_head op_inflight_list;
+	struct kbase_mem_pool *drop_op_pool;
+	wait_queue_head_t drop_op_pool_wait;
+	struct workqueue_struct *mem_pools_op_workq;
+	struct work_struct mem_pools_op_work;
+	wait_queue_head_t pools_term_wq;
+	atomic_t protm_event_id;
+	/* Set at initialisation, true for GPUs up to Arch-15 */
+	bool do_quarantine;
+};
+
+/**
  * struct kbase_csf_scheduler - Object representing the scheduler used for
  *                              CSF for an instance of GPU platform device.
  * @lock:                  Lock to serialize the scheduler operations and
@@ -1308,6 +1359,7 @@ struct kbase_csf_mcu_shared_regions {
  *                              that moment. When this happens, we wait for the
  *                              PM to inform us when it should be retried via
  *                              kbase_csf_scheduler_pm_single_refcount().
+ * @pages_defer_ctrl:       Control data for manging p.mode quarantined pages.
  */
 struct kbase_csf_scheduler {
 	struct mutex lock;
@@ -1407,6 +1459,7 @@ struct kbase_csf_scheduler {
 	atomic_t gpu_idle_timer_enabled;
 	atomic_t fw_soi_enabled;
 	atomic_t missed_suspend_on_idle_evt;
+	struct kbase_csf_protm_mem_pages_defer_ctrl pages_defer_ctrl;
 };
 
 /*

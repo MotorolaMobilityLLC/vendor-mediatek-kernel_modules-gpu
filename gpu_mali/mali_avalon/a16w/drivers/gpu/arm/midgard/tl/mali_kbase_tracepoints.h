@@ -808,7 +808,7 @@ void __kbase_tlstream_jit_free(
 void __kbase_tlstream_tiler_heap_init(
 	struct kbase_tlstream *stream,
 	u32 kernel_ctx_id,
-	u64 heap,
+	const void *heap,
 	u64 heap_id,
 	u64 chunk_size
 );
@@ -816,27 +816,27 @@ void __kbase_tlstream_tiler_heap_init(
 void __kbase_tlstream_tiler_heap_term(
 	struct kbase_tlstream *stream,
 	u32 kernel_ctx_id,
-	u64 heap
+	const void *heap
 );
 
 void __kbase_tlstream_tiler_heap_chunk_alloc(
 	struct kbase_tlstream *stream,
 	u32 kernel_ctx_id,
-	u64 heap,
+	const void *heap,
 	u64 chunk
 );
 
 void __kbase_tlstream_tiler_heap_chunk_free(
 	struct kbase_tlstream *stream,
 	u32 kernel_ctx_id,
-	u64 heap,
+	const void *heap,
 	u64 chunk
 );
 
 void __kbase_tlstream_tiler_heap_context_alloc(
 	struct kbase_tlstream *stream,
 	u32 kernel_ctx_id,
-	u64 heap,
+	const void *heap,
 	u64 heap_ctx,
 	u64 heap_ctx_page_count
 );
@@ -844,7 +844,79 @@ void __kbase_tlstream_tiler_heap_context_alloc(
 void __kbase_tlstream_tiler_heap_context_free(
 	struct kbase_tlstream *stream,
 	u32 kernel_ctx_id,
-	u64 heap
+	const void *heap
+);
+
+void __kbase_tlstream_phy_pages_alloc(
+	struct kbase_tlstream *stream,
+	u32 kernel_ctx_id,
+	u64 pages,
+	u64 new_total_pages
+);
+
+void __kbase_tlstream_phy_pages_free(
+	struct kbase_tlstream *stream,
+	u32 kernel_ctx_id,
+	u64 pages,
+	u64 new_total_pages
+);
+
+void __kbase_tlstream_region_alloc(
+	struct kbase_tlstream *stream,
+	u32 kernel_ctx_id,
+	u64 va,
+	u64 size,
+	u64 initial_commit,
+	u64 extension
+);
+
+void __kbase_tlstream_region_free(
+	struct kbase_tlstream *stream,
+	u32 kernel_ctx_id,
+	u64 va,
+	u64 size,
+	u64 committed_pages
+);
+
+void __kbase_tlstream_region_commit(
+	struct kbase_tlstream *stream,
+	u32 kernel_ctx_id,
+	u64 va,
+	u64 size,
+	u64 old_pages,
+	u64 new_pages
+);
+
+void __kbase_tlstream_region_grow_on_fault(
+	struct kbase_tlstream *stream,
+	u32 kernel_ctx_id,
+	u64 va,
+	u64 size,
+	u64 old_pages,
+	u64 new_pages
+);
+
+void __kbase_tlstream_region_shrink(
+	struct kbase_tlstream *stream,
+	u32 kernel_ctx_id,
+	u64 va,
+	u64 size,
+	u64 old_pages,
+	u64 new_pages
+);
+
+void __kbase_tlstream_region_evictable_make(
+	struct kbase_tlstream *stream,
+	u32 kernel_ctx_id,
+	u64 va,
+	u64 size
+);
+
+void __kbase_tlstream_region_evictable_unmake(
+	struct kbase_tlstream *stream,
+	u32 kernel_ctx_id,
+	u64 va,
+	u64 size
 );
 
 void __kbase_tlstream_tl_kbase_csffw_fw_disabling(
@@ -3734,6 +3806,258 @@ struct kbase_tlstream;
 				__TL_DISPATCH_STREAM(kbdev, obj),	\
 				kernel_ctx_id,	\
 				heap	\
+				);	\
+	} while (0)
+
+/**
+ * KBASE_TLSTREAM_PHY_PAGES_ALLOC - Increase total number of physical pages allocated.
+ *
+ * @kbdev: Kbase device
+ * @kernel_ctx_id: Unique ID for the KBase Context
+ * @pages: The number pages allocated.
+ * @new_total_pages: New total number of pages allocated.
+ */
+#define KBASE_TLSTREAM_PHY_PAGES_ALLOC(	\
+	kbdev,	\
+	kernel_ctx_id,	\
+	pages,	\
+	new_total_pages	\
+	)	\
+	do {	\
+		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
+		if (enabled & BASE_TLSTREAM_ENABLE_CSF_TRACEPOINTS)	\
+			__kbase_tlstream_phy_pages_alloc(	\
+				__TL_DISPATCH_STREAM(kbdev, obj),	\
+				kernel_ctx_id,	\
+				pages,	\
+				new_total_pages	\
+				);	\
+	} while (0)
+
+/**
+ * KBASE_TLSTREAM_PHY_PAGES_FREE - Decrease total number of physical pages allocated.
+ *
+ * @kbdev: Kbase device
+ * @kernel_ctx_id: Unique ID for the KBase Context
+ * @pages: The number of pages freed.
+ * @new_total_pages: New total number of pages freed.
+ */
+#define KBASE_TLSTREAM_PHY_PAGES_FREE(	\
+	kbdev,	\
+	kernel_ctx_id,	\
+	pages,	\
+	new_total_pages	\
+	)	\
+	do {	\
+		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
+		if (enabled & BASE_TLSTREAM_ENABLE_CSF_TRACEPOINTS)	\
+			__kbase_tlstream_phy_pages_free(	\
+				__TL_DISPATCH_STREAM(kbdev, obj),	\
+				kernel_ctx_id,	\
+				pages,	\
+				new_total_pages	\
+				);	\
+	} while (0)
+
+/**
+ * KBASE_TLSTREAM_REGION_ALLOC - Memory region allocated, backed by physical pages.
+ *
+ * @kbdev: Kbase device
+ * @kernel_ctx_id: Unique ID for the KBase Context
+ * @va: The VA of the memory region.
+ * @size: The size of the allocated region.
+ * @initial_commit: The number of physical pages to allocate up front.
+ * @extension: The number of extra pages to allocate on GPU fault to grow the region.
+ */
+#define KBASE_TLSTREAM_REGION_ALLOC(	\
+	kbdev,	\
+	kernel_ctx_id,	\
+	va,	\
+	size,	\
+	initial_commit,	\
+	extension	\
+	)	\
+	do {	\
+		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
+		if (enabled & BASE_TLSTREAM_ENABLE_CSF_TRACEPOINTS)	\
+			__kbase_tlstream_region_alloc(	\
+				__TL_DISPATCH_STREAM(kbdev, obj),	\
+				kernel_ctx_id,	\
+				va,	\
+				size,	\
+				initial_commit,	\
+				extension	\
+				);	\
+	} while (0)
+
+/**
+ * KBASE_TLSTREAM_REGION_FREE - Destroy memory region.
+ *
+ * @kbdev: Kbase device
+ * @kernel_ctx_id: Unique ID for the KBase Context
+ * @va: The VA of the memory region.
+ * @size: The size of the memory region.
+ * @committed_pages: Number of physical pages backing the memory region.
+ */
+#define KBASE_TLSTREAM_REGION_FREE(	\
+	kbdev,	\
+	kernel_ctx_id,	\
+	va,	\
+	size,	\
+	committed_pages	\
+	)	\
+	do {	\
+		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
+		if (enabled & BASE_TLSTREAM_ENABLE_CSF_TRACEPOINTS)	\
+			__kbase_tlstream_region_free(	\
+				__TL_DISPATCH_STREAM(kbdev, obj),	\
+				kernel_ctx_id,	\
+				va,	\
+				size,	\
+				committed_pages	\
+				);	\
+	} while (0)
+
+/**
+ * KBASE_TLSTREAM_REGION_COMMIT - Extend region explicitly.
+ *
+ * @kbdev: Kbase device
+ * @kernel_ctx_id: Unique ID for the KBase Context
+ * @va: The VA of the memory region.
+ * @size: The size of the memory region.
+ * @old_pages: The number of physical pages the region was previously backed with.
+ * @new_pages: Number of physical pages to back the region with.
+ */
+#define KBASE_TLSTREAM_REGION_COMMIT(	\
+	kbdev,	\
+	kernel_ctx_id,	\
+	va,	\
+	size,	\
+	old_pages,	\
+	new_pages	\
+	)	\
+	do {	\
+		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
+		if (enabled & BASE_TLSTREAM_ENABLE_CSF_TRACEPOINTS)	\
+			__kbase_tlstream_region_commit(	\
+				__TL_DISPATCH_STREAM(kbdev, obj),	\
+				kernel_ctx_id,	\
+				va,	\
+				size,	\
+				old_pages,	\
+				new_pages	\
+				);	\
+	} while (0)
+
+/**
+ * KBASE_TLSTREAM_REGION_GROW_ON_FAULT - Extend region on fault.
+ *
+ * @kbdev: Kbase device
+ * @kernel_ctx_id: Unique ID for the KBase Context
+ * @va: The VA of the memory region.
+ * @size: The size of the memory region.
+ * @old_pages: Number of physical pages previously backing the region.
+ * @new_pages: New total number of physical pages backing the region.
+ */
+#define KBASE_TLSTREAM_REGION_GROW_ON_FAULT(	\
+	kbdev,	\
+	kernel_ctx_id,	\
+	va,	\
+	size,	\
+	old_pages,	\
+	new_pages	\
+	)	\
+	do {	\
+		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
+		if (enabled & BASE_TLSTREAM_ENABLE_CSF_TRACEPOINTS)	\
+			__kbase_tlstream_region_grow_on_fault(	\
+				__TL_DISPATCH_STREAM(kbdev, obj),	\
+				kernel_ctx_id,	\
+				va,	\
+				size,	\
+				old_pages,	\
+				new_pages	\
+				);	\
+	} while (0)
+
+/**
+ * KBASE_TLSTREAM_REGION_SHRINK - Reduce region.
+ *
+ * @kbdev: Kbase device
+ * @kernel_ctx_id: Unique ID for the KBase Context
+ * @va: The VA of the memory region.
+ * @size: New size of the memory region.
+ * @old_pages: The number of physical pages previously backing the region.
+ * @new_pages: New number of physical pages backing the region.
+ */
+#define KBASE_TLSTREAM_REGION_SHRINK(	\
+	kbdev,	\
+	kernel_ctx_id,	\
+	va,	\
+	size,	\
+	old_pages,	\
+	new_pages	\
+	)	\
+	do {	\
+		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
+		if (enabled & BASE_TLSTREAM_ENABLE_CSF_TRACEPOINTS)	\
+			__kbase_tlstream_region_shrink(	\
+				__TL_DISPATCH_STREAM(kbdev, obj),	\
+				kernel_ctx_id,	\
+				va,	\
+				size,	\
+				old_pages,	\
+				new_pages	\
+				);	\
+	} while (0)
+
+/**
+ * KBASE_TLSTREAM_REGION_EVICTABLE_MAKE - Region is evictable.
+ *
+ * @kbdev: Kbase device
+ * @kernel_ctx_id: Unique ID for the KBase Context
+ * @va: The VA of the memory region.
+ * @size: The size of the memory region.
+ */
+#define KBASE_TLSTREAM_REGION_EVICTABLE_MAKE(	\
+	kbdev,	\
+	kernel_ctx_id,	\
+	va,	\
+	size	\
+	)	\
+	do {	\
+		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
+		if (enabled & BASE_TLSTREAM_ENABLE_CSF_TRACEPOINTS)	\
+			__kbase_tlstream_region_evictable_make(	\
+				__TL_DISPATCH_STREAM(kbdev, obj),	\
+				kernel_ctx_id,	\
+				va,	\
+				size	\
+				);	\
+	} while (0)
+
+/**
+ * KBASE_TLSTREAM_REGION_EVICTABLE_UNMAKE - Region stops being evictable.
+ *
+ * @kbdev: Kbase device
+ * @kernel_ctx_id: Unique ID for the KBase Context
+ * @va: The VA of the memory region.
+ * @size: The size of the memory region.
+ */
+#define KBASE_TLSTREAM_REGION_EVICTABLE_UNMAKE(	\
+	kbdev,	\
+	kernel_ctx_id,	\
+	va,	\
+	size	\
+	)	\
+	do {	\
+		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
+		if (enabled & BASE_TLSTREAM_ENABLE_CSF_TRACEPOINTS)	\
+			__kbase_tlstream_region_evictable_unmake(	\
+				__TL_DISPATCH_STREAM(kbdev, obj),	\
+				kernel_ctx_id,	\
+				va,	\
+				size	\
 				);	\
 	} while (0)
 

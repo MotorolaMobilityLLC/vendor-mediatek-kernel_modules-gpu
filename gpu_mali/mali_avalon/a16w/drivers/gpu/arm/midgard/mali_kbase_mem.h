@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -2560,6 +2560,31 @@ int kbase_mem_copy_to_pinned_user_pages(struct page **dest_pages, void *src_page
 					size_t offset);
 
 /**
+ * kbase_mem_pool_free_pages_from_deferred_list() - Free pages from deferred_pages_list
+ *
+ * @pool: Pointer to the memory pool.
+ *
+ * This function frees pages from the deferred list. The destination of the pages
+ * depends on the pool capacity: firstly it tries to promote pages to the internal
+ * free_pages list, and then it releases the excess pages to kernel.
+ *
+ * The deferred pages shall be freed only if the pool is no longer in quarantine.
+ */
+void kbase_mem_pool_free_pages_from_deferred_list(struct kbase_mem_pool *pool);
+
+/**
+ * kbase_mem_pool_deferred_list_size() - get size of deferred page list
+ *
+ * @pool: Pointer to the memory pool.
+ *
+ * This function return number of pages stored in
+ * deferred pages list (in quarantine)
+ *
+ * Return: size of deferred page list
+ */
+size_t kbase_mem_pool_deferred_list_size(struct kbase_mem_pool *pool);
+
+/**
  * kbase_mem_allow_alloc - Check if allocation of GPU memory is allowed
  * @kctx: Pointer to kbase context
  *
@@ -2629,5 +2654,27 @@ void kbase_trace_alloc_pages(int32_t gpu_id, struct kbase_context *kctx, uint64_
 void kbase_trace_free_pages(int32_t gpu_id, struct kbase_context *kctx, uint64_t size, uint64_t gpu_addr, enum kbase_memory_category category);
 void kbase_trace_update_pages(int32_t gpu_id, struct kbase_context *kctx, uint64_t size_a, uint64_t size_b, uint64_t gpu_addr, enum kbase_memory_category category);
  #endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
+
+/**
+ * kbase_mem_is_pmode_deferral_required() - check if a GPU protm session is inflight
+ *                                          and actions have to be deferred
+ *
+ * @kbdev: Pointer to the device.
+ *
+ * If a protected mode session is currently in progress, it could be the case that
+ * some actions concerning memory pages need to be deferred, like for instance
+ * migrating pages or adding them to a memory pool.
+ * The function returns true if protected mode is active and do_quarantine
+ * is true, otherwise return false.
+ *
+ * Return: true on deferral required, otherwise false.
+ */
+static inline bool kbase_mem_is_pmode_deferral_required(struct kbase_device *kbdev)
+{
+	struct kbase_csf_protm_mem_pages_defer_ctrl *ctrl = &kbdev->csf.scheduler.pages_defer_ctrl;
+
+	return (ctrl->do_quarantine &&
+		(atomic_read(&ctrl->protm_event_id) & CSF_SCHED_PROTM_EVENT_FLAGS_MASK));
+}
 
 #endif /* _KBASE_MEM_H_ */

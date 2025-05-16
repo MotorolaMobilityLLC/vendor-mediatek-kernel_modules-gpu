@@ -4547,6 +4547,7 @@ static struct dentry *init_debugfs(struct kbase_device *kbdev)
 #endif
 	kbase_pbha_debugfs_init(kbdev);
 	kbase_gpu_timestamp_offset_debugfs_init(kbdev);
+	kbase_dev_mem_pool_debugfs_init(kbdev->mali_debugfs_directory, kbdev);
 
 	/* fops_* variables created by invocations of macro
 	 * MAKE_QUIRK_ACCESSORS() above.

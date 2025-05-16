@@ -67,7 +67,7 @@ void kbase_pm_ca_term(struct kbase_device *kbdev)
  * @kbdev: Device pointer.
  *
  * This function is used to change the available core mask as defined via either sysfs or devfreq.
- * hwaccess_lock should be held and should be called only when GPU doesn't support GOV_CORE_MASK
+ * hwaccess_lock should be held and should be called only when the GPU supports GOV_CORE_MASK
  */
 static void kbase_pm_ca_write_gov_core_mask(struct kbase_device *kbdev)
 {

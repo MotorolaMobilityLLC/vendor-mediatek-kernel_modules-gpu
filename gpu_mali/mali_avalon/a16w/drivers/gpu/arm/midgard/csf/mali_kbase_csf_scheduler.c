@@ -4820,6 +4820,8 @@ static void scheduler_group_check_protm_enter(struct kbase_device *const kbdev,
 				}
 				/* Set the pending protm seq number to the next one */
 				protm_enter_set_next_pending_seq(kbdev);
+				kbase_csf_scheduler_append_protm_flag(kbdev,
+								      CSF_SCHED_PROTM_EVENT_ENTER);
 
 				spin_unlock_irqrestore(&scheduler->interrupt_lock, flags);
 
@@ -8370,10 +8372,288 @@ static int kbase_csf_scheduler_kcpuq_kthread(void *data)
 	return 0;
 }
 
+static void kbase_csf_scheduler_protm_pages_defer_work_op(struct kbase_device *kbdev)
+{
+	struct kbase_csf_protm_mem_pages_defer_ctrl *pages_defer_ctrl =
+		&kbdev->csf.scheduler.pages_defer_ctrl;
+	struct kbase_mem_pool *mem_pool;
+
+	spin_lock(&pages_defer_ctrl->mem_pools_op_lock);
+	/* Move the parked pools to the op_pending_list */
+	list_splice_init(&pages_defer_ctrl->mem_pools_list, &pages_defer_ctrl->op_pending_list);
+	while (!list_empty(&pages_defer_ctrl->op_pending_list)) {
+		mem_pool = list_first_entry(&pages_defer_ctrl->op_pending_list,
+					    struct kbase_mem_pool, link_to_ctrl);
+
+		if (is_csf_scheduler_protm_seq_completed(kbdev,
+							 atomic_read(&mem_pool->defer_seq))) {
+			/* op_inflight_list is transitional, has at most a single item */
+			list_move(&mem_pool->link_to_ctrl, &pages_defer_ctrl->op_inflight_list);
+
+			/* Drop the lock and proceed to release pages for the in-flight item. Note,
+			 * the in-flight pool may still be attached to pages_defer_ctrl afterwards,
+			 * in which case the pool needs to be attached to the parked list, pending
+			 * for the next pmode end event, which will trigger the next release action.
+			 * Had the release of pages successfully completed in the first place, the
+			 * pool would have been removed from the pages_defer_ctrl lists on return.
+			 */
+			spin_unlock(&pages_defer_ctrl->mem_pools_op_lock);
+			kbase_mem_pool_free_pages_from_deferred_list(mem_pool);
+			spin_lock(&pages_defer_ctrl->mem_pools_op_lock);
+
+			if (pages_defer_ctrl->drop_op_pool) {
+				/* A delegated removal is requested during the above call, where
+				 * the guarding lock had been released.
+				 */
+				if (!list_empty(&mem_pool->link_to_ctrl))
+					list_del_init(&mem_pool->link_to_ctrl);
+				pages_defer_ctrl->drop_op_pool = NULL;
+				wake_up_all(&pages_defer_ctrl->drop_op_pool_wait);
+			}
+
+			/* If the single in-flight pool not dropped, put back to the parked list */
+			if (!list_empty(&pages_defer_ctrl->op_inflight_list))
+				list_splice_init(&pages_defer_ctrl->op_inflight_list,
+						 &pages_defer_ctrl->mem_pools_list);
+		} else
+			list_move(&mem_pool->link_to_ctrl, &pages_defer_ctrl->mem_pools_list);
+	}
+	spin_unlock(&pages_defer_ctrl->mem_pools_op_lock);
+}
+
+static void kbase_csf_scheduler_protm_pages_defer_worker(struct work_struct *data)
+{
+	struct kbase_device *kbdev = container_of(data, struct kbase_device,
+						  csf.scheduler.pages_defer_ctrl.mem_pools_op_work);
+
+	dev_dbg(kbdev->dev, "Worker started for protm event completion sequence number: %d",
+		kbase_csf_scheduler_get_protm_seq_num(kbdev));
+
+	kbase_csf_scheduler_protm_pages_defer_work_op(kbdev);
+}
+
+/* Bit pattern flags for checking status of lists in pages_defer_ctrl */
+#define PARKED_LIST_NOT_EMPTY_BIT_FLAG (1 << 0)
+#define PENDING_LIST_NOT_EMPTY_BIT_FLAG (1 << 1)
+#define INFLIGHT_LIST_NOT_EMPTY_BIT_FLAG (1 << 2)
+static int kbase_csf_scheduler_protm_pages_defer_has_pools(struct kbase_device *kbdev)
+{
+	struct kbase_csf_protm_mem_pages_defer_ctrl *pages_defer_ctrl =
+		&kbdev->csf.scheduler.pages_defer_ctrl;
+	int pattern = 0;
+
+	spin_lock(&pages_defer_ctrl->mem_pools_op_lock);
+	if (!list_empty(&pages_defer_ctrl->mem_pools_list))
+		pattern |= PARKED_LIST_NOT_EMPTY_BIT_FLAG;
+	if (!list_empty(&pages_defer_ctrl->op_pending_list))
+		pattern |= PENDING_LIST_NOT_EMPTY_BIT_FLAG;
+	if (!list_empty(&pages_defer_ctrl->op_inflight_list))
+		pattern |= INFLIGHT_LIST_NOT_EMPTY_BIT_FLAG;
+	spin_unlock(&pages_defer_ctrl->mem_pools_op_lock);
+
+	return pattern;
+}
+
+static void kbase_csf_scheduler_pages_defer_ctrl_term(struct kbase_device *kbdev)
+{
+	struct kbase_csf_protm_mem_pages_defer_ctrl *pages_defer_ctrl =
+		&kbdev->csf.scheduler.pages_defer_ctrl;
+
+	WARN_ONCE(atomic_read(&pages_defer_ctrl->protm_event_id) & CSF_SCHED_PROTM_EVENT_FLAGS_MASK,
+		  "Protm_event_id has pending active flags!, event_id: 0x%x",
+		  atomic_read(&pages_defer_ctrl->protm_event_id));
+
+	/* Dealing with any deferred pools first, before one shuts down the workqueue */
+	if (pages_defer_ctrl->do_quarantine) {
+		int pattern = kbase_csf_scheduler_protm_pages_defer_has_pools(kbdev);
+
+		WARN_ONCE(pattern, "pages_defer_ctrl lists not all-empty, pattern: 0x%x\n",
+			  pattern);
+
+		if (pattern) {
+			unsigned long flags = 0;
+
+			kbase_csf_scheduler_spin_lock(kbdev, &flags);
+			/* Closing down, mock completion to release pools */
+			kbase_csf_scheduler_complete_protm_event(kbdev);
+			kbase_csf_scheduler_spin_unlock(kbdev, flags);
+			kbase_csf_scheduler_protm_pages_defer_work_op(kbdev);
+		}
+	}
+
+	if (pages_defer_ctrl->mem_pools_op_workq) {
+		flush_workqueue(pages_defer_ctrl->mem_pools_op_workq);
+		destroy_workqueue(pages_defer_ctrl->mem_pools_op_workq);
+		pages_defer_ctrl->mem_pools_op_workq = NULL;
+	}
+}
+
+static int kbase_csf_scheduler_pages_defer_ctrl_init(struct kbase_device *kbdev)
+{
+	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
+	struct kbase_csf_protm_mem_pages_defer_ctrl *pages_defer_ctrl =
+		&scheduler->pages_defer_ctrl;
+
+	pages_defer_ctrl->do_quarantine = true;
+	spin_lock_init(&pages_defer_ctrl->mem_pools_op_lock);
+	atomic_set(&pages_defer_ctrl->protm_event_id, 0);
+	INIT_LIST_HEAD(&pages_defer_ctrl->mem_pools_list);
+	INIT_LIST_HEAD(&pages_defer_ctrl->op_inflight_list);
+	INIT_LIST_HEAD(&pages_defer_ctrl->op_pending_list);
+	INIT_WORK(&pages_defer_ctrl->mem_pools_op_work,
+		  kbase_csf_scheduler_protm_pages_defer_worker);
+	init_waitqueue_head(&pages_defer_ctrl->pools_term_wq);
+	pages_defer_ctrl->drop_op_pool = NULL;
+	init_waitqueue_head(&pages_defer_ctrl->drop_op_pool_wait);
+
+	pages_defer_ctrl->mem_pools_op_workq =
+		alloc_ordered_workqueue("sched_deferred_pages_wq", WQ_MEM_RECLAIM);
+	if (pages_defer_ctrl->mem_pools_op_workq == NULL)
+		return -ENOMEM;
+
+	return 0;
+}
+
+/**
+ * kbase_csf_scheduler_pages_defer_ctrl_add_pool() - add pool to scheduler pool defer list
+ *
+ * @pool: Pointer to the memory pool.
+ *
+ * This function adds the given pool to scheduler.pages_defer_ctrl list for handling
+ * the deferred pages. If pool already on list (i.e. it's already added before), do
+ * nothing.
+ *
+ * Note, the caller must own the pool by locking on its mutex lock.
+ */
+void kbase_csf_scheduler_pages_defer_ctrl_add_pool(struct kbase_mem_pool *pool)
+{
+	struct kbase_csf_protm_mem_pages_defer_ctrl *pages_defer_ctrl =
+		&pool->kbdev->csf.scheduler.pages_defer_ctrl;
+
+	/* The caller must hold the pool's mutex lock */
+	lockdep_assert_held(&pool->pool_lock);
+
+	if (pool->dying)
+		return;
+
+	spin_lock(&pages_defer_ctrl->mem_pools_op_lock);
+	if (list_empty(&pool->link_to_ctrl))
+		list_add(&pool->link_to_ctrl, &pages_defer_ctrl->mem_pools_list);
+	spin_unlock(&pages_defer_ctrl->mem_pools_op_lock);
+}
+
+/* Return true on the delegated pool-removal is done, otherwise timed out */
+static bool wait_delegated_pool_removal_done(struct kbase_mem_pool *pool)
+{
+	struct kbase_csf_protm_mem_pages_defer_ctrl *pages_defer_ctrl =
+		&pool->kbdev->csf.scheduler.pages_defer_ctrl;
+	unsigned int time_out_ms =
+		kbase_get_timeout_ms(pool->kbdev, CSF_SCHED_PROTM_PROGRESS_TIMEOUT);
+	long remaining = (long)msecs_to_jiffies(time_out_ms);
+
+	/* Wait for an event that signals the delegated task is done, return boolean result */
+	return wait_event_timeout(pages_defer_ctrl->drop_op_pool_wait,
+				  READ_ONCE(pages_defer_ctrl->drop_op_pool) != pool, remaining);
+}
+
+/**
+ * kbase_csf_scheduler_pages_defer_ctrl_drop_pool() - Remove pool from pages_defer_ctrl lists
+ *
+ * @pool: Pointer to the memory pool.
+ *
+ * During operation a pool with deferred pages can be on one of the scheduler-owned
+ * pages_defer_ctrl lists. This function removes the given pool from the managed lists.
+ *
+ * Note, the caller must own the pool by locking on it's mutex lock.
+ */
+void kbase_csf_scheduler_pages_defer_ctrl_drop_pool(struct kbase_mem_pool *pool)
+{
+	struct kbase_mem_pool *mem_pool, *tmp;
+	bool pool_on_defer_ctrl = false;
+	struct kbase_csf_protm_mem_pages_defer_ctrl *pages_defer_ctrl =
+		&pool->kbdev->csf.scheduler.pages_defer_ctrl;
+
+	/* The caller must hold the pool's mutex lock */
+	lockdep_assert_held(&pool->pool_lock);
+
+	/* Not referenced by the pages_defer_ctrl, nothing to do */
+	if (list_empty(&pool->link_to_ctrl))
+		return;
+
+	spin_lock(&pages_defer_ctrl->mem_pools_op_lock);
+
+	/* Check in-flight list. By design it can at most has a single item during ops */
+	if (&pool->link_to_ctrl == pages_defer_ctrl->op_inflight_list.next) {
+		if (pool->dying) {
+			bool removed;
+
+			/* Caller marked the in-flight pool as dying, delegates the removal
+			 * to the control side for coordinated actions. Once removed, the
+			 * caller can proceed to the pool's termination without any
+			 * interferences as a dying pool is prohibited from being added back.
+			 */
+			pages_defer_ctrl->drop_op_pool = pool;
+			spin_unlock(&pages_defer_ctrl->mem_pools_op_lock);
+			kbase_mem_pool_unlock(pool);
+
+			removed = wait_delegated_pool_removal_done(pool);
+
+			kbase_mem_pool_lock(pool);
+			spin_lock(&pages_defer_ctrl->mem_pools_op_lock);
+
+			if (!removed) {
+				/* timed-out, clean it up */
+				if (pages_defer_ctrl->drop_op_pool == pool)
+					pages_defer_ctrl->drop_op_pool = NULL;
+				dev_err(pool->kbdev->dev, "mem_pool-%pK delegated removal timeout",
+					pool);
+			}
+			/* Force a removal to offer a graceful recovery */
+			if (WARN_ON(!list_empty(&pool->link_to_ctrl)))
+				list_del_init(&pool->link_to_ctrl);
+		} else
+			list_del_init(&pool->link_to_ctrl);
+	}
+
+	if (list_empty(&pool->link_to_ctrl)) {
+		/* The item was in-flight and already removed, return */
+		spin_unlock(&pages_defer_ctrl->mem_pools_op_lock);
+		return;
+	}
+
+	/* Not empty, Check the op_pending_list */
+	list_for_each_entry_safe(mem_pool, tmp, &pages_defer_ctrl->op_pending_list, link_to_ctrl)
+		if (mem_pool == pool) {
+			list_del_init(&pool->link_to_ctrl);
+			break;
+		}
+
+	/* Check the page-defer park-list of memory pools */
+	if (!list_empty(&pool->link_to_ctrl)) {
+		list_for_each_entry_safe(mem_pool, tmp, &pages_defer_ctrl->mem_pools_list,
+					 link_to_ctrl)
+			if (mem_pool == pool) {
+				list_del_init(&pool->link_to_ctrl);
+				break;
+			}
+	}
+
+	/* Sanity check: it's a programming error the pool is not on the above lists */
+	pool_on_defer_ctrl = list_empty(&pool->link_to_ctrl);
+	if (!pool_on_defer_ctrl) {
+		/* Unexpected programming error, remove the pool from a its linked list */
+		list_del_init(&pool->link_to_ctrl);
+		dev_err(pool->kbdev->dev, "mem_pool-%pK is not on any of the assumed lists", pool);
+	}
+
+	spin_unlock(&pages_defer_ctrl->mem_pools_op_lock);
+}
+
 int kbase_csf_scheduler_init(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 	u32 num_groups = kbdev->csf.global_iface.group_num;
+	int err;
 #if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
 	struct sched_param param = { .sched_priority = 2 };
 #endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
@@ -8452,7 +8732,14 @@ int kbase_csf_scheduler_init(struct kbase_device *kbdev)
 	atomic_set(&scheduler->gpu_idle_timer_enabled, false);
 	atomic_set(&scheduler->missed_suspend_on_idle_evt, false);
 
-	return kbase_csf_mcu_shared_regs_data_init(kbdev);
+	err = kbase_csf_scheduler_pages_defer_ctrl_init(kbdev);
+	if (!err) {
+		err = kbase_csf_mcu_shared_regs_data_init(kbdev);
+		if (err)
+			kbase_csf_scheduler_pages_defer_ctrl_term(kbdev);
+	}
+
+	return err;
 }
 
 int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
@@ -8615,6 +8902,7 @@ void kbase_csf_scheduler_term(struct kbase_device *kbdev)
 				 kbase_csf_scheduler_get_nr_active_csgs(kbdev));
 	/* Terminating the MCU shared regions, following the release of slots */
 	kbase_csf_mcu_shared_regs_data_term(kbdev);
+	kbase_csf_scheduler_pages_defer_ctrl_term(kbdev);
 }
 
 void kbase_csf_scheduler_early_term(struct kbase_device *kbdev)
@@ -8738,7 +9026,7 @@ int kbase_csf_scheduler_pm_suspend_no_lock(struct kbase_device *kbdev)
 		dev_info(kbdev->dev, "Activating MCU out of sleep on system suspend");
 		if (unlikely(kbase_csf_firmware_soi_disable_on_scheduler_suspend(kbdev)))
 			dev_warn(kbdev->dev,
-			 "Failed to disable SoI on scheduler suspension");
+				 "Failed to disable SoI on scheduler suspension");
 		result = force_scheduler_to_exit_sleep(kbdev);
 		if (result) {
 			dev_warn(kbdev->dev, "Scheduler failed to exit from sleep");

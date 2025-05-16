@@ -444,11 +444,10 @@ void kbase_pm_set_policy(struct kbase_device *kbdev, const struct kbase_pm_polic
 	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT) &&
 	    (old_policy == &kbase_pm_always_on_policy_ops ||
 	     new_policy == &kbase_pm_always_on_policy_ops)) {
-
 		kbdev->pm.backend.shaders_desired = true;
 	}
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-#endif
+#endif /* CONFIG_MALI_MTK_CORE_MASK_SET */
 #endif
 	kbase_pm_update_cores_state(kbdev);
 

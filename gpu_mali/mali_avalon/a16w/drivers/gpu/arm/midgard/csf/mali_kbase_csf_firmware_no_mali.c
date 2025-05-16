@@ -790,8 +790,8 @@ void kbase_csf_firmware_reload_completed(struct kbase_device *kbdev)
 
 	if (unlikely(!kbdev->csf.firmware_inited))
 		return;
-	all_core_masks = kbase_pm_ca_get_core_masks(kbdev);
 
+	all_core_masks = kbase_pm_ca_get_core_masks(kbdev);
 	kbase_hwcnt_backend_csf_set_hw_availability(&kbdev->hwcnt_gpu_iface,
 						    kbdev->gpu_props.curr_config.l2_slices,
 						    kbdev->gpu_props.curr_config.shader_present,

@@ -1062,6 +1062,8 @@ int kbase_mem_free_region(struct kbase_context *kctx, struct kbase_va_region *re
 			atomic64_dec(&kctx->num_fixable_allocs);
 	}
 
+	KBASE_TLSTREAM_REGION_FREE(kctx->kbdev, kctx->id, reg->start_pfn << PAGE_SHIFT,
+				   reg->nr_pages * PAGE_SIZE, kbase_reg_current_backed_size(reg));
 	/* This will also free the physical pages */
 	kbase_free_alloced_region(reg);
 
@@ -1451,6 +1453,7 @@ no_new_partial:
 
 	KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
 
+	KBASE_TLSTREAM_PHY_PAGES_ALLOC(kbdev, kctx->id, (u64)alloc->nents, (u64)new_page_count);
 done:
 	return 0;
 
@@ -1869,6 +1872,8 @@ int kbase_free_phy_pages_helper(struct kbase_mem_phy_alloc *alloc, size_t nr_pag
 		kbase_trace_free_pages(kbdev->id, kctx, nr_pages_to_account, (size_t)alloc->pages, alloc->category);
 #endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 		KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
+		KBASE_TLSTREAM_PHY_PAGES_FREE(kbdev, kctx->id, (u64)alloc->nents,
+					      (u64)new_page_count);
 	} else if (freed != nr_pages_to_account) {
 		/* If the allocation was reclaimed then alloc->nents pages
 		 * have already been accounted for.
@@ -1885,6 +1890,8 @@ int kbase_free_phy_pages_helper(struct kbase_mem_phy_alloc *alloc, size_t nr_pag
 		kbase_trace_update_pages(kbdev->id, kctx, freed, nr_pages_to_account, (size_t)alloc->pages, alloc->category);
 #endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 		KBASE_TLSTREAM_AUX_PAGESALLOC(kbdev, kctx->id, (u64)new_page_count);
+		KBASE_TLSTREAM_PHY_PAGES_FREE(kbdev, kctx->id, (u64)alloc->nents,
+					      (u64)new_page_count);
 	}
 
 	return 0;
@@ -2122,7 +2129,6 @@ int kbase_alloc_phy_pages(struct kbase_va_region *reg, size_t vsize, size_t size
 			goto out_rollback;
 		reg->gpu_alloc->reg = reg;
 	}
-
 	return 0;
 
 out_rollback:

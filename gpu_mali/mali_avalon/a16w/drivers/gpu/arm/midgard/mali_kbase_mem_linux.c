@@ -537,6 +537,9 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	else if (*flags & BASE_MEM_FIXED)
 		atomic64_inc(&kctx->num_fixed_allocs);
 
+	KBASE_TLSTREAM_REGION_ALLOC(kctx->kbdev, kctx->id, *gpu_va, va_pages * PAGE_SIZE,
+				    commit_pages, extension);
+
 	return reg;
 
 no_mmap:
@@ -945,6 +948,9 @@ void kbase_mem_evictable_make(struct kbase_mem_phy_alloc *gpu_alloc)
 {
 	struct kbase_context *kctx = gpu_alloc->imported.native.kctx;
 
+	KBASE_TLSTREAM_REGION_EVICTABLE_MAKE(kctx->kbdev, kctx->id,
+					     gpu_alloc->reg->start_pfn << PAGE_SHIFT,
+					     gpu_alloc->reg->nr_pages * PAGE_SIZE);
 	lockdep_assert_held(&kctx->reg_lock);
 
 	/* Memory is in the process of transitioning to the shrinker, and
@@ -1028,6 +1034,10 @@ bool kbase_mem_evictable_unmake(struct kbase_mem_phy_alloc *gpu_alloc)
 			 */
 			if (kbase_is_page_migration_enabled())
 				kbase_set_phy_alloc_page_status(kctx, gpu_alloc, ALLOCATED_MAPPED);
+
+			KBASE_TLSTREAM_REGION_EVICTABLE_UNMAKE(
+				kctx->kbdev, kctx->id, gpu_alloc->reg->start_pfn << PAGE_SHIFT,
+				gpu_alloc->reg->nr_pages * PAGE_SIZE);
 		}
 	}
 
@@ -1442,7 +1452,6 @@ static int kbase_mem_umm_map_attachment(struct kbase_context *kctx, struct kbase
 
 		for (j = 0; (j < pages) && (count < reg->nr_pages); j++, count++)
 			*pa++ = as_tagged(sg_dma_address(s) + (j << PAGE_SHIFT));
-
 		WARN_ONCE(j < pages, "sg list from dma_buf_map_attachment > dma_buf->size=%zu\n",
 			  alloc->imported.umm.dma_buf->size);
 #endif /* CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM && CONFIG_MTK_GZ_KREE && CONFIG_MALI_MTK_PROTECTED_PATCH */
@@ -2427,6 +2436,10 @@ int kbase_mem_commit(struct kbase_context *kctx, u64 gpu_addr, u64 new_pages)
 	}
 
 	old_pages = kbase_reg_current_backed_size(reg);
+
+	KBASE_TLSTREAM_REGION_COMMIT(kctx->kbdev, kctx->id, gpu_addr, reg->nr_pages * PAGE_SIZE,
+				     old_pages, new_pages);
+
 	if (new_pages > old_pages) {
 		delta = new_pages - old_pages;
 
@@ -2530,6 +2543,8 @@ int kbase_mem_shrink(struct kbase_context *const kctx, struct kbase_va_region *c
 			kbase_free_phy_pages_helper(reg->gpu_alloc, delta);
 	}
 
+	KBASE_TLSTREAM_REGION_SHRINK(kctx->kbdev, kctx->id, reg->start_pfn << PAGE_SHIFT,
+				     reg->nr_pages * PAGE_SIZE, old_pages, new_pages);
 	return err;
 }
 

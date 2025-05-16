@@ -26,10 +26,11 @@
 #include <device/mali_kbase_device.h>
 #include <backend/gpu/mali_kbase_irq_internal.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
-#include <csf/mali_kbase_csf_trace_buffer.h>
 #include <csf/ipa_control/mali_kbase_csf_ipa_control.h>
 #include <mali_kbase_reset_gpu.h>
 #include <csf/mali_kbase_csf_firmware_log.h>
+#include <csf/mali_kbase_csf_scheduler.h>
+#include <csf/mali_kbase_csf_trace_buffer.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GPUEB_IRQ)
 #include <gpueb_ipi.h>
@@ -488,6 +489,7 @@ kbase_csf_reset_gpu_once(struct kbase_device *kbdev, bool firmware_inited, bool 
 	unsigned long flags;
 	int err;
 	enum kbasep_soft_reset_status ret = RESET_SUCCESS;
+	atomic_t *const ptr_event_id = &kbdev->csf.scheduler.pages_defer_ctrl.protm_event_id;
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	spin_lock(&kbdev->mmu_mask_change);
@@ -587,6 +589,14 @@ kbase_csf_reset_gpu_once(struct kbase_device *kbdev, bool firmware_inited, bool 
 	mutex_unlock(&kbdev->mmu_hw_mutex);
 
 	kbase_pm_enable_interrupts(kbdev);
+
+	if (atomic_read(ptr_event_id) & CSF_SCHED_PROTM_EVENT_FLAGS_MASK) {
+		kbase_csf_scheduler_spin_lock(kbdev, &flags);
+		kbase_csf_scheduler_complete_protm_event(kbdev);
+		kbase_csf_scheduler_spin_unlock(kbdev, flags);
+		dev_dbg(kbdev->dev, "GPU reset lead to protected mode new event_seq: %d",
+			GET_PROTM_EVENT_ID_SEQ(atomic_read(ptr_event_id)));
+	}
 
 	mutex_lock(&kbdev->pm.lock);
 	kbase_pm_reset_complete(kbdev);
@@ -695,7 +705,6 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 		 * the firmware full reload.
 		 */
 		kbdev->csf.firmware_full_reload_needed = true;
-		kbdev->csf.firmware_booted_once = false;
 		ret = kbase_csf_reset_gpu_once(kbdev, firmware_inited, true);
 		if (ret != RESET_SUCCESS) {
 			dev_err(kbdev->dev,
@@ -717,10 +726,10 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 #else /* CONFIG_MALI_MTK_LOG_BUFFER */
 		dev_err(kbdev->dev, "Reset complete");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
 		ged_mali_event_notify_gpu_reset_done();
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
-		dev_err(kbdev->dev, "Reset complete");
 	}
 	return 0;
 err:
