@@ -39,6 +39,9 @@
 #include <linux/version_compat_defs.h>
 #include <linux/workqueue.h>
 
+#define CREATE_TRACE_POINTS
+#include "hwcnt/mali_kbase_hwcnt_trace.h"
+
 /* Explicitly include epoll header for old kernels. Not required from 4.16. */
 #if KERNEL_VERSION(4, 16, 0) > LINUX_VERSION_CODE
 #include <uapi/linux/eventpoll.h>
@@ -266,6 +269,8 @@ static struct prfcnt_enum_item kinstr_prfcnt_supported_requests[] = {
 	},
 };
 
+static enum hrtimer_restart kbasep_kinstr_prfcnt_dump_timer(struct hrtimer *timer);
+
 /**
  * kbasep_kinstr_prfcnt_hwcnt_reader_poll() - hwcnt reader's poll.
  * @filp: Non-NULL pointer to file structure.
@@ -359,6 +364,7 @@ static void kbasep_kinstr_prfcnt_reschedule_worker(struct kbase_kinstr_prfcnt_co
 {
 	u64 cur_ts_ns;
 	u64 shortest_period_ns = U64_MAX;
+	bool trigger_immediate = false;
 	struct kbase_kinstr_prfcnt_client *pos;
 
 	WARN_ON(!kinstr_ctx);
@@ -389,10 +395,17 @@ static void kbasep_kinstr_prfcnt_reschedule_worker(struct kbase_kinstr_prfcnt_co
 			 * period ago, compensate for that by scheduling next dump in the
 			 * immediate future.
 			 */
-			if (pos->next_dump_time_ns < cur_ts_ns)
-				pos->next_dump_time_ns =
-					MAX(cur_ts_ns + 1,
-					    pos->next_dump_time_ns + pos->dump_interval_ns);
+			if (pos->next_dump_time_ns < cur_ts_ns) {
+				const u64 next_dump =
+					pos->next_dump_time_ns + pos->dump_interval_ns;
+
+				if (cur_ts_ns + 1 > next_dump) {
+					pos->next_dump_time_ns = cur_ts_ns;
+					trigger_immediate = true;
+				} else {
+					pos->next_dump_time_ns = next_dump;
+				}
+			}
 		}
 	}
 
@@ -403,8 +416,22 @@ static void kbasep_kinstr_prfcnt_reschedule_worker(struct kbase_kinstr_prfcnt_co
 	 * suspended.
 	 */
 	if ((shortest_period_ns != U64_MAX) && (kinstr_ctx->suspend_count == 0)) {
-		u64 next_schedule_time_ns =
+		const u64 next_schedule_time_ns =
 			kbasep_kinstr_prfcnt_next_dump_time_ns(cur_ts_ns, shortest_period_ns);
+
+		/* If at least one sampler took more than a period then immediately
+		 * trigger the next dump. Don't rearm the timer, directly add the worker
+		 * to the queue.
+		 */
+		if (trigger_immediate) {
+			trace_hwcnt_skip_rearming(cur_ts_ns);
+			kbasep_kinstr_prfcnt_dump_timer(&kinstr_ctx->dump_timer);
+			return;
+		}
+
+		trace_hwcnt_schedule_next_sample(next_schedule_time_ns,
+						 next_schedule_time_ns - cur_ts_ns);
+
 		hrtimer_start(&kinstr_ctx->dump_timer,
 			      ns_to_ktime(next_schedule_time_ns - cur_ts_ns), HRTIMER_MODE_REL);
 	}
@@ -1385,6 +1412,8 @@ static void kbasep_kinstr_prfcnt_dump_worker(struct work_struct *work)
 	cur_time_ns = kbasep_kinstr_prfcnt_timestamp_ns();
 
 	list_for_each_entry(pos, &kinstr_ctx->clients, node) {
+		trace_hwcnt_client_dump(cur_time_ns, pos->next_dump_time_ns,
+					pos->next_dump_time_ns < cur_time_ns);
 		if (pos->active && (pos->next_dump_time_ns != 0) &&
 		    (pos->next_dump_time_ns < cur_time_ns))
 			kbasep_kinstr_prfcnt_client_dump(pos, BASE_HWCNT_READER_EVENT_PERIODIC,

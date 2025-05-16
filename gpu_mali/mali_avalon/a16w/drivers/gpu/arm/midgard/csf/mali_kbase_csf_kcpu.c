@@ -1901,6 +1901,8 @@ static void kcpu_force_signal_fence(struct kbase_kcpu_command_queue *kcpu_queue)
 
 static void kcpu_queue_force_fence_signal(struct kbase_kcpu_command_queue *kcpu_queue)
 {
+	struct kbase_context *const kctx = kcpu_queue->kctx;
+
 	mutex_lock(&kcpu_queue->lock);
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 	if (kcpu_queue->fence_signal_command_timeout_counter == 12) {
@@ -1923,6 +1925,13 @@ static void kcpu_queue_force_fence_signal(struct kbase_kcpu_command_queue *kcpu_
 		mutex_unlock(&kcpu_queue->lock);
 	}
 #else /* CONFIG_MALI_MTK_FENCE_DEBUG */
+	/* If we have additional pending fence signal commands in the queue, re-arm for the
+	 * remaining fence signal commands, and dump the work to dmesg, only if the
+	 * global configuration option is set.
+	 */
+	if (atomic_read(&kctx->kbdev->fence_signal_timeout_enabled) &&
+	    atomic_read(&kcpu_queue->fence_signal_pending_cnt) > 1)
+		fence_signal_timeout_start(kcpu_queue);
 	kcpu_force_signal_fence(kcpu_queue);
 	mutex_unlock(&kcpu_queue->lock);
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
@@ -1950,17 +1959,11 @@ static void fence_signal_timeout_cb(struct timer_list *timer)
 #endif /* CONFIG_MALI_MTK_PREVENT_PRINTK_TOO_MUCH */
 #endif
 
-	/* If we have additional pending fence signal commands in the queue, re-arm for the
-	 * remaining fence signal commands, and dump the work to dmesg, only if the
-	 * global configuration option is set.
-	 */
 	if (atomic_read(&kctx->kbdev->fence_signal_timeout_enabled)) {
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 		if (atomic_read(&kcpu_queue->fence_signal_pending_cnt) > 0)
-#else /* CONFIG_MALI_MTK_FENCE_DEBUG */
-		if (atomic_read(&kcpu_queue->fence_signal_pending_cnt) > 1)
-#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 			fence_signal_timeout_start(kcpu_queue);
+#endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 
 #if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 		queue_work(kctx->csf.kcpu_queues.kcpu_wq, &kcpu_queue->timeout_work);

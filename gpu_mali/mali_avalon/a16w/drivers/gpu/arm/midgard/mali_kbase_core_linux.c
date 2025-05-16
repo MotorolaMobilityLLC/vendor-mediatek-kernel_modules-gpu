@@ -3671,10 +3671,11 @@ static ssize_t pm_poweroff_store(struct device *dev, struct device_attribute *at
 {
 	struct kbase_device *kbdev;
 	struct kbasep_pm_tick_timer_state *stt;
-	int items;
 	u64 gpu_poweroff_time;
 	unsigned int poweroff_shader_ticks, poweroff_gpu_ticks;
 	unsigned long flags;
+	char *buf_tmp;
+	char *token;
 
 	CSTD_UNUSED(attr);
 
@@ -3682,15 +3683,22 @@ static ssize_t pm_poweroff_store(struct device *dev, struct device_attribute *at
 	if (!kbdev)
 		return -ENODEV;
 
-	items = sscanf(buf, "%llu %u %u", &gpu_poweroff_time, &poweroff_shader_ticks,
-		       &poweroff_gpu_ticks);
-	if (items != 3) {
-		dev_err(kbdev->dev,
-			"Couldn't process pm_poweroff write operation.\n"
-			"Use format <gpu_poweroff_time_ns> <poweroff_shader_ticks> <poweroff_gpu_ticks>\n");
-		return -EINVAL;
-	}
+	buf_tmp = kstrdup(buf, GFP_KERNEL);
+	if (buf_tmp == NULL)
+		goto error;
 
+	token = strsep(&buf_tmp, " ");
+	if (token == NULL || kstrtoull(token, 10, &gpu_poweroff_time) < 0)
+		goto error;
+
+	token = strsep(&buf_tmp, " ");
+	if (token == NULL || kstrtou32(token, 10, &poweroff_shader_ticks) < 0)
+		goto error;
+
+	token = strsep(&buf_tmp, " ");
+	if (token == NULL || kstrtou32(token, 10, &poweroff_gpu_ticks) < 0)
+		goto error;
+	kfree(buf_tmp);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 	stt = &kbdev->pm.backend.shader_tick_timer;
@@ -3704,6 +3712,12 @@ static ssize_t pm_poweroff_store(struct device *dev, struct device_attribute *at
 		dev_warn(kbdev->dev, "Separate GPU poweroff delay no longer supported.\n");
 
 	return (ssize_t)count;
+error:
+	kfree(buf_tmp);
+	dev_err(kbdev->dev,
+		"Couldn't process pm_poweroff write operation.\n"
+		"Use format <gpu_poweroff_time_ns> <poweroff_shader_ticks> <poweroff_gpu_ticks>\n");
+	return -EINVAL;
 }
 
 /**
@@ -4375,6 +4389,8 @@ static ssize_t kbase_device_debugfs_heap_reclaim_offslot_write(struct file *file
 	struct kbase_csf_heap_reclaim_offslot *const setting = sfile->private;
 	u32 read_len, timeout_ms, pages;
 	char kbuf[32];
+	char *kbuf_ptr;
+	char *token;
 
 	CSTD_UNUSED(ppos);
 
@@ -4383,7 +4399,12 @@ static ssize_t kbase_device_debugfs_heap_reclaim_offslot_write(struct file *file
 		return -EFAULT;
 	kbuf[read_len] = '\0';
 
-	if (sscanf(kbuf, "%u %u", &timeout_ms, &pages) != 2)
+	kbuf_ptr = kbuf;
+	token = strsep(&kbuf_ptr, " ");
+	if (token == NULL || kstrtou32(token, 10, &timeout_ms) < 0)
+		return -EINVAL;
+	token = strsep(&kbuf_ptr, " ");
+	if (token == NULL || kstrtou32(token, 10, &pages) < 0)
 		return -EINVAL;
 
 	setting->timeout_ms = timeout_ms;

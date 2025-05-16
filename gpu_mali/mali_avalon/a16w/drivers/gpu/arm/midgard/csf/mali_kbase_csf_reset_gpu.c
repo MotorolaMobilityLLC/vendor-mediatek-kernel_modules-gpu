@@ -454,7 +454,6 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 			dev_err(kbdev->dev, "  L2_PWR_STATUS=0x%05llx",
 				kbase_reg_read64(kbdev, HOST_POWER_ENUM(PWR_CMDARG)));
 	}
-
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 }
 
@@ -922,6 +921,7 @@ void kbase_reset_gpu(struct kbase_device *kbdev)
 #else /* CONFIG_MALI_MTK_LOG_BUFFER */
 	dev_err(kbdev->dev, "Preparing to soft-reset GPU\n");
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
+
 	kbase_disjoint_state_up(kbdev);
 
 	queue_work(kbdev->csf.reset.workq, &kbdev->csf.reset.work);

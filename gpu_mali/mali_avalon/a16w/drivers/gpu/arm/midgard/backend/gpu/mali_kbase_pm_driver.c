@@ -1831,6 +1831,7 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 				backend->mcu_state = KBASE_MCU_IN_SLEEP;
 				kbase_pm_enable_db_mirror_interrupt(kbdev);
 				kbase_csf_scheduler_reval_idleness_post_sleep(kbdev);
+
 				/* Enable PM interrupt, after MCU has been put
 				 * to sleep, for the power down of L2.
 				 */
@@ -3371,8 +3372,7 @@ static int pm_wait_for_desired_state(struct kbase_device *kbdev, bool killable_w
 	if (killable_wait)
 		remaining = kbase_csf_wait_event_killable_timeout(
 			kbdev, kbdev->pm.backend.gpu_in_desired_state_wait,
-			kbase_pm_is_in_desired_state(kbdev) ||
-				kbase_io_is_aw_removed(kbdev),
+			kbase_pm_is_in_desired_state(kbdev) || kbase_io_is_aw_removed(kbdev),
 			timeout);
 #else
 	killable_wait = false;
@@ -3380,8 +3380,7 @@ static int pm_wait_for_desired_state(struct kbase_device *kbdev, bool killable_w
 	if (!killable_wait)
 		remaining = kbase_csf_wait_event_timeout(
 			kbdev, kbdev->pm.backend.gpu_in_desired_state_wait,
-			kbase_pm_is_in_desired_state(kbdev) ||
-				kbase_io_is_aw_removed(kbdev),
+			kbase_pm_is_in_desired_state(kbdev) || kbase_io_is_aw_removed(kbdev),
 			timeout);
 	if (!remaining) {
 		kbase_pm_timed_out(kbdev, "Wait for power transition timed out");
@@ -3503,8 +3502,7 @@ static int pm_wait_for_poweroff_work_complete(struct kbase_device *kbdev, bool k
 	if (killable_wait)
 		remaining = kbase_csf_wait_event_killable_timeout(
 			kbdev, kbdev->pm.backend.poweroff_wait,
-			!is_poweroff_wait_in_progress(kbdev) ||
-			kbase_io_is_aw_removed(kbdev),
+			!is_poweroff_wait_in_progress(kbdev) || kbase_io_is_aw_removed(kbdev),
 			timeout);
 #else
 	killable_wait = false;
@@ -3512,7 +3510,8 @@ static int pm_wait_for_poweroff_work_complete(struct kbase_device *kbdev, bool k
 
 	if (!killable_wait)
 		remaining = kbase_csf_wait_event_timeout(kbdev, kbdev->pm.backend.poweroff_wait,
-							 !is_poweroff_wait_in_progress(kbdev),timeout) ||
+							 !is_poweroff_wait_in_progress(kbdev),
+							 timeout) ||
 			    kbase_io_is_aw_removed(kbdev);
 	if (!remaining) {
 		kbase_pm_timed_out(kbdev, "Wait for poweroff work timed out");
