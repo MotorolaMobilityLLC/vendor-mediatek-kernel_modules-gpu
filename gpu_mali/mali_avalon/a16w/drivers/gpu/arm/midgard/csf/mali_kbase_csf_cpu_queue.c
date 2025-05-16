@@ -95,7 +95,9 @@ int kbase_csf_cpu_queue_dump_buffer(struct kbase_context *kctx, u64 buffer, size
 	if (!dump_buffer)
 		return -ENOMEM;
 
+#if !IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
 	WARN_ON(kctx->csf.cpu_queue.buffer != NULL);
+#endif /* CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT */
 
 	if (copy_from_user(dump_buffer, u64_to_user_ptr(buffer), buf_size)) {
 		kfree(dump_buffer);
@@ -104,10 +106,16 @@ int kbase_csf_cpu_queue_dump_buffer(struct kbase_context *kctx, u64 buffer, size
 
 #if IS_ENABLED(CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT)
 	mutex_lock(&kctx->csf.cpu_queue.lock);
+	WARN_ON(kctx->csf.cpu_queue.buffer != NULL);
+	if (kctx->csf.cpu_queue.buffer != NULL) {
+		kfree(kctx->csf.cpu_queue.buffer);
+		kctx->csf.cpu_queue.buffer = NULL;
+		kctx->csf.cpu_queue.buffer_size = 0;
+	}
 #else
 	mutex_lock(&kctx->csf.lock);
-#endif /* CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT */
 	kfree(kctx->csf.cpu_queue.buffer);
+#endif /* CONFIG_MALI_MTK_CPUQ_DUMP_ENHANCEMENT */
 
 	if (atomic_read(&kctx->csf.cpu_queue.dump_req_status) == BASE_CSF_CPU_QUEUE_DUMP_PENDING) {
 		kctx->csf.cpu_queue.buffer = dump_buffer;
