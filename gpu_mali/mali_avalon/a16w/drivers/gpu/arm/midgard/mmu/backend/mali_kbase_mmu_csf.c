@@ -44,6 +44,10 @@
 #include <platform/mtk_platform_common/mtk_platform_mali_event.h>
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+#include <linux/kthread.h>
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
+
 void kbase_mmu_get_as_setup(struct kbase_mmu_table *mmut, struct kbase_mmu_setup *const setup)
 {
 	/* Set up the required caching policies at the correct indices
@@ -94,10 +98,17 @@ static void submit_work_pagefault(struct kbase_device *kbdev, u32 as_nr, struct 
 		 * context's address space, when the page fault occurs for
 		 * MCU's address space.
 		 */
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+		if (!kthread_queue_work(kbdev->csf.scheduler.mmu_page_fault_worker, &as->work_pagefault)) {
+#else
 		if (!queue_work(as->pf_wq, &as->work_pagefault)) {
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
 			dev_dbg(kbdev->dev, "Page fault is already pending for as %u", as_nr);
 			kbase_ctx_sched_release_ctx(kctx);
 		} else {
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+			mali_kthread_event("queue work", kctx, "kbase_mmu_page_fault_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 			atomic_inc(&kbdev->faults_pending);
 		}
 	}
@@ -666,10 +677,17 @@ static void kbase_mmu_interrupt_process(struct kbase_device *kbdev, struct kbase
 			atomic_inc(&kbdev->faults_pending);
 		}
 	} else {
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+		if (!kthread_queue_work(kbdev->csf.scheduler.mmu_page_fault_worker, &as->work_pagefault)) {
+#else
 		if (!queue_work(as->pf_wq, &as->work_pagefault)) {
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
 			dev_warn(kbdev->dev, "Page fault is already pending for as %u", as->number);
 			kbase_ctx_sched_release_ctx(kctx);
 		} else
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+			mali_kthread_event("queue work", kctx, "kbase_mmu_page_fault_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 			atomic_inc(&kbdev->faults_pending);
 	}
 }
@@ -903,7 +921,11 @@ int kbase_mmu_as_init(struct kbase_device *kbdev, unsigned int i)
 	if (!kbdev->as[i].pf_wq)
 		return -ENOMEM;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+	kthread_init_work(&kbdev->as[i].work_pagefault, kbase_mmu_page_fault_worker);
+#else
 	INIT_WORK(&kbdev->as[i].work_pagefault, kbase_mmu_page_fault_worker);
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
 	INIT_WORK(&kbdev->as[i].work_busfault, kbase_mmu_bus_fault_worker);
 	INIT_WORK(&kbdev->as[i].work_gpufault, kbase_mmu_gpu_fault_worker);
 

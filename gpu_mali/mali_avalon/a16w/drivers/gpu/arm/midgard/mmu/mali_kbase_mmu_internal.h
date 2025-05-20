@@ -43,7 +43,11 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx, struct kbase_as
  *
  * @data:  work_struct passed by queue_work()
  */
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+void kbase_mmu_page_fault_worker(struct kthread_work *data);
+#else
 void kbase_mmu_page_fault_worker(struct work_struct *data);
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
 
 /**
  * kbase_mmu_bus_fault_worker() - Process a bus fault.

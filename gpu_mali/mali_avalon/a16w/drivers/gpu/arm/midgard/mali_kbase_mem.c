@@ -55,6 +55,10 @@
 #include <platform/mtk_platform_common/mtk_platform_debug.h>
 #endif /* CONFIG_MALI_MTK_MMAP_LOGGING */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+#include <linux/kthread.h>
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
+
 /* Static key used to determine if large pages are enabled or not */
 static DEFINE_STATIC_KEY_FALSE(large_pages_static_key);
 
@@ -2639,12 +2643,19 @@ void kbase_jit_debugfs_init(struct kbase_context *kctx)
  * This function does the work of freeing JIT allocations whose physical
  * backing has been released.
  */
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+static void kbase_jit_destroy_worker(struct kthread_work *work)
+#else
 static void kbase_jit_destroy_worker(struct work_struct *work)
+#endif
 {
 	struct kbase_context *kctx;
 	struct kbase_va_region *reg;
 
 	kctx = container_of(work, struct kbase_context, jit_work);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	MALI_KTHREAD_WORK_START(kctx, "kbase_jit_destroy_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 	do {
 		mutex_lock(&kctx->jit_evict_lock);
 		if (list_empty(&kctx->jit_destroy_head)) {
@@ -2670,6 +2681,9 @@ static void kbase_jit_destroy_worker(struct work_struct *work)
 		kbase_mem_free_region(kctx, reg);
 		kbase_gpu_vm_unlock(kctx);
 	} while (1);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	MALI_KTHREAD_WORK_END(kctx, "kbase_jit_destroy_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 }
 
 int kbase_jit_init(struct kbase_context *kctx)
@@ -2678,7 +2692,11 @@ int kbase_jit_init(struct kbase_context *kctx)
 	INIT_LIST_HEAD(&kctx->jit_active_head);
 	INIT_LIST_HEAD(&kctx->jit_pool_head);
 	INIT_LIST_HEAD(&kctx->jit_destroy_head);
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+	kthread_init_work(&kctx->jit_work, kbase_jit_destroy_worker);
+#else
 	INIT_WORK(&kctx->jit_work, kbase_jit_destroy_worker);
+#endif
 
 	mutex_init(&kctx->csf.kcpu_queues.jit_lock);
 	INIT_LIST_HEAD(&kctx->csf.kcpu_queues.jit_cmds_head);
@@ -3507,7 +3525,15 @@ void kbase_jit_backing_lost(struct kbase_va_region *reg)
 	 */
 	list_move(&reg->jit_node, &kctx->jit_destroy_head);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+	if (kthread_queue_work(kctx->kbdev->csf.scheduler.jit_destory_worker, &kctx->jit_work)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+		mali_kthread_event("queue work", kctx, "kbase_jit_destroy_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+	}
+#else
 	schedule_work(&kctx->jit_work);
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
 }
 
 bool kbase_jit_evict(struct kbase_context *kctx)
@@ -3592,7 +3618,14 @@ void kbase_jit_term(struct kbase_context *kctx)
 	 * Flush the freeing of allocations whose backing has been freed
 	 * (i.e. everything in jit_destroy_head).
 	 */
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+	kthread_cancel_work_sync(&kctx->jit_work);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	mali_kthread_event("cancel work", kctx, "kbase_jit_destroy_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+#else
 	cancel_work_sync(&kctx->jit_work);
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
 }
 
 #if MALI_JIT_PRESSURE_LIMIT_BASE

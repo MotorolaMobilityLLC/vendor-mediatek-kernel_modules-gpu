@@ -499,11 +499,11 @@ struct kbase_queue {
 	kbase_refcount_t refcount;
 	struct kbase_queue_group *group;
 	struct kbase_va_region *queue_reg;
-#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
 	struct kthread_work oom_event_work;
 #else
 	struct work_struct oom_event_work;
-#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
 	u64 base_addr;
 	u32 size;
 	u8 priority;
@@ -1453,9 +1453,11 @@ struct kbase_csf_scheduler {
 	 */
 	spinlock_t gpu_metrics_lock;
 #endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
-#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
 	struct kthread_worker *oom_event_kthread_worker;
-#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
+	struct kthread_worker *mmu_page_fault_worker;
+	struct kthread_worker *jit_destory_worker;
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
 	atomic_t gpu_idle_timer_enabled;
 	atomic_t fw_soi_enabled;
 	atomic_t missed_suspend_on_idle_evt;
@@ -2069,7 +2071,11 @@ struct kbase_csf_device {
 struct kbase_as {
 	unsigned int number;
 	struct workqueue_struct *pf_wq;
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+	struct kthread_work work_pagefault;
+#else
 	struct work_struct work_pagefault;
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
 	struct work_struct work_busfault;
 	struct work_struct work_gpufault;
 	struct kbase_fault pf_data;

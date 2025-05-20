@@ -2069,7 +2069,11 @@ struct kbase_context {
 	struct list_head jit_pool_head;
 	struct list_head jit_destroy_head;
 	struct mutex jit_evict_lock;
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+	struct kthread_work jit_work;
+#else
 	struct work_struct jit_work;
+#endif
 
 	struct list_head ext_res_meta_head;
 

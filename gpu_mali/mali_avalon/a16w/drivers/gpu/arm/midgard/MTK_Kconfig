@@ -372,8 +372,8 @@ config MALI_MTK_GPU_FREQUENCY_TRACE
 	bool "provide gpu_frequency trace event"
 	default n
 
-config MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT
-	bool "Set oom_event_worker to single RT kthread"
+config MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER
+	bool "Set mmu_page_fault to single RT kthread"
 	default n
 
 config MALI_MTK_RESET_OPT

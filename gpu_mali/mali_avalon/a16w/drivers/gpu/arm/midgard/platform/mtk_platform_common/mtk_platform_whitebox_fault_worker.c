@@ -5,6 +5,9 @@
 
 #include <mali_kbase.h>
 #include <mali_kbase_defs.h>
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+#include "mali_kbase_ctx_sched.h"
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 static int mtk_whitebox_fault_worker_enable_show(struct seq_file *m, void *v)
@@ -59,7 +62,21 @@ static ssize_t mtk_whitebox_fault_worker_enable_write(struct file *file, const c
 		WARN_ON(!queue_work(as->pf_wq, &as->work_busfault));
 		atomic_inc(&kbdev->faults_pending);
 		pr_info("[WHITEBOX] Enqueue page fault worker");
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+		bool ret = kthread_queue_work(kbdev->csf.scheduler.mmu_page_fault_worker, &as->work_pagefault);
+		WARN_ON(!ret);
+		if (ret) {
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+			struct kbase_context *kctx = kbase_ctx_sched_as_to_ctx(kbdev, as->number);
+			if (kctx) {
+				mali_kthread_event("queue work", kctx, "kbase_mmu_page_fault_worker");
+			}
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+		}
+#else
 		WARN_ON(!queue_work(as->pf_wq, &as->work_pagefault));
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
 		atomic_inc(&kbdev->faults_pending);
 	}
 

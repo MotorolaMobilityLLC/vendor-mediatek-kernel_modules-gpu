@@ -2013,11 +2013,15 @@ static void handle_tiler_oom_request_on_cs_resume(struct kbase_device *kbdev,
 	case KBASE_CSF_QUEUE_OOM_ERROR_ABORT:
 		kbase_csf_fw_io_stream_write_mask(&kbdev->csf.fw_io, slot_id, stream_id, CS_REQ,
 						  ~cs_ack, CS_REQ_TILER_OOM_MASK);
-#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
-		kthread_queue_work(kbdev->csf.scheduler.oom_event_kthread_worker, &queue->oom_event_work);
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+		if (kthread_queue_work(kbdev->csf.scheduler.oom_event_kthread_worker, &queue->oom_event_work)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+			mali_kthread_event("queue work", queue, "oom_event_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+		}
 #else
 		queue_work(queue->kctx->csf.wq, &queue->oom_event_work);
-#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
 		break;
 	default:
 		/* Unexpected state reached for resume */
@@ -2580,9 +2584,9 @@ static void process_cs_pending_events(struct kbase_csf_fw_io *fw_io, u32 group_i
 	u32 stream_id = queue->csi_index;
 	u32 ack_xor_req = kbase_csf_fw_io_stream_read(fw_io, group_id, stream_id, CS_ACK) ^
 			  kbase_csf_fw_io_stream_input_read(fw_io, group_id, stream_id, CS_REQ);
-#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
 	struct kbase_device *kbdev = queue->kctx->kbdev;
-#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
 
 	if (is_gpu_level_suspend_supported(fw_io->kbdev) &&
 	    (ack_xor_req & (CS_ACK_FATAL_MASK | CS_ACK_FAULT_MASK))) {
@@ -2610,11 +2614,15 @@ static void process_cs_pending_events(struct kbase_csf_fw_io *fw_io, u32 group_i
 
 	/* If OOM dealing state is error-abort, enqueue a wq item for deferred abort action. */
 	if (queue->oom_track.state == KBASE_CSF_QUEUE_OOM_ERROR_ABORT)
-#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
-		kthread_queue_work(kbdev->csf.scheduler.oom_event_kthread_worker, &queue->oom_event_work);
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+		if (kthread_queue_work(kbdev->csf.scheduler.oom_event_kthread_worker, &queue->oom_event_work)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+			mali_kthread_event("queue work", queue, "oom_event_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+		}
 #else
 		queue_work(queue->kctx->csf.wq, &queue->oom_event_work);
-#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
 
 	/* Tracking pending P.mode request */
 	if (ack_xor_req & CS_REQ_PROTM_PEND_MASK)
@@ -8786,10 +8794,16 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 
-#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
-	int ret = 0;
-	struct sched_param param = { .sched_priority = 2 };
-#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+	int oom_ret = 0;
+	struct sched_param oom_param = { .sched_priority = 2 };
+
+	int mmu_ret = 0;
+	struct sched_param mmu_param = { .sched_priority = 2 };
+
+	int jit_ret = 0;
+	struct sched_param jit_param = { .sched_priority = 2 };
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
 
 	atomic_set(&scheduler->timer_enabled, true);
 
@@ -8867,18 +8881,47 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 		kbase_csf_db_valid_init(kbdev);
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
 	scheduler->oom_event_kthread_worker = kthread_create_worker(0, "mali-oom-kthread");
 	dev_info(kbdev->dev, "kthread_create_worker %p", scheduler->oom_event_kthread_worker);
 	if (IS_ERR(scheduler->oom_event_kthread_worker)) {
 		dev_err(kbdev->dev, "Failed to allocate oom event worker\n");
 		return -ENOMEM;
 	}
-	ret = sched_setscheduler_nocheck(scheduler->oom_event_kthread_worker->task, SCHED_FIFO, &param);
-	if (ret != 0) {
-		dev_warn(kbdev->dev, "Failed to set priority mali-oom-kthread %d\n", ret);
+
+	oom_ret = sched_setscheduler_nocheck(scheduler->oom_event_kthread_worker->task, SCHED_FIFO, &oom_param);
+	if (oom_ret != 0) {
+		dev_warn(kbdev->dev, "Failed to set priority mali-oom-kthread %d\n", oom_ret);
 	}
-#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
+
+	scheduler->mmu_page_fault_worker = kthread_create_worker(0, "mali-mmuPF-kthread");
+	dev_info(kbdev->dev, "kthread_create_worker mmu_page_fault_worker %p", scheduler->mmu_page_fault_worker);
+
+	if (IS_ERR(scheduler->mmu_page_fault_worker)) {
+		dev_err(kbdev->dev, "Failed to allocate mmu_page_fault_worker\n");
+		return -ENOMEM;
+	}
+
+	mmu_ret = sched_setscheduler_nocheck(scheduler->mmu_page_fault_worker->task, SCHED_FIFO, &mmu_param);
+
+	if (mmu_ret != 0) {
+		dev_warn(kbdev->dev, "Failed to set priority mali-mmu-page-fault-worker-kthread %d\n", mmu_ret);
+	}
+
+	scheduler->jit_destory_worker = kthread_create_worker(0, "mali-jit-kthread");
+	dev_info(kbdev->dev, "kthread_create_worker jit_destory_worker %p", scheduler->jit_destory_worker);
+
+	if (IS_ERR(scheduler->jit_destory_worker)) {
+		dev_err(kbdev->dev, "Failed to allocate jit_destory_worke\n");
+		return -ENOMEM;
+	}
+
+	jit_ret = sched_setscheduler_nocheck(scheduler->jit_destory_worker->task, SCHED_FIFO, &jit_param);
+
+	if (jit_ret != 0) {
+		dev_warn(kbdev->dev, "Failed to set priority mali-jit-destory-worker-kthread %d\n", jit_ret);
+	}
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
 
 	return kbase_csf_tiler_heap_reclaim_mgr_init(kbdev);
 }
@@ -8932,12 +8975,19 @@ void kbase_csf_scheduler_term(struct kbase_device *kbdev)
 		kbdev->csf.scheduler.csg_slots = NULL;
 	}
 
-#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
 	if(scheduler->oom_event_kthread_worker) {
 		kthread_destroy_worker(scheduler->oom_event_kthread_worker);
 	}
-#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 
+	if(scheduler->mmu_page_fault_worker) {
+		kthread_destroy_worker(scheduler->mmu_page_fault_worker);
+	}
+
+	if (scheduler->jit_destory_worker) {
+		kthread_destroy_worker(scheduler->jit_destory_worker);
+	}
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
 	KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSF_GROUP_TERMINATED, NULL,
 				 kbase_csf_scheduler_get_nr_active_csgs(kbdev));
 	/* Terminating the MCU shared regions, following the release of slots */

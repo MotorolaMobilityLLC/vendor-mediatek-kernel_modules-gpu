@@ -301,7 +301,15 @@ unsigned long kbase_csf_tiler_heap_reclaim_unused_pages(struct kbase_device *kbd
 				info->nr_freed_pages += freed_pages;
 				total_freed_pages += freed_pages;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+				if (kthread_queue_work(kbdev->csf.scheduler.jit_destory_worker, &kctx->jit_work)) {
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+					mali_kthread_event("queue work", kctx, "kbase_jit_destroy_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+				}
+#else
 				schedule_work(&kctx->jit_work);
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
 			}
 
 			/* If the kctx can't offer anymore, drop it from the reclaim manger,

@@ -974,7 +974,11 @@ static bool page_fault_try_alloc(struct kbase_context *kctx, struct kbase_va_reg
 	return true;
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+void kbase_mmu_page_fault_worker(struct kthread_work *data)
+#else
 void kbase_mmu_page_fault_worker(struct work_struct *data)
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
 {
 	u64 fault_pfn;
 	u32 fault_status;
@@ -1031,6 +1035,17 @@ void kbase_mmu_page_fault_worker(struct work_struct *data)
 		atomic_dec(&kbdev->faults_pending);
 		return;
 	}
+
+	#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	MALI_KTHREAD_WORK_START(kctx, "kbase_mmu_page_fault_worker");
+	#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_TRACE_DEBUG)
+	char msg[256];
+	snprintf(msg, 256, "kctx_tgid:%d, kctx_pid:%d", kctx->tgid, kctx->id);
+	MALI_TRACE_BEGIN(msg);
+	MALI_TRACE_END();
+#endif /* CONFIG_MALI_MTK_KBASE_TRACE_DEBUG */
 
 	KBASE_DEBUG_ASSERT(kctx->kbdev == kbdev);
 
@@ -1289,8 +1304,15 @@ page_fault_retry:
 	section_timestamp = ktime_get();
 #endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
 	spin_lock(&kctx->mem_partials_lock);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_TRACE_DEBUG)
+	snprintf(msg, 256, "page_fault_try_alloc(new_pages: %zu, fault->addr: %llu)", new_pages, fault->addr);
+	MALI_TRACE_BEGIN(msg);
+#endif /* CONFIG_MALI_MTK_KBASE_TRACE_DEBUG */
 	grown = page_fault_try_alloc(kctx, region, new_pages, &pages_to_grow, &grow_2mb_pool,
 				     fallback_to_small, prealloc_sas);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_TRACE_DEBUG)
+	MALI_TRACE_END();
+#endif /* CONFIG_MALI_MTK_KBASE_TRACE_DEBUG */
 	spin_unlock(&kctx->mem_partials_lock);
 #if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
 	// if fuction execute too long, trigger debug message
@@ -1419,7 +1441,13 @@ page_fault_retry:
 #if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
 				section_timestamp = ktime_get();
 #endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_TRACE_DEBUG)
+				MALI_TRACE_BEGIN("kbase_mem_pool_grow");
+#endif /* CONFIG_MALI_MTK_KBASE_TRACE_DEBUG */
 				ret = kbase_mem_pool_grow(lp_mem_pool, pages_to_grow, kctx->task);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_TRACE_DEBUG)
+				MALI_TRACE_END();
+#endif /* CONFIG_MALI_MTK_KBASE_TRACE_DEBUG */
 #if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
 				// if fuction execute too long, trigger debug message
 				execute_time = ktime_to_ms(ktime_sub(ktime_get(), section_timestamp));
@@ -1430,8 +1458,14 @@ page_fault_retry:
 				 */
 				if (ret < 0) {
 					fallback_to_small = true;
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_TRACE_DEBUG)
+					MALI_TRACE_BEGIN("No room for 2MB pages, fallback to small pages");
+#endif /* CONFIG_MALI_MTK_KBASE_TRACE_DEBUG */
 					dev_dbg(kbdev->dev,
 						"No room for 2MB pages, fallback to small pages");
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_TRACE_DEBUG)
+					MALI_TRACE_END();
+#endif /* CONFIG_MALI_MTK_KBASE_TRACE_DEBUG */
 					goto page_fault_retry;
 				}
 			} else {
@@ -1440,7 +1474,13 @@ page_fault_retry:
 #if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
 				section_timestamp = ktime_get();
 #endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_TRACE_DEBUG)
+				MALI_TRACE_BEGIN("kbase_mem_pool_grow");
+#endif /* CONFIG_MALI_MTK_KBASE_TRACE_DEBUG */
 				ret = kbase_mem_pool_grow(mem_pool, pages_to_grow, kctx->task);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_TRACE_DEBUG)
+				MALI_TRACE_END();
+#endif /* CONFIG_MALI_MTK_KBASE_TRACE_DEBUG */
 #if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
 				// if fuction execute too long, trigger debug message
 				execute_time = ktime_to_ms(ktime_sub(ktime_get(), section_timestamp));
@@ -1504,6 +1544,9 @@ fault_done:
 			page_fault_try_allocate_time[0], page_fault_try_allocate_time[1], memory_grow_time[0], memory_grow_time[1]);
 	}
 #endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	MALI_KTHREAD_WORK_END(kctx, "kbase_mmu_page_fault_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 }
 
 /**
@@ -4850,7 +4893,11 @@ void kbase_mmu_bus_fault_worker(struct work_struct *data)
 	fault = &faulting_as->bf_data;
 
 	/* Ensure that any pending page fault worker has completed */
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+	kthread_flush_work(&faulting_as->work_pagefault);
+#else
 	flush_work(&faulting_as->work_pagefault);
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
 
 	as_no = faulting_as->number;
 
