@@ -1172,11 +1172,6 @@ static void mtk_debug_csf_csg_active_dump_queue(pid_t tgid, u32 id,
     u64 wait_sync_live_value;
     u32 glb_version;
     u64 cmd_ptr;
-#if IS_ENABLED(CONFIG_MALI_MTK_ISSUE_ANALYSIS_POINT_MT6995_C34)
-    bool is_extract_command_shared_sb_dec = false;
-    int suspend_buffer_offset = 0;
-    int i;
-#endif /* CONFIG_MALI_MTK_ISSUE_ANALYSIS_POINT_MT6995_C34 */
 
     if (!queue)
         return;
@@ -1276,16 +1271,6 @@ static void mtk_debug_csf_csg_active_dump_queue(pid_t tgid, u32 id,
                     __func__);
             } else {
                 u64 *ptr = &ringbuffer[offset / 8];
-#if IS_ENABLED(CONFIG_MALI_MTK_ISSUE_ANALYSIS_POINT_MT6995_C34)
-                for (i = 0; i < 8; i ++) {
-                    if ((start + i * 8) == cs_extract) {
-                        /* Check the extracting command's OP - SHARED_SB_DEC */
-                        if ((ptr[i] & 0xff00000000000000) == 0x1f00000000000000) {
-                            is_extract_command_shared_sb_dec = true;
-                        }
-                    }
-                }
-#endif /* CONFIG_MALI_MTK_ISSUE_ANALYSIS_POINT_MT6995_C34 */
                 mtk_log_critical_exception(queue->kctx->kbdev, true,
                     "%016llx %016llx %016llx %016llx %016llx %016llx %016llx %016llx",
                     ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7]);
@@ -1376,6 +1361,16 @@ static void mtk_debug_csf_csg_active_dump_queue(pid_t tgid, u32 id,
             tgid, id,
             CS_STATUS_REQ_RESOURCE_IDVS_RESOURCES_GET(req_res));
 
+        if (cs_insert != cs_extract) {
+            if ((CS_STATUS_REQ_RESOURCE_COMPUTE_RESOURCES_GET(req_res) == 0) &&
+                (CS_STATUS_REQ_RESOURCE_FRAGMENT_RESOURCES_GET(req_res) == 0) &&
+                (CS_STATUS_REQ_RESOURCE_TILER_RESOURCES_GET(req_res) == 0) &&
+                (CS_STATUS_REQ_RESOURCE_IDVS_RESOURCES_GET(req_res) == 0)) {
+                mtk_log_critical_exception(queue->kctx->kbdev, true, "[Fence Timeout POI] Active group without resource requests");
+            }
+        }
+
+
         wait_status = kbase_csf_fw_io_stream_read(&kbdev->csf.fw_io, group_id, stream_id,
 							  CS_STATUS_WAIT);
         wait_sync_value = kbase_csf_fw_io_stream_read(&kbdev->csf.fw_io, group_id,
@@ -1399,44 +1394,6 @@ static void mtk_debug_csf_csg_active_dump_queue(pid_t tgid, u32 id,
         } else {
             wait_sync_live_value = U64_MAX;
         }
-
-#if IS_ENABLED(CONFIG_MALI_MTK_ISSUE_ANALYSIS_POINT_MT6995_C34)
-        /*
-         * Check if the issue MT6995_C34 happened with following condition:
-         * 1. The waiting status is UNBLOCKED.
-         * 2. Extract command is SHARED_SB_DEC.
-         *
-         * It is a weird state so that we need to check if the csg->suspend.shared_sb suspend
-         * data is corrupted or have problem.
-         */
-
-        if ((CS_STATUS_BLOCKED_REASON_REASON_GET(blocked_reason) == CS_STATUS_BLOCKED_REASON_REASON_UNBLOCKED) &&
-            is_extract_command_shared_sb_dec) {
-
-            const u32 csg_suspend_buf_nr_pages =
-                PFN_UP(kbdev->csf.global_iface.groups[0].suspend_size);
-
-            mtk_log_regular(kbdev, false, "MT6995_C34 happened on cs %d, dump all suspend buffer of ctx: %d_%d, group %d",
-                queue->csi_index, queue->kctx->tgid, queue->kctx->id, queue->group->handle);
-
-            for (i = 0; i < csg_suspend_buf_nr_pages; i++) {
-                struct page *pg = as_page(queue->group->normal_suspend_buf.phy[i]);
-                void *sus_page = kbase_kmap(pg);
-                unsigned int *data;
-
-                if (sus_page) {
-                    data = (u32 *)sus_page;
-                    for (suspend_buffer_offset = 0; suspend_buffer_offset * 4 < PAGE_SIZE; suspend_buffer_offset += 8) {
-                        mtk_log_regular(kbdev, false, "[%5d] 0x%08x, 0x%08x, 0x%08x, 0x%08x, 0x%08x, 0x%08x, 0x%08x, 0x%08x",
-                            suspend_buffer_offset * 4, data[suspend_buffer_offset], data[suspend_buffer_offset + 1],
-                            data[suspend_buffer_offset + 2], data[suspend_buffer_offset + 3],
-                            data[suspend_buffer_offset + 4], data[suspend_buffer_offset + 5],
-                            data[suspend_buffer_offset + 6], data[suspend_buffer_offset + 7]);
-                    }
-                }
-            }
-        }
-#endif /* CONFIG_MALI_MTK_ISSUE_ANALYSIS_POINT_MT6995_C34 */
 
         mtk_debug_csf_csg_active_dump_cs_status_wait(
             tgid, id,  queue->kctx,
