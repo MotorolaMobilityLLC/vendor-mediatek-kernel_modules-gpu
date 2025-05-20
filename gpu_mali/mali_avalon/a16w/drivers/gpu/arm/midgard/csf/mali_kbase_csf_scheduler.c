@@ -5638,6 +5638,10 @@ static bool scheduler_idle_suspendable(struct kbase_device *kbdev)
 		suspend = false;
 	}
 
+	/* If the idle timer is disabled, GPU idle event can be ignored. */
+	if (suspend && unlikely(!atomic_read(&kbdev->csf.scheduler.gpu_idle_timer_enabled)))
+		suspend = false;
+
 	scheduler->fast_gpu_idle_handling = false;
 	spin_unlock(&scheduler->interrupt_lock);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
