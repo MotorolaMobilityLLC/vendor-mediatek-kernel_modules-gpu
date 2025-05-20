@@ -3044,6 +3044,9 @@ static ssize_t core_mask_show(struct device *dev, struct device_attribute *attr,
 #if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
 #if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
 	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+		&& (kbdev->gov_core_mask_disable == 0)
+#endif
 		&& (kbdev->csf.firmware_hctl_core_pwr == 0)
 	)
 	{
@@ -5310,8 +5313,26 @@ static ssize_t gov_core_mask_disable_store(struct device *dev, struct device_att
 		return -EINVAL;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
+	if (disabled) {
+		kbdev->pm.debug_core_mask = kbdev->gpu_props.curr_config.shader_present;
+		mtk_common_ged_dvfs_set_gov_mask_enable(0);
+	}
+	else {
+		kbdev->pm.debug_core_mask = 0;
+		if (kbdev->csf.firmware_hctl_core_pwr)
+		{
+			dev_err(kbdev->dev,"gov_core_mask force enabled fail, because AO\n");
+			return -EINVAL;
+		}
+		if (mtk_common_ged_dvfs_get_gov_mask_enable() == 0) {
+			mtk_common_ged_dvfs_set_gov_mask_enable(1);
+		}
+	}
+#endif
+
 	kbdev->gov_core_mask_disable = disabled;
-	dev_dbg(kbdev->dev, "gov_core_mask_disable: %d\n",disabled);
+	dev_err(kbdev->dev, "gov_core_mask_disable: %d\n",disabled);
 
 	return (ssize_t)count;
 }

@@ -33,7 +33,11 @@ int kbase_pm_ca_init(struct kbase_device *kbdev)
 	/* Initial debug_core_mask value is different based on GOV_CORE_MASK. */
 #if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
 #if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
-	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT))
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+		&& (kbdev->gov_core_mask_disable == 0)
+#endif
+	)
 		kbdev->pm.debug_core_mask = 0x0;
 	else
 #endif
@@ -119,7 +123,11 @@ void kbase_pm_ca_set_core_mask(struct kbase_device *kbdev, enum kbase_core_mask_
 
 #if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
 #if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
-	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT))
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+		&& (kbdev->gov_core_mask_disable == 0)
+#endif
+	)
 		kbase_pm_ca_write_gov_core_mask(kbdev);
 #endif
 #else
@@ -142,7 +150,12 @@ struct kbase_pm_core_masks kbase_pm_ca_get_core_masks(struct kbase_device *kbdev
 	/* Final core mask calculated from raw core masks */
 #if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
 #if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
-	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)) {
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+		&& (kbdev->gov_core_mask_disable == 0)
+#endif
+	)
+	{
 		if (cur_core_masks.pm_core_mask_debug != 0x0)
 			cur_core_masks.pm_core_mask_desired = cur_core_masks.pm_core_mask_debug;
 		else
@@ -178,6 +191,9 @@ struct kbase_pm_core_masks kbase_pm_ca_get_core_masks(struct kbase_device *kbdev
 #if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
 #if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
 	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT)
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+		&& (kbdev->gov_core_mask_disable == 0)
+#endif
 		&& !kbase_pm_no_mcu_core_pwroff(kbdev))
 		cur_core_masks.pm_core_mask_alloc_en = shaders_present;
 	else

@@ -421,6 +421,9 @@ void kbase_pm_set_policy(struct kbase_device *kbdev, const struct kbase_pm_polic
 #if IS_ENABLED(CONFIG_MALI_MTK_CORE_MASK_SET)
 #if !IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DISABLE)
 	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT) &&
+#if IS_ENABLED(CONFIG_MALI_MTK_GOV_CORE_MASK_DEBUG)
+		(kbdev->gov_core_mask_disable == 0) &&
+#endif
 	    (old_policy == &kbase_pm_always_on_policy_ops ||
 	     new_policy == &kbase_pm_always_on_policy_ops)) {
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
