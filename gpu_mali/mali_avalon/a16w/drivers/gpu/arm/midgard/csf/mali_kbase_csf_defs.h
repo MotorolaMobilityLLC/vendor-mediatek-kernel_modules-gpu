@@ -426,12 +426,8 @@ struct kbase_queue_oom_transact {
  *               for it.
  * @group:       Pointer to the group to which this queue is bound.
  * @queue_reg:   Pointer to the VA region allocated for CS buffer.
- * @oom_event_work: List item corresponding to the out of memory event for
+ * @oom_event_work: Work item corresponding to the out of memory event for
  *                  chunked tiler heap being used for this queue.
- * @pending_oom_event_work: Indicates that kbase_csf_scheduler_oom_kthread()
- *                          should handle an OOM event. This would be set to
- *                          false when the work is done. This is used mainly
- *                          for synchronisation with group termination.
  * @base_addr:      Base address of the CS buffer.
  * @size:           Size of the CS buffer.
  * @priority:       Priority of this queue within the group.
@@ -503,8 +499,7 @@ struct kbase_queue {
 	kbase_refcount_t refcount;
 	struct kbase_queue_group *group;
 	struct kbase_va_region *queue_reg;
-	struct list_head oom_event_work;
-	atomic_t pending_oom_event_work;
+	struct work_struct oom_event_work;
 	u64 base_addr;
 	u32 size;
 	u8 priority;
@@ -1352,15 +1347,6 @@ struct kbase_csf_protm_mem_pages_defer_ctrl {
  * @kcpuq_cmds_completed:   Wait queue for kbase_csf_scheduler_kcpuq_kthread()
  *                          to finish executing all pending prioritized KCPU
  *                          queue commands.
- * @oom_kthread_signal:     Used to wake up the kthread that handles OOM events.
- * @oom_kthread_running:    Set to true to indicate that the OOM events
- *                          processing thread will handle pending events.
- * @oom_kthread:            Dedicated thread used to handle OOM events.
- * @pending_oom_event_works:    Indicates that kbase_csf_scheduler_oom_kthread()
- *                              should process pending OOM events.
- * @oom_event_work_queues_lock: Lock protecting the list of OOM events that
- *                              need to be processed.
- * @oom_event_work_queues:  The list of OOM events that need to be processed.
  * @gpu_idle_timer_enabled: Tracks whether the GPU idle timer is enabled or disabled.
  * @fw_soi_enabled:         True if FW Sleep-on-Idle is currently enabled.
  * @missed_suspend_on_idle_evt: Indicates if the previous attempt at suspending
@@ -1439,13 +1425,6 @@ struct kbase_csf_scheduler {
 	spinlock_t kcpuq_work_queues_lock;
 	struct list_head kcpuq_work_queues;
 	wait_queue_head_t kcpuq_cmds_completed;
-	struct completion oom_kthread_signal;
-	bool oom_kthread_running;
-	struct task_struct *oom_kthread;
-	atomic_t pending_oom_event_works;
-	spinlock_t oom_event_work_queues_lock;
-	struct list_head oom_event_work_queues;
-
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
 	/**
 	 *  @gpu_metrics_tb: Handler of firmware trace buffer for gpu_metrics

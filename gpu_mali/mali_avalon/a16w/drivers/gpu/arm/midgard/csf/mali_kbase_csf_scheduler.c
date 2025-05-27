@@ -2013,7 +2013,7 @@ static void handle_tiler_oom_request_on_cs_resume(struct kbase_device *kbdev,
 	case KBASE_CSF_QUEUE_OOM_ERROR_ABORT:
 		kbase_csf_fw_io_stream_write_mask(&kbdev->csf.fw_io, slot_id, stream_id, CS_REQ,
 						  ~cs_ack, CS_REQ_TILER_OOM_MASK);
-		kbase_csf_scheduler_enqueue_oom_event_work(queue);
+		queue_work(queue->kctx->csf.wq, &queue->oom_event_work);
 		break;
 	default:
 		/* Unexpected state reached for resume */
@@ -2602,7 +2602,7 @@ static void process_cs_pending_events(struct kbase_csf_fw_io *fw_io, u32 group_i
 
 	/* If OOM dealing state is error-abort, enqueue a wq item for deferred abort action. */
 	if (queue->oom_track.state == KBASE_CSF_QUEUE_OOM_ERROR_ABORT)
-		kbase_csf_scheduler_enqueue_oom_event_work(queue);
+		queue_work(queue->kctx->csf.wq, &queue->oom_event_work);
 
 	/* Tracking pending P.mode request */
 	if (ack_xor_req & CS_REQ_PROTM_PEND_MASK)
@@ -8663,54 +8663,6 @@ void kbase_csf_scheduler_pages_defer_ctrl_drop_pool(struct kbase_mem_pool *pool)
 	spin_unlock(&pages_defer_ctrl->mem_pools_op_lock);
 }
 
-
-static void handle_pending_oom_works(struct kbase_csf_scheduler *scheduler)
-{
-	struct kbase_queue *queue;
-
-	if (atomic_cmpxchg(&scheduler->pending_oom_event_works, true, false) == false)
-		return;
-
-	do {
-		unsigned long flags;
-
-		spin_lock_irqsave(&scheduler->oom_event_work_queues_lock, flags);
-		queue = NULL;
-		if (!list_empty(&scheduler->oom_event_work_queues)) {
-			queue = list_first_entry(&scheduler->oom_event_work_queues,
-						 struct kbase_queue, oom_event_work);
-			list_del_init(&queue->oom_event_work);
-		}
-		spin_unlock_irqrestore(&scheduler->oom_event_work_queues_lock, flags);
-
-		if (queue != NULL) {
-			WARN_ON_ONCE(atomic_read(&queue->pending_oom_event_work) == 0);
-			kbase_csf_process_queue_oom_event(queue);
-			atomic_dec(&queue->pending_oom_event_work);
-		}
-	} while (queue != NULL);
-}
-
-static int kbase_csf_scheduler_oom_kthread(void *data)
-{
-	struct kbase_device *const kbdev = data;
-	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
-
-	while (scheduler->oom_kthread_running) {
-		if (wait_for_completion_interruptible(&scheduler->oom_kthread_signal) != 0)
-			continue;
-		reinit_completion(&scheduler->oom_kthread_signal);
-
-		handle_pending_oom_works(scheduler);
-	}
-
-	/* Wait for the other thread, that signaled the exit, to call kthread_stop() */
-	while (!kthread_should_stop())
-		;
-
-	return 0;
-}
-
 int kbase_csf_scheduler_init(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
@@ -8758,28 +8710,6 @@ int kbase_csf_scheduler_init(struct kbase_device *kbdev)
 		return -ENOMEM;
 	}
 
-	init_completion(&scheduler->oom_kthread_signal);
-	scheduler->oom_kthread_running = true;
-	scheduler->oom_kthread =
-		kthread_run(&kbase_csf_scheduler_oom_kthread, kbdev, "mali-oom-kthread");
-	if (IS_ERR_OR_NULL(scheduler->oom_kthread)) {
-		scheduler->kcpuq_kthread_running = false;
-		complete(&scheduler->kcpuq_kthread_signal);
-		kthread_stop(scheduler->kcpuq_kthread);
-		scheduler->kcpuq_kthread = NULL;
-
-		scheduler->kthread_running = false;
-		complete(&scheduler->kthread_signal);
-		kthread_stop(scheduler->gpuq_kthread);
-		scheduler->gpuq_kthread = NULL;
-
-		kfree(scheduler->csg_slots);
-		scheduler->csg_slots = NULL;
-
-		dev_err(kbdev->dev, "Failed to spawn the OOM handling worker thread");
-		return -ENOMEM;
-	}
-
 #if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
 	sched_setscheduler_nocheck(scheduler->gpuq_kthread, SCHED_FIFO, &param);
 	sched_setscheduler_nocheck(scheduler->kcpuq_kthread, SCHED_FIFO, &param);
@@ -8790,11 +8720,6 @@ int kbase_csf_scheduler_init(struct kbase_device *kbdev)
 	scheduler->gpu_metrics_tb =
 		kbase_csf_firmware_get_trace_buffer(kbdev, KBASE_CSFFW_GPU_METRICS_BUF_NAME);
 	if (!scheduler->gpu_metrics_tb) {
-		scheduler->oom_kthread_running = false;
-		complete(&scheduler->oom_kthread_signal);
-		kthread_stop(scheduler->oom_kthread);
-		scheduler->oom_kthread = NULL;
-
 		scheduler->kcpuq_kthread_running = false;
 		complete(&scheduler->kcpuq_kthread_signal);
 		kthread_stop(scheduler->kcpuq_kthread);
@@ -8881,9 +8806,6 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 
 #if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
-	atomic_set(&scheduler->pending_oom_event_works, false);
-	spin_lock_init(&scheduler->oom_event_work_queues_lock);
-	INIT_LIST_HEAD(&scheduler->oom_event_work_queues);
 	atomic_set(&scheduler->pending_sync_update_works, false);
 	spin_lock_init(&scheduler->sync_update_work_ctxs_lock);
 	INIT_LIST_HEAD(&scheduler->sync_update_work_ctxs);
@@ -8923,6 +8845,12 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+
+	oom_ret = sched_setscheduler_nocheck(scheduler->oom_event_kthread_worker->task, SCHED_FIFO, &oom_param);
+	if (oom_ret != 0) {
+		dev_warn(kbdev->dev, "Failed to set priority mali-oom-kthread %d\n", oom_ret);
+	}
+
 	scheduler->mmu_page_fault_worker = kthread_create_worker(0, "mali-mmuPF-kthread");
 	dev_info(kbdev->dev, "kthread_create_worker mmu_page_fault_worker %p", scheduler->mmu_page_fault_worker);
 
@@ -8958,13 +8886,6 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 void kbase_csf_scheduler_term(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
-
-	if (!IS_ERR_OR_NULL(scheduler->oom_kthread)) {
-		scheduler->oom_kthread_running = false;
-		complete(&scheduler->oom_kthread_signal);
-		kthread_stop(scheduler->oom_kthread);
-		scheduler->oom_kthread = NULL;
-	}
 
 	if (!IS_ERR_OR_NULL(scheduler->kcpuq_kthread)) {
 		scheduler->kcpuq_kthread_running = false;
@@ -9356,26 +9277,6 @@ int kbase_csf_scheduler_handle_runtime_suspend(struct kbase_device *kbdev)
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	return 0;
-}
-
-int kbase_csf_scheduler_enqueue_oom_event_work(struct kbase_queue *queue)
-{
-	struct kbase_csf_scheduler *const scheduler = &queue->kctx->kbdev->csf.scheduler;
-	unsigned long flags;
-	int ret = false;
-
-	spin_lock_irqsave(&scheduler->oom_event_work_queues_lock, flags);
-	if (list_empty(&queue->oom_event_work)) {
-		list_add_tail(&queue->oom_event_work, &scheduler->oom_event_work_queues);
-		atomic_inc(&queue->pending_oom_event_work);
-		ret = true;
-
-		if (atomic_cmpxchg(&scheduler->pending_oom_event_works, false, true) == false)
-			complete(&scheduler->oom_kthread_signal);
-	}
-	spin_unlock_irqrestore(&scheduler->oom_event_work_queues_lock, flags);
-
-	return ret;
 }
 
 void kbase_csf_scheduler_enqueue_sync_update_work(struct kbase_context *kctx)

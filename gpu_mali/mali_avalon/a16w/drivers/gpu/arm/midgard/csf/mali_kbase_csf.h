@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2018-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -597,23 +597,6 @@ void kbase_csf_process_protm_event_request(struct kbase_queue_group *group);
  * Handle the GLB fatal error
  */
 void kbase_csf_glb_fatal_worker(struct work_struct *const data);
-
-/**
- * kbase_csf_process_queue_oom_event() - Handle tiler out-of-memory for a GPU command queue.
- *
- * @queue: Pointer to queue for which out-of-memory event was received.
- *
- * Called with the CSF locked for the affected GPU virtual address space.
- * Do not call in interrupt context.
- *
- * Handles tiler out-of-memory for a GPU command queue and then clears the
- * notification to allow the firmware to report out-of-memory again in future.
- * If the out-of-memory condition was successfully handled then this function
- * rings the relevant doorbell to notify the firmware; otherwise, it terminates
- * the GPU command queue group to which the queue is bound and notify a waiting
- * user space client of the failure.
- */
-void kbase_csf_process_queue_oom_event(struct kbase_queue *const queue);
 
 /**
  * kbase_csf_queue_oom_state_str() - Helper function to get string

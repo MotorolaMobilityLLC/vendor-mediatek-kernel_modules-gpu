@@ -498,17 +498,6 @@ static inline bool kbase_csf_scheduler_all_csgs_idle(struct kbase_device *kbdev)
 }
 
 /**
- * kbase_csf_scheduler_enqueue_oom_event_work() - Add a queue to the list of
- *                                                queues to handle OOM events.
- *
- * @queue: The queue to handle OOM event
- *
- * This function wakes up kbase_csf_scheduler_oom_kthread() to handle pending
- * OOM events for all queues.
- */
-int kbase_csf_scheduler_enqueue_oom_event_work(struct kbase_queue *queue);
-
-/**
  * kbase_csf_scheduler_enqueue_sync_update_work() - Add a context to the list
  *                                                  of contexts to handle
  *                                                  SYNC_UPDATE events.
