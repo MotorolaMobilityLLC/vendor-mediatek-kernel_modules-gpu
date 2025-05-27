@@ -8701,7 +8701,13 @@ static int kbase_csf_scheduler_oom_kthread(void *data)
 			continue;
 		reinit_completion(&scheduler->oom_kthread_signal);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	MALI_KTHREAD_WORK_START(scheduler, "oom_event_work");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 		handle_pending_oom_works(scheduler);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	MALI_KTHREAD_WORK_END(scheduler, "oom_event_work");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 	}
 
 	/* Wait for the other thread, that signaled the exit, to call kthread_stop() */
@@ -8783,6 +8789,7 @@ int kbase_csf_scheduler_init(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
 	sched_setscheduler_nocheck(scheduler->gpuq_kthread, SCHED_FIFO, &param);
 	sched_setscheduler_nocheck(scheduler->kcpuq_kthread, SCHED_FIFO, &param);
+	sched_setscheduler_nocheck(scheduler->oom_kthread, SCHED_FIFO, &param);
 #endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
@@ -9369,6 +9376,10 @@ int kbase_csf_scheduler_enqueue_oom_event_work(struct kbase_queue *queue)
 		list_add_tail(&queue->oom_event_work, &scheduler->oom_event_work_queues);
 		atomic_inc(&queue->pending_oom_event_work);
 		ret = true;
+
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+		mali_kthread_event("queue work", scheduler, "oom_event_work");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 
 		if (atomic_cmpxchg(&scheduler->pending_oom_event_works, false, true) == false)
 			complete(&scheduler->oom_kthread_signal);
