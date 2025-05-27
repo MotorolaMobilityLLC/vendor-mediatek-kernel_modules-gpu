@@ -115,4 +115,17 @@ void kbase_mem_migrate_init(struct kbase_device *kbdev);
  */
 void kbase_mem_migrate_term(struct kbase_device *kbdev);
 
+#if MALI_UNIT_TEST
+/*
+ * kbase_migrate_page_allocated_mapped - Expose private function to migrate
+ *                                       allocated mapped page for testing purposes.
+ *
+ * @old_page: Existing allocated mapped page to migrate.
+ * @new_page: New page the existing page has to migrate to.
+ *
+ * Return: 0 if successful, otherwise error code.
+ */
+int kbase_migrate_page_allocated_mapped(struct page *old_page, struct page *new_page);
+#endif
+
 #endif /* _KBASE_migrate_H */
