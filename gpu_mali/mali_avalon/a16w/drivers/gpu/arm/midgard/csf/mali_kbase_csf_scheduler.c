@@ -7564,7 +7564,6 @@ static void wait_for_mcu_sleep_before_sync_update_check(struct kbase_device *kbd
 	long timeout = kbase_csf_timeout_in_jiffies(kbdev->csf.csg_suspend_timeout_ms);
 	bool can_wait_for_mcu_sleep;
 	unsigned long flags;
-	bool db_notif_disabled;
 
 	lockdep_assert_held(&kbdev->csf.scheduler.lock);
 
@@ -7578,13 +7577,8 @@ static void wait_for_mcu_sleep_before_sync_update_check(struct kbase_device *kbd
 	 * Also there is no need to wait if the PM refcount is not zero,
 	 * which implies that MCU needs to be turned on.
 	 */
-	db_notif_disabled = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_CONTROL)) &
-								 MCU_CNTRL_DOORBELL_DISABLE_MASK;
-	can_wait_for_mcu_sleep = !kbdev->pm.backend.exit_gpu_sleep_mode &&
-								 !atomic_read(&kbdev->pm.active_count) &&
-								 db_notif_disabled;
+	can_wait_for_mcu_sleep = !kbdev->pm.backend.exit_gpu_sleep_mode && !kbdev->pm.active_count;
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-
 	if (!can_wait_for_mcu_sleep)
 		return;
 
@@ -7594,8 +7588,7 @@ static void wait_for_mcu_sleep_before_sync_update_check(struct kbase_device *kbd
 						kbdev->pm.backend.exit_gpu_sleep_mode ||
 						!kbase_reset_gpu_is_not_pending(kbdev),
 					  timeout))
-		dev_warn(kbdev->dev, "Wait for MCU sleep timed out(%d,%d %d %d)",
-														db_notif_disabled,
+		dev_warn(kbdev->dev, "Wait for MCU sleep timed out(%d %d %d)",
 														kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_CONTROL)) &MCU_CNTRL_DOORBELL_DISABLE_MASK,
 														kbdev->pm.backend.exit_gpu_sleep_mode,
 														atomic_read(&kbdev->pm.active_count));
