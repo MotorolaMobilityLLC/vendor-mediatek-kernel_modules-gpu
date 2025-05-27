@@ -142,7 +142,7 @@ static IMG_CHAR g_szSysAllocImport[RI_SYS_ALLOC_IMPORT_FRMT_SIZE];
 #define RI_MEMDESC_ENTRY_IMPORT_FRMT     "{Import from PID %d}"
 #define RI_MEMDESC_ENTRY_IMPORT_BUF_SIZE (sizeof(RI_MEMDESC_ENTRY_IMPORT_FRMT)+5)
 
-#define RI_MEMDESC_ENTRY_FRMT      "%%sPID:%%-5d DEV:%%s 0x%%010" IMG_UINT64_FMTSPECx "\t%%-%ds %%s\t0x%%010" IMG_UINT64_FMTSPECx "\t<%%p> %%s%%s %%s%%c"
+#define RI_MEMDESC_ENTRY_FRMT      "%%sPID:%%-5d DEV:%%s 0x%%010" IMG_UINT64_FMTSPECx "\t%%-%ds %%s\t0x%%010" IMG_UINT64_FMTSPECx "\t<%%016" IMG_UINT64_FMTSPECx "> %%s%%s %%s%%c"
 #define RI_MEMDESC_ENTRY_BUF_SIZE  (sizeof(RI_MEMDESC_ENTRY_FRMT)+(3+5+RI_DEV_ID_BUF_SIZE+10+PVR_ANNOTATION_MAX_LEN+RI_MEMDESC_ENTRY_PROC_BUF_SIZE+16+\
                                                RI_MEMDESC_ENTRY_IMPORT_BUF_SIZE+RI_SYS_ALLOC_IMPORT_FRMT_SIZE)) + sizeof(RI_FREED_BY_DRIVER)
 #define RI_MEMDESC_ENTRY_FRMT_SIZE (sizeof(RI_MEMDESC_ENTRY_FRMT))
@@ -1844,7 +1844,7 @@ static void _GenerateMEMDESCEntryString(RI_SUBLIST_ENTRY *psRISubEntry,
 				   pszAnnotationText,
 				   (bDebugFs ? "" : (char *)szProc),
 				   psRISubEntry->ui64Size,
-				   psRIPMR,
+				   psRISubEntry->psRI != NULL ? GET_SERIALNUM(psRISubEntry->psRI) : 0,
 				   (IS_IMPORT(psRISubEntry) ? (char *)&szImport : ""),
 				   (!IS_IMPORT(psRISubEntry) &&
 				    (bSysPMR) &&
