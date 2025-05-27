@@ -509,7 +509,6 @@ static bool release_queue(struct kbase_queue *queue)
 	return false;
 }
 
-static void oom_event_worker(struct work_struct *data);
 static void cs_error_worker(struct work_struct *data);
 
 /* Between reg and reg_ex, one and only one must be null */
@@ -627,9 +626,11 @@ static int csf_queue_register_internal(struct kbase_context *kctx,
 	INIT_LIST_HEAD(&queue->link);
 	atomic_set(&queue->pending_kick, 0);
 	INIT_LIST_HEAD(&queue->pending_kick_link);
-	INIT_WORK(&queue->oom_event_work, oom_event_worker);
 	INIT_WORK(&queue->cs_error_work, cs_error_worker);
 	list_add(&queue->link, &kctx->csf.queue_list);
+
+	INIT_LIST_HEAD(&queue->oom_event_work);
+	atomic_set(&queue->pending_oom_event_work, 0);
 
 	region->user_data = queue;
 
@@ -777,7 +778,6 @@ void kbase_csf_queue_terminate(struct kbase_context *kctx,
 		}
 		wait_pending_queue_kick(queue);
 		/* The work items can be cancelled as Userspace is terminating the queue */
-		cancel_work_sync(&queue->oom_event_work);
 		cancel_work_sync(&queue->cs_error_work);
 		mutex_lock(&kctx->csf.lock);
 
@@ -2433,22 +2433,7 @@ static void flush_gpu_cache_on_fatal_error(struct kbase_device *kbdev)
 	kbase_pm_unlock(kbdev);
 }
 
-/**
- * kbase_queue_oom_event() - Handle tiler out-of-memory for a GPU command queue.
- *
- * @queue: Pointer to queue for which out-of-memory event was received.
- *
- * Called with the CSF locked for the affected GPU virtual address space.
- * Do not call in interrupt context.
- *
- * Handles tiler out-of-memory for a GPU command queue and then clears the
- * notification to allow the firmware to report out-of-memory again in future.
- * If the out-of-memory condition was successfully handled then this function
- * rings the relevant doorbell to notify the firmware; otherwise, it terminates
- * the GPU command queue group to which the queue is bound and notify a waiting
- * user space client of the failure.
- */
-static void kbase_queue_oom_event(struct kbase_queue *const queue)
+void kbase_csf_process_queue_oom_event(struct kbase_queue *const queue)
 {
 	struct kbase_context *const kctx = queue->kctx;
 	struct kbase_device *const kbdev = kctx->kbdev;
@@ -2520,50 +2505,6 @@ static void kbase_queue_oom_event(struct kbase_queue *const queue)
 	}
 unlock:
 	kbase_csf_scheduler_unlock(kbdev);
-}
-
-/**
- * oom_event_worker() - Tiler out-of-memory handler called from a workqueue.
- *
- * @data: Pointer to a work_struct embedded in GPU command queue data.
- *
- * Handles a tiler out-of-memory condition for a GPU command queue and then
- * releases a reference that was added to prevent the queue being destroyed
- * while this work item was pending on a workqueue.
- */
-static void oom_event_worker(struct work_struct *data)
-{
-	struct kbase_queue *queue = container_of(data, struct kbase_queue, oom_event_work);
-	struct kbase_context *kctx = queue->kctx;
-	struct kbase_device *const kbdev = kctx->kbdev;
-	int reset_prevent_err = kbase_reset_gpu_try_prevent(kbdev);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
-	s64 execute_time;
-	ktime_t begin_timestamp = ktime_get();
-#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
-
-	mutex_lock(&kctx->csf.lock);
-	if (likely(!reset_prevent_err)) {
-		kbase_queue_oom_event(queue);
-	} else {
-		dev_warn(kbdev->dev,
-			 "Unable to prevent GPU reset, couldn't handle the OoM event\n");
-	}
-	mutex_unlock(&kctx->csf.lock);
-	if (likely(!reset_prevent_err))
-		kbase_reset_gpu_allow(kbdev);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
-	// if worker execute too long, trigger debug message
-	execute_time = ktime_to_ms(ktime_sub(ktime_get(), begin_timestamp));
-	if (execute_time >= KBASE_FUNCTION_EXECUTE_DEBUG_TIMEOUT) {
-#if IS_ENABLED(CONFIG_MALI_MTK_MBRAIN_SUPPORT)
-		ged_mali_worker_event_notify_callback(kctx->tgid, WORKER_TYPE_OOM_EVENT, execute_time, NULL, 0);
-#endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
-		dev_err(kbdev->dev, "ctx:%d_%d %s too long! (%llums)", kctx->tgid, kctx->id, __func__, execute_time);
-	}
-#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
 }
 
 /**
@@ -3268,10 +3209,9 @@ void kbase_csf_report_cs_fault_info(struct kbase_queue *const queue, u32 slot_id
 int kbase_csf_handle_pending_oom_interrupt(struct kbase_queue *const queue, u32 group_id)
 {
 	struct kbase_device *const kbdev = queue->kctx->kbdev;
-	struct workqueue_struct *wq = queue->kctx->csf.wq;
 
 	if (!kbase_csf_cs_get_pending_oom(kbdev, queue, group_id)) {
-		if (!queue_work(wq, &queue->oom_event_work)) {
+		if (!kbase_csf_scheduler_enqueue_oom_event_work(queue)) {
 			/* The work item shall not have been already queued, there can be only
 			 * one pending OoM event for a  queue.
 			 */
