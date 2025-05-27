@@ -499,7 +499,11 @@ struct kbase_queue {
 	kbase_refcount_t refcount;
 	struct kbase_queue_group *group;
 	struct kbase_va_region *queue_reg;
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+	struct kthread_work oom_event_work;
+#else
 	struct work_struct oom_event_work;
+#endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
 	u64 base_addr;
 	u32 size;
 	u8 priority;
@@ -1450,6 +1454,7 @@ struct kbase_csf_scheduler {
 	spinlock_t gpu_metrics_lock;
 #endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
 #if IS_ENABLED(CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER)
+	struct kthread_worker *oom_event_kthread_worker;
 	struct kthread_worker *mmu_page_fault_worker;
 	struct kthread_worker *jit_destory_worker;
 #endif /* CONFIG_MALI_MTK_WORKQUEUE_TO_KTHREAD_WORKER */
