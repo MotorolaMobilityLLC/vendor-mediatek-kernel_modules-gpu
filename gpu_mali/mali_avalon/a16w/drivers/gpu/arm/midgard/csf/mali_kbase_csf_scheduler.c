@@ -7581,19 +7581,16 @@ static void wait_for_mcu_sleep_before_sync_update_check(struct kbase_device *kbd
 	if (!can_wait_for_mcu_sleep)
 		return;
 
-	/* Wait until MCU enters sleep state window, or, other backend transitions signaling
-	 * such a condition window has been closed.
-	 */
+	/* Wait until MCU enters sleep state or there is a pending GPU reset */
 	if (!kbase_csf_wait_event_timeout(kbdev, kbdev->pm.backend.gpu_in_desired_state_wait,
-					kbase_csf_firmware_mcu_halted(kbdev) ||
-						!kbdev->pm.backend.gpu_sleep_mode_active ||
+					  kbase_csf_firmware_mcu_halted(kbdev) ||
 						kbdev->pm.backend.exit_gpu_sleep_mode ||
 						!kbase_reset_gpu_is_not_pending(kbdev),
-					timeout))
+					  timeout))
 		dev_warn(kbdev->dev, "Wait for MCU sleep timed out(%d %d %d)",
-						kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_CONTROL)) &MCU_CNTRL_DOORBELL_DISABLE_MASK,
-						kbdev->pm.backend.exit_gpu_sleep_mode,
-						atomic_read(&kbdev->pm.active_count));
+														kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_CONTROL)) &MCU_CNTRL_DOORBELL_DISABLE_MASK,
+														kbdev->pm.backend.exit_gpu_sleep_mode,
+														atomic_read(&kbdev->pm.active_count));
 }
 
 static void check_sync_update_for_all_on_slot_groups(struct kbase_device *kbdev)
