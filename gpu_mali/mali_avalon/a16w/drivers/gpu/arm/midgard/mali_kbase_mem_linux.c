@@ -1616,6 +1616,9 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx, in
 	int group_id;
 #if IS_ENABLED(CONFIG_MALI_MTK_COHERENT_DMA_BUF)
 	int is_coherent_heap;
+	bool is_device_support_coherent;
+	base_mem_alloc_flags check_flag;
+	int coherent_gid;
 #endif /* CONFIG_MALI_MTK_COHERENT_DMA_BUF */
 
 	dma_buf = dma_buf_get(fd);
@@ -1623,9 +1626,12 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx, in
 		return NULL;
 #if IS_ENABLED(CONFIG_MALI_MTK_COHERENT_DMA_BUF)
 	is_coherent_heap = is_coherent_heap_dmabuf(dma_buf);
+	is_device_support_coherent = kbase_device_is_cpu_coherent(kctx->kbdev);
+	coherent_gid = kbase_mem_group_id_get(*flags);
+	check_flag = (BASE_MEM_CACHED_CPU | BASE_MEM_COHERENT_SYSTEM | BASE_MEM_COHERENT_SYSTEM_REQUIRED);
 
-	if (is_coherent_heap && (*flags & BASE_MEM_CACHED_CPU)
-		&& kbase_device_is_cpu_coherent(kctx->kbdev)) {
+	if (is_coherent_heap && is_coherent_heap && ((*flags & check_flag) == check_flag)		&& is_device_support_coherent && coherent_gid == 1
+		&& is_device_support_coherent && is_device_support_coherent == CL_MEMORY_GROUPS_ID) {
 		dma_attachment = dma_buf_attach(dma_buf,
 			kctx->kbdev->coherent_mdev.this_device);
 		if (dma_attachment == NULL)
@@ -1691,12 +1697,12 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx, in
 		need_sync = true;
 
 #if IS_ENABLED(CONFIG_MALI_MTK_COHERENT_DMA_BUF)
-	if (is_coherent_heap) {
-		if ((*flags & BASE_MEM_CACHED_CPU) &&
-			kbase_device_is_cpu_coherent(kctx->kbdev)) {
-			*flags |= BASE_MEM_COHERENT_SYSTEM_REQUIRED;
-			*flags |= BASE_MEM_COHERENT_SYSTEM;
-			*flags &= ~BASE_MEM_COHERENT_LOCAL;
+	if (!is_coherent_heap) {
+		if (((*flags & check_flag) == check_flag) &&
+			is_device_support_coherent && coherent_gid == CL_MEMORY_GROUPS_ID) {
+			*flags &= ~BASE_MEM_COHERENT_SYSTEM_REQUIRED;
+			*flags &= ~BASE_MEM_COHERENT_SYSTEM;
+			*flags |= BASE_MEM_COHERENT_LOCAL;
 		}
 	}
 #endif /* CONFIG_MALI_MTK_COHERENT_DMA_BUF */
