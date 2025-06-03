@@ -242,4 +242,7 @@ config MALI_MTK_SCHEDULER_KTHREAD_PATCH
 config MALI_MTK_API_SYNC_UPDATE
 	bool ""
 	default n
+config MALI_MTK_GPU_FREQUENCY_TRACE
+	bool "provide gpu_frequency trace event"
+	default n
 endmenu
