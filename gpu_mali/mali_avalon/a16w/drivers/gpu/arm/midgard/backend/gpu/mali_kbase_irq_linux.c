@@ -35,6 +35,7 @@
 #endif
 
 #include "gpufreq_v2.h"
+const int SAME_FREQ_THRESHOLD = 10;
 #endif /* CONFIG_MALI_MTK_GPU_FREQUENCY_TRACE */
 
 #if IS_ENABLED(CONFIG_MALI_REAL_HW)
@@ -76,6 +77,21 @@ static irqreturn_t kbase_job_irq_handler(int irq, void *data)
 	kbase_csf_interrupt(kbdev, val);
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_FREQUENCY_TRACE)
+	{
+		static unsigned int last_gpufreq = 0;
+		unsigned int cur_gpufreq = 0;
+		static int count_gpu_freq_trace = 0;
+
+		cur_gpufreq = gpufreq_get_cur_freq(TARGET_DEFAULT);
+		if (cur_gpufreq != last_gpufreq || ++count_gpu_freq_trace == SAME_FREQ_THRESHOLD) {
+			last_gpufreq = cur_gpufreq;
+			trace_gpu_frequency(cur_gpufreq, 0);
+			count_gpu_freq_trace = 0;
+		}
+	}
+#endif /* CONFIG_MALI_MTK_GPU_FREQUENCY_TRACE*/
 
 	return IRQ_HANDLED;
 }
@@ -211,19 +227,6 @@ static irqreturn_t kbase_combined_irq_handler(int irq, void *data)
 	irq_state |= kbase_job_irq_handler(irq, data);
 	irq_state |= kbase_mmu_irq_handler(irq, data);
 	irq_state |= kbase_gpu_irq_handler(irq, data);
-
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_FREQUENCY_TRACE)
-	{
-		static unsigned int last_gpufreq = 0;
-		unsigned int cur_gpufreq = 0;
-
-		cur_gpufreq = gpufreq_get_cur_freq(TARGET_DEFAULT);
-		if (cur_gpufreq != last_gpufreq) {
-			last_gpufreq = cur_gpufreq;
-			trace_gpu_frequency(cur_gpufreq, 0);
-		}
-	}
-#endif /* CONFIG_MALI_MTK_GPU_FREQUENCY_TRACE*/
 
 	return irq_state;
 }
