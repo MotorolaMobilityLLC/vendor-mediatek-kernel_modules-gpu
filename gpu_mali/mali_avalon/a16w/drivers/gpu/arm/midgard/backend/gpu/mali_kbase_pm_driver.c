@@ -86,6 +86,10 @@ bool shall_scheduler_sleep = true;
 #include <platform/mtk_platform_common/mtk_platform_mali_event.h>
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+#include <gpu_pdma.h>
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
+
 #ifdef CONFIG_MALI_CORESTACK
 bool corestack_driver_control = true;
 #else
@@ -1724,6 +1728,10 @@ static int kbase_pm_mcu_update_state(struct kbase_device *kbdev)
 			if (kbase_csf_firmware_mcu_halt_req_complete(kbdev)) {
 				KBASE_KTRACE_ADD(kbdev, CSF_FIRMWARE_MCU_HALTED, NULL,
 						 kbase_csf_ktrace_gpu_cycle_cnt(kbdev));
+
+#if IS_ENABLED(CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2)
+				pdma_zombie_entry_clean_up();
+#endif /* CONFIG_MALI_MTK_SLC_DYNAMIC_POLICY_V2 */
 
 				kbase_hwcnt_backend_csf_on_after_mcu_off(&kbdev->hwcnt_gpu_iface);
 
