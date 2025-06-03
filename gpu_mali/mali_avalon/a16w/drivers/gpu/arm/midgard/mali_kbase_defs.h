@@ -65,7 +65,7 @@
 #include <linux/debugfs.h>
 #include <linux/regulator/consumer.h>
 
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+#if IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
 #include <linux/hrtimer.h>
 #endif
 
@@ -150,7 +150,7 @@
 #define FORCE_SYNC_DTS  2
 #endif /* CONFIG_MALI_MTK_ACP_FORCE_SYNC_DEBUG */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+#if IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
 #define API_SYNC_FLAG_DISABLE  0x0
 #define API_SYNC_FLAG_BOOST    0x1
 #define API_SYNC_FLAG_RESET    0x00060000
@@ -169,6 +169,10 @@ struct api_sync_target_level {
 	int orig_level;
 	int mapping_level;
 };
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+#define API_BOOST_IDLE_TIME_NS 10000000
+#endif
 #endif
 /* Forward declarations */
 struct kbase_context;
@@ -1260,14 +1264,16 @@ struct kbase_device {
 
 	struct kbase_backend_time backend_time;
 
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+#if IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
 	bool api_sync_update_in_progress;
 	int temp_api_sync_flag;
 	int final_api_sync_flag;
 	int api_sync_level;
 	bool api_sync_force_reset;
 	bool api_sync_restore_always_on;
-	bool api_sync_restore_coarse_demand;
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+	bool api_boost_restore_pm_policy;
+#endif
 	unsigned int api_sync_timeout_ms;
 	struct hrtimer api_sync_timer;
 	int api_sync_debug_level;

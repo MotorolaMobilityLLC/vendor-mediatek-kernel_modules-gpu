@@ -505,6 +505,9 @@ struct kbase_pm_backend_data {
 	bool waiting_for_mmu_fault_handling;
 	unsigned int csf_pm_sched_flags;
 	struct mutex policy_change_lock;
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+	struct mutex api_boost_policy_change_lock;
+#endif
 	struct workqueue_struct *core_idle_wq;
 	struct work_struct core_idle_work;
 	unsigned long gpu_sleep_allowed;

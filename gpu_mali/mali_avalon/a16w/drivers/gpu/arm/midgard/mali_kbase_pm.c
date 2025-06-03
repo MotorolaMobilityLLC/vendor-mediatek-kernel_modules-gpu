@@ -188,6 +188,10 @@ int kbase_pm_driver_suspend(struct kbase_device *kbdev)
 
 	mutex_lock(&kbdev->pm.backend.policy_change_lock);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+	mutex_lock(&kbdev->pm.backend.api_boost_policy_change_lock);
+#endif
+
 	/* Suspend HW counter intermediaries. This blocks until workers and timers
 	 * are no longer running.
 	 */
@@ -203,6 +207,11 @@ int kbase_pm_driver_suspend(struct kbase_device *kbdev)
 	mutex_lock(&kbdev->pm.lock);
 	if (WARN_ON(kbase_pm_is_suspending(kbdev))) {
 		mutex_unlock(&kbdev->pm.lock);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+		mutex_unlock(&kbdev->pm.backend.api_boost_policy_change_lock);
+#endif
+
 		mutex_unlock(&kbdev->pm.backend.policy_change_lock);
 		/* No error handling for this condition */
 		return 0;
@@ -266,6 +275,11 @@ int kbase_pm_driver_suspend(struct kbase_device *kbdev)
 	}
 
 	kbase_backend_invalidate_gpu_timestamp_offset(kbdev);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+	mutex_unlock(&kbdev->pm.backend.api_boost_policy_change_lock);
+#endif
+
 	mutex_unlock(&kbdev->pm.backend.policy_change_lock);
 
 	return 0;
@@ -289,6 +303,10 @@ exit:
 	reenable_hwcnt_on_resume(kbdev);
 	/* Wake up the threads blocked on the completion of System suspend/resume */
 	wake_up_all(&kbdev->pm.resume_wait);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+	mutex_unlock(&kbdev->pm.backend.api_boost_policy_change_lock);
+#endif
 
 	mutex_unlock(&kbdev->pm.backend.policy_change_lock);
 	return -1;

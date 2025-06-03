@@ -2524,6 +2524,20 @@ static u32 convert_dur_to_idle_count(struct kbase_device *kbdev, const u64 dur_n
 	return reg_val_u32;
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME)
+u64 kbase_csf_firmware_get_platform_idle_hysteresis_time(struct kbase_device *kbdev)
+{
+	unsigned long flags;
+	u64 dur_ns;
+
+	kbase_csf_scheduler_spin_lock(kbdev, &flags);
+	dur_ns = kbdev->csf.platform_idle_hysteresis_ns;
+	kbase_csf_scheduler_spin_unlock(kbdev, flags);
+
+	return dur_ns;
+}
+#endif
+
 u64 kbase_csf_firmware_get_gpu_idle_hysteresis_time(struct kbase_device *kbdev)
 {
 	unsigned long flags;
@@ -2850,6 +2864,8 @@ int kbase_csf_firmware_late_init(struct kbase_device *kbdev)
 			&gpu_idle_time))
 			kbdev->csf.gpu_idle_hysteresis_ns = gpu_idle_time * 1000;
 	}
+
+	kbdev->csf.platform_idle_hysteresis_ns = kbdev->csf.gpu_idle_hysteresis_ns;
 #endif /* CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME */
 
 	if (IS_ENABLED(CONFIG_PM) && kbase_pm_gpu_sleep_allowed(kbdev))

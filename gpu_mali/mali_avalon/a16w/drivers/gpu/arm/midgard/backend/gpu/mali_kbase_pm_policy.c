@@ -314,6 +314,10 @@ void kbase_pm_set_policy(struct kbase_device *kbdev, const struct kbase_pm_polic
 	/* Serialize calls on kbase_pm_set_policy() */
 	mutex_lock(&kbdev->pm.backend.policy_change_lock);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+	mutex_lock(&kbdev->pm.backend.api_boost_policy_change_lock);
+#endif
+
 	if (kbase_reset_gpu_prevent_and_wait(kbdev)) {
 		dev_warn(kbdev->dev, "Set PM policy failing to prevent gpu reset");
 		reset_op_prevented = false;
@@ -474,6 +478,10 @@ void kbase_pm_set_policy(struct kbase_device *kbdev, const struct kbase_pm_polic
 			kbase_reset_gpu(kbdev);
 		kbase_reset_gpu_wait(kbdev);
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+	mutex_unlock(&kbdev->pm.backend.api_boost_policy_change_lock);
+#endif
 
 	mutex_unlock(&kbdev->pm.backend.policy_change_lock);
 }

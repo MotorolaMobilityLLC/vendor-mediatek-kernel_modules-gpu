@@ -5925,7 +5925,7 @@ static void gpu_idle_worker(struct work_struct *work)
 		kbdev->dev->power.autosuspend_delay = tmp_ast;
 #endif /* CONFIG_MALI_MTK_DISABLE_SOI */
 	}
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+#if IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
 	if (kbdev->api_sync_update_in_progress == true) {
 		kbdev->dev->power.autosuspend_delay = 0;
 		ged_trace_ast_cond(3);
@@ -5941,7 +5941,7 @@ static void gpu_idle_worker(struct work_struct *work)
 	else
 		kbdev->dev->power.autosuspend_delay = tmp_ast;
 #endif /* CONFIG_MALI_MTK_DISABLE_SOI */
-#endif /* CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST && CONFIG_MALI_MTK_API_SYNC_UPDATE */
+#endif /* CONFIG_MALI_MTK_API_SYNC_UPDATE */
 	ged_trace_ast(kbdev->dev->power.autosuspend_delay);
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 	scheduler_is_idle_suspendable = scheduler_idle_suspendable(kbdev);
@@ -8003,8 +8003,7 @@ static void handle_pending_queue_kicks(struct kbase_device *kbdev)
 	} while (queue != NULL);
 }
 
-
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST)
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) || IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
 /**
  * wait_for_mcu_sleep_after_idle_stress_test() - Wait for MCU sleep request to
  *                                    complete after idle stress test flow
@@ -8042,9 +8041,9 @@ static void wait_for_mcu_sleep_after_idle_stress_test(struct kbase_device *kbdev
 				timeout))
 		dev_warn(kbdev->dev, "Wait for MCU sleep timed out");
 }
-#endif /* CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST */
+#endif
 
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+#if IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
 static enum hrtimer_restart api_sync_timer_callback(struct hrtimer *timer)
 {
 	struct kbase_device *kbdev =
@@ -8112,22 +8111,46 @@ static void api_sync_change_pm_policy(struct kbase_device *kbdev)
 	}
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
 static void api_boost_change_pm_policy(struct kbase_device *kbdev)
 {
 	const struct kbase_pm_policy *cur_policy = kbase_pm_get_policy(kbdev);
+	u64 cur_idle_time_ns = kbase_csf_firmware_get_gpu_idle_hysteresis_time(kbdev);
+	u64 target_idle_time_ns = 0;
+
+	if (cur_policy == &kbase_pm_always_on_policy_ops)
+		return;
+
+	mutex_lock(&kbdev->pm.backend.api_boost_policy_change_lock);
 
 	if (ged_get_apo_api_boost() == true &&
-		cur_policy == &kbase_pm_coarse_demand_policy_ops) {
-		kbase_pm_set_policy(kbdev, &kbase_pm_always_on_policy_ops);
-		kbdev->api_sync_restore_coarse_demand = true;
+		kbdev->api_boost_restore_pm_policy == false) {
+		target_idle_time_ns = API_BOOST_IDLE_TIME_NS;
+
+		if (cur_idle_time_ns != target_idle_time_ns)
+			kbase_csf_firmware_set_gpu_idle_hysteresis_time(kbdev, target_idle_time_ns);
+
+		kbdev->api_boost_restore_pm_policy = true;
 	} else if (kbdev->temp_api_sync_flag == API_SYNC_FLAG_DISABLE &&
 		ged_check_apo_api_boost(kbdev->temp_api_sync_flag) == false &&
-		kbdev->api_sync_restore_coarse_demand == true &&
-		cur_policy == &kbase_pm_always_on_policy_ops) {
-		kbase_pm_set_policy(kbdev, &kbase_pm_coarse_demand_policy_ops);
-		kbdev->api_sync_restore_coarse_demand = false;
+		kbdev->api_boost_restore_pm_policy == true) {
+
+		/* Restore to platform_idle_hysteresis_ns */
+#if IS_ENABLED(CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME)
+		target_idle_time_ns = kbase_csf_firmware_get_platform_idle_hysteresis_time(kbdev);
+#else
+		target_idle_time_ns = 0;
+#endif
+
+		if (cur_idle_time_ns != target_idle_time_ns)
+			kbase_csf_firmware_set_gpu_idle_hysteresis_time(kbdev, target_idle_time_ns);
+
+		kbdev->api_boost_restore_pm_policy = false;
 	}
+
+	mutex_unlock(&kbdev->pm.backend.api_boost_policy_change_lock);
 }
+#endif
 
 static void update_api_sync_flag(struct kbase_device *kbdev)
 {
@@ -8139,7 +8162,9 @@ static void update_api_sync_flag(struct kbase_device *kbdev)
 	temp_api_sync_flag = refine_api_sync_flag(kbdev);
 
 	if (kbdev->api_sync_update_in_progress == false) {
-		if (ged_gpu_apo_api_sync_support() &&
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+		if (ged_gpu_apo_support() &&
+			ged_gpu_apo_api_sync_support() &&
 			kbdev->api_sync_force_reset == false &&
 			(kbdev->final_api_sync_flag != API_SYNC_FLAG_SET &&
 			kbdev->final_api_sync_flag != API_SYNC_FLAG_DEBUG) &&
@@ -8147,7 +8172,9 @@ static void update_api_sync_flag(struct kbase_device *kbdev)
 			temp_api_sync_flag == API_SYNC_FLAG_BOOST)) {
 			kbdev->temp_api_sync_flag = temp_api_sync_flag;
 			api_boost_change_pm_policy(kbdev);
-		} else {
+		} else
+#endif
+		{
 
 			if (kbdev->api_sync_force_reset == true) {
 				if (kbdev->final_api_sync_flag == API_SYNC_FLAG_RESET &&
@@ -8199,6 +8226,10 @@ static int kbase_csf_scheduler_kthread(void *data)
 	unsigned long expire = jiffies + timeout;
 #endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) || IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+	bool trigger_idle = false;
+#endif
+
 	while (scheduler->kthread_running) {
 
 #if IS_ENABLED(CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH)
@@ -8230,18 +8261,23 @@ static int kbase_csf_scheduler_kthread(void *data)
 		reinit_completion(&scheduler->kthread_signal);
 #endif /* CONFIG_MALI_MTK_SCHEDULER_KTHREAD_PATCH */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST)
 #if IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
 		update_api_sync_flag(kbdev);
 
-		if ((ged_gpu_power_stress_test_enable() == 1) ||
-			(kbdev->api_sync_update_in_progress == true)) {
-#else
-		if (ged_gpu_power_stress_test_enable() == 1) {
-#endif /* CONFIG_MALI_MTK_API_SYNC_UPDATE */
+		if (kbdev->api_sync_update_in_progress == true)
+			trigger_idle = true;
+#endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST)
+		if (ged_gpu_power_stress_test_enable() == 1)
+			trigger_idle = true;
+#endif
+
+#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) || IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+		if (trigger_idle == true) {
 			struct kbase_pm_backend_data *backend = &kbdev->pm.backend;
 
-			if(backend->mcu_state == KBASE_MCU_ON){
+			if (backend->mcu_state == KBASE_MCU_ON) {
 #if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 				/* Drain pending GPU idle works */
 				atomic_set(&scheduler->gpu_no_longer_idle, false);
@@ -8257,8 +8293,7 @@ static int kbase_csf_scheduler_kthread(void *data)
 				gpu_idle_worker(kbdev);
 #endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 #endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
-				if (kbdev->csf.scheduler.state == SCHED_SLEEPING)
-				{
+				if (kbdev->csf.scheduler.state == SCHED_SLEEPING) {
 					mutex_lock(&scheduler->lock);
 					wait_for_mcu_sleep_after_idle_stress_test(kbdev);
 					mutex_unlock(&scheduler->lock);
@@ -8266,9 +8301,8 @@ static int kbase_csf_scheduler_kthread(void *data)
 					kbase_csf_scheduler_invoke_tick(kbdev);
 				}
 			}
-
 		}
-#endif /* CONFIG_MALI_PM_IDLE_STRESS_TEST */
+#endif
 
 #if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 		/*
@@ -8878,14 +8912,16 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 	INIT_WORK(&scheduler->gpu_idle_work, gpu_idle_worker);
 #endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
 
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+#if IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
 	kbdev->api_sync_update_in_progress = false;
 	kbdev->temp_api_sync_flag = API_SYNC_FLAG_RESET;
 	kbdev->final_api_sync_flag = API_SYNC_FLAG_RESET;
 	kbdev->api_sync_level = API_SYNC_LEVEL_0;
 	kbdev->api_sync_force_reset = false;
 	kbdev->api_sync_restore_always_on = false;
-	kbdev->api_sync_restore_coarse_demand = false;
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY)
+	kbdev->api_boost_restore_pm_policy = false;
+#endif
 	kbdev->api_sync_timeout_ms = API_SYNC_DEFAULT_TIMEOUT_MS;
 
 	hrtimer_init(&kbdev->api_sync_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);

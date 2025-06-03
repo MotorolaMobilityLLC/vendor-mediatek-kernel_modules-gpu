@@ -134,6 +134,11 @@ int kbase_hwaccess_pm_init(struct kbase_device *kbdev)
 	init_waitqueue_head(&kbdev->pm.backend.gpu_in_desired_state_wait);
 
 	mutex_init(&kbdev->pm.backend.policy_change_lock);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+	mutex_init(&kbdev->pm.backend.api_boost_policy_change_lock);
+#endif
+
 	kbdev->pm.backend.policy_change_clamp_state_to_off = false;
 	/* Due to dependency on kbase_ipa_control, the metrics subsystem can't
 	 * be initialized here.
@@ -793,6 +798,11 @@ void kbase_hwaccess_pm_term(struct kbase_device *kbdev)
 		mutex_lock(&kbdev->pm.backend.policy_change_lock);
 		mutex_unlock(&kbdev->pm.backend.policy_change_lock);
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+	mutex_destroy(&kbdev->pm.backend.api_boost_policy_change_lock);
+#endif
+
 	mutex_destroy(&kbdev->pm.backend.policy_change_lock);
 
 	destroy_workqueue(kbdev->pm.backend.gpu_poweroff_wait_wq);

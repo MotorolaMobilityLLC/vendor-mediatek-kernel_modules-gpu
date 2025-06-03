@@ -5095,6 +5095,13 @@ static ssize_t idle_hysteresis_time_store(struct device *dev, struct device_attr
 		return -EINVAL;
 	}
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME)
+	if ((dur_us * NSEC_PER_USEC) == kbase_csf_firmware_get_platform_idle_hysteresis_time(kbdev))
+		mtk_common_ged_set_apo_api_sync_status(1);
+	else
+		mtk_common_ged_set_apo_api_sync_status(0);
+#endif
+
 	/* In sysFs, The unit of the input value of idle_hysteresis_time is us.
 	 * But the unit of the input parameter of this function is ns, so multiply by 1000
 	 */
@@ -5243,6 +5250,13 @@ static ssize_t idle_hysteresis_time_ns_store(struct device *dev, struct device_a
 				    "Use format <idle_hysteresis_time_ns>\n");
 		return -EINVAL;
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME)
+	if (dur_ns == kbase_csf_firmware_get_platform_idle_hysteresis_time(kbdev))
+		mtk_common_ged_set_apo_api_sync_status(1);
+	else
+		mtk_common_ged_set_apo_api_sync_status(0);
+#endif
 
 	kbase_csf_firmware_set_gpu_idle_hysteresis_time(kbdev, dur_ns);
 

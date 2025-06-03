@@ -2021,6 +2021,9 @@ struct kbase_csf_device {
 	u32 mcu_core_pwroff_dur_count_no_modifier;
 	u32 mcu_core_pwroff_reg_shadow;
 	u64 gpu_idle_hysteresis_ns;
+#if IS_ENABLED(CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME)
+	u64 platform_idle_hysteresis_ns;
+#endif
 	u32 gpu_idle_dur_count;
 	u32 gpu_idle_dur_count_no_modifier;
 	u32 csg_suspend_timeout_ms;

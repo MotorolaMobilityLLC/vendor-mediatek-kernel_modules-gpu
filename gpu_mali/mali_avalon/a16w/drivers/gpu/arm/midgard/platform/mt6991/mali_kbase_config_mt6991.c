@@ -87,7 +87,7 @@ enum gpu_dvfs_status_step {
 	GPU_DVFS_STATUS_STEP_F = 0xF,
 };
 
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+#if IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
 static struct api_sync_target_level g_api_sync_level[] = {
 	{API_SYNC_LEVEL_0, DATA_LEVEL_0},  /* Reset */
 	{API_SYNC_LEVEL_1, DATA_LEVEL_1},
@@ -290,7 +290,7 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_POWER_TRANSITION_TIMEOUT_DEBUG */
 	struct arm_smccc_res res;
 
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+#if IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
 	int temp_mapping_level = 0;
 	ktime_t expiry_time;
 #endif
@@ -321,7 +321,7 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 		mutex_lock(&g_mfg_lock);
 		mtk_notify_gpu_power_change(0);
 		pm_callback_power_off_nolock(kbdev);
-#if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) && IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
+#if IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
 		if (kbdev->api_sync_update_in_progress) {
 			if (kbdev->temp_api_sync_flag == API_SYNC_FLAG_RESET) {
 				if (kbdev->final_api_sync_flag == API_SYNC_FLAG_SET) {

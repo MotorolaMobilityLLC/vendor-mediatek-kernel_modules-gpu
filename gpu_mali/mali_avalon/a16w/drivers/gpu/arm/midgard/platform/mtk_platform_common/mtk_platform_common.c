@@ -586,6 +586,11 @@ int mtk_common_ged_pwr_hint(int pwr_hint)
 	return 0;
 }
 
+void mtk_common_ged_set_apo_api_sync_status(int apo_api_sync_status)
+{
+	ged_set_apo_api_sync_status(apo_api_sync_status);
+}
+
 #if IS_ENABLED(CONFIG_PROC_FS)
 static void mtk_common_procfs_init(struct kbase_device *kbdev)
 {

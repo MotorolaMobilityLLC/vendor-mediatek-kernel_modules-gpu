@@ -717,6 +717,10 @@ int kbase_csf_firmware_enable_gpu_idle_timer(struct kbase_device *kbdev);
  */
 int kbase_csf_firmware_disable_gpu_idle_timer(struct kbase_device *kbdev);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_IDLE_HYSTERESIS_TIME)
+u64 kbase_csf_firmware_get_platform_idle_hysteresis_time(struct kbase_device *kbdev);
+#endif
+
 /**
  * kbase_csf_firmware_get_gpu_idle_hysteresis_time - Get the firmware GPU idle
  *                                               detection hysteresis duration

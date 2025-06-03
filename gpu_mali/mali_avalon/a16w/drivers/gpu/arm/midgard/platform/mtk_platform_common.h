@@ -85,6 +85,7 @@ int mtk_common_ged_pwr_hint(int pwr_hint);
 void mtk_common_get_system_timer_and_record(struct kbase_device *kbdev);
 
 int mtk_common_ged_dvfs_update_step_size(int low_step, int med_step, int high_step);
+void mtk_common_ged_set_apo_api_sync_status(int apo_api_sync_status);
 
 int mtk_common_device_init(struct kbase_device *kbdev);
 void mtk_common_device_term(struct kbase_device *kbdev);
