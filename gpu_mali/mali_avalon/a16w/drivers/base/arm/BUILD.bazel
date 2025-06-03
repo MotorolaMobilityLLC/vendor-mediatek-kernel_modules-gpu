@@ -118,6 +118,7 @@ platforms = [
     ] if p in ["mt6993"] else [
         "CONFIG_MALI_MTK_MGMM",
     ] if p in ["mt6895"] else [
+        "CONFIG_MALI_MTK_MGMM",
     ] if p in ["mt6858"] else [
     ]),
 ) for p in platforms]
