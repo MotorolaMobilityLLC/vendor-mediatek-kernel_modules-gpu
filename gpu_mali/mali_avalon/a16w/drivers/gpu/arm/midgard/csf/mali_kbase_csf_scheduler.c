@@ -151,6 +151,10 @@ static void enqueue_gpu_idle_work(struct kbase_csf_scheduler *const scheduler);
 #endif /* CONFIG_MALI_MTK_ADAPTIVE_POWER_POLICY */
 
 #define kctx_as_enabled(kctx) (!kbase_ctx_flag(kctx, KCTX_AS_DISABLED_ON_FAULT))
+#define group_is_non_idle_offslot(group)                   \
+	((group->run_state == KBASE_CSF_GROUP_SUSPENDED || \
+	  (group->run_state == KBASE_CSF_GROUP_RUNNABLE && \
+	   group->csg_nr == KBASEP_CSG_NR_INVALID)))
 
 bool is_gpu_level_suspend_supported(struct kbase_device *const kbdev)
 {
@@ -3599,11 +3603,13 @@ static void sched_evict_group(struct kbase_queue_group *group, bool fault,
 		u32 i;
 
 		if (update_non_idle_offslot_grps_cnt_from_run_state &&
-		    (group->run_state == KBASE_CSF_GROUP_SUSPENDED ||
-		     group->run_state == KBASE_CSF_GROUP_RUNNABLE)) {
-			int new_val = atomic_dec_return(&scheduler->non_idle_offslot_grps);
-			KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_NONIDLE_OFFSLOT_GRP_DEC, group,
-						 (u64)new_val);
+		    group_is_non_idle_offslot(group)) {
+			if (!WARN_ON(!atomic_read(&scheduler->non_idle_offslot_grps))) {
+				int new_val = atomic_dec_return(&scheduler->non_idle_offslot_grps);
+
+				KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_NONIDLE_OFFSLOT_GRP_DEC,
+							 group, (u64)new_val);
+			}
 		}
 
 		for (i = 0; i < BASEP_GPU_QUEUE_PER_QUEUE_GROUP_MAX; i++) {
@@ -4054,7 +4060,8 @@ static void program_group_on_vacant_csg_slot(struct kbase_device *kbdev, s8 slot
 					scheduler->remaining_tick_slots--;
 				}
 			} else {
-				update_offslot_non_idle_cnt(group);
+				if (!group_is_non_idle_offslot(group))
+					update_offslot_non_idle_cnt(group);
 				remove_scheduled_group(kbdev, group);
 			}
 		}
@@ -4927,7 +4934,8 @@ static void scheduler_apply(struct kbase_device *kbdev)
 
 			if (!kctx_as_enabled(group->kctx) || group->faulted) {
 				/* Drop the head group and continue */
-				update_offslot_non_idle_cnt(group);
+				if (!group_is_non_idle_offslot(group))
+					update_offslot_non_idle_cnt(group);
 				remove_scheduled_group(kbdev, group);
 				continue;
 			}
@@ -4989,9 +4997,6 @@ static void scheduler_ctx_scan_groups(struct kbase_device *kbdev, struct kbase_c
 	if (WARN_ON(priority < 0) || WARN_ON(priority >= KBASE_QUEUE_GROUP_PRIORITY_COUNT))
 		return;
 
-	if (!kctx_as_enabled(kctx))
-		return;
-
 	list_for_each_entry(group, &kctx->csf.sched.runnable_groups[priority], link) {
 		bool protm_req;
 
@@ -4999,9 +5004,19 @@ static void scheduler_ctx_scan_groups(struct kbase_device *kbdev, struct kbase_c
 			/* This would be a bug */
 			list_del_init(&group->link_to_schedule);
 
-		if (unlikely(group->faulted))
-			continue;
+		if (unlikely(!kctx_as_enabled(kctx) || group->faulted)) {
+			/* Non-idle groups won't be scheduled, but must still be counted towards
+			 * the non_idle_offslot_grps counter for consistency.
+			 */
+			if (group_is_non_idle_offslot(group)) {
+				int new_val = atomic_inc_return(&scheduler->non_idle_offslot_grps);
 
+				KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_NONIDLE_OFFSLOT_GRP_INC,
+							 group, (u64)new_val);
+			}
+
+			continue;
+		}
 		/* Set the scanout sequence number, starting from 0 */
 		group->scan_seq_num = scheduler->csg_scan_count_for_tick++;
 
@@ -6001,6 +6016,7 @@ static int scheduler_prepare(struct kbase_device *kbdev)
 	WARN_ON(!list_empty(&scheduler->idle_groups_to_schedule));
 	scheduler->num_active_address_spaces = 0;
 	scheduler->num_csg_slots_for_tick = 0;
+	atomic_set(&scheduler->non_idle_offslot_grps, 0);
 	scheduler->csg_scan_sched_count = 0;
 	bitmap_zero(scheduler->csg_slots_prio_update, BASEP_QUEUE_GROUP_MAX);
 	INIT_LIST_HEAD(&privileged_groups);
@@ -6048,7 +6064,7 @@ static int scheduler_prepare(struct kbase_device *kbdev)
 	 * of the tick. It will be subject to up/downs during the scheduler
 	 * active phase.
 	 */
-	atomic_set(&scheduler->non_idle_offslot_grps, (int)scheduler->non_idle_scanout_grps);
+	atomic_add(scheduler->non_idle_scanout_grps, &scheduler->non_idle_offslot_grps);
 	KBASE_KTRACE_ADD_CSF_GRP(kbdev, SCHEDULER_NONIDLE_OFFSLOT_GRP_INC, NULL,
 				 scheduler->non_idle_scanout_grps);
 
