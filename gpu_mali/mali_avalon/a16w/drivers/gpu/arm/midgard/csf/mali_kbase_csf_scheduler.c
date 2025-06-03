@@ -742,6 +742,7 @@ out:
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	kbdev->pm.backend.exit_gpu_sleep_mode = true;
 	kbdev->pm.backend.gpu_wakeup_override = false;
+	kbdev->pm.backend.gpu_sleep_mode_active = true;
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	kbase_csf_scheduler_invoke_tick(kbdev);
 
@@ -9360,15 +9361,18 @@ int kbase_csf_scheduler_handle_runtime_suspend(struct kbase_device *kbdev)
 	}
 
 	if (!is_gpu_level_suspend_supported(kbdev)) {
+		/* For GLS, gpu_sleep_mode_active would be cleared only after
+		 * we confirm that suspension is possible.
+		 */
+		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+		kbdev->pm.backend.gpu_sleep_mode_active = false;
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 		scheduler->state = SCHED_SUSPENDED;
 		KBASE_KTRACE_ADD(kbdev, SCHED_SUSPENDED, NULL, scheduler->state);
 	}
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
 	hrtimer_cancel(&scheduler->gpu_metrics_timer);
 #endif
-	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-	kbdev->pm.backend.gpu_sleep_mode_active = false;
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	return 0;
 }

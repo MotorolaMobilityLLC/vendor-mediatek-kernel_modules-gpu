@@ -1019,9 +1019,6 @@ static int pm_handle_mcu_sleep_on_runtime_suspend(struct kbase_device *kbdev, bo
 	/* Power down L2 cache */
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	kbdev->pm.backend.gpu_wakeup_override = false;
-	kbase_pm_update_state(kbdev);
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-
 	/* After re-acquiring the kbdev->pm.lock, check if the device
 	 * became active (or active then idle) meanwhile.
 	 */
@@ -1034,6 +1031,9 @@ static int pm_handle_mcu_sleep_on_runtime_suspend(struct kbase_device *kbdev, bo
 
 		ret = -EBUSY;
 	}
+	kbdev->pm.backend.gpu_sleep_mode_active = suspension_aborted;
+	kbase_pm_update_state(kbdev);
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	if (!ret) {
 		ret = kbase_pm_wait_for_desired_state(kbdev);
