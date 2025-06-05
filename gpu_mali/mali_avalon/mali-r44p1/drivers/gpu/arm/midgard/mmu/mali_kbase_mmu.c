@@ -3405,11 +3405,21 @@ int kbase_mmu_migrate_page(struct tagged_addr old_phys, struct tagged_addr new_p
 	/* If page migration support is not compiled in, return with fault */
 	if (!IS_ENABLED(CONFIG_PAGE_MIGRATION_SUPPORT))
 		return -EINVAL;
-	/* Due to the hard binding of mmu_command_instr with kctx_id via kbase_mmu_hw_op_param,
-	 * here we skip the no kctx case, which is only used with MCU's mmut.
-	 */
-	if (!mmut->kctx)
-		return -EINVAL;
+
+	spin_lock(&page_md->migrate_lock);
+
+	check_state = PAGE_STATUS_GET(page_md->status);
+
+	if (WARN_ONCE(check_state != ALLOCATED_MAPPED,
+		      "Page metadata status %d doesn't match expected value %d", check_state,
+		      ALLOCATED_MAPPED)) {
+		ret = -EINVAL;
+		goto early_exit;
+	}
+
+	mmut = (level == MIDGARD_MMU_BOTTOMLEVEL) ?
+			page_md->data.mapped.mmut :
+		page_md->data.pt_mapped.mmut;
 
 	if (level > MIDGARD_MMU_BOTTOMLEVEL)
 		return -EINVAL;
@@ -3417,6 +3427,14 @@ int kbase_mmu_migrate_page(struct tagged_addr old_phys, struct tagged_addr new_p
 		vpfn = page_md->data.mapped.vpfn;
 	else
 		vpfn = PGD_VPFN_LEVEL_GET_VPFN(page_md->data.pt_mapped.pgd_vpfn_level);
+
+	spin_unlock(&page_md->migrate_lock);
+
+	/* Due to the hard binding of mmu_command_instr with kctx_id via kbase_mmu_hw_op_param,
+	 * here we skip the no kctx case, which is only used with MCU's mmut.
+	 */
+	if (!mmut->kctx)
+		return -EINVAL;
 
 	kbdev = mmut->kctx->kbdev;
 	index = (vpfn >> ((3 - level) * 9)) & 0x1FF;
@@ -3477,21 +3495,20 @@ int kbase_mmu_migrate_page(struct tagged_addr old_phys, struct tagged_addr new_p
 					     pgd_level_to_skip_flush(1ULL << level) :
 					     pgd_level_to_skip_flush(3ULL << level);
 
-	mutex_lock(&mmut->mmu_lock);
 
 	/* The state was evaluated before entering this function, but it could
 	 * have changed before the mmu_lock was taken. However, the state
 	 * transitions which are possible at this point are only two, and in both
 	 * cases it is a stable state progressing to a "free in progress" state.
 	 *
-	 * After taking the mmu_lock the state can no longer change: read it again
-	 * and make sure that it hasn't changed before continuing.
+	 * After taking the mmu_lock the state can no longer change.
 	 */
+	mutex_lock(&mmut->mmu_lock);
 	spin_lock(&page_md->migrate_lock);
+
 	check_state = PAGE_STATUS_GET(page_md->status);
 	if (level == MIDGARD_MMU_BOTTOMLEVEL)
 		vmap_count = page_md->vmap_count;
-	spin_unlock(&page_md->migrate_lock);
 
 	if (level == MIDGARD_MMU_BOTTOMLEVEL) {
 		if (check_state != ALLOCATED_MAPPED) {
@@ -3530,6 +3547,7 @@ int kbase_mmu_migrate_page(struct tagged_addr old_phys, struct tagged_addr new_p
 		goto pgd_page_map_error;
 	}
 
+	spin_unlock(&page_md->migrate_lock);
 	mutex_lock(&kbdev->mmu_hw_mutex);
 
 	/* Lock MMU region and flush GPU cache by using GPU control,
@@ -3538,11 +3556,9 @@ int kbase_mmu_migrate_page(struct tagged_addr old_phys, struct tagged_addr new_p
 	spin_lock_irqsave(&kbdev->hwaccess_lock, hwaccess_flags);
 	if (unlikely(!kbase_pm_l2_allow_mmu_page_migration(kbdev))) {
 		/* Defer the migration as L2 is in a transitional phase */
-		spin_unlock_irqrestore(&kbdev->hwaccess_lock, hwaccess_flags);
-		mutex_unlock(&kbdev->mmu_hw_mutex);
-		dev_dbg(kbdev->dev, "%s: L2 in transtion, abort PGD page migration", __func__);
+		dev_dbg(kbdev->dev, "%s: L2 in transition, abort PGD page migration", __func__);
 		ret = -EAGAIN;
-		goto l2_state_defer_out;
+		goto defer_out;
 	}
 	/* Prevent transitional phases in L2 by starting the transaction */
 	mmu_page_migration_transaction_begin(kbdev);
@@ -3569,7 +3585,6 @@ int kbase_mmu_migrate_page(struct tagged_addr old_phys, struct tagged_addr new_p
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, hwaccess_flags);
 
 	if (ret < 0) {
-		mutex_unlock(&kbdev->mmu_hw_mutex);
 		dev_err(kbdev->dev, "%s: failed to lock MMU region or flush GPU cache", __func__);
 		goto undo_mappings;
 	}
@@ -3664,17 +3679,16 @@ int kbase_mmu_migrate_page(struct tagged_addr old_phys, struct tagged_addr new_p
 
 		CSTD_UNUSED(local_ret);
 	}
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, hwaccess_flags);
-	/* Releasing locks before checking the migration transaction error state */
-	mutex_unlock(&kbdev->mmu_hw_mutex);
-
-	spin_lock_irqsave(&kbdev->hwaccess_lock, hwaccess_flags);
 	/* Release the transition prevention in L2 by ending the transaction */
 	mmu_page_migration_transaction_end(kbdev);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, hwaccess_flags);
+	/* Releasing locks before checking the migration transaction error state.
+	 * Reacquire the migrate_lock immediately since we're releasing the mutex.
+	 */
+	mutex_unlock(&kbdev->mmu_hw_mutex);
+	spin_lock(&page_md->migrate_lock);
 
 	/* Undertaking metadata transfer, while we are holding the mmu_lock */
-	spin_lock(&page_md->migrate_lock);
 	if (level == MIDGARD_MMU_BOTTOMLEVEL) {
 		enum kbase_page_status page_status = PAGE_STATUS_GET(page_md->status);
 
@@ -3698,18 +3712,16 @@ int kbase_mmu_migrate_page(struct tagged_addr old_phys, struct tagged_addr new_p
 	/* Update the new page dma_addr with the transferred metadata from the old_page */
 	page_md->dma_addr = new_dma_addr;
 	page_md->status = PAGE_ISOLATE_SET(page_md->status, 0);
-	spin_unlock(&page_md->migrate_lock);
 	set_page_private(as_page(new_phys), (unsigned long)page_md);
 	/* Old page metatdata pointer cleared as it now owned by the new page */
 	set_page_private(as_page(old_phys), 0);
 
-l2_state_defer_out:
 	kbase_kunmap(phys_to_page(pgd), pgd_page);
 pgd_page_map_error:
 get_pgd_at_level_error:
 page_state_change_out:
+	spin_unlock(&page_md->migrate_lock);
 	mutex_unlock(&mmut->mmu_lock);
-
 	kbase_kunmap(as_page(new_phys), new_page);
 new_page_map_error:
 	kbase_kunmap(as_page(old_phys), old_page);
@@ -3717,12 +3729,16 @@ old_page_map_error:
 	return ret;
 
 undo_mappings:
-	/* Unlock the MMU table and undo mappings. */
+defer_out:
+	mutex_unlock(&kbdev->mmu_hw_mutex);
 	mutex_unlock(&mmut->mmu_lock);
 	kbase_kunmap(phys_to_page(pgd), pgd_page);
 	kbase_kunmap(as_page(new_phys), new_page);
 	kbase_kunmap(as_page(old_phys), old_page);
+	return ret;
 
+early_exit:
+	spin_unlock(&page_md->migrate_lock);
 	return ret;
 }
 
