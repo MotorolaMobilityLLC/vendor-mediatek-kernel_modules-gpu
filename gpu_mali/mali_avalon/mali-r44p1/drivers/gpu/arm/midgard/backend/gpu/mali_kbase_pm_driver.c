@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1246,6 +1246,8 @@ static void kbase_pm_l2_clear_backend_slot_submit_kctx(struct kbase_device *kbde
 
 static bool can_power_down_l2(struct kbase_device *kbdev)
 {
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
 #if MALI_USE_CSF
 	/* Due to the HW issue GPU2019-3878, need to prevent L2 power off
 	 * whilst MMU command is in progress.
