@@ -9430,12 +9430,25 @@ void kbase_csf_scheduler_enqueue_power_off_work(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
 #if IS_ENABLED(CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER)
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	if (kthread_queue_work(kbdev->pm.backend.gpu_poweroff_wait_worker,
+			   &kbdev->pm.backend.gpu_poweroff_wait_work))
+		mali_kthread_event("queue work", kbdev, "kbase_pm_gpu_poweroff_wait_wq");
+#else
 	kthread_queue_work(kbdev->pm.backend.gpu_poweroff_wait_worker,
 			&kbdev->pm.backend.gpu_poweroff_wait_work);
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 #else
 	if (likely(kbdev->csf.scheduler.kthread_running)) {
 		if (atomic_cmpxchg(&scheduler->pending_power_off_work, false, true) == false)
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+		{
+			mali_kthread_event("queue work", kbdev, "kbase_pm_gpu_poweroff_wait_wq");
 			complete(&scheduler->kthread_signal);
+		}
+#else
+			complete(&scheduler->kthread_signal);
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 	} else {
 		queue_work(kbdev->pm.backend.gpu_poweroff_wait_wq,
 			   &kbdev->pm.backend.gpu_poweroff_wait_work);

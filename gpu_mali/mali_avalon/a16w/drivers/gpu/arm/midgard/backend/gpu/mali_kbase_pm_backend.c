@@ -404,6 +404,9 @@ void kbase_pm_handle_gpu_poweroff_wait_work(struct kbase_device *kbdev)
 	struct kbase_pm_device_data *pm = &kbdev->pm;
 	struct kbase_pm_backend_data *backend = &pm->backend;
 	unsigned long flags;
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	MALI_KTHREAD_WORK_START(kbdev, "kbase_pm_gpu_poweroff_wait_wq");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 
 	KBASE_KTRACE_ADD(kbdev, PM_POWEROFF_WAIT_WQ, NULL, 0);
 
@@ -429,6 +432,10 @@ wakeup_exit:
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	kbase_pm_unlock(kbdev);
 	wake_up(&kbdev->pm.backend.poweroff_wait);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	MALI_KTHREAD_WORK_END(kbdev, "kbase_pm_gpu_poweroff_wait_wq");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
 }
 
 /**
