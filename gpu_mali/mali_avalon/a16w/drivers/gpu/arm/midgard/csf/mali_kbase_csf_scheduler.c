@@ -9132,27 +9132,10 @@ void kbase_csf_scheduler_kick(struct kbase_device *kbdev)
 	mutex_unlock(&scheduler->lock);
 }
 
-static void soi_disable_gpu_idle_timer_no_db(struct kbase_device *kbdev)
-{
-	unsigned long flags;
-
-	if (!atomic_read(&kbdev->csf.scheduler.gpu_idle_timer_enabled))
-		return;
-
-	kbase_csf_fw_io_open_force(&kbdev->csf.fw_io, &flags);
-	kbase_csf_fw_io_global_write_mask(&kbdev->csf.fw_io, GLB_REQ, GLB_REQ_REQ_IDLE_DISABLE,
-					  GLB_REQ_IDLE_DISABLE_MASK);
-	kbase_csf_fw_io_close(&kbdev->csf.fw_io, flags);
-	atomic_set(&kbdev->csf.scheduler.gpu_idle_timer_enabled, false);
-
-	KBASE_KTRACE_ADD(kbdev, CSF_FIRMWARE_GLB_IDLE_TIMER_CHANGED, NULL, false);
-}
-
 int kbase_csf_scheduler_pm_suspend_no_lock(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 	int result = 0;
-	unsigned long flags;
 
 	lockdep_assert_held(&scheduler->lock);
 
@@ -9178,12 +9161,9 @@ int kbase_csf_scheduler_pm_suspend_no_lock(struct kbase_device *kbdev)
 	 */
 	if (IS_ENABLED(CONFIG_PM) && scheduler->state == SCHED_SLEEPING) {
 		dev_info(kbdev->dev, "Activating MCU out of sleep on system suspend");
-
-		kbase_csf_scheduler_spin_lock(kbdev, &flags);
-		if (likely(atomic_read(&scheduler->fw_soi_enabled)))
-			soi_disable_gpu_idle_timer_no_db(kbdev);
-		kbase_csf_scheduler_spin_unlock(kbdev, flags);
-
+		if (unlikely(kbase_csf_firmware_soi_disable_on_scheduler_suspend(kbdev)))
+			dev_warn(kbdev->dev,
+				 "Failed to disable SoI on scheduler suspension");
 		result = force_scheduler_to_exit_sleep(kbdev);
 		if (result) {
 			dev_warn(kbdev->dev, "Scheduler failed to exit from sleep");
