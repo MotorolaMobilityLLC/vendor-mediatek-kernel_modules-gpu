@@ -35,8 +35,11 @@
 
 #include "gpufreq_v2_legacy.h"
 #endif /* CONFIG_MALI_MTK_GPU_FREQUENCY_TRACE */
+/* for irq monitoring */
+#include <mt-plat/mtk_irq_mon.h>
 
 const int SAME_FREQ_THRESHOLD = 10;
+#define MALI_IRQ_PERIOD_BURST 71428 /* 14000 irqs per sec*/
 
 #if IS_ENABLED(CONFIG_MALI_REAL_HW)
 static void *kbase_tag(void *ptr, u32 tag)
@@ -470,6 +473,8 @@ int kbase_install_interrupts(struct kbase_device *kbdev)
 	u32 i;
 
 	for (i = 0; i < kbdev->nr_irqs; i++) {
+		/* set period for burst irq */
+		irq_mon_aee_period_set(kbdev->irqs[i].irq, MALI_IRQ_PERIOD_BURST);
 		const int result = request_irq(kbdev->irqs[i].irq,
 					       kbase_get_interrupt_handler(kbdev, i),
 					       kbdev->irqs[i].flags | IRQF_SHARED,

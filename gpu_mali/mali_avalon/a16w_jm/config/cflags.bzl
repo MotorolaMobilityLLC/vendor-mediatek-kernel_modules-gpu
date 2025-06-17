@@ -134,4 +134,5 @@ COPTS_MTK = [
     "-I$(srctree)/drivers/misc/mediatek/slbc",
     "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/perf_common",
     "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/tinysys_scmi",
+    "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/",
 ]
