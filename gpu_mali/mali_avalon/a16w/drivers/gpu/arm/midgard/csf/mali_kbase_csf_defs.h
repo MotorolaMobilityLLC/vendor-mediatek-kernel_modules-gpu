@@ -1400,11 +1400,11 @@ struct kbase_csf_scheduler {
 #if !IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
 	atomic_t pending_gpu_idle_work;
 	atomic_t pending_runtime_suspend_work;
-	atomic_t pending_power_off_work;
 #else
 	struct workqueue_struct *idle_wq;
 	struct work_struct gpu_idle_work;
 #endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
+	atomic_t pending_power_off_work;
 	struct delayed_work ping_work;
 	struct kbase_context *top_kctx;
 	struct kbase_queue_group *top_grp;
