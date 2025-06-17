@@ -3369,9 +3369,9 @@ static ssize_t gpuinfo_show(struct device *dev, struct device_attribute *attr, c
 		{ .id = GPU_ID_PRODUCT_LTIX, .name = "Mali-G620" },
 		{ .id = GPU_ID_PRODUCT_TKRX, .name = "Mali-G725" },
 		{ .id = GPU_ID_PRODUCT_LKRX, .name = "Mali-G625" },
-		{ .id = GPU_ID_PRODUCT_IDRX, .name = "Mali-TDRX-Immortalis" },
-		{ .id = GPU_ID_PRODUCT_TDRX, .name = "Mali-TDRX" },
-		{ .id = GPU_ID_PRODUCT_LDRX, .name = "Mali-LDRX" },
+		{ .id = GPU_ID_PRODUCT_IDRX, .name = "Mali-G1-Ultra" },
+		{ .id = GPU_ID_PRODUCT_TDRX, .name = "Mali-G1-Premium" },
+		{ .id = GPU_ID_PRODUCT_LDRX, .name = "Mali-G1-Pro" },
 	};
 	const char *product_name = "(Unknown Mali GPU)";
 	struct kbase_device *kbdev;
