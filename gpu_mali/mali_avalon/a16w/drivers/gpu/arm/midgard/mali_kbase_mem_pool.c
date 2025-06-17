@@ -118,6 +118,10 @@ static bool set_pool_new_page_metadata(struct kbase_mem_pool *pool, struct page 
 			page_md->data.mem_pool.kbdev = pool->kbdev;
 			list_add(&p->lru, page_list);
 			(*list_size)++;
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_MARK_RECLAIMABLE)
+			if (pool->pool_supports_reclaim)
+				mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, 1u << pool->order);
+#endif /* CONFIG_MALI_MTK_MEMORY_MARK_RECLAIMABLE */
 		}
 		spin_unlock(&page_md->migrate_lock);
 	}
@@ -142,6 +146,10 @@ static void kbase_mem_pool_add_locked(struct kbase_mem_pool *pool, struct page *
 	} else {
 		list_add(&p->lru, &pool->page_list);
 		pool->cur_size++;
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_MARK_RECLAIMABLE)
+		if (pool->pool_supports_reclaim)
+			mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, 1u << pool->order);
+#endif /* CONFIG_MALI_MTK_MEMORY_MARK_RECLAIMABLE */
 	}
 
 	if (queue_work_to_free) {
@@ -169,6 +177,15 @@ static void kbase_mem_pool_add_list_locked(struct kbase_mem_pool *pool, struct l
 				queue_work_to_free = true;
 		}
 	} else {
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_MARK_RECLAIMABLE)
+		if (pool->pool_supports_reclaim) {
+			struct page *p;
+
+			list_for_each_entry(p, page_list, lru) {
+				mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, 1u << pool->order);
+			}
+		}
+#endif /* CONFIG_MALI_MTK_MEMORY_MARK_RECLAIMABLE */
 		list_splice(page_list, &pool->page_list);
 		pool->cur_size += nr_pages;
 	}
@@ -531,6 +548,10 @@ static struct page *kbase_mem_pool_remove_locked(struct kbase_mem_pool *pool,
 
 	list_del_init(&p->lru);
 	pool->cur_size--;
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_MARK_RECLAIMABLE)
+	if (pool->pool_supports_reclaim)
+		mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, -(1u << pool->order));
+#endif /* CONFIG_MALI_MTK_MEMORY_MARK_RECLAIMABLE */
 
 	pool_dbg(pool, "removed page\n");
 

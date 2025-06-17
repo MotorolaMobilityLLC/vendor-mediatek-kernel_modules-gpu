@@ -509,6 +509,10 @@ static bool kbase_page_isolate(struct page *p, isolate_mode_t mode)
 			page_md->status = PAGE_ISOLATE_SET(page_md->status, 1);
 			list_del_init(&p->lru);
 			mem_pool->cur_size--;
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_MARK_RECLAIMABLE)
+			if (mem_pool->pool_supports_reclaim)
+				mod_node_page_state(page_pgdat(p), NR_KERNEL_MISC_RECLAIMABLE, -(1u << mem_pool->order));
+#endif /* CONFIG_MALI_MTK_MEMORY_MARK_RECLAIMABLE */
 		}
 		spin_unlock(&page_md->migrate_lock);
 		spin_unlock(&mem_pool->pool_lock);

@@ -380,5 +380,9 @@ config MALI_MTK_RESET_OPT
 	bool "Optimization for the reset flow"
 	default n
 
+config MALI_MTK_MEMORY_MARK_RECLAIMABLE
+	bool "Mark reclaimable for statistic"
+	default n
+
 endmenu
 
