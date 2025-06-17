@@ -8365,9 +8365,11 @@ static int kbase_csf_scheduler_kthread(void *data)
 			atomic_set(&scheduler->pending_runtime_suspend_work, false);
 		}
 
+#if !IS_ENABLED(CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER)
 		/* Drain pending GPU power off work */
 		if (atomic_cmpxchg(&scheduler->pending_power_off_work, true, false) == true)
 			kbase_pm_handle_gpu_poweroff_wait_work(kbdev);
+#endif /* CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER */
 
 		/* Update GLB_IDLE timer/FW Sleep-on-Idle config (which might
 		 * have been disabled during FW boot et. al.).
@@ -8899,7 +8901,9 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 #else
 	INIT_WORK(&scheduler->gpu_idle_work, gpu_idle_worker);
 #endif /* CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE */
+#if !IS_ENABLED(CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER)
 	atomic_set(&scheduler->pending_power_off_work, false);
+#endif /* CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER */
 
 #if IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
 	kbdev->api_sync_update_in_progress = false;
@@ -9425,7 +9429,10 @@ void kbase_csf_scheduler_enqueue_kcpuq_work(struct kbase_kcpu_command_queue *que
 void kbase_csf_scheduler_enqueue_power_off_work(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
-
+#if IS_ENABLED(CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER)
+	kthread_queue_work(kbdev->pm.backend.gpu_poweroff_wait_worker,
+			&kbdev->pm.backend.gpu_poweroff_wait_work);
+#else
 	if (likely(kbdev->csf.scheduler.kthread_running)) {
 		if (atomic_cmpxchg(&scheduler->pending_power_off_work, false, true) == false)
 			complete(&scheduler->kthread_signal);
@@ -9433,6 +9440,7 @@ void kbase_csf_scheduler_enqueue_power_off_work(struct kbase_device *kbdev)
 		queue_work(kbdev->pm.backend.gpu_poweroff_wait_wq,
 			   &kbdev->pm.backend.gpu_poweroff_wait_work);
 	}
+#endif /* CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER */
 }
 
 void kbase_csf_scheduler_wait_for_kthread_pending_work(struct kbase_device *kbdev,

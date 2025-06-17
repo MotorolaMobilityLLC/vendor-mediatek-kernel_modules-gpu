@@ -240,6 +240,10 @@ config MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE
 	bool ""
 	default n
 
+config MALI_MTK_POWEROFF_KTHREAD_WORKER
+	bool ""
+	default y
+
 config MALI_MTK_KBASE_TRACE_DEBUG
 	bool ""
 	default n

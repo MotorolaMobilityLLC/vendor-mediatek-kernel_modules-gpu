@@ -45,6 +45,10 @@
 #define NUM_PERF_COUNTERS (6)
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER)
+#include <linux/kthread.h>
+#endif /* CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER */
+
 /* Forward definition - see mali_kbase.h */
 struct kbase_device;
 struct kbase_jd_atom;
@@ -472,8 +476,13 @@ struct kbase_pm_backend_data {
 	bool invoke_poweroff_wait_wq_when_l2_off;
 	bool poweron_required;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER)
+	struct kthread_worker *gpu_poweroff_wait_worker;
+	struct kthread_work gpu_poweroff_wait_work;
+#else
 	struct workqueue_struct *gpu_poweroff_wait_wq;
 	struct work_struct gpu_poweroff_wait_work;
+#endif /* CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER */
 
 	wait_queue_head_t poweroff_wait;
 

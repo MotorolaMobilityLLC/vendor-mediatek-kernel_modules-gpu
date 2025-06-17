@@ -47,7 +47,11 @@
 #include <platform/mtk_platform_common/mtk_platform_mali_event.h>
 #endif /* CONFIG_MALI_MTK_MBRAIN_SUPPORT */
 
+#if IS_ENABLED(CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER)
+static void kbase_pm_gpu_poweroff_wait_wq(struct kthread_work *data);
+#else
 static void kbase_pm_gpu_poweroff_wait_wq(struct work_struct *data);
+#endif /* CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER */
 static void kbase_pm_hwcnt_disable_worker(struct work_struct *data);
 static void kbase_pm_gpu_clock_control_worker(struct work_struct *data);
 
@@ -118,18 +122,37 @@ void kbase_pm_register_access_disable(struct kbase_device *kbdev)
 int kbase_hwaccess_pm_init(struct kbase_device *kbdev)
 {
 	int ret = 0;
+#if IS_ENABLED(CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER)
+	struct sched_param param = { .sched_priority = 1 };
+#endif /* CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER */
 
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
 
 	mutex_init(&kbdev->pm.lock);
 	kbdev->pm.runtime_suspend_result = 0;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER)
+	kbdev->pm.backend.gpu_poweroff_wait_worker = kthread_create_worker(0, "kbase_pm_poweroff_wait");
+	dev_info(kbdev->dev, "kthread_create_worker %p %p", kbdev->pm.backend.gpu_poweroff_wait_worker, kbdev->pm.backend.gpu_poweroff_wait_worker->task);
+	if (IS_ERR(kbdev->pm.backend.gpu_poweroff_wait_worker)) {
+		dev_err(kbdev->dev, "Failed to allocate PM Poweroff Wait worker\n");
+		return -ENOMEM;
+	}
+
+	ret = sched_setscheduler(kbdev->pm.backend.gpu_poweroff_wait_worker->task, SCHED_FIFO, &param);
+	if (ret != 0) {
+		dev_err(kbdev->dev, "Failed to set prio PM Poweroff Wait worker %d\n", ret);
+	}
+
+	kthread_init_work(&kbdev->pm.backend.gpu_poweroff_wait_work, kbase_pm_gpu_poweroff_wait_wq);
+#else
 	kbdev->pm.backend.gpu_poweroff_wait_wq =
 		alloc_workqueue("kbase_pm_poweroff_wait", WQ_HIGHPRI | WQ_UNBOUND, 1);
 	if (!kbdev->pm.backend.gpu_poweroff_wait_wq)
 		return -ENOMEM;
 
 	INIT_WORK(&kbdev->pm.backend.gpu_poweroff_wait_work, kbase_pm_gpu_poweroff_wait_wq);
+#endif /* CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER */
 
 	init_waitqueue_head(&kbdev->pm.backend.gpu_in_desired_state_wait);
 
@@ -413,7 +436,11 @@ wakeup_exit:
  *
  * @data: The KBase device
  */
+#if IS_ENABLED(CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER)
+static void kbase_pm_gpu_poweroff_wait_wq(struct kthread_work *data)
+#else
 static void kbase_pm_gpu_poweroff_wait_wq(struct work_struct *data)
+#endif /* CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER */
 {
 	struct kbase_device *kbdev =
 		container_of(data, struct kbase_device, pm.backend.gpu_poweroff_wait_work);
@@ -805,7 +832,11 @@ void kbase_hwaccess_pm_term(struct kbase_device *kbdev)
 
 	mutex_destroy(&kbdev->pm.backend.policy_change_lock);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER)
+	kthread_destroy_worker(kbdev->pm.backend.gpu_poweroff_wait_worker);
+#else
 	destroy_workqueue(kbdev->pm.backend.gpu_poweroff_wait_wq);
+#endif /* CONFIG_MALI_MTK_POWEROFF_KTHREAD_WORKER */
 }
 
 void kbase_pm_power_changed(struct kbase_device *kbdev)
