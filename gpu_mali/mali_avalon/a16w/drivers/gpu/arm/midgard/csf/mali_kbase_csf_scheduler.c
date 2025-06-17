@@ -7583,9 +7583,12 @@ static void wait_for_mcu_sleep_before_sync_update_check(struct kbase_device *kbd
 	if (!can_wait_for_mcu_sleep)
 		return;
 
-	/* Wait until MCU enters sleep state or there is a pending GPU reset */
+	/* Wait until MCU enters sleep state window, or, other backend transitions signaling
+	 * such a condition window has been closed.
+	 */
 	if (!kbase_csf_wait_event_timeout(kbdev, kbdev->pm.backend.gpu_in_desired_state_wait,
 					  kbase_csf_firmware_mcu_halted(kbdev) ||
+						!kbdev->pm.backend.gpu_sleep_mode_active ||
 						kbdev->pm.backend.exit_gpu_sleep_mode ||
 						!kbase_reset_gpu_is_not_pending(kbdev),
 					  timeout))
