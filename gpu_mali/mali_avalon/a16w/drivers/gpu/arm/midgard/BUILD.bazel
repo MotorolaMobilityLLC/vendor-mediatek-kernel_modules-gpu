@@ -431,6 +431,7 @@ platforms = [
         "//kernel_device_modules-{}/drivers/misc/mediatek/sda:irq-dbg".format(kernel_version),
         "//kernel_device_modules-{}/drivers/misc/mediatek/slbc:mtk_slbc".format(kernel_version),
 	"//kernel_device_modules-{}/drivers/misc/mediatek/trusted_mem:trusted_mem".format(kernel_version),
+        "//kernel_device_modules-{}/drivers/misc/mediatek/irq_monitor:irq_monitor".format(kernel_version),
     ] + ([
         "//kernel_device_modules-{}/drivers/gpu/mediatek/gpu_pdma:mtk_gpu_pdma_mt6991".format(kernel_version),
     ] if p in ["mt6991"] else [
