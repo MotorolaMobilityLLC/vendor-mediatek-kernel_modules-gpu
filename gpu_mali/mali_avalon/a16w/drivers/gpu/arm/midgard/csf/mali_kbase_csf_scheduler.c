@@ -7589,6 +7589,7 @@ static void wait_for_mcu_sleep_before_sync_update_check(struct kbase_device *kbd
 	if (!kbase_csf_wait_event_timeout(kbdev, kbdev->pm.backend.gpu_in_desired_state_wait,
 					  kbase_csf_firmware_mcu_halted(kbdev) ||
 						!kbdev->pm.backend.gpu_sleep_mode_active ||
+						atomic_read(&kbdev->pm.active_count) ||
 						kbdev->pm.backend.exit_gpu_sleep_mode ||
 						!kbase_reset_gpu_is_not_pending(kbdev),
 					  timeout))
