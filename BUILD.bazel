@@ -16,23 +16,10 @@ mt6768_outs = [
 ]
 
 
-mt6855_outs = [
-     "mt6855/m25.1RTM6715691/pvrsrvkm_mt6855.ko",
-]
-
-
 define_mgk_ko(
     name = "gpu_mt6768",
     srcs = glob(["**"]),
     outs = (
     mt6768_outs if glob(["mt6768/*"]) else []
-    ),
-)
-
-define_mgk_ko(
-    name = "gpu_mt6855",
-    srcs = glob(["**"]),
-    outs = (
-    mt6855_outs if glob(["mt6855/*"]) else []
     ),
 )

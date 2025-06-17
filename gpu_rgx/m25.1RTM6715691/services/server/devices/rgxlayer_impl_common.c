@@ -43,7 +43,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "rgxlayer_impl.h"
 #include "pdump_km.h"
-#include "power.h"
+#include "include/power.h"
 #include "rgxfwutils.h"
 #include "rgxfwimageutils.h"
 

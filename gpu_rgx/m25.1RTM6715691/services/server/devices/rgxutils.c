@@ -47,7 +47,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "allocmem.h"
 #include "pvr_debug.h"
 #include "rgxutils.h"
-#include "power.h"
+#include "include/power.h"
 #include "pvrsrv.h"
 #include "sync_internal.h"
 #include "rgxfwutils.h"

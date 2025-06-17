@@ -59,7 +59,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * to the underlying algorithm but proactive is anticipated to be
  * the optimal governor.
  */
-#include "power.h"
+#include "include/power.h"
 #include "pvrsrv.h"
 #include "pvrsrv_device.h"
 

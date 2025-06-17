@@ -59,7 +59,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "srvcore.h"
 #include "pvrsrv.h"
-#include "power.h"
+#include "include/power.h"
 
 #include "os_apphint.h"
 

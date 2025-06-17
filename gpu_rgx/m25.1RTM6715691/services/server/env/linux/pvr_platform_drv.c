@@ -303,6 +303,7 @@ static int __init pvr_init(void)
 	int err;
 
 	DRM_DEBUG_DRIVER("\n");
+	MTK_LOGI("@%s: start to initialize pvrsrvkm driver\n", __func__);
 #if defined(MTK_MINI_PORTING)
 	MTK_LOGI("@%s: start to initialize pvrsrvkm driver\n", __func__);
 #endif

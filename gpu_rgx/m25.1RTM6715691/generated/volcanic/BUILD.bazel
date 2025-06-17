@@ -60,27 +60,27 @@ filegroup(
 					 + FILES_SUPPORT_FALLBACK_FENCE_SYNC
 		)
 		+ select({
-			"//powervr/rogue_km:cs_PDUMP": FILES_PDUMP,
+			"//vendor/mediatek/kernel_modules/gpu/gpu_rgx/m25.1RTM6715691:cs_PDUMP": FILES_PDUMP,
 			"//conditions:default": [],
 		})
 		+ select({
-			"//powervr/rogue_km:cs_PDUMP_and_SUPPORT_RGX": FILES_PDUMP_and_SUPPORT_RGX,
+			"//vendor/mediatek/kernel_modules/gpu/gpu_rgx/m25.1RTM6715691:cs_PDUMP_and_SUPPORT_RGX": FILES_PDUMP_and_SUPPORT_RGX,
 			"//conditions:default": [],
 		})
 		+ select({
-			"//powervr/rogue_km:cs_PVRSRV_ENABLE_GPU_MEMORY_INFO": FILES_PVRSRV_ENABLE_GPU_MEMORY_INFO,
+			"//vendor/mediatek/kernel_modules/gpu/gpu_rgx/m25.1RTM6715691:cs_PVRSRV_ENABLE_GPU_MEMORY_INFO": FILES_PVRSRV_ENABLE_GPU_MEMORY_INFO,
 			"//conditions:default": [],
 		})
 		+ select({
-			"//powervr/rogue_km:cs_PVRSRV_ENABLE_HTB": FILES_PVRSRV_ENABLE_HTB,
+			"//vendor/mediatek/kernel_modules/gpu/gpu_rgx/m25.1RTM6715691:cs_PVRSRV_ENABLE_HTB": FILES_PVRSRV_ENABLE_HTB,
 			"//conditions:default": [],
 		})
 		+ select({
-			"//powervr/rogue_km:cs_SUPPORT_DMA_TRANSFER": FILES_SUPPORT_DMA_TRANSFER,
+			"//vendor/mediatek/kernel_modules/gpu/gpu_rgx/m25.1RTM6715691:cs_SUPPORT_DMA_TRANSFER": FILES_SUPPORT_DMA_TRANSFER,
 			"//conditions:default": [],
 		})
 		+ select({
-			"//powervr/rogue_km:cs_SUPPORT_FALLBACK_FENCE_SYNC": FILES_SUPPORT_FALLBACK_FENCE_SYNC,
+			"//vendor/mediatek/kernel_modules/gpu/gpu_rgx/m25.1RTM6715691:cs_SUPPORT_FALLBACK_FENCE_SYNC": FILES_SUPPORT_FALLBACK_FENCE_SYNC,
 			"//conditions:default": [],
 		})
 )

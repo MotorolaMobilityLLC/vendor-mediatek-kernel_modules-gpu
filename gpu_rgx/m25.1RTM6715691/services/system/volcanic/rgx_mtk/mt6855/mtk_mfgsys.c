@@ -27,7 +27,7 @@
 #endif
 
 static GED_LOG_BUF_HANDLE ghMTKGEDLog;
-static IMG_HANDLE ghRGXUtilUser;
+//static IMG_HANDLE ghRGXUtilUser;
 
 static PVRSRV_DEVICE_NODE *MTKGetRGXDevNode(void)
 {
@@ -63,7 +63,7 @@ static void MTKCalGPULoading(unsigned int *pui32Loading,
 
 	PVRSRV_DEVICE_NODE *psDevNode = NULL;
 	PVRSRV_RGXDEV_INFO *psDevInfo = NULL;
-	RGX_GPU_UTIL_STATS sGpuUtilStats = {};
+	//RGX_GPU_UTIL_STATS sGpuUtilStats = {};
 
 	psDevNode = MTKGetRGXDevNode();
 	if (!psDevNode) {

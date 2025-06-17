@@ -1,3 +1,1 @@
 export MTK_PLATFORM_VERSION := mt6855
-
-obj-m +=  m25.1RTM6715691/

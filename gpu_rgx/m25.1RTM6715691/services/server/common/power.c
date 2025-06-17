@@ -50,7 +50,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "lock.h"
 #include "pvrsrv.h"
-#include "power.h"
+#include "include/power.h"
 #include "pvr_debug.h"
 #include "htbserver.h"
 #include "di_server.h"

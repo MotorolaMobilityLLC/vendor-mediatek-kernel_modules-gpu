@@ -51,7 +51,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "di_server.h"
 #include "private_data.h"
 #include "linkage.h"
-#include "power.h"
+#include "include/power.h"
 #include "env_connection.h"
 #include "process_stats.h"
 #include "module_common.h"

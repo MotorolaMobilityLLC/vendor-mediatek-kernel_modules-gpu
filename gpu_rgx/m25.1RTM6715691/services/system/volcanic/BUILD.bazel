@@ -13,22 +13,22 @@ package(
 
 filegroup(
 	name = "private_rgx_linux_tc_headers",
-	srcs = glob(["rgx_linux_tc/**/*.h"]),
-	visibility = ["//visibility:private"],
+	srcs = glob(["rgx_mtk/**/*.h"]),
+	visibility = ["//visibility:public"],
 )
 
 filegroup(
 	name = "private_rgx_linux_tc_srcs",
-	srcs = glob(["rgx_linux_tc/**/*.c"]),
-	visibility = ["//visibility:private"],
+	srcs = glob(["rgx_mtk/**/*.c"]),
+	visibility = ["//visibility:public"],
 )
 
 ddk_headers(
 	name = "rgx_linux_tc_header",
 	hdrs = glob(["include/**/*.h"])
 	+ select({
-		"//powervr/rogue_km:cs_PVR_SYSTEM_rgx_linux_tc": [":private_rgx_linux_tc_headers"],
-		"//conditions:default": [],
+		"//vendor/mediatek/kernel_modules/gpu/gpu_rgx/m25.1RTM6715691:cs_PVR_SYSTEM_rgx_linux_tc": [":private_rgx_linux_tc_headers"],
+		"//conditions:default": [":private_rgx_linux_tc_headers"],
 	}),
 
 )
@@ -37,7 +37,7 @@ filegroup(
 	name = "rgx_linux_tc_sources",
 	srcs = glob(["common/**/*.c"])
 		 + select({
-			"//powervr/rogue_km:cs_PVR_SYSTEM_rgx_linux_tc": [":private_rgx_linux_tc_srcs"],
-			"//conditions:default": [],
+			"//vendor/mediatek/kernel_modules/gpu/gpu_rgx/m25.1RTM6715691:cs_PVR_SYSTEM_rgx_linux_tc": [":private_rgx_linux_tc_srcs"],
+			"//conditions:default": [":private_rgx_linux_tc_srcs"],
 		 }),
 )

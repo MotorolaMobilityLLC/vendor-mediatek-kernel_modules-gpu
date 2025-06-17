@@ -19,7 +19,7 @@
 #include "ion_support.h"
 #endif
 /* MTK */
-#include "mtk_mfgsys.h"
+#include "mt6855/mtk_mfgsys.h"
 #include "sysinfo.h"
 
 static RGX_TIMING_INFORMATION   gsRGXTimingInfo;
@@ -198,7 +198,7 @@ PVRSRV_ERROR SysDevInit(void *pvOSDevice, PVRSRV_DEVICE_CONFIG **ppsDevConfig)
 	irq_res = platform_get_irq(gpsPVRCfgDev, 0);
 	if (irq_res >= 0) {
 		gsDevices[0].ui32IRQ = irq_res;
-		MTK_LOGE("[SECGPU]irq_res = 0x%llx", irq_res);
+		//MTK_LOGE("[SECGPU]irq_res = 0x%llx", irq_res);
 	} else {
 		MTK_LOGE("irq_res = NULL");
 		return PVRSRV_ERROR_INIT_FAILURE;
@@ -209,7 +209,7 @@ PVRSRV_ERROR SysDevInit(void *pvOSDevice, PVRSRV_DEVICE_CONFIG **ppsDevConfig)
 	if (reg_res) {
 		gsDevices[0].sRegsCpuPBase.uiAddr = reg_res->start;
 		gsDevices[0].ui32RegsSize = resource_size(reg_res);
-		MTK_LOGE("[SECGPU]reg_res = 0x%llx, size = 0x%x", reg_res->start, resource_size(reg_res));
+		//MTK_LOGE("[SECGPU]reg_res = 0x%llx, size = 0x%x", reg_res->start, resource_size(reg_res));
 	} else {
 		MTK_LOGE("reg_res = NULL");
 		return PVRSRV_ERROR_INIT_FAILURE;
