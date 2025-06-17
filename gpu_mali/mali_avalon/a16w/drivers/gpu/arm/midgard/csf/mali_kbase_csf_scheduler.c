@@ -7604,6 +7604,8 @@ static void check_sync_update_for_all_on_slot_groups(struct kbase_device *kbdev)
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 	u32 const num_groups = kbdev->csf.global_iface.group_num;
 	u32 csg_nr;
+	unsigned long sync_update_flags;
+	bool sync_update_db_notif_disabled;
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE)
 	unsigned long flags;
 	enum kbase_mcu_state mcu_state;
@@ -7635,6 +7637,26 @@ static void check_sync_update_for_all_on_slot_groups(struct kbase_device *kbdev)
 		}
 	}
 #endif /* CONFIG_MALI_MTK_WHITEBOX_SYNC_UPDATE */
+	// check MCU whehter under HALT if SoI is in progress, to ensure get the
+	// latest CSI state
+	if ((scheduler->state != SCHED_SUSPENDED) && (scheduler->state != SCHED_SLEEPING)) {
+		spin_lock_irqsave(&kbdev->hwaccess_lock, sync_update_flags);
+		sync_update_db_notif_disabled = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(MCU_CONTROL)) &
+			    MCU_CNTRL_DOORBELL_DISABLE_MASK;
+		if (atomic_read(&kbdev->csf.scheduler.fw_soi_enabled) && sync_update_db_notif_disabled) {
+			u32 sync_update_mcu_status;
+			const u32 timeout_us =
+				kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_SOI_HALT_TIMEOUT) * USEC_PER_MSEC;
+
+			int err = kbase_reg_poll32_timeout(kbdev, GPU_CONTROL_ENUM(MCU_STATUS), sync_update_mcu_status,
+						   MCU_STATUS_VALUE_GET(sync_update_mcu_status) !=
+							   MCU_STATUS_VALUE_ENABLED,
+						   1, timeout_us, false);
+			if (unlikely(err))
+				dev_warn(kbdev->dev, "MCU hasn't halted before sync_upd");
+		}
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, sync_update_flags);
+	}
 
 	for (csg_nr = 0; csg_nr < num_groups; csg_nr++) {
 		struct kbase_queue_group *const group =
