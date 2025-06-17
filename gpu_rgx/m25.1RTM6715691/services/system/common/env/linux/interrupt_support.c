@@ -45,6 +45,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "allocmem.h"
 #include "interrupt_support.h"
 
+/* for irq monitoring */
+#include <mt-plat/mtk_irq_mon.h>
+
+#define PVR_IRQ_PERIOD_BURST 142857 /* 7000 irqs per sec */
+
 typedef struct LISR_DATA_TAG
 {
 	IMG_UINT32	ui32IRQ;
@@ -121,6 +126,9 @@ PVRSRV_ERROR OSInstallSystemLISR(IMG_HANDLE *phLISR,
 	psLISRData->ui32IRQ = ui32IRQ;
 	psLISRData->pfnLISR = pfnLISR;
 	psLISRData->pvData = pvData;
+
+	/* set period for burst irq */
+	irq_mon_aee_period_set(ui32IRQ, PVR_IRQ_PERIOD_BURST);
 
 	if (request_irq(ui32IRQ, SystemISRWrapper, ulIRQFlags, pszDevName, psLISRData))
 	{

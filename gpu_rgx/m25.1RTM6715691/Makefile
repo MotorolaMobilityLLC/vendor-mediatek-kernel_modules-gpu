@@ -519,7 +519,8 @@ ccflags-y += \
 	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpufreq/ \
 	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpu_bm \
 	-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat \
-	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpueb/include
+	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpueb/include \
+	-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/
 
 ifneq ($(filter $(CONFIG_MTK_GPU_SUPPORT),y m),)
 	obj-m += pvrsrvkm_$(MTK_PLATFORM).o
