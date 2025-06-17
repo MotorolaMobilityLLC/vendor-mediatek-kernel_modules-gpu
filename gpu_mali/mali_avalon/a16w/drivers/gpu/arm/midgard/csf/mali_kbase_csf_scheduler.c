@@ -8265,11 +8265,15 @@ static int kbase_csf_scheduler_kthread(void *data)
 
 		if (kbdev->api_sync_update_in_progress == true)
 			trigger_idle = true;
+		else
+			trigger_idle = false;
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST)
 		if (ged_gpu_power_stress_test_enable() == 1)
 			trigger_idle = true;
+		else
+			trigger_idle = false;
 #endif
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GPU_IDLE_STRESS_TEST) || IS_ENABLED(CONFIG_MALI_MTK_API_SYNC_UPDATE)
