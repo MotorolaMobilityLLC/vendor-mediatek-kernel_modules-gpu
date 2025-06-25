@@ -80,6 +80,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MTK_GPU_SWPM_SUPPORT :=y
         CONFIG_MALI_MTK_GPU_BM_2 := y
         CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD := y
+        CONFIG_MALI_MTK_GPU_FREQUENCY_TRACE := y
     endif
 endif
 
