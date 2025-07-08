@@ -71,71 +71,24 @@ static void _FreeWrapData(PMR_WRAP_DATA *psPrivData)
 {
 	OSFreeMem(psPrivData->ppsPageArray);
 	OSFreeMem(psPrivData->ppvPhysAddr);
-	psPrivData->psVMArea = NULL;
 	OSFreeMem(psPrivData);
 }
 
 
 /* Allocate the PMR private data */
 static PVRSRV_ERROR _AllocWrapData(PMR_WRAP_DATA **ppsPrivData,
-                            PVRSRV_DEVICE_NODE *psDevNode,
-                             IMG_DEVMEM_SIZE_T uiSize,
-                            IMG_CPU_VIRTADDR pvCpuVAddr,
-                            PVRSRV_MEMALLOCFLAGS_T uiFlags)
+                                   PVRSRV_DEVICE_NODE *psDevNode,
+                                   IMG_DEVMEM_SIZE_T uiSize,
+                                   PVRSRV_MEMALLOCFLAGS_T uiFlags)
 {
 	PVRSRV_ERROR eError;
 	PMR_WRAP_DATA *psPrivData;
-	struct vm_area_struct *psVMArea;
 	IMG_UINT32 ui32CPUCacheMode;
-
-	/* Obtain a reader lock on the process mmap lock while we are using
-	 * the psVMArea.
-	 */
-
-	mmap_read_lock(current->mm);
-
-	/* Find the VMA */
-	psVMArea = find_vma(current->mm, (uintptr_t)pvCpuVAddr);
-	if (psVMArea == NULL)
-	{
-		PVR_DPF((PVR_DBG_ERROR,
-				"%s: Couldn't find memory region containing start address %p",
-				__func__,
-				(void*) pvCpuVAddr));
-		eError = PVRSRV_ERROR_INVALID_CPU_ADDR;
-		goto eUnlockReturn;
-	}
-
-	/* If requested size is larger than actual allocation
-	 * return error. Can never request more memory to be imported
-	 * than its original allocation */
-	/* Now check the end address is in range */
-	if (((uintptr_t)pvCpuVAddr + uiSize) > psVMArea->vm_end)
-	{
-		PVR_DPF((PVR_DBG_ERROR,
-				"%s: End address %p is outside of the region returned by find_vma",
-				__func__,
-				(void*) (uintptr_t)((uintptr_t)pvCpuVAddr + uiSize)));
-		eError = PVRSRV_ERROR_BAD_PARAM_SIZE;
-		goto eUnlockReturn;
-	}
-
-	/* Find_vma locates a region with an end point past a given
-	 * virtual address. So check the address is actually in the region. */
-	if ((uintptr_t)pvCpuVAddr < psVMArea->vm_start)
-	{
-		PVR_DPF((PVR_DBG_ERROR,
-				"%s: Start address %p is outside of the region returned by find_vma",
-				__func__,
-				(void*) pvCpuVAddr));
-		eError = PVRSRV_ERROR_INVALID_CPU_ADDR;
-		goto eUnlockReturn;
-	}
 
 	eError = DevmemCPUCacheMode(uiFlags, &ui32CPUCacheMode);
 	if (eError != PVRSRV_OK)
 	{
-		goto eUnlockReturn;
+		goto eReturn;
 	}
 
 	/* Allocate and initialise private factory data */
@@ -143,13 +96,10 @@ static PVRSRV_ERROR _AllocWrapData(PMR_WRAP_DATA **ppsPrivData,
 	if (psPrivData == NULL)
 	{
 		eError = PVRSRV_ERROR_OUT_OF_MEMORY;
-		goto eUnlockReturn;
+		goto eReturn;
 	}
 
 	psPrivData->ui32CPUCacheFlags = ui32CPUCacheMode;
-
-	/* Track the VMA area structure so that it can be checked later */
-	psPrivData->psVMArea = psVMArea;
 
 	psPrivData->psDevNode = psDevNode;
 	psPrivData->uiTotalNumPages = uiSize >> PAGE_SHIFT;
@@ -160,7 +110,7 @@ static PVRSRV_ERROR _AllocWrapData(PMR_WRAP_DATA **ppsPrivData,
 	{
 		OSFreeMem(psPrivData);
 		eError = PVRSRV_ERROR_OUT_OF_MEMORY;
-		goto eUnlockReturn;
+		goto eReturn;
 	}
 
 	psPrivData->ppvPhysAddr = OSAllocZMem(sizeof(*(psPrivData->ppvPhysAddr)) * psPrivData->uiTotalNumPages);
@@ -169,7 +119,7 @@ static PVRSRV_ERROR _AllocWrapData(PMR_WRAP_DATA **ppsPrivData,
 		OSFreeMem(psPrivData->ppsPageArray);
 		OSFreeMem(psPrivData);
 		eError = PVRSRV_ERROR_OUT_OF_MEMORY;
-		goto eUnlockReturn;
+		goto eReturn;
 	}
 
 	if (uiFlags & (PVRSRV_MEMALLOCFLAG_CPU_WRITEABLE |
@@ -181,9 +131,8 @@ static PVRSRV_ERROR _AllocWrapData(PMR_WRAP_DATA **ppsPrivData,
 	*ppsPrivData = psPrivData;
 
 	eError = PVRSRV_OK;
-eUnlockReturn:
-	mmap_read_unlock(current->mm);
 
+eReturn:
 	return eError;
 }
 
@@ -627,7 +576,7 @@ PMRWriteBytesExtMem(PMR_IMPL_PRIVDATA pvPriv,
 {
 	PMR_WRAP_DATA *psWrapData = (PMR_WRAP_DATA*) pvPriv;
 
-	if (!BITMASK_HAS(psWrapData->psVMArea->vm_flags, VM_WRITE))
+	if (!psWrapData->bWrite)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "%s: Attempt to write to read only vma.",
 		                        __func__));
@@ -757,6 +706,8 @@ static inline void end_user_mode_access(IMG_UINT uiState)
 #endif
 }
 
+#if !defined(CACHEFLUSH_ISA_SUPPORTS_UM_FLUSH)
+
 static PVRSRV_ERROR _FlushUMVirtualRange(PVRSRV_DEVICE_NODE *psDevNode,
 							PMR_WRAP_DATA *psPrivData,
 							IMG_DEVMEM_SIZE_T uiSize,
@@ -768,11 +719,8 @@ static PVRSRV_ERROR _FlushUMVirtualRange(PVRSRV_DEVICE_NODE *psDevNode,
 
 	mmap_read_lock(current->mm);
 
-	/* Check that the recorded psVMArea matches the one associated with
-	 * this request. If not, fail the request.
-	 */
 	psVMArea = find_vma(current->mm, (uintptr_t)pvCpuVAddr);
-	if ((psVMArea != psPrivData->psVMArea) || (psVMArea == NULL))
+	if (psVMArea == NULL)
 	{
 		PVR_DPF((PVR_DBG_ERROR,
 		         "%s: Couldn't find memory region containing start address %p",
@@ -877,6 +825,7 @@ UMFlushUnlockReturn:
 	mmap_read_unlock(current->mm);
 	return eError;
 }
+#endif
 
 static PMR_IMPL_FUNCTAB _sPMRWrapPFuncTab = {
     .pfnLockPhysAddresses = NULL,
@@ -1002,7 +951,6 @@ PhysmemWrapExtMemOS(CONNECTION_DATA * psConnection,
 	eError = _AllocWrapData(&psPrivData,
 	                        psDevNode,
 	                        uiSize,
-	                        pvCpuVAddr,
 	                        uiFlags);
 	if (eError != PVRSRV_OK)
 	{
@@ -1059,6 +1007,7 @@ PhysmemWrapExtMemOS(CONNECTION_DATA * psConnection,
 		goto e2;
 	}
 
+#if !defined(CACHEFLUSH_ISA_SUPPORTS_UM_FLUSH)
 	if (PVRSRV_CHECK_CPU_CACHE_CLEAN(uiFlags))
 	{
 		eError = _FlushUMVirtualRange(psDevNode,
@@ -1070,6 +1019,7 @@ PhysmemWrapExtMemOS(CONNECTION_DATA * psConnection,
 			goto e3;
 		}
 	}
+#endif
 
 	/* Mark the PMR such that no layout changes can happen.
 	 * The memory is allocated in the CPU domain and hence
@@ -1081,9 +1031,11 @@ PhysmemWrapExtMemOS(CONNECTION_DATA * psConnection,
 	OSFreeMem(pui32MappingTable);
 
 	return PVRSRV_OK;
+#if !defined(CACHEFLUSH_ISA_SUPPORTS_UM_FLUSH)
 e3:
 	(void) PMRUnrefPMR(psPMR);
 	bIsPMRDestroyed = IMG_TRUE;
+#endif
 e2:
 	OSFreeMem(pui32MappingTable);
 e1:
