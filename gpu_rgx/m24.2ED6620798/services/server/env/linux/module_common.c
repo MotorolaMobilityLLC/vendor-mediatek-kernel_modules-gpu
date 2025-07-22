@@ -166,6 +166,7 @@ CONNECTION_DATA *LinuxServicesConnectionFromFile(struct file *pFile)
 
 		psConnectionPriv = (PVRSRV_CONNECTION_PRIV*)psDRMFile->driver_priv;
 		PVR_LOG_RETURN_IF_FALSE(psConnectionPriv != NULL, "psConnectionPriv is NULL", NULL);
+		PVR_LOG_RETURN_IF_FALSE(psConnectionPriv->ui32Type == DKF_CONNECTION_FLAG_SERVICES, "psConnectionPriv is not DKF_CONNECTION_FLAG_SERVICES", NULL);
 
 		return (CONNECTION_DATA*)psConnectionPriv->pvConnectionData;
 	}
@@ -177,8 +178,15 @@ CONNECTION_DATA *LinuxSyncConnectionFromFile(struct file *pFile)
 {
 	if (pFile)
 	{
-		struct drm_file *psDRMFile = pFile->private_data;
-		PVRSRV_CONNECTION_PRIV *psConnectionPriv = (PVRSRV_CONNECTION_PRIV*)psDRMFile->driver_priv;
+		struct drm_file *psDRMFile;
+		PVRSRV_CONNECTION_PRIV *psConnectionPriv;
+
+		psDRMFile = pFile->private_data;
+		PVR_LOG_RETURN_IF_FALSE(psDRMFile != NULL, "psDRMFile is NULL", NULL);
+
+		psConnectionPriv = (PVRSRV_CONNECTION_PRIV*)psDRMFile->driver_priv;
+		PVR_LOG_RETURN_IF_FALSE(psConnectionPriv != NULL, "psConnectionPriv is NULL", NULL);
+		PVR_LOG_RETURN_IF_FALSE(psConnectionPriv->ui32Type == DKF_CONNECTION_FLAG_SYNC, "psConnectionPriv is not DKF_CONNECTION_FLAG_SYNC", NULL);
 
 #if (PVRSRV_DEVICE_INIT_MODE == PVRSRV_LINUX_DEV_INIT_ON_CONNECT)
 		return (CONNECTION_DATA*)psConnectionPriv->pvConnectionData;
@@ -537,8 +545,11 @@ int PVRSRVDeviceServicesOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 	{
 		psConnectionPriv = (PVRSRV_CONNECTION_PRIV*)psDRMFile->driver_priv;
 
+		PVR_ASSERT(psConnectionPriv->ui32Type != DKF_CONNECTION_FLAG_INVALID);
+		PVR_ASSERT(psConnectionPriv->ui32Type <= DKF_CONNECTION_FLAG_SERVICES);
+
 		/* If there is already a valid connection, we can reuse it */
-		if (psConnectionPriv->ui32Type & DKF_CONNECTION_FLAG_SERVICES)
+		if (psConnectionPriv->ui32Type == DKF_CONNECTION_FLAG_SERVICES)
 		{
 			PVR_DPF((PVR_DBG_WARNING, "%s: Reusing services connection", __func__));
 			iErr = 0;
@@ -648,8 +659,11 @@ static int PVRSRVDeviceSyncOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 	{
 		psConnectionPriv = (PVRSRV_CONNECTION_PRIV*)psDRMFile->driver_priv;
 
+		PVR_ASSERT(psConnectionPriv->ui32Type != DKF_CONNECTION_FLAG_INVALID);
+		PVR_ASSERT(psConnectionPriv->ui32Type <= DKF_CONNECTION_FLAG_SERVICES);
+
 		/* If there is already a valid connection, we can reuse it */
-		if (psConnectionPriv->ui32Type & DKF_CONNECTION_FLAG_SYNC)
+		if (psConnectionPriv->ui32Type == DKF_CONNECTION_FLAG_SYNC)
 		{
 			PVR_DPF((PVR_DBG_WARNING, "%s: Reusing sync connection", __func__));
 			iErr = 0;
@@ -664,17 +678,15 @@ static int PVRSRVDeviceSyncOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 			iErr = -EINVAL;
 			goto out;
 		}
+#else
+		/* It's valid for the driver_priv to point to a services connection allocation,
+		 * when PVRSRV_DEVICE_INIT_MODE != PVRSRV_LINUX_DEV_INIT_ON_CONNECT. This
+		 * function will extend the driver_priv with further initialisation to
+		 * `psConnectionPriv->pvSyncConnectionData`.
+		 */
 #endif
 	}
-
-	/* It's valid for the driver_priv to point to a services connection allocation,
-	 * when PVRSRV_DEVICE_INIT_MODE != PVRSRV_LINUX_DEV_INIT_ON_CONNECT. This
-	 * function will extend the driver_priv with further initialisation to
-	 * `psConnectionPriv->pvSyncConnectionData`.
-	 *
-	 * However, this case is invalid when PVRSRV_DEVICE_INIT_MODE == PVRSRV_LINUX_DEV_INIT_ON_CONNECT;
-	 * driver_priv should be NULL at this point and a new allocation be initialised. */
-	if (psDRMFile->driver_priv == NULL)
+	else
 	{
 		/* Allocate psConnectionPriv (stores private data and release pfn under driver_priv) */
 		psConnectionPriv = kzalloc(sizeof(*psConnectionPriv), GFP_KERNEL);
@@ -685,8 +697,6 @@ static int PVRSRVDeviceSyncOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 			goto out;
 		}
 	}
-
-	psConnectionPriv->ui32Type = DKF_CONNECTION_FLAG_SYNC;
 
 	/* Allocate connection data area, no stats since process not registered yet */
 	psConnection = kzalloc(sizeof(*psConnection), GFP_KERNEL);
@@ -734,6 +744,7 @@ static int PVRSRVDeviceSyncOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 	psConnectionPriv->pfDeviceRelease = pvr_sync_close;
 #endif
 #endif
+	psConnectionPriv->ui32Type = DKF_CONNECTION_FLAG_SYNC;
 	psDRMFile->driver_priv = psConnectionPriv;
 	goto out;
 
@@ -744,8 +755,18 @@ fail_pvr_sync_open:
 fail_private_data_init:
 	kfree(psConnection);
 fail_alloc_connection:
+#if (PVRSRV_DEVICE_INIT_MODE == PVRSRV_LINUX_DEV_INIT_ON_CONNECT)
 	psDRMFile->driver_priv = NULL;
 	kfree(psConnectionPriv);
+#else
+	/* We can't completely destroy the connection because the services
+	 * connection continues to exist, and it could be in use right now!
+	 * It will all be freed once the fd is closed.
+	 *
+	 * The connection type will revert back to being a services connection.
+	 */
+	psConnectionPriv->ui32Type = DKF_CONNECTION_FLAG_SERVICES;
+#endif
 out:
 	return iErr;
 #else /* if defined(SUPPORT_NATIVE_FENCE_SYNC) */
@@ -806,7 +827,10 @@ drm_pvr_srvkm_init(struct drm_device *dev, void *arg, struct drm_file *psDRMFile
 {
 	struct drm_pvr_srvkm_init_data *data = arg;
 	struct pvr_drm_private *priv = dev->dev_private;
+	static DEFINE_MUTEX(sInitMutex);
 	int iErr = 0;
+
+	mutex_lock(&sInitMutex);
 
 	switch (data->init_module)
 	{
@@ -845,6 +869,8 @@ drm_pvr_srvkm_init(struct drm_device *dev, void *arg, struct drm_file *psDRMFile
 			iErr = -EINVAL;
 		}
 	}
+
+	mutex_unlock(&sInitMutex);
 
 	return iErr;
 }
