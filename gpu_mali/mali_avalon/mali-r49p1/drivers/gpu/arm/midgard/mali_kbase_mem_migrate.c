@@ -226,6 +226,12 @@ static int kbasep_migrate_page_pt_mapped(struct page *old_page, struct page *new
 	 */
 	kbase_gpu_vm_lock_with_pmode_sync(kctx);
 
+	/* Defer the migration action if deferral condition exists */
+	if (kbase_mem_is_pmode_deferral_required(kbdev)) {
+		ret = -EAGAIN;
+		goto unlock;
+	}
+
 	/* Create a new dma map for the new page */
 	new_dma_addr = dma_map_page(kbdev->dev, new_page, 0, PAGE_SIZE, DMA_BIDIRECTIONAL);
 	if (dma_mapping_error(kbdev->dev, new_dma_addr)) {
@@ -293,6 +299,7 @@ static int kbasep_migrate_page_allocated_mapped(struct page *old_page, struct pa
 	struct kbase_page_metadata *page_md = kbase_page_private(old_page);
 	struct kbase_context *kctx = page_md->data.mapped.mmut->kctx;
 	struct kbase_device *kbdev;
+
 	dma_addr_t old_dma_addr, new_dma_addr;
 	u64 vpfn;
 	int ret;
@@ -317,6 +324,7 @@ static int kbasep_migrate_page_allocated_mapped(struct page *old_page, struct pa
 	kctx = page_md->data.mapped.mmut->kctx;
 	kbdev = kctx->kbdev;
 	old_dma_addr = page_md->dma_addr;
+
 	vpfn = page_md->data.mapped.vpfn;
 
 	spin_unlock(&page_md->migrate_lock);
@@ -326,6 +334,13 @@ static int kbasep_migrate_page_allocated_mapped(struct page *old_page, struct pa
 	 */
 	kbase_gpu_vm_lock_with_pmode_sync(kctx);
 
+	 /* Defer the migration action if deferral condition exists */
+	if (kbase_mem_is_pmode_deferral_required(kbdev)) {
+		ret = -EAGAIN;
+		goto unlock;
+	}
+
+        /* Create a new dma map for the new page */
 	new_dma_addr = dma_map_page(kbdev->dev, new_page, 0, PAGE_SIZE, DMA_BIDIRECTIONAL);
 	if (dma_mapping_error(kbdev->dev, new_dma_addr)) {
 		ret = -ENOMEM;
@@ -403,6 +418,7 @@ static bool kbase_page_isolate(struct page *p, isolate_mode_t mode)
 	bool status_mem_pool = false;
 	struct kbase_mem_pool *mem_pool = NULL;
 	struct kbase_page_metadata *page_md = kbase_page_private(p);
+	struct kbase_mmu_table *mmut = NULL;
 
 	if (!kbase_is_page_migration_enabled())
 		return false;
@@ -431,15 +447,28 @@ static bool kbase_page_isolate(struct page *p, isolate_mode_t mode)
 		atomic_inc(&mem_pool->isolation_in_progress_cnt);
 		break;
 	case ALLOCATED_MAPPED:
-		/* Mark the page into isolated state, but only if it has no
-		 * kernel CPU mappings
-		 */
-		if (page_md->vmap_count == 0)
+		mmut = page_md->data.mapped.mmut;
+
+		/* kctx can be NULL for a device-level (mcu) mapping */
+		if (!mmut->kctx) {
+			spin_unlock(&page_md->migrate_lock);
+			return false;
+		}
+
+		if (page_md->vmap_count == 0 &&
+		    !kbase_mem_is_pmode_deferral_required(mmut->kctx->kbdev))
 			page_md->status = PAGE_ISOLATE_SET(page_md->status, 1);
 		break;
 	case PT_MAPPED:
-		/* Mark the page into isolated state. */
-		page_md->status = PAGE_ISOLATE_SET(page_md->status, 1);
+		mmut = page_md->data.pt_mapped.mmut;
+
+		/* kctx can be NULL for a device-level (mcu) mapping */
+		if (!mmut->kctx) {
+			spin_unlock(&page_md->migrate_lock);
+			return false;
+		}
+		if (!kbase_mem_is_pmode_deferral_required(mmut->kctx->kbdev))
+			page_md->status = PAGE_ISOLATE_SET(page_md->status, 1);
 		break;
 	case SPILL_IN_PROGRESS:
 	case ALLOCATE_IN_PROGRESS:
@@ -462,7 +491,7 @@ static bool kbase_page_isolate(struct page *p, isolate_mode_t mode)
 
 	spin_unlock(&page_md->migrate_lock);
 
-	/* If the page is still in the memory pool: try to remove it. This will fail
+	/* If the page is still in the memory pool try to remove it. This will fail
 	 * if pool lock is taken which could mean page no longer exists in pool.
 	 */
 	if (status_mem_pool) {
@@ -473,8 +502,11 @@ static bool kbase_page_isolate(struct page *p, isolate_mode_t mode)
 		}
 
 		spin_lock(&page_md->migrate_lock);
-		/* Check status again to ensure page has not been removed from memory pool. */
-		if (PAGE_STATUS_GET(page_md->status) == MEM_POOL) {
+		/* Check status again to ensure page has not been removed from memory pool,
+		 * together with the condition that no pmode deferral needed.
+		 */
+		if (PAGE_STATUS_GET(page_md->status) == MEM_POOL &&
+		    !kbase_mem_is_pmode_deferral_required(page_md->data.mem_pool.kbdev)) {
 			page_md->status = PAGE_ISOLATE_SET(page_md->status, 1);
 			list_del_init(&p->lru);
 			mem_pool->cur_size--;
