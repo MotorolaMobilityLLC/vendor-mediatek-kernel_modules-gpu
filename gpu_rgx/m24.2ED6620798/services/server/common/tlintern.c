@@ -144,6 +144,8 @@ static void RemoveAndFreeStreamNode(PTL_SNODE psRemove)
 
 	/* Unlink the stream node from the master list */
 	PVR_ASSERT(psGD->psHead);
+	OSLockHeldAssert(psGD->hTLGDLock);
+
 	last = &psGD->psHead;
 	for (psn = psGD->psHead; psn; psn=psn->psNext)
 	{
@@ -262,6 +264,8 @@ void TLAddStreamNode(PTL_SNODE psAdd)
 	PVR_DPF_ENTERED;
 
 	PVR_ASSERT(psAdd);
+	OSLockHeldAssert(TLGGD()->hTLGDLock);
+
 	psAdd->psNext = TLGGD()->psHead;
 	TLGGD()->psHead = psAdd;
 
@@ -276,6 +280,7 @@ PTL_SNODE TLFindStreamNodeByName(const IMG_CHAR *pszName)
 	PVR_DPF_ENTERED;
 
 	PVR_ASSERT(pszName);
+	OSLockHeldAssert(psGD->hTLGDLock);
 
 	for (psn = psGD->psHead; psn; psn=psn->psNext)
 	{
@@ -296,6 +301,7 @@ PTL_SNODE TLFindStreamNodeByDesc(PTL_STREAM_DESC psDesc)
 	PVR_DPF_ENTERED;
 
 	PVR_ASSERT(psDesc);
+	OSLockHeldAssert(psGD->hTLGDLock);
 
 	for (psn = psGD->psHead; psn; psn=psn->psNext)
 	{
@@ -317,6 +323,7 @@ IMG_UINT32 TLDiscoverStreamNodes(const IMG_CHAR *pszNamePattern,
 	size_t uiLen;
 
 	PVR_ASSERT(pszNamePattern);
+	OSLockHeldAssert(psGD->hTLGDLock);
 
 	if ((uiLen = OSStringLength(pszNamePattern)) == 0)
 		return 0;
