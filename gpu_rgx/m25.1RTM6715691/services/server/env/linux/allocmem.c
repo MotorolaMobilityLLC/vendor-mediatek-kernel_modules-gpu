@@ -284,10 +284,7 @@ void *(OSAllocZMem)(IMG_UINT32 ui32Size DEBUG_MEMSTATS_PARAMS)
 	{
 		pvRet = _pvr_alloc_stats_add(pvRet, ui32Size DEBUG_MEMSTATS_ARGS);
 	}
-#if defined(MTK_FULL_PORTING)
-	/* Ignore kmemleak false positive */
-	kmemleak_ignore(pvRet);
-#endif /* MTK_FULL_PORTING */
+
 	return pvRet;
 }
 
