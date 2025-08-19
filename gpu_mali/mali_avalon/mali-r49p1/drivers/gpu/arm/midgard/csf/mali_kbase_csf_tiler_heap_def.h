@@ -59,6 +59,11 @@
  */
 #define NEXT_CHUNK_ADDR_SIZE (sizeof(u64))
 
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+#define MAGIC_MAX_TILER_SIZE 30
+#define MAGIC_WARN_TILER_SIZE 40
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
+
 /**
  * struct kbase_csf_tiler_heap_chunk - A tiler heap chunk managed by the kernel
  *
@@ -133,6 +138,9 @@ struct kbase_csf_tiler_heap {
 	u32 max_chunks;
 	u16 target_in_flight;
 	bool buf_desc_checked;
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	bool tiler_debug;
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 };
 
 #endif /* !_KBASE_CSF_TILER_HEAP_DEF_H_ */

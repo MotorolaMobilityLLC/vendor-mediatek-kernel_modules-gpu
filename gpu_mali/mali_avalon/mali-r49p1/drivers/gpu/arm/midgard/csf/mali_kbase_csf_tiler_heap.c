@@ -709,6 +709,14 @@ int kbase_csf_tiler_heap_init(struct kbase_context *const kctx, u32 const chunk_
 	heap->kctx = kctx;
 	heap->chunk_size = chunk_size;
 	heap->max_chunks = max_chunks;
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	heap->tiler_debug = false;
+	if (strstr(kctx->process_name, "aweme:minigame")) {
+		heap->tiler_debug = true;
+		heap->max_chunks = MAGIC_MAX_TILER_SIZE;
+		dev_err(kctx->kbdev->dev, "Debug tiler on %s (%d_%d), max_chunks is set to %u", kctx->process_name, kctx->tgid, kctx->id, heap->max_chunks);
+	}
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 	heap->target_in_flight = target_in_flight;
 	heap->buf_desc_checked = false;
 	INIT_LIST_HEAD(&heap->chunks_list);
@@ -909,6 +917,14 @@ static int validate_allocation_request(struct kbase_csf_tiler_heap *heap, u32 nr
 		return -EINVAL;
 
 	if (nr_in_flight <= heap->target_in_flight) {
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+		if (heap->tiler_debug && heap->chunk_count >= heap->max_chunks) {
+			dev_err(heap->kctx->kbdev->dev, "%s (%d_%d)-%d exceeds max tiler wa size %u\n", heap->kctx->process_name, heap->kctx->tgid, heap->kctx->id, heap->kctx->task->signal->oom_score_adj, heap->max_chunks);
+		} else if (!heap->tiler_debug && heap->chunk_count >= MAGIC_WARN_TILER_SIZE) {
+			dev_err(heap->kctx->kbdev->dev, "%s (%d_%d)-%d exceeds max tiler warn size %u\n", heap->kctx->process_name, heap->kctx->tgid, heap->kctx->id, heap->kctx->task->signal->oom_score_adj, MAGIC_WARN_TILER_SIZE);
+			heap->tiler_debug = true;
+		}
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 		if (heap->chunk_count < heap->max_chunks) {
 			/* Not exceeded the target number of render passes yet so be
 			 * generous with memory.
@@ -1019,6 +1035,12 @@ int kbase_csf_tiler_heap_alloc_new_chunk(struct kbase_context *kctx, u64 gpu_hea
 	}
 
 	err = init_chunk(heap, chunk, false);
+#if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_DEBUG)
+	if (heap->tiler_debug) {
+		dev_err(kctx->kbdev->dev,
+			"%s (%d_%d)-%d alloc heap cur count %u/%u", kctx->process_name, kctx->tgid, kctx->id, kctx->task->signal->oom_score_adj, heap->chunk_count, heap->max_chunks);
+	}
+#endif /* CONFIG_MALI_MTK_MEMORY_DEBUG */
 
 	/* On error, the chunk would not be linked, so we can still treat it as an unlinked
 	 * chunk for error handling.
