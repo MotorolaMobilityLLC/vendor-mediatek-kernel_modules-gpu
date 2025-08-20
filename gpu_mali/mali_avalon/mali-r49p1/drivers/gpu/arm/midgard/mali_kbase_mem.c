@@ -1992,8 +1992,13 @@ static size_t free_partial(struct kbase_context *kctx, int group_id, struct tagg
 	spin_lock(&kctx->mem_partials_lock);
 	clear_bit(p - head_page, sa->sub_pages);
 	if (bitmap_empty(sa->sub_pages, NUM_PAGES_IN_2MB_LARGE_PAGE)) {
+		struct kbase_mem_pool *pool = &kctx->mem_pools.large[sa->group_id];
+
 		list_del(&sa->link);
 		kbase_mem_pool_free(&kctx->mem_pools.large[group_id], head_page, false);
+		kbase_mem_pool_lock(pool);
+		kbase_mem_pool_free_locked(pool, head_page, false);
+		kbase_mem_pool_unlock(pool);
 		kfree(sa);
 		nr_pages_to_account = NUM_PAGES_IN_2MB_LARGE_PAGE;
 	} else if (bitmap_weight(sa->sub_pages, NUM_PAGES_IN_2MB_LARGE_PAGE) ==
