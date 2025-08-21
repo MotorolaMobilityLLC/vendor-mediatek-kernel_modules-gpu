@@ -3165,11 +3165,12 @@ static void free_partial(struct kbase_context *kctx, int group_id, struct
 	spin_lock(&kctx->mem_partials_lock);
 	clear_bit(p - head_page, sa->sub_pages);
 	if (bitmap_empty(sa->sub_pages, SZ_2M / SZ_4K)) {
+		struct kbase_mem_pool *pool = &kctx->mem_pools.large[group_id];
+
 		list_del(&sa->link);
-		kbase_mem_pool_free(
-			&kctx->mem_pools.large[group_id],
-			head_page,
-			true);
+		kbase_mem_pool_lock(pool);
+		kbase_mem_pool_free_locked(pool, head_page, false);
+		kbase_mem_pool_unlock(pool);
 		kfree(sa);
 	} else if (bitmap_weight(sa->sub_pages, SZ_2M / SZ_4K) ==
 		   SZ_2M / SZ_4K - 1) {
