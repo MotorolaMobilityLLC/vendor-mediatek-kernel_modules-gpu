@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -328,6 +328,21 @@ struct kbase_aliased {
 #define JIT_RECLAIM_DEFAULT_TIMEOUT_MS (1000)    /* 1 sec */
 #endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
 
+/* enum kbase_user_buf_state - State of a USER_BUF handle.
+ * @KBASE_USER_BUF_STATE_EMPTY: Empty handle with no resources.
+ * @KBASE_USER_BUF_STATE_PINNED: Physical pages have been pinned.
+ * @KBASE_USER_BUF_STATE_DMA_MAPPED: DMA addresses for cache maintenance
+ *                                   operations have been mapped.
+ * @KBASE_USER_BUF_STATE_GPU_MAPPED: Mapped on GPU address space.
+ */
+enum kbase_user_buf_state {
+	KBASE_USER_BUF_STATE_EMPTY,
+	KBASE_USER_BUF_STATE_PINNED,
+	KBASE_USER_BUF_STATE_DMA_MAPPED,
+	KBASE_USER_BUF_STATE_GPU_MAPPED,
+	KBASE_USER_BUF_STATE_COUNT = 4
+};
+
 /* struct kbase_mem_phy_alloc - Physical pages tracking object.
  *
  * Set up to track N pages.
@@ -347,7 +362,7 @@ struct kbase_aliased {
  *                   to the physical pages to prevent flag changes or shrink
  *                   while maps are still held.
  * @nents: 0..N
- * @pages: N elements, only 0..nents are valid
+ * @pages: N elements, only 0..(nents- 1) are valid
  * @mappings: List of CPU mappings of this physical memory allocation.
  * @evict_node: Node used to store this allocation on the eviction list
  * @evicted: Physical backing size when the pages where evicted
@@ -359,6 +374,8 @@ struct kbase_aliased {
  *                 kbase_phy_alloc_mapping_put() pair should be used
  *                 around access to the kernel-side CPU mapping so that
  *                 mapping doesn't disappear whilst it is being accessed.
+ * @delegate_hook: List head to hook onto kbdev deferral control for
+ *                 deferred releases of certain imported buffer types.
  * @properties: Bitmask of properties, e.g. KBASE_MEM_PHY_ALLOC_LARGE.
  * @group_id: A memory group ID to be passed to a platform-specific
  *            memory group manager, if present.
@@ -377,6 +394,7 @@ struct kbase_mem_phy_alloc {
 	struct kbase_va_region *reg;
 	enum kbase_memory_type type;
 	struct kbase_vmap_struct *permanent_map;
+	struct list_head delegate_hook;
 	u8 properties;
 	u8 group_id;
 
@@ -406,13 +424,13 @@ struct kbase_mem_phy_alloc {
 			unsigned long size;
 			unsigned long nr_pages;
 			struct page **pages;
-			/* top bit (1<<31) of current_mapping_usage_count
-			 * specifies that this import was pinned on import
-			 * See PINNED_ON_IMPORT
-			 */
 			u32 current_mapping_usage_count;
 			struct mm_struct *mm;
 			dma_addr_t *dma_addrs;
+#if MALI_USE_CSF
+			struct kbase_device *kbdev;
+#endif
+			enum kbase_user_buf_state state;
 		} user_buf;
 	} imported;
 };
@@ -469,15 +487,15 @@ enum kbase_page_status {
 /**
  * struct kbase_page_metadata - Metadata for each page in kbase
  *
- * @kbdev:         Pointer to kbase device.
- * @dma_addr:      DMA address mapped to page.
- * @migrate_lock:  A spinlock to protect the private metadata.
- * @data:          Member in union valid based on @status.
- * @status:        Status to keep track if page can be migrated at any
- *                 given moment. MSB will indicate if page is isolated.
- *                 Protected by @migrate_lock.
- * @vmap_count:    Counter of kernel mappings.
- * @group_id:      Memory group ID obtained at the time of page allocation.
+ * @data.mem_pool.kbdev: Pointer to kbase device.
+ * @dma_addr:      	 DMA address mapped to page.
+ * @migrate_lock:  	 A spinlock to protect the private metadata.
+ * @data:          	 Member in union valid based on @status.
+ * @status:        	 Status to keep track if page can be migrated at any
+ *                 	 given moment. MSB will indicate if page is isolated.
+ *                 	 Protected by @migrate_lock.
+ * @vmap_count:    	 Counter of kernel mappings.
+ * @group_id:      	 Memory group ID obtained at the time of page allocation.
  *
  * Each 4KB page will have a reference to this struct in the private field.
  * This will be used to keep track of information required for Linux page
@@ -517,14 +535,6 @@ struct kbase_page_metadata {
 	u8 group_id;
 };
 
-/* The top bit of kbase_alloc_import_user_buf::current_mapping_usage_count is
- * used to signify that a buffer was pinned when it was imported. Since the
- * reference count is limited by the number of atoms that can be submitted at
- * once there should be no danger of overflowing into this bit.
- * Stealing the top bit also has the benefit that
- * current_mapping_usage_count != 0 if and only if the buffer is mapped.
- */
-#define PINNED_ON_IMPORT	(1<<31)
 
 /**
  * enum kbase_jit_report_flags - Flags for just-in-time memory allocation
@@ -642,6 +652,11 @@ void kbase_mem_kref_free(struct kref *kref);
 int kbase_mem_init(struct kbase_device *kbdev);
 void kbase_mem_halt(struct kbase_device *kbdev);
 void kbase_mem_term(struct kbase_device *kbdev);
+
+static inline unsigned int kbase_mem_phy_alloc_ref_read(struct kbase_mem_phy_alloc *alloc)
+{
+	return kref_read(&alloc->kref);
+}
 
 static inline struct kbase_mem_phy_alloc *kbase_mem_phy_alloc_get(struct kbase_mem_phy_alloc *alloc)
 {
@@ -994,9 +1009,15 @@ static inline struct kbase_mem_phy_alloc *kbase_alloc_create(
 	alloc->type = type;
 	alloc->group_id = group_id;
 
-	if (type == KBASE_MEM_TYPE_IMPORTED_USER_BUF)
+	if (type == KBASE_MEM_TYPE_IMPORTED_USER_BUF) {
 		alloc->imported.user_buf.dma_addrs =
 				(void *) (alloc->pages + nr_pages);
+#if MALI_USE_CSF
+		alloc->imported.user_buf.kbdev = kctx->kbdev;
+#endif
+	}
+
+	INIT_LIST_HEAD(&alloc->delegate_hook);
 
 	return alloc;
 }
@@ -2266,6 +2287,10 @@ bool kbase_has_exec_va_zone(struct kbase_context *kctx);
  * On successful mapping, the VA region and the gpu_alloc refcounts will be
  * increased, making it safe to use and store both values directly.
  *
+ * For imported user buffers, this function will acquire the necessary
+ * resources if they've not already been acquired before, in order to
+ * create a valid GPU mapping.
+ *
  * Return: Zero on success, or negative error code.
  */
 int kbase_map_external_resource(struct kbase_context *kctx, struct kbase_va_region *reg,
@@ -2280,6 +2305,10 @@ int kbase_map_external_resource(struct kbase_context *kctx, struct kbase_va_regi
  * be decreased. If the refcount reaches zero, both @reg and the corresponding
  * allocation may be freed, so using them after returning from this function
  * requires the caller to explicitly check their state.
+ *
+ * For imported user buffers, in the case where the refcount reaches zero,
+ * the function shall release all the resources acquired by the user buffer,
+ * including DMA mappings and physical pages.
  */
 void kbase_unmap_external_resource(struct kbase_context *kctx, struct kbase_va_region *reg);
 
@@ -2294,18 +2323,217 @@ void kbase_unmap_external_resource(struct kbase_context *kctx, struct kbase_va_r
 void kbase_unpin_user_buf_page(struct page *page);
 
 /**
- * kbase_jd_user_buf_pin_pages - Pin the pages of a user buffer.
+ * kbase_user_buf_pin_pages - Pin the pages of a user buffer.
  * @kctx: kbase context.
  * @reg:  The region associated with the imported user buffer.
  *
  * To successfully pin the pages for a user buffer the current mm_struct must
- * be the same as the mm_struct of the user buffer. After successfully pinning
- * the pages further calls to this function succeed without doing work.
+ * be the same as the mm_struct of the user buffer. Further calls to this 
+ * function fail if pages have already been pinned successfully.
  *
  * Return: zero on success or negative number on failure.
  */
-int kbase_jd_user_buf_pin_pages(struct kbase_context *kctx,
-		struct kbase_va_region *reg);
+int kbase_user_buf_pin_pages(struct kbase_context *kctx, struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_unpin_pages - Release the pinned pages of a user buffer.
+ * @alloc: The allocation for the imported user buffer.
+ *
+ * The caller must have ensured that previous stages of the termination of
+ * the physical allocation have already been completed, which implies that
+ * GPU mappings have been destroyed and DMA addresses have been unmapped.
+ *
+ * This function does not affect CPU mappings: if there are any, they should
+ * be unmapped by the caller prior to calling this function.
+ */
+void kbase_user_buf_unpin_pages(struct kbase_mem_phy_alloc *alloc);
+
+/**
+ * kbase_user_buf_dma_map_pages - DMA map pages of a user buffer.
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * Acquire DMA addresses for the pages of the user buffer. Automatic CPU cache
+ * synchronization will be disabled because, in the general case, DMA mappings
+ * might be larger than the region to import. Further calls to this function
+ * fail if DMA addresses have already been obtained successfully.
+ *
+ * The caller must have ensured that physical pages have already been pinned
+ * prior to calling this function.
+ *
+ * Return: zero on success or negative number on failure.
+ */
+int kbase_user_buf_dma_map_pages(struct kbase_context *kctx, struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_dma_unmap_pages - DMA unmap pages of a user buffer.
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * The caller must have ensured that GPU mappings have been destroyed prior to
+ * calling this function.
+ */
+void kbase_user_buf_dma_unmap_pages(struct kbase_context *kctx, struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_empty_init - Initialize a user buffer as "empty".
+ * @reg: The region associated with the imported user buffer.
+ *
+ * This function initializes a user buffer as "empty".
+ */
+void kbase_user_buf_empty_init(struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_from_empty_to_pinned - Transition user buffer from "empty" to "pinned".
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * This function transitions a user buffer from the "empty" state, in which no resources are
+ * attached to it, to the "pinned" state, in which physical pages have been acquired and pinned.
+ *
+ * Return: zero on success or negative number on failure.
+ */
+int kbase_user_buf_from_empty_to_pinned(struct kbase_context *kctx, struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_from_empty_to_dma_mapped - Transition user buffer from "empty" to "DMA mapped".
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * This function transitions a user buffer from the "empty" state, in which no resources are
+ * attached to it, to the "DMA mapped" state, in which physical pages have been acquired, pinned
+ * and DMA mappings for cache synchronization have been obtained.
+ *
+ * Notice that the "empty" state is preserved in case of failure.
+ *
+ * Return: zero on success or negative number on failure.
+ */
+int kbase_user_buf_from_empty_to_dma_mapped(struct kbase_context *kctx,
+					    struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_from_empty_to_gpu_mapped - Transition user buffer from "empty" to "GPU mapped".
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * This function transitions a user buffer from the "empty" state, in which no resources are
+ * attached to it, to the "GPU mapped" state, in which DMA mappings for cache synchronization
+ * have been obtained and GPU mappings have been created.
+ *
+ * However, the function does not update the counter of GPU mappings in usage, because different
+ * policies may be applied in different points of the driver.
+ *
+ * Notice that the "empty" state is preserved in case of failure.
+ *
+ * Return: zero on success or negative number on failure.
+ */
+int kbase_user_buf_from_empty_to_gpu_mapped(struct kbase_context *kctx,
+					    struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_from_pinned_to_empty - Transition user buffer from "pinned" to "empty".
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * This function transitions a user buffer from the "pinned" state, in which physical pages
+ * have been acquired and pinned but no mappings are present, to the "empty" state, in which
+ * physical pages have been unpinned.
+ */
+void kbase_user_buf_from_pinned_to_empty(struct kbase_context *kctx, struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_from_pinned_to_gpu_mapped - Transition user buffer from "pinned" to "GPU mapped".
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * This function transitions a user buffer from the "pinned" state, in which physical pages
+ * have been acquired and pinned but no mappings are present, to the "GPU mapped" state, in which
+ * DMA mappings for cache synchronization have been obtained and GPU mappings have been created.
+ *
+ * However, the function does not update the counter of GPU mappings in use, because different
+ * policies may be applied in different points of the driver.
+ *
+ * Notice that the "pinned" state is preserved in case of failure.
+ *
+ * Return: zero on success or negative number on failure.
+ */
+int kbase_user_buf_from_pinned_to_gpu_mapped(struct kbase_context *kctx,
+					     struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_from_dma_mapped_to_pinned - Transition user buffer from "DMA mapped" to "pinned".
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * This function transitions a user buffer from the "DMA mapped" state, in which physical pages
+ * have been acquired and pinned and DMA mappings have been obtained, to the "pinned" state,
+ * in which DMA mappings have been released but physical pages are still pinned.
+ */
+void kbase_user_buf_from_dma_mapped_to_pinned(struct kbase_context *kctx,
+					      struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_from_dma_mapped_to_empty - Transition user buffer from "DMA mapped" to "empty".
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * This function transitions a user buffer from the "DMA mapped" state, in which physical pages
+ * have been acquired and pinned and DMA mappings have been obtained, to the "empty" state,
+ * in which DMA mappings have been released and physical pages have been unpinned.
+ */
+void kbase_user_buf_from_dma_mapped_to_empty(struct kbase_context *kctx,
+					     struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_from_dma_mapped_to_gpu_mapped - Transition user buffer from "DMA mapped" to "GPU mapped".
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * This function transitions a user buffer from the "DMA mapped" state, in which physical pages
+ * have been acquired and pinned and DMA mappings have been obtained, to the "GPU mapped" state,
+ * in which GPU mappings have been created.
+ *
+ * However, the function does not update the counter of GPU mappings in usage, because different
+ * policies may be applied in different points of the driver.
+ *
+ * Notice that the "DMA mapped" state is preserved in case of failure.
+ *
+ * Return: zero on success or negative number on failure.
+ */
+int kbase_user_buf_from_dma_mapped_to_gpu_mapped(struct kbase_context *kctx,
+						 struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_from_gpu_mapped_to_pinned - Transition user buffer from "GPU mapped" to "pinned".
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * This function transitions a user buffer from the "GPU mapped" state, in which physical pages
+ * have been acquired and pinned, DMA mappings have been obtained, and GPU mappings have been
+ * created, to the "pinned" state, in which all mappings have been torn down but physical pages
+ * are still pinned.
+ *
+ * However, the function does not update the counter of GPU mappings in usage, because different
+ * policies may be applied in different points of the driver.
+ */
+void kbase_user_buf_from_gpu_mapped_to_pinned(struct kbase_context *kctx,
+					      struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_from_gpu_mapped_to_empty - Transition user buffer from "GPU mapped" to "empty".
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * This function transitions a user buffer from the "GPU mapped" state, in which physical pages
+ * have been acquired and pinned, DMA mappings have been obtained, and GPU mappings have been
+ * created, to the "empty" state, in which all mappings have been torn down and physical pages
+ * have been unpinned.
+ *
+ * However, the function does not update the counter of GPU mappings in usage, because different
+ * policies may be applied in different points of the driver.
+ */
+void kbase_user_buf_from_gpu_mapped_to_empty(struct kbase_context *kctx,
+					     struct kbase_va_region *reg);
 
 /**
  * kbase_sticky_resource_init - Initialize sticky resource management.
@@ -2517,6 +2745,62 @@ int kbase_mem_do_sync_imported(struct kbase_context *kctx,
 int kbase_mem_copy_to_pinned_user_pages(struct page **dest_pages,
 		void *src_page, size_t *to_copy, unsigned int nr_pages,
 		unsigned int *target_page_nr, size_t offset);
+
+#if MALI_USE_CSF
+/**
+ * kbase_mem_pool_free_pages_from_deferred_list() - Free pages from deferred_pages_list
+ *
+ * @pool: Pointer to the memory pool.
+ * @from_defer_ctrl: Indicating the caller is defer_controller.
+ *
+ * This function frees pages from the deferred list. The destination of the pages
+ * depends on the pool capacity: firstly it tries to promote pages to the internal
+ * free_pages list, and then it releases the excess pages to kernel.
+ *
+ * The deferred pages shall be freed only if the derferral window is passed.
+ */
+void kbase_mem_pool_free_pages_from_deferred_list(struct kbase_mem_pool *pool,
+						  bool from_defer_ctrl);
+
+/**
+ * kbase_mem_pool_deferred_list_size() - get size of deferred page list
+ *
+ * @pool: Pointer to the memory pool.
+ *
+ * This function return number of pages stored in deferred pages list
+ *
+ * Return: size of deferred page list
+ */
+size_t kbase_mem_pool_deferred_list_size(struct kbase_mem_pool *pool);
+
+/**
+ * kbase_mem_is_pmode_deferral_required() - check if a GPU protm session is inflight
+ *                                          and actions have to be deferred
+ *
+ * @kbdev: Pointer to the device.
+ *
+ * If a protected mode session is currently in progress, it could be the case that
+ * some actions concerning memory pages need to be deferred, like for instance
+ * migrating pages or adding them to a memory pool.
+ * The function returns true if protected mode is active and do_defer
+ * is true, otherwise return false.
+ *
+ * Return: true on deferral required, otherwise false.
+ */
+static inline bool kbase_mem_is_pmode_deferral_required(struct kbase_device *kbdev)
+{
+	struct kbase_csf_protm_mem_pages_defer_ctrl *ctrl = &kbdev->csf.scheduler.pages_defer_ctrl;
+
+	return (ctrl->do_defer &&
+		(atomic_read(&ctrl->protm_event_id) & CSF_SCHED_PROTM_EVENT_FLAGS_MASK));
+}
+#else
+static inline bool kbase_mem_is_pmode_deferral_required(struct kbase_device *kbdev)
+{
+	CSTD_UNUSED(kbdev);
+	return false;
+}
+#endif
 
 /**
  * kbase_ctx_reg_zone_get_nolock - Get a zone from @kctx where the caller does
