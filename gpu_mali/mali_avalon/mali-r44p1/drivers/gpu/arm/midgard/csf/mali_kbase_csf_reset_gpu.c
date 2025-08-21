@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -26,10 +26,11 @@
 #include <backend/gpu/mali_kbase_irq_internal.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
 #include <mali_kbase_regs_history_debugfs.h>
-#include <csf/mali_kbase_csf_trace_buffer.h>
 #include <csf/ipa_control/mali_kbase_csf_ipa_control.h>
 #include <mali_kbase_reset_gpu.h>
 #include <csf/mali_kbase_csf_firmware_log.h>
+#include <csf/mali_kbase_csf_scheduler.h>
+#include <csf/mali_kbase_csf_trace_buffer.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_GPUEB_IRQ)
 #include <gpueb_ipi.h>
@@ -327,6 +328,7 @@ static enum kbasep_soft_reset_status kbase_csf_reset_gpu_once(struct kbase_devic
 	unsigned long flags;
 	int err;
 	enum kbasep_soft_reset_status ret = RESET_SUCCESS;
+	atomic_t *const ptr_event_id = &kbdev->csf.scheduler.pages_defer_ctrl.protm_event_id;
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	spin_lock(&kbdev->mmu_mask_change);
@@ -407,6 +409,14 @@ static enum kbasep_soft_reset_status kbase_csf_reset_gpu_once(struct kbase_devic
 	mutex_unlock(&kbdev->mmu_hw_mutex);
 
 	kbase_pm_enable_interrupts(kbdev);
+
+	if (atomic_read(ptr_event_id) & CSF_SCHED_PROTM_EVENT_FLAGS_MASK) {
+		kbase_csf_scheduler_spin_lock(kbdev, &flags);
+		kbase_csf_scheduler_complete_protm_event(kbdev);
+		kbase_csf_scheduler_spin_unlock(kbdev, flags);
+		dev_dbg(kbdev->dev, "GPU reset lead to protected mode new event_seq: %d",
+			GET_PROTM_EVENT_ID_SEQ(atomic_read(ptr_event_id)));
+	}
 
 	mutex_lock(&kbdev->pm.lock);
 	kbase_pm_reset_complete(kbdev);
