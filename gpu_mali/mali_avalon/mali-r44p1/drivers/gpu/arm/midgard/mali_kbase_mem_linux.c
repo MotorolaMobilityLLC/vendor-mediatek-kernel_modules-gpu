@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1721,18 +1721,13 @@ static struct kbase_va_region *kbase_mem_from_user_buffer(
 		struct kbase_context *kctx, unsigned long address,
 		unsigned long size, u64 *va_pages, u64 *flags)
 {
-	long i, dma_mapped_pages;
 	struct kbase_va_region *reg;
-	long faulted_pages;
 	enum kbase_memory_zone zone = CUSTOM_VA_ZONE;
 	bool shared_zone = false;
 	u32 cache_line_alignment = kbase_get_cache_line_alignment(kctx->kbdev);
 	struct kbase_alloc_import_user_buf *user_buf;
-	struct page **pages = NULL;
-	struct tagged_addr *pa;
-	struct device *dev;
 	int write;
-	enum dma_data_direction dma_dir;
+	long faulted_pages;
 
 	/* Flag supported only for dma-buf imported memory */
 	if (*flags & BASE_MEM_IMPORT_SYNC_ON_MAP_UNMAP)
@@ -1816,6 +1811,7 @@ static struct kbase_va_region *kbase_mem_from_user_buffer(
 	user_buf->address = address;
 	user_buf->nr_pages = *va_pages;
 	user_buf->mm = current->mm;
+	kbase_user_buf_empty_init(reg);
 	kbase_mem_mmgrab();
 	if (reg->gpu_alloc->properties & KBASE_MEM_PHY_ALLOC_LARGE)
 		user_buf->pages = vmalloc(*va_pages * sizeof(struct page *));
@@ -1826,120 +1822,31 @@ static struct kbase_va_region *kbase_mem_from_user_buffer(
 	if (!user_buf->pages)
 		goto no_page_array;
 
-	/* If the region is coherent with the CPU then the memory is imported
-	 * and mapped onto the GPU immediately.
-	 * Otherwise get_user_pages is called as a sanity check, but with
-	 * NULL as the pages argument which will fault the pages, but not
-	 * pin them. The memory will then be pinned only around the jobs that
-	 * specify the region as an external resource.
-	 */
-	if (reg->flags & KBASE_REG_SHARE_BOTH) {
-		pages = user_buf->pages;
-		*flags |= KBASE_MEM_IMPORT_HAVE_PAGES;
-	}
+	reg->gpu_alloc->nents = 0;
+	reg->extension = 0;
+
+	write = reg->flags & (KBASE_REG_CPU_WR | KBASE_REG_GPU_WR);
 
 	down_read(kbase_mem_get_process_mmap_lock());
 
-	write = reg->flags & (KBASE_REG_CPU_WR | KBASE_REG_GPU_WR);
-	dma_dir = write ? DMA_BIDIRECTIONAL : DMA_TO_DEVICE;
-
-#if KERNEL_VERSION(5, 9, 0) > LINUX_VERSION_CODE
-	faulted_pages = get_user_pages(address, *va_pages,
-			write ? FOLL_WRITE : 0, pages, NULL);
+#if ((KERNEL_VERSION(6, 5, 0) > LINUX_VERSION_CODE) && !defined(__ANDROID_COMMON_KERNEL__)) || \
+	((KERNEL_VERSION(6, 4, 0) > LINUX_VERSION_CODE) && defined(__ANDROID_COMMON_KERNEL__))
+		faulted_pages = get_user_pages(address, *va_pages, write ? FOLL_WRITE : 0, NULL, NULL);
 #else
-	/* pin_user_pages function cannot be called with pages param NULL.
-	 * get_user_pages function will be used instead because it is safe to be
-	 * used with NULL pages param as long as it doesn't have FOLL_GET flag.
-	 */
-	if (pages != NULL) {
-		faulted_pages =
-			pin_user_pages(address, *va_pages, write ? FOLL_WRITE : 0, pages, NULL);
-	} else {
-		faulted_pages =
-			get_user_pages(address, *va_pages, write ? FOLL_WRITE : 0, pages, NULL);
-	}
+		faulted_pages = get_user_pages(address, *va_pages, write ? FOLL_WRITE : 0, NULL);
 #endif
-
 	up_read(kbase_mem_get_process_mmap_lock());
 
 	if (faulted_pages != *va_pages)
 		goto fault_mismatch;
 
-	reg->gpu_alloc->nents = 0;
-	reg->extension = 0;
+	if (reg->flags & KBASE_REG_SHARE_BOTH)
 
-	pa = kbase_get_gpu_phy_pages(reg);
-	dev = kctx->kbdev->dev;
-
-	if (pages) {
-		/* Top bit signifies that this was pinned on import */
-		user_buf->current_mapping_usage_count |= PINNED_ON_IMPORT;
-
-		/* Manual CPU cache synchronization.
-		 *
-		 * The driver disables automatic CPU cache synchronization because the
-		 * memory pages that enclose the imported region may also contain
-		 * sub-regions which are not imported and that are allocated and used
-		 * by the user process. This may be the case of memory at the beginning
-		 * of the first page and at the end of the last page. Automatic CPU cache
-		 * synchronization would force some operations on those memory allocations,
-		 * unbeknown to the user process: in particular, a CPU cache invalidate
-		 * upon unmapping would destroy the content of dirty CPU caches and cause
-		 * the user process to lose CPU writes to the non-imported sub-regions.
-		 *
-		 * When the GPU claims ownership of the imported memory buffer, it shall
-		 * commit CPU writes for the whole of all pages that enclose the imported
-		 * region, otherwise the initial content of memory would be wrong.
-		 */
-		for (i = 0; i < faulted_pages; i++) {
-			dma_addr_t dma_addr;
-#if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
-			dma_addr = dma_map_page(dev, pages[i], 0, PAGE_SIZE, dma_dir);
-#else
-			dma_addr = dma_map_page_attrs(dev, pages[i], 0, PAGE_SIZE, dma_dir,
-						      DMA_ATTR_SKIP_CPU_SYNC);
-#endif
-			if (dma_mapping_error(dev, dma_addr))
-				goto unwind_dma_map;
-
-			user_buf->dma_addrs[i] = dma_addr;
-			pa[i] = as_tagged(page_to_phys(pages[i]));
-
-			dma_sync_single_for_device(dev, dma_addr, PAGE_SIZE, dma_dir);
-		}
-
-		reg->gpu_alloc->nents = faulted_pages;
-	}
+		*flags |= KBASE_MEM_IMPORT_HAVE_PAGES;
 
 	return reg;
 
-unwind_dma_map:
-	dma_mapped_pages = i;
-	/* Run the unmap loop in the same order as map loop, and perform again
-	 * CPU cache synchronization to re-write the content of dirty CPU caches
-	 * to memory. This precautionary measure is kept here to keep this code
-	 * aligned with kbase_jd_user_buf_map() to allow for a potential refactor
-	 * in the future.
-	 */
-	for (i = 0; i < dma_mapped_pages; i++) {
-		dma_addr_t dma_addr = user_buf->dma_addrs[i];
-
-		dma_sync_single_for_device(dev, dma_addr, PAGE_SIZE, dma_dir);
-#if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
-		dma_unmap_page(dev, dma_addr, PAGE_SIZE, dma_dir);
-#else
-		dma_unmap_page_attrs(dev, dma_addr, PAGE_SIZE, dma_dir, DMA_ATTR_SKIP_CPU_SYNC);
-#endif
-	}
 fault_mismatch:
-	if (pages) {
-		/* In this case, the region was not yet in the region tracker,
-		 * and so there are no CPU mappings to remove before we unpin
-		 * the page
-		 */
-		for (i = 0; i < faulted_pages; i++)
-			kbase_unpin_user_buf_page(pages[i]);
-	}
 no_page_array:
 invalid_flags:
 	kbase_mem_phy_alloc_put(reg->cpu_alloc);
