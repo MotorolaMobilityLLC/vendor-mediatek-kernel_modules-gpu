@@ -443,7 +443,11 @@ struct kbase_queue {
 	kbase_refcount_t refcount;
 	struct kbase_queue_group *group;
 	struct kbase_va_region *queue_reg;
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+	struct kthread_work oom_event_work;
+#else
 	struct work_struct oom_event_work;
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 	u64 base_addr;
 	u32 size;
 	u8 priority;
@@ -1325,6 +1329,9 @@ struct kbase_csf_scheduler {
 	 */
 	spinlock_t gpu_metrics_lock;
 #endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+	struct kthread_worker *oom_event_kthread_worker;
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 	atomic_t gpu_idle_timer_enabled;
 	atomic_t fw_soi_enabled;
 	struct kbase_csf_protm_mem_pages_defer_ctrl pages_defer_ctrl;

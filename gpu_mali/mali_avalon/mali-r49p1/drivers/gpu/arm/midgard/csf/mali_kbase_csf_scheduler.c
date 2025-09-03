@@ -8089,6 +8089,11 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+	int ret = 0;
+	struct sched_param param = { .sched_priority = 2 };
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
+
 	atomic_set(&scheduler->timer_enabled, true);
 
 #if IS_ENABLED(CONFIG_MALI_MTK_USE_WORKQUEUE_FOR_CSF_SCHEDULE)
@@ -8158,6 +8163,19 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 	kbdev->api_sync_debug_level = API_SYNC_FLAG_DEBUG_INIT;
 #endif
 
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+	scheduler->oom_event_kthread_worker = kthread_create_worker(0, "mali-oom-kthread");
+	dev_info(kbdev->dev, "kthread_create_worker %p", scheduler->oom_event_kthread_worker);
+	if (IS_ERR(scheduler->oom_event_kthread_worker)) {
+		dev_err(kbdev->dev, "Failed to allocate oom event worker\n");
+		return -ENOMEM;
+	}
+	ret = sched_setscheduler_nocheck(scheduler->oom_event_kthread_worker->task, SCHED_FIFO, &param);
+	if (ret != 0) {
+		dev_warn(kbdev->dev, "Failed to set priority mali-oom-kthread %d\n", ret);
+	}
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
+
 	return kbase_csf_tiler_heap_reclaim_mgr_init(kbdev);
 }
 
@@ -8200,6 +8218,13 @@ void kbase_csf_scheduler_term(struct kbase_device *kbdev)
 		kfree(kbdev->csf.scheduler.csg_slots);
 		kbdev->csf.scheduler.csg_slots = NULL;
 	}
+
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+	if(scheduler->oom_event_kthread_worker) {
+		kthread_destroy_worker(scheduler->oom_event_kthread_worker);
+	}
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
+
 	KBASE_KTRACE_ADD_CSF_GRP(kbdev, CSF_GROUP_TERMINATED, NULL,
 				 kbase_csf_scheduler_get_nr_active_csgs(kbdev));
 	/* Terminating the MCU shared regions, following the release of slots */

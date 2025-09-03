@@ -41,6 +41,10 @@
 #include <linux/version_compat_defs.h>
 #include <csf/mali_kbase_csf_firmware_log.h>
 
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+#include <linux/kthread.h>
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
+
 #if IS_ENABLED(CONFIG_MALI_MTK_WHITEBOX_MISSING_DOORBELL)
 #include <platform/mtk_platform_common.h>
 #include <csf/mali_kbase_csf_db_validation.h>
@@ -455,7 +459,11 @@ static bool release_queue(struct kbase_queue *queue)
 	return false;
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+static void oom_event_worker(struct kthread_work *data);
+#else
 static void oom_event_worker(struct work_struct *data);
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 static void cs_error_worker(struct work_struct *data);
 
 /* Between reg and reg_ex, one and only one must be null */
@@ -573,7 +581,11 @@ static int csf_queue_register_internal(struct kbase_context *kctx,
 	INIT_LIST_HEAD(&queue->link);
 	atomic_set(&queue->pending_kick, 0);
 	INIT_LIST_HEAD(&queue->pending_kick_link);
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+	kthread_init_work(&queue->oom_event_work, oom_event_worker);
+#else
 	INIT_WORK(&queue->oom_event_work, oom_event_worker);
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 	INIT_WORK(&queue->cs_error_work, cs_error_worker);
 	list_add(&queue->link, &kctx->csf.queue_list);
 
@@ -723,7 +735,14 @@ void kbase_csf_queue_terminate(struct kbase_context *kctx,
 		}
 		wait_pending_queue_kick(queue);
 		/* The work items can be cancelled as Userspace is terminating the queue */
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+		kthread_cancel_work_sync(&queue->oom_event_work);
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+		mali_kthread_event("cancel work", queue, "oom_event_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+#else
 		cancel_work_sync(&queue->oom_event_work);
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 		cancel_work_sync(&queue->cs_error_work);
 		mutex_lock(&kctx->csf.lock);
 
@@ -2264,12 +2283,25 @@ unlock:
  * releases a reference that was added to prevent the queue being destroyed
  * while this work item was pending on a workqueue.
  */
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+static void oom_event_worker(struct kthread_work *data)
+#else
 static void oom_event_worker(struct work_struct *data)
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 {
 	struct kbase_queue *queue = container_of(data, struct kbase_queue, oom_event_work);
 	struct kbase_context *kctx = queue->kctx;
 	struct kbase_device *const kbdev = kctx->kbdev;
 	int reset_prevent_err = kbase_reset_gpu_try_prevent(kbdev);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_TRACE_DEBUG)
+	MALI_TRACE_BEGIN("oom_event_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_TRACE_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	mali_kthread_event("work start", queue, "oom_event_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 
 	mutex_lock(&kctx->csf.lock);
 	if (likely(!reset_prevent_err)) {
@@ -2281,6 +2313,23 @@ static void oom_event_worker(struct work_struct *data)
 	mutex_unlock(&kctx->csf.lock);
 	if (likely(!reset_prevent_err))
 		kbase_reset_gpu_allow(kbdev);
+
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+	mali_kthread_event("work end", queue, "oom_event_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_TRACE_DEBUG)
+	MALI_TRACE_END();
+#endif /* CONFIG_MALI_MTK_KBASE_TRACE_DEBUG */
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
+
+#if IS_ENABLED(CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG)
+	// if worker execute too long, trigger debug message
+	execute_time = ktime_to_ms(ktime_sub(ktime_get(), begin_timestamp));
+	if (execute_time >= KBASE_FUNCTION_EXECUTE_DEBUG_TIMEOUT) {
+		dev_err(kbdev->dev, "ctx:%d_%d %s too long! (%llums)", kctx->tgid, kctx->id, __func__, execute_time);
+	}
+#endif /* CONFIG_MALI_MTK_WORKER_TOO_LONG_DEBUG */
 }
 
 /**
@@ -3083,7 +3132,11 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 			struct kbase_csf_cmd_stream_info const *const stream = &ginfo->streams[i];
 			u32 const cs_req = kbase_csf_firmware_cs_input_read(stream, CS_REQ);
 			u32 const cs_ack = kbase_csf_firmware_cs_output(stream, CS_ACK);
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+			struct kthread_worker *worker = kbdev->csf.scheduler.oom_event_kthread_worker;
+#else
 			struct workqueue_struct *wq = group->kctx->csf.wq;
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 
 			if ((cs_ack & CS_ACK_FATAL_MASK) != (cs_req & CS_REQ_FATAL_MASK)) {
 				KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, CSI_INTERRUPT_FAULT, group, queue,
@@ -3115,7 +3168,11 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 			if (((cs_req & CS_REQ_TILER_OOM_MASK) ^ (cs_ack & CS_ACK_TILER_OOM_MASK))) {
 				KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, CSI_INTERRUPT_TILER_OOM, group,
 							   queue, cs_req ^ cs_ack);
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+				if (!kthread_queue_work(worker, &queue->oom_event_work)) {
+#else
 				if (!queue_work(wq, &queue->oom_event_work)) {
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 					/* The work item shall not have been
 					 * already queued, there can be only
 					 * one pending OoM event for a
@@ -3137,6 +3194,11 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 						queue->kctx->id);
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 				}
+#if IS_ENABLED(CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT)
+#if IS_ENABLED(CONFIG_MALI_MTK_KBASE_THREAD_DEBUG)
+				mali_kthread_event("queue work", queue, "oom_event_worker");
+#endif /* CONFIG_MALI_MTK_KBASE_THREAD_DEBUG */
+#endif /* CONFIG_MALI_MTK_USE_KTHREAD_WORKER_FOR_OOMEVENT */
 			}
 
 			if ((cs_req & CS_REQ_PROTM_PEND_MASK) ^ (cs_ack & CS_ACK_PROTM_PEND_MASK)) {
