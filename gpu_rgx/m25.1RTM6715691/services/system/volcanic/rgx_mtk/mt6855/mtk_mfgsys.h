@@ -95,7 +95,6 @@ typedef struct PK_ALIGN4 _MTK_TD_FW_MEM_
 	IMG_UINT32 core_data_addr_hi;
 }MTK_TD_FW_MEM;
 
-#define RGX_MAX_NUM_MMU_PAGE_SIZE_RANGES 4
 typedef struct PK_ALIGN4 _MTK_RGX_LAYER_PARAMS_
 {
 	IMG_DEV_PHYADDR sPCAddr;

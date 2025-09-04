@@ -91,7 +91,7 @@ static void UMAPhysHeapDevPAddrToCpuPAddr(
 PVRSRV_ERROR SysDevInit(void *pvOSDevice, PVRSRV_DEVICE_CONFIG **ppsDevConfig)
 {
 	PVRSRV_ERROR err = PVRSRV_OK;
-	
+
 	int irq_res;
 	struct resource *reg_res;
 
@@ -109,7 +109,7 @@ PVRSRV_ERROR SysDevInit(void *pvOSDevice, PVRSRV_DEVICE_CONFIG **ppsDevConfig)
 #else
 	MTK_LOGE("SUPPORT_DEDICATED_FW_MEMORY NOT supported");
 #endif
-	
+
 #if defined(SUPPORT_TRUSTED_DEVICE)
 	int ret = secgpu_gpueb_init();
 	MTK_LOGE("[SECGPU] init secgpu_gpueb_init (%d)", ret); //init ipi for secure gpu
@@ -152,9 +152,9 @@ PVRSRV_ERROR SysDevInit(void *pvOSDevice, PVRSRV_DEVICE_CONFIG **ppsDevConfig)
 		gsPhysHeapConfig[2].uConfig.sLMA.hPrivData = NULL;
 	}
 
-	MTK_LOGE("[SECGPU]: %s, Heap name: %s, base: 0x%llx, size: 0x%x\n", __func__,
+	MTK_LOGE("[SECGPU]: %s, Heap name: %s, base: 0x%llx, size: 0x%llx\n", __func__,
 			gsPhysHeapConfig[1].uConfig.sLMA.pszHeapName, gsPhysHeapConfig[1].uConfig.sLMA.sStartAddr.uiAddr , gsPhysHeapConfig[1].uConfig.sLMA.uiSize);
-	MTK_LOGE("[SECGPU]: %s, Heap name: %s, base: 0x%llx, size: 0x%x\n", __func__,
+	MTK_LOGE("[SECGPU]: %s, Heap name: %s, base: 0x%llx, size: 0x%llx\n", __func__,
 			gsPhysHeapConfig[2].uConfig.sLMA.pszHeapName, gsPhysHeapConfig[2].uConfig.sLMA.sStartAddr.uiAddr , gsPhysHeapConfig[2].uConfig.sLMA.uiSize);
 #endif // SUPPORT_TRUSTED_DEVICE
 
@@ -198,7 +198,7 @@ PVRSRV_ERROR SysDevInit(void *pvOSDevice, PVRSRV_DEVICE_CONFIG **ppsDevConfig)
 	irq_res = platform_get_irq(gpsPVRCfgDev, 0);
 	if (irq_res >= 0) {
 		gsDevices[0].ui32IRQ = irq_res;
-		//MTK_LOGE("[SECGPU]irq_res = 0x%llx", irq_res);
+		MTK_LOGE("[SECGPU]irq_res = %d", irq_res);
 	} else {
 		MTK_LOGE("irq_res = NULL");
 		return PVRSRV_ERROR_INIT_FAILURE;
@@ -209,7 +209,7 @@ PVRSRV_ERROR SysDevInit(void *pvOSDevice, PVRSRV_DEVICE_CONFIG **ppsDevConfig)
 	if (reg_res) {
 		gsDevices[0].sRegsCpuPBase.uiAddr = reg_res->start;
 		gsDevices[0].ui32RegsSize = resource_size(reg_res);
-		//MTK_LOGE("[SECGPU]reg_res = 0x%llx, size = 0x%x", reg_res->start, resource_size(reg_res));
+		MTK_LOGE("[SECGPU]reg_res = 0x%llx, size = 0x%llx", reg_res->start, resource_size(reg_res));
 	} else {
 		MTK_LOGE("reg_res = NULL");
 		return PVRSRV_ERROR_INIT_FAILURE;

@@ -27,7 +27,6 @@
 #endif
 
 static GED_LOG_BUF_HANDLE ghMTKGEDLog;
-//static IMG_HANDLE ghRGXUtilUser;
 
 static PVRSRV_DEVICE_NODE *MTKGetRGXDevNode(void)
 {
@@ -63,7 +62,6 @@ static void MTKCalGPULoading(unsigned int *pui32Loading,
 
 	PVRSRV_DEVICE_NODE *psDevNode = NULL;
 	PVRSRV_RGXDEV_INFO *psDevInfo = NULL;
-	//RGX_GPU_UTIL_STATS sGpuUtilStats = {};
 
 	psDevNode = MTKGetRGXDevNode();
 	if (!psDevNode) {
@@ -306,14 +304,13 @@ static int secgpu_ipi_to_gpueb(struct secgpu_ipi_data data)
 	if (g_secgpu_recv_msg.cmd_id == CMD_SECGPU_INIT_SHARED_MEM)
 	{
 
-		phys_addr_t shared_mem_pa = 0, shared_mem_va = 0, shared_mem_size = 0;
 		IMG_CPU_PHYADDR sPhyAddr;
 		sPhyAddr.uiAddr = g_secgpu_recv_msg.reserved_fw_mem_base;
 		g_secgpu_fw_reservd_mem_pa = g_secgpu_recv_msg.reserved_fw_mem_base;
 		g_secgpu_fw_reservd_mem_size = g_secgpu_recv_msg.reserved_fw_mem_size;
 		g_secgpu_fw_reservd_mem_va = 0;
-		//MTK_LOGI("[SECGPU] got reserved memory for fw phy_addr: 0x%x, virt_addr: 0x%llx, size: 0x%x",
-		//			g_secgpu_fw_reservd_mem_pa, g_secgpu_fw_reservd_mem_va, g_secgpu_fw_reservd_mem_size);
+		MTK_LOGI("[SECGPU] got reserved memory for fw phy_addr: 0x%x, virt_addr: 0x%llx, size: 0x%x",
+					g_secgpu_fw_reservd_mem_pa, g_secgpu_fw_reservd_mem_va, g_secgpu_fw_reservd_mem_size);
 	}
 	return SECGPU_SUCCESS;
 }
@@ -391,9 +388,8 @@ static void setPowerParams(void)
 		return;
 	}
 	MTK_RGX_LAYER_PARAMS *pPowerParam = (MTK_RGX_LAYER_PARAMS *) (g_secgpu_ipi_shared_mem_va + SECGPU_SHM_POWERPAR_OFFSET);
-	//pPowerParam->sPCAddr = psTDPowerParams->sPCAddr; //RGXAcquireKernelMMUPC
 	pPowerParam->sDevFeatureCfg.ui64ErnsBrns = psDevInfo->sDevFeatureCfg.ui64ErnsBrns;
-	pPowerParam->sDevFeatureCfg.ui64Features = psDevInfo->sDevFeatureCfg.ui64Features;
+	psDevInfo->sDevFeatureCfg.paui64Features = psDevInfo->sDevFeatureCfg.paui64Features;
 	for(i=0;i<RGX_FEATURE_WITH_VALUES_MAX_IDX;i++){
 		pPowerParam->sDevFeatureCfg.ui32FeaturesValues[i] = psDevInfo->sDevFeatureCfg.ui32FeaturesValues[i];
 	}
@@ -409,7 +405,6 @@ PVRSRV_ERROR MTKTDSendFWImage(IMG_HANDLE hSysData, PVRSRV_FW_PARAMS *psTDFWParam
 {
 	int ret ;
 
-	MTK_PVRSRV_DEVICE_FEATURE_CONFIG mtkDevCfg;
 	struct secgpu_ipi_data send_msg;
 	MTK_TD_FW_MEM fw_mem;
 	MTK_RGX_FW_BOOT_PARAMS bootParam;
@@ -428,7 +423,7 @@ PVRSRV_ERROR MTKTDSendFWImage(IMG_HANDLE hSysData, PVRSRV_FW_PARAMS *psTDFWParam
 	IMG_BOOL bValid;
 	PVR_UNREFERENCED_PARAMETER(hSysData);
 
-	if (g_secgpu_ipi_shared_mem_va == NULL) {
+	if (g_secgpu_ipi_shared_mem_va == 0) {
 		MTK_LOGE("[SECGPU] g_secgpu_ipi_shared_mem_va is null ");
 		return PVRSRV_ERROR_INVALID_PARAMS;
 	}
@@ -481,7 +476,7 @@ PVRSRV_ERROR MTKTDSendFWImage(IMG_HANDLE hSysData, PVRSRV_FW_PARAMS *psTDFWParam
 
 PVRSRV_ERROR MTKTDSetPowerParams(IMG_HANDLE hSysData, PVRSRV_TD_POWER_PARAMS *psTDPowerParams)
 {
-	if (g_secgpu_ipi_shared_mem_va == NULL) {
+	if (g_secgpu_ipi_shared_mem_va == 0) {
 		return PVRSRV_ERROR_INVALID_PARAMS;
 	}
 
@@ -505,7 +500,7 @@ PVRSRV_ERROR MTKTDSetPowerParams(IMG_HANDLE hSysData, PVRSRV_TD_POWER_PARAMS *ps
 	pPowerParam->sCodeRemapAddr = psTDPowerParams->sCodeRemapAddr;
 	pPowerParam->sDataRemapAddr = psTDPowerParams->sDataRemapAddr;
 	pPowerParam->sDevFeatureCfg.ui64ErnsBrns = psDevInfo->sDevFeatureCfg.ui64ErnsBrns;
-	pPowerParam->sDevFeatureCfg.ui64Features = psDevInfo->sDevFeatureCfg.ui64Features;
+	psDevInfo->sDevFeatureCfg.paui64Features = psDevInfo->sDevFeatureCfg.paui64Features;
 	for(i=0;i<RGX_FEATURE_WITH_VALUES_MAX_IDX;i++){
 		pPowerParam->sDevFeatureCfg.ui32FeaturesValues[i] = psDevInfo->sDevFeatureCfg.ui32FeaturesValues[i];
 	}
@@ -523,7 +518,7 @@ PVRSRV_ERROR MTKTDSetPowerParams(IMG_HANDLE hSysData, PVRSRV_TD_POWER_PARAMS *ps
 
 PVRSRV_ERROR MTKTDRGXStart(IMG_HANDLE hSysData)
 {
-	if (g_secgpu_ipi_shared_mem_va == NULL) {
+	if (g_secgpu_ipi_shared_mem_va == 0) {
 		return PVRSRV_ERROR_INVALID_PARAMS;
 	}
 
@@ -542,7 +537,7 @@ PVRSRV_ERROR MTKTDRGXStart(IMG_HANDLE hSysData)
 
 PVRSRV_ERROR MTKTDRGXStop(IMG_HANDLE hSysData)
 {
-	if (g_secgpu_ipi_shared_mem_va == NULL) {
+	if (g_secgpu_ipi_shared_mem_va == 0) {
 		return PVRSRV_ERROR_INVALID_PARAMS;
 	}
 

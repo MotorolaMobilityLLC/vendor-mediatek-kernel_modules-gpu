@@ -6,5 +6,7 @@ COPTS_MTK = [
     "-I$(srctree)/drivers/gpu/mediatek/mt-plat",
     "-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mt-plat",
     "-I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include",
+	"-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/gpueb/include",
+	"-I$(DEVICE_MODULES_PATH)/drivers/soc/mediatek",
     "-I$(srctree)/drivers/misc/mediatek/include",
 ]
