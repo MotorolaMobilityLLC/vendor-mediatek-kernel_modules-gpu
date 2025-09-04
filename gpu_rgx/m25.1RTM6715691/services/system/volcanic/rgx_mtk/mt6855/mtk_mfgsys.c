@@ -389,7 +389,10 @@ static void setPowerParams(void)
 	}
 	MTK_RGX_LAYER_PARAMS *pPowerParam = (MTK_RGX_LAYER_PARAMS *) (g_secgpu_ipi_shared_mem_va + SECGPU_SHM_POWERPAR_OFFSET);
 	pPowerParam->sDevFeatureCfg.ui64ErnsBrns = psDevInfo->sDevFeatureCfg.ui64ErnsBrns;
-	psDevInfo->sDevFeatureCfg.paui64Features = psDevInfo->sDevFeatureCfg.paui64Features;
+	for(i=0;i<2;i++){
+		pPowerParam->sDevFeatureCfg.ui64Features[i] = psDevInfo->sDevFeatureCfg.paui64Features[i];
+	}
+
 	for(i=0;i<RGX_FEATURE_WITH_VALUES_MAX_IDX;i++){
 		pPowerParam->sDevFeatureCfg.ui32FeaturesValues[i] = psDevInfo->sDevFeatureCfg.ui32FeaturesValues[i];
 	}
@@ -500,7 +503,9 @@ PVRSRV_ERROR MTKTDSetPowerParams(IMG_HANDLE hSysData, PVRSRV_TD_POWER_PARAMS *ps
 	pPowerParam->sCodeRemapAddr = psTDPowerParams->sCodeRemapAddr;
 	pPowerParam->sDataRemapAddr = psTDPowerParams->sDataRemapAddr;
 	pPowerParam->sDevFeatureCfg.ui64ErnsBrns = psDevInfo->sDevFeatureCfg.ui64ErnsBrns;
-	psDevInfo->sDevFeatureCfg.paui64Features = psDevInfo->sDevFeatureCfg.paui64Features;
+	for(i=0;i<2;i++){
+		pPowerParam->sDevFeatureCfg.ui64Features[i] = psDevInfo->sDevFeatureCfg.paui64Features[i];
+	}
 	for(i=0;i<RGX_FEATURE_WITH_VALUES_MAX_IDX;i++){
 		pPowerParam->sDevFeatureCfg.ui32FeaturesValues[i] = psDevInfo->sDevFeatureCfg.ui32FeaturesValues[i];
 	}
