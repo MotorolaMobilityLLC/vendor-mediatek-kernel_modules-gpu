@@ -48,7 +48,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 /* for irq monitoring */
 #include <mt-plat/mtk_irq_mon.h>
 
-#define PVR_IRQ_PERIOD_BURST 142857 /* 7000 irqs per sec */
+#define PVR_IRQ_PERIOD_BURST 71428 /* 14000 irqs per sec*/
 
 typedef struct LISR_DATA_TAG
 {
