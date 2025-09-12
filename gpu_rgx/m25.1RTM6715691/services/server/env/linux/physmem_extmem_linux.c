@@ -764,8 +764,6 @@ static inline void end_user_mode_access(IMG_UINT uiState)
 #endif
 }
 
-#if !defined(CACHEFLUSH_ISA_SUPPORTS_UM_FLUSH)
-
 static PVRSRV_ERROR _FlushUMVirtualRange(PVRSRV_DEVICE_NODE *psDevNode,
 							PMR_WRAP_DATA *psPrivData,
 							IMG_DEVMEM_SIZE_T uiSize,
@@ -883,7 +881,6 @@ UMFlushUnlockReturn:
 	mmap_read_unlock(current->mm);
 	return eError;
 }
-#endif
 
 static PMR_IMPL_FUNCTAB _sPMRWrapPFuncTab = {
     .pfnLockPhysAddresses = NULL,
@@ -1083,7 +1080,6 @@ PhysmemWrapExtMemOS(CONNECTION_DATA * psConnection,
 		goto e2;
 	}
 
-#if !defined(CACHEFLUSH_ISA_SUPPORTS_UM_FLUSH)
 	if (PVRSRV_CHECK_CPU_CACHE_CLEAN(uiFlags))
 	{
 		eError = _FlushUMVirtualRange(psDevNode,
@@ -1095,7 +1091,6 @@ PhysmemWrapExtMemOS(CONNECTION_DATA * psConnection,
 			goto e3;
 		}
 	}
-#endif
 
 	/* Mark the PMR such that no layout changes can happen.
 	 * The memory is allocated in the CPU domain and hence
@@ -1107,11 +1102,9 @@ PhysmemWrapExtMemOS(CONNECTION_DATA * psConnection,
 	OSFreeMem(pui32MappingTable);
 
 	return PVRSRV_OK;
-#if !defined(CACHEFLUSH_ISA_SUPPORTS_UM_FLUSH)
 e3:
 	(void) PMRUnrefPMR(psPMR);
 	bIsPMRDestroyed = IMG_TRUE;
-#endif
 e2:
 	OSFreeMem(pui32MappingTable);
 e1:
