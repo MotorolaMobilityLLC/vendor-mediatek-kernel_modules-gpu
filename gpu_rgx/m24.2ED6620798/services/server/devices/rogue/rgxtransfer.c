@@ -725,7 +725,7 @@ PVRSRV_ERROR PVRSRVRGXSubmitTransfer3KM(RGX_SERVER_TQ_CONTEXT	*psTransferContext
 	PVRSRV_FENCE i3DUpdateFence = PVRSRV_NO_FENCE;
 	IMG_UINT32   ui32IntJobRef = OSAtomicIncrement(&psDevInfo->iCCBSubmissionOrdinal);
 	IMG_UINT32   ui32PreparesDone = 0;
-
+	IMG_BOOL bExportFenceResolved = IMG_FALSE;
 
 	PRGXFWIF_TIMESTAMP_ADDR pPreAddr;
 	PRGXFWIF_TIMESTAMP_ADDR pPostAddr;
@@ -1167,6 +1167,7 @@ PVRSRV_ERROR PVRSRVRGXSubmitTransfer3KM(RGX_SERVER_TQ_CONTEXT	*psTransferContext
 						}
 					}
 				}
+				bExportFenceResolved = IMG_TRUE;
 			}
 
 			/* Append the sync prim update for the timeline (if required) */
@@ -1675,7 +1676,7 @@ PVRSRV_ERROR PVRSRVRGXSubmitTransfer3KM(RGX_SERVER_TQ_CONTEXT	*psTransferContext
 		                            ps3DUpdateSyncCheckpoint, szFenceName);
 	}
 
-	if (iExportFenceToSignal != PVRSRV_NO_FENCE)
+	if (bExportFenceResolved)
 	{
 		SyncCheckpointFinaliseExportFence(iExportFenceToSignal);
 	}

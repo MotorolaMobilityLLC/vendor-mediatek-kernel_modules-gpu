@@ -1252,7 +1252,8 @@ PVRSRV_ERROR PVRSRVRGXTDMSubmitTransfer3KM(
 		                            psUpdateSyncCheckpoint, szUpdateFenceName);
 	}
 
-	if (iExportFenceToSignal != PVRSRV_NO_FENCE)
+	if (iExportFenceToSignal != PVRSRV_NO_FENCE &&
+	    iUpdateTimeline != PVRSRV_NO_TIMELINE)
 	{
 		SyncCheckpointFinaliseExportFence(iExportFenceToSignal);
 	}
@@ -1300,11 +1301,11 @@ fail_invalfbsc:
 		pui32IntAllocatedUpdateValues = NULL;
 	}
 fail_alloc_update_values_mem:
+fail_check_fence_includes_export_fence:
 	if (psExportFenceSyncCheckpoint)
 	{
 		SyncCheckpointRollbackExportFence(iExportFenceToSignal);
 	}
-fail_check_fence_includes_export_fence:
 fail_resolve_export_fence:
 	if (iUpdateFence != PVRSRV_NO_FENCE)
 	{

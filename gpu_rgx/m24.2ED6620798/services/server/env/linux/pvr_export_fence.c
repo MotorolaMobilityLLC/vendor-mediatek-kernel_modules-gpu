@@ -51,21 +51,35 @@
 #include "osfunc_common.h"
 
 /*
- * Export fence state types:
- * CREATED: The export fence has been allocated but
- *          no sync checkpoint assigned.
- * RESOLVED: A checkpoint has been assigned to the
- *          export fence but could still be rolled back.
- * ROLLBACK: We have rolled back the fence due to some error,
- *           the checkpoint has been freed.
- * FINALISED: A checkpoint has been assigned and will no longer
- *            be rolled back, the state is now immutable.
+ * Export fence update state types:
+ * CREATED: The export fence has been allocated but has not been resolved as an
+ *          update fence.
+ * RESOLVED: The export fence is prepared to be used as an update fence.
+ * ROLLED_BACK: An error occurred after being resolved. It cannot be finalised
+ *              before being resolved again.
+ * FINALISED: The export fence is being used as an update fence and will not be
+ *            rolled back!
+ *
+ *
+ *   ┌───────────┐      ┌────────────┐     ┌─────────────┐
+ *   │           │      │            │     │             │
+ *   │  Created  ├──────►  Resolved  ├─────►  Finalised  │
+ *   │           │      │            │     │             │
+ *   └───────────┘      └───▲─────┬──┘     └─────────────┘
+ *                          │     │
+ *                          │     │
+ *                     ┌────┴─────▼────┐
+ *                     │               │
+ *                     │  Rolled Back  │
+ *                     │               │
+ *                     └───────────────┘
  */
-enum export_fence_resolve_state {
-	EXPORT_FENCE_RESOLVE_STATE_CREATED,
-	EXPORT_FENCE_RESOLVE_STATE_RESOLVED,
-	EXPORT_FENCE_RESOLVE_STATE_ROLLBACK,
-	EXPORT_FENCE_RESOLVE_STATE_FINALISED
+enum export_fence_update_resolve_state {
+	EXPORT_FENCE_UPDATE_RESOLVE_STATE_INVALID,
+	EXPORT_FENCE_UPDATE_RESOLVE_STATE_CREATED,
+	EXPORT_FENCE_UPDATE_RESOLVE_STATE_RESOLVED,
+	EXPORT_FENCE_UPDATE_RESOLVE_STATE_ROLLED_BACK,
+	EXPORT_FENCE_UPDATE_RESOLVE_STATE_FINALISED
 };
 
 struct pvr_exp_fence_context {
@@ -125,14 +139,31 @@ pvr_exp_fence_sync_is_signaled(struct pvr_exp_fence *exp_fence, u32 fence_sync_f
 static inline bool
 pvr_exp_fence_sync_is_finalised(struct pvr_exp_fence *exp_fence)
 {
-	return atomic_read(&exp_fence->resolve_state) == EXPORT_FENCE_RESOLVE_STATE_FINALISED;
+	return atomic_read(&exp_fence->resolve_state) == EXPORT_FENCE_UPDATE_RESOLVE_STATE_FINALISED;
 }
 
 static inline void
-pvr_exp_fence_transition_state(struct pvr_exp_fence *exp_fence,
-			       enum export_fence_resolve_state new_state)
+pvr_exp_fence_set_state(struct pvr_exp_fence *exp_fence,
+			       enum export_fence_update_resolve_state new_state)
 {
 	atomic_set(&exp_fence->resolve_state, new_state);
+}
+
+static inline enum PVRSRV_ERROR_TAG
+pvr_exp_fence_transition_state(struct pvr_exp_fence *exp_fence,
+			       enum export_fence_update_resolve_state current_state,
+			       enum export_fence_update_resolve_state new_state)
+{
+	enum export_fence_update_resolve_state prev_state;
+
+	prev_state = atomic_cmpxchg(&exp_fence->resolve_state, current_state, new_state);
+	if (prev_state != current_state)
+	{
+		pr_err("%s: Export fence in invalid state for transition", __func__);
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+
+	return PVRSRV_OK;
 }
 
 const char *pvr_exp_fence_context_name(struct pvr_exp_fence_context *fctx)
@@ -256,6 +287,7 @@ static bool pvr_exp_fence_enable_signaling(struct dma_fence *fence)
 
 	if (!exp_fence)
 		return false;
+
 
 	/* We must not take the exp_fence lock in this function.
 	 * It can be called by dma_fence_add_callback() which already holds the lock,
@@ -403,7 +435,7 @@ pvr_exp_fence_create(struct pvr_exp_fence_context *fence_context, int fd, u64 *s
 
 	/* No sync checkpoint is assigned until attached to a kick */
 	pvr_exp_fence->checkpoint_handle = NULL;
-	pvr_exp_fence_transition_state(pvr_exp_fence, EXPORT_FENCE_RESOLVE_STATE_CREATED);
+	pvr_exp_fence_set_state(pvr_exp_fence, EXPORT_FENCE_UPDATE_RESOLVE_STATE_CREATED);
 
 	seqno = pvr_exp_fence_context_seqno_next(pfence_context);
 
@@ -424,12 +456,15 @@ pvr_exp_fence_create(struct pvr_exp_fence_context *fence_context, int fd, u64 *s
 enum PVRSRV_ERROR_TAG
 pvr_exp_fence_assign_checkpoint(PVRSRV_FENCE fence_to_resolve,
 				struct dma_fence *fence,
+				enum export_fence_resolve_type resolve_type,
 				PSYNC_CHECKPOINT_CONTEXT checkpoint_context,
 				PSYNC_CHECKPOINT *assigned_checkpoint)
 {
 	struct SYNC_CHECKPOINT_TAG *new_sync_checkpoint;
 	struct pvr_exp_fence *pvr_exp_fence;
 	PVRSRV_FENCE export_fence_fd = fence_to_resolve;
+	enum export_fence_update_resolve_state prev_update_state =
+		EXPORT_FENCE_UPDATE_RESOLVE_STATE_INVALID;
 	PVRSRV_ERROR err = PVRSRV_OK;
 	unsigned long flags;
 
@@ -442,11 +477,34 @@ pvr_exp_fence_assign_checkpoint(PVRSRV_FENCE fence_to_resolve,
 
 	/* Check early if we already have a checkpoint assigned */
 	spin_lock_irqsave(&pvr_exp_fence->lock, flags);
+
+	if (resolve_type == EXPORT_FENCE_RESOLVE_FOR_UPDATE) {
+		prev_update_state = atomic_read(&pvr_exp_fence->resolve_state);
+
+		if (prev_update_state == EXPORT_FENCE_UPDATE_RESOLVE_STATE_CREATED ||
+		    prev_update_state == EXPORT_FENCE_UPDATE_RESOLVE_STATE_ROLLED_BACK) {
+			/* Set now so we can block incoming calls */
+			pvr_exp_fence_set_state(pvr_exp_fence,
+			                        EXPORT_FENCE_UPDATE_RESOLVE_STATE_RESOLVED);
+		} else {
+			pr_err("%s: Invalid fence_to_resolve\n", __func__);
+			err = PVRSRV_ERROR_INVALID_PARAMS;
+			goto out_unlock;
+		}
+	}
+
 	if (pvr_exp_fence->checkpoint_handle) {
+		/* We do not take a reference when resolving for update. The initial ref count
+		 * of the sync checkpoint will keep it alive. */
+		if (resolve_type == EXPORT_FENCE_RESOLVE_FOR_CHECK) {
+			SyncCheckpointTakeRef(pvr_exp_fence->checkpoint_handle);
+		}
+
 		/* export fence already has a sync checkpoint assigned */
 		*assigned_checkpoint = pvr_exp_fence->checkpoint_handle;
 		goto out_unlock;
 	}
+
 	spin_unlock_irqrestore(&pvr_exp_fence->lock, flags);
 
 	/* Ensure fd assigned to export fence when it was created is passed
@@ -467,6 +525,13 @@ pvr_exp_fence_assign_checkpoint(PVRSRV_FENCE fence_to_resolve,
 		pr_err("%s: SyncCheckpointAlloc() failed (err%d)\n",
 		       __func__, err);
 		*assigned_checkpoint = NULL;
+
+		if (resolve_type == EXPORT_FENCE_RESOLVE_FOR_UPDATE) {
+			/* Revert back to previous state */
+			WARN_ON(prev_update_state == EXPORT_FENCE_UPDATE_RESOLVE_STATE_INVALID);
+			pvr_exp_fence_set_state(pvr_exp_fence, prev_update_state);
+		}
+
 		goto out;
 	}
 
@@ -476,6 +541,12 @@ pvr_exp_fence_assign_checkpoint(PVRSRV_FENCE fence_to_resolve,
 	 * allocating one.
 	 */
 	if (pvr_exp_fence->checkpoint_handle) {
+		/* We do not take a reference when resolving for update. The initial ref count
+		 * of the sync checkpoint will keep it alive. */
+		if (resolve_type == EXPORT_FENCE_RESOLVE_FOR_CHECK) {
+			SyncCheckpointTakeRef(pvr_exp_fence->checkpoint_handle);
+		}
+
 		/* export fence already has a sync checkpoint assigned */
 		*assigned_checkpoint = pvr_exp_fence->checkpoint_handle;
 		spin_unlock_irqrestore(&pvr_exp_fence->lock, flags);
@@ -485,7 +556,12 @@ pvr_exp_fence_assign_checkpoint(PVRSRV_FENCE fence_to_resolve,
 
 	pvr_exp_fence->checkpoint_handle = new_sync_checkpoint;
 	*assigned_checkpoint = new_sync_checkpoint;
-	pvr_exp_fence_transition_state(pvr_exp_fence, EXPORT_FENCE_RESOLVE_STATE_RESOLVED);
+
+	/* We do not take a reference when resolving for update. The initial ref count
+	 * of the sync checkpoint will keep it alive. */
+	if (resolve_type == EXPORT_FENCE_RESOLVE_FOR_CHECK) {
+		SyncCheckpointTakeRef(pvr_exp_fence->checkpoint_handle);
+	}
 
 out_unlock:
 	spin_unlock_irqrestore(&pvr_exp_fence->lock, flags);
@@ -493,11 +569,11 @@ out:
 	return err;
 }
 
+#define EXPORT_FENCE_LAST_REF 1
 enum PVRSRV_ERROR_TAG
 pvr_exp_fence_rollback(struct dma_fence *fence)
 {
 	struct pvr_exp_fence *pvr_exp_fence;
-	PSYNC_CHECKPOINT checkpoint_local;
 	PVRSRV_ERROR err;
 	unsigned long flags;
 
@@ -510,32 +586,40 @@ pvr_exp_fence_rollback(struct dma_fence *fence)
 
 	spin_lock_irqsave(&pvr_exp_fence->lock, flags);
 
-	/* Check if the export fence has reached finalised state, if so, this means
-	 * a previous workload has resolved and added the fence successfully and we
-	 * should not free the checkpoint.
-	 */
-	if (pvr_exp_fence_sync_is_finalised(pvr_exp_fence)) {
-		err = PVRSRV_OK;
-		goto err_unlock_out;
+	err = pvr_exp_fence_transition_state(pvr_exp_fence,
+	                                     EXPORT_FENCE_UPDATE_RESOLVE_STATE_RESOLVED,
+	                                     EXPORT_FENCE_UPDATE_RESOLVE_STATE_ROLLED_BACK);
+	if (err != PVRSRV_OK)
+	{
+		spin_unlock_irqrestore(&pvr_exp_fence->lock, flags);
+		goto err_out;
 	}
 
-	checkpoint_local = pvr_exp_fence->checkpoint_handle;
-	pvr_exp_fence->checkpoint_handle = NULL;
-	pvr_exp_fence_transition_state(pvr_exp_fence, EXPORT_FENCE_RESOLVE_STATE_ROLLBACK);
-	spin_unlock_irqrestore(&pvr_exp_fence->lock, flags);
+	if (pvr_exp_fence->checkpoint_handle != NULL &&
+	    SyncCheckpointGetReferenceCount(pvr_exp_fence->checkpoint_handle) == EXPORT_FENCE_LAST_REF)
+	{
+		/* The export fence is holding the last reference to the sync checkpoint.
+		 * The sync checkpoint is about to be freed, so detach it from the export
+		 * fence before releasing the lock. */
+		PSYNC_CHECKPOINT checkpoint = pvr_exp_fence->checkpoint_handle;
+		pvr_exp_fence->checkpoint_handle = NULL;
 
-	if (checkpoint_local) {
-		/* Free the assigned sync checkpoint */
-		SyncCheckpointFree(checkpoint_local);
+		spin_unlock_irqrestore(&pvr_exp_fence->lock, flags);
+		/* Drop the reference on the checkpoint. This must be done outside of the
+		 * spinlock to prevent lock ups. */
+		SyncCheckpointFree(checkpoint);
+	}
+	else
+	{
+		spin_unlock_irqrestore(&pvr_exp_fence->lock, flags);
 	}
 
 	return PVRSRV_OK;
 
-err_unlock_out:
-	spin_unlock_irqrestore(&pvr_exp_fence->lock, flags);
 err_out:
 	return err;
 }
+#undef EXPORT_FENCE_LAST_REF
 
 enum PVRSRV_ERROR_TAG
 pvr_exp_fence_finalise(struct dma_fence *fence)
@@ -550,7 +634,9 @@ pvr_exp_fence_finalise(struct dma_fence *fence)
 		goto err_out;
 	}
 
-	pvr_exp_fence_transition_state(pvr_exp_fence, EXPORT_FENCE_RESOLVE_STATE_FINALISED);
+	err = pvr_exp_fence_transition_state(pvr_exp_fence,
+	                                     EXPORT_FENCE_UPDATE_RESOLVE_STATE_RESOLVED,
+	                                     EXPORT_FENCE_UPDATE_RESOLVE_STATE_FINALISED);
 
 err_out:
 	return err;
