@@ -449,7 +449,22 @@ void RGXWaitCycles(const void *hPrivate,
 
 ******************************************************************************/
 void RGXAcquireKernelMMUPC(const void *hPrivate, IMG_DEV_PHYADDR *psPCAddr);
+#if defined(SUPPORT_HW_BRN_76176)
+/*!
+*******************************************************************************
 
+ @Function        RGXAcquireGPUMMUPC
+
+ @Description     Acquire the GPU MMU Page Catalogue device physical address
+
+ @Input           hPrivate  : Implementation specific data
+ @Input           psPCAddr  : Returned page catalog address
+
+ @Return          void
+
+******************************************************************************/
+void RGXAcquireGPUMMUPC(const void *hPrivate, IMG_DEV_PHYADDR *psPCAddr);
+#endif
 /*!
 *******************************************************************************
 

@@ -543,9 +543,13 @@ pvr_sync_resolve_fence(PSYNC_CHECKPOINT_CONTEXT psSyncCheckpointContext,
 				 */
 				err = pvr_exp_fence_assign_checkpoint(PVRSRV_NO_FENCE,
 				                                      fences[i],
+				                                      EXPORT_FENCE_RESOLVE_FOR_CHECK,
 				                                      psSyncCheckpointContext,
 				                                      &checkpoints[num_used_fences]);
-				SyncCheckpointTakeRef(checkpoints[num_used_fences]);
+				if (err != PVRSRV_OK) {
+					goto err_free_checkpoints;
+				}
+
 				++num_used_fences;
 			}
 			else {
@@ -632,6 +636,7 @@ pvr_sync_resolve_export_fence(PVRSRV_FENCE fence_to_resolve,
 
 	err = pvr_exp_fence_assign_checkpoint(fence_to_resolve,
 					      fence,
+					      EXPORT_FENCE_RESOLVE_FOR_UPDATE,
 					      checkpoint_context,
 					      checkpoint_handle);
 	if (err != PVRSRV_OK) {

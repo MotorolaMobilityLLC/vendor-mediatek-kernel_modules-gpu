@@ -1200,11 +1200,11 @@ fail_cmdinvalfbsc:
 	SyncAddrListRollbackCheckpoints(psComputeContext->psDeviceNode, &psComputeContext->sSyncAddrListFence);
 	SyncAddrListRollbackCheckpoints(psComputeContext->psDeviceNode, &psComputeContext->sSyncAddrListUpdate);
 fail_alloc_update_values_mem:
+fail_check_fence_includes_export_fence:
 	if (psExportFenceSyncCheckpoint)
 	{
 		SyncCheckpointRollbackExportFence(iExportFenceToSignal);
 	}
-fail_check_fence_includes_export_fence:
 fail_resolve_export_fence:
 	if (iUpdateFence != PVRSRV_NO_FENCE)
 	{

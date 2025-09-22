@@ -113,7 +113,18 @@ static_assert((RGX_FIRMWARE_RAW_HEAP_SIZE) >= IMG_UINT32_C(0x800000), "MIPS GPU 
  *  MAX(RAW_HEAP_SIZE) = 32 Mb; MAX(NUMBER_OS) = 8; Total shared memory = 256 Mb;
  *  MMU objects required: 65536 PTEs; 16 PDEs; 1 PCE; */
 #define RGX_FIRMWARE_MAX_PAGETABLE_SIZE (1 * 1024 * 1024)
+#if defined(SUPPORT_HW_BRN_76176)
+#define RGX_GPU_PREMAP_MAX_GENERAL_SIZE (16 * 1024)
+#define RGX_GPU_PREMAP_MAX_PDS_SIZE (4 * 1024)
+#define RGX_GPU_PREMAP_MAX_USC_SIZE (4 * 1024)
 
+#define RGX_GPU_PREMAP_MAX_DATA_SIZE (RGX_GPU_PREMAP_MAX_GENERAL_SIZE + RGX_GPU_PREMAP_MAX_PDS_SIZE + RGX_GPU_PREMAP_MAX_USC_SIZE)
+
+/* 64kb can hold the maximum amount of page tables for the GPU premap heap:
+ * MAX(GENERAL_HEAP_PREMAP) = 16kb; MAX(PDS_HEAP_PREMAP) = 4kb; MAX(USC_HEAP_PREMAP) = 4kb;
+ * MMU objects required: 6 PTEs; 3 PDEs; 3 PCEs; */
+#define RGX_GPU_PREMAP_MAX_PAGETABLE_SIZE (64 * 1024)
+#endif
 #define RGX_FW_CONFIG_HEAP_SIZE (1 << RGX_FW_HEAP_SHIFT)
 #define RGX_FW_MAX_HEAP_SIZE (1 << 28)
 /*

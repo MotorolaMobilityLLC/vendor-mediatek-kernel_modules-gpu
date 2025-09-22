@@ -649,6 +649,92 @@ static void RGXWriteKernelCatBase(const void *hPrivate, IMG_DEV_PHYADDR sPCAddr)
 	}
 }
 
+#if defined(SUPPORT_HW_BRN_76176)
+static void RGXWriteGPUCatBase(const void *hPrivate, IMG_DEV_PHYADDR sPCAddr)
+{
+	IMG_UINT32 uiPCAddr;
+	IMG_UINT32 ui32GPUPremapContextID;
+
+	if (RGX_DEVICE_GET_FEATURE_VALUE(hPrivate, PIPELINED_DATAMASTERS_VERSION) > 0)
+	{
+		ui32GPUPremapContextID = 0x11;
+	}
+	else if (RGX_DEVICE_HAS_FEATURE(hPrivate, ALBIORIX_TOP_INFRASTRUCTURE))
+	{
+		ui32GPUPremapContextID = 0xB;
+	}
+	else
+	{
+		ui32GPUPremapContextID = 0x7;
+	}
+
+#if defined(RGX_FEATURE_HOST_SECURITY_VERSION_MAX_VALUE_IDX)
+	if (RGX_DEVICE_GET_FEATURE_VALUE(hPrivate, HOST_SECURITY_VERSION) > 1)
+	{
+		IMG_UINT32 ui32CBaseMapCtxReg = RGX_CR_MMU_CBASE_MAPPING_CONTEXT__HOST_SECURITY_GT1_AND_MHPW_LT6_AND_MMU_VER_GEQ4;
+
+		uiPCAddr = (((sPCAddr.uiAddr >> RGX_CR_MMU_CBASE_MAPPING__HOST_SECURITY_GT1__BASE_ADDR_ALIGNSHIFT)
+		             << RGX_CR_MMU_CBASE_MAPPING__HOST_SECURITY_GT1__BASE_ADDR_SHIFT)
+		            & ~RGX_CR_MMU_CBASE_MAPPING__HOST_SECURITY_GT1__BASE_ADDR_CLRMSK);
+
+		/* Set the mapping context */
+		RGXWriteReg32(hPrivate, ui32CBaseMapCtxReg, ui32GPUPremapContextID);
+		(void)RGXReadReg32(hPrivate, ui32CBaseMapCtxReg); /* Fence write */
+
+		/* Write the cat-base address */
+		RGXWriteKernelMMUPC32(hPrivate,
+		                      RGX_CR_MMU_CBASE_MAPPING__HOST_SECURITY_GT1,
+		                      RGX_CR_MMU_CBASE_MAPPING__HOST_SECURITY_GT1__BASE_ADDR_ALIGNSHIFT,
+		                      RGX_CR_MMU_CBASE_MAPPING__HOST_SECURITY_GT1__BASE_ADDR_SHIFT,
+		                      uiPCAddr);
+	}
+#else /* defined(RGX_FEATURE_HOST_SECURITY_VERSION_MAX_VALUE_IDX) */
+	if (!RGX_DEVICE_HAS_FEATURE(hPrivate, SLC_VIVT))
+	{
+		/* Write the cat-base address */
+		RGXWriteKernelMMUPC64(hPrivate,
+		                      BIF_CAT_BASEx(ui32GPUPremapContextID),
+		                      RGX_CR_BIF_CAT_BASE0_ADDR_ALIGNSHIFT,
+		                      RGX_CR_BIF_CAT_BASE0_ADDR_SHIFT,
+		                      ((sPCAddr.uiAddr
+		                      >> RGX_CR_BIF_CAT_BASE0_ADDR_ALIGNSHIFT)
+		                      << RGX_CR_BIF_CAT_BASE0_ADDR_SHIFT)
+		                      & ~RGX_CR_BIF_CAT_BASE0_ADDR_CLRMSK);
+
+		if (RGX_DEVICE_HAS_FEATURE(hPrivate, RISCV_FW_PROCESSOR))
+		{
+			/* Keep catbase registers in sync */
+			RGXWriteKernelMMUPC64(hPrivate,
+			                      FWCORE_MEM_CAT_BASEx(ui32GPUPremapContextID),
+			                      RGX_CR_FWCORE_MEM_CAT_BASE0_ADDR_ALIGNSHIFT,
+			                      RGX_CR_FWCORE_MEM_CAT_BASE0_ADDR_SHIFT,
+			                      ((sPCAddr.uiAddr
+			                      >> RGX_CR_FWCORE_MEM_CAT_BASE0_ADDR_ALIGNSHIFT)
+			                      << RGX_CR_FWCORE_MEM_CAT_BASE0_ADDR_SHIFT)
+			                      & ~RGX_CR_FWCORE_MEM_CAT_BASE0_ADDR_CLRMSK);
+		}
+	}
+#endif /* defined(RGX_FEATURE_HOST_SECURITY_VERSION_MAX_VALUE_IDX) */
+	else
+	{
+		uiPCAddr = (((sPCAddr.uiAddr >> RGX_CR_MMU_CBASE_MAPPING_BASE_ADDR_ALIGNSHIFT)
+		             << RGX_CR_MMU_CBASE_MAPPING_BASE_ADDR_SHIFT)
+		            & ~RGX_CR_MMU_CBASE_MAPPING_BASE_ADDR_CLRMSK);
+
+		/* Set the mapping context */
+		RGXWriteReg32(hPrivate, RGX_CR_MMU_CBASE_MAPPING_CONTEXT, ui32GPUPremapContextID);
+		(void)RGXReadReg32(hPrivate, RGX_CR_MMU_CBASE_MAPPING_CONTEXT); /* Fence write */
+
+		/* Write the cat-base address */
+		RGXWriteKernelMMUPC32(hPrivate,
+		                      RGX_CR_MMU_CBASE_MAPPING,
+		                      RGX_CR_MMU_CBASE_MAPPING_BASE_ADDR_ALIGNSHIFT,
+		                      RGX_CR_MMU_CBASE_MAPPING_BASE_ADDR_SHIFT,
+		                      uiPCAddr);
+	}
+}
+#endif
+
 /*!
 *******************************************************************************
 
@@ -690,6 +776,21 @@ static void RGXInitBIF(const void *hPrivate)
 		RGXCommentLog(hPrivate, "RGX firmware MMU Page Catalogue");
 
 		RGXWriteKernelCatBase(hPrivate, sPCAddr);
+
+#if defined(SUPPORT_HW_BRN_76176)
+		/*
+		 * Acquire the address of the GPU Page Catalogue.
+		 */
+		RGXAcquireGPUMMUPC(hPrivate, &sPCAddr);
+
+		/*
+		 * Write the GPU catalogue base.
+		 */
+		RGXCommentLog(hPrivate, "RGX GPU MMU Page Catalogue");
+
+		RGXWriteGPUCatBase(hPrivate, sPCAddr);
+#endif
+
 	}
 }
 

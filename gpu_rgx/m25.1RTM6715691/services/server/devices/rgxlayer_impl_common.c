@@ -532,7 +532,15 @@ void RGXAcquireKernelMMUPC(const void *hPrivate, IMG_DEV_PHYADDR *psPCAddr)
 	PVR_ASSERT(hPrivate != NULL);
 	*psPCAddr = ((RGX_LAYER_PARAMS*)hPrivate)->sPCAddr;
 }
-
+#if defined(SUPPORT_HW_BRN_76176)
+void RGXAcquireGPUMMUPC(const void *hPrivate, IMG_DEV_PHYADDR *psPCAddr)
+{
+	IMG_DEV_PHYADDR sPCAddr = {0};
+	PVR_UNREFERENCED_PARAMETER(hPrivate);
+	PVR_ASSERT(hPrivate != NULL);
+	*psPCAddr = sPCAddr;
+}
+#endif
 #if defined(PDUMP)
 #if !defined(RGX_FEATURE_HOST_SECURITY_VERSION_MAX_VALUE_IDX)
 void RGXWriteKernelMMUPC64(const void *hPrivate,

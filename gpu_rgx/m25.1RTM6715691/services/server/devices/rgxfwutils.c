@@ -6364,6 +6364,7 @@ PVRSRV_ERROR RGXFwRawHeapAllocMap(PVRSRV_DEVICE_NODE *psDeviceNode,
 
 #if defined(SUPPORT_TRUSTED_DEVICE) && defined(RGX_PREMAP_FW_HEAPS)
 	PVR_DPF((PVR_DBG_MESSAGE, "%s: Allocation and mapping for Firmware heaps done by TEE.", __func__));
+	PVR_UNREFERENCED_PARAMETER(uiRawFwHeapAllocFlags);
 #else
 	eError = DevmemFwAllocate(psDevInfo,
 							  RGX_FIRMWARE_RAW_HEAP_SIZE,

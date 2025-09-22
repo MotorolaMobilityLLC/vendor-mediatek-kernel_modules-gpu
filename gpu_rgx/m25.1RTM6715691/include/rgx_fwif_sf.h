@@ -408,6 +408,8 @@ X(297, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_DM_UNPAUSE, "CrossDM: DM: %u KickID: %u s
 X(298, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_SOC_USC_TIMER_SYNC, "Offset for Core: %u, Cluster: %u: 0x%08x%08x", 4) \
 X(299, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_UNKNOWN_CCB_COMMAND1, "Unknown Client CCB Command processing fences: FWCtx=0x%08x, CCBCtl=0x%08x, Roff=%u, Doff=%u, Woff=%u, Wrap=%u, CmdHdr=0x%08x, CmdType=0x%08x, CmdSize=%u", 9) \
 X(300, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_UNKNOWN_CCB_COMMAND2, "Unknown Client CCB Command executing kick: FWCtx=0x%08x, CCBCtl=0x%08x, Roff=%u, Doff=%u, Woff=%u, Wrap=%u, CmdHdr=0x%08x, CmdType=0x%08x, CmdSize=%u", 9) \
+X(305, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_REGISTER_CLEAR_START, "Starting register clear", 0) \
+X(306, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_REGISTER_CLEAR_END, "Register clear complete", 0) \
 \
 X(  1, RGXFW_GROUP_MTS, RGXFW_SF_MTS_BG_KICK_DEPRECATED, "Bg Task DM = %u, counted = %u", 2) \
 X(  2, RGXFW_GROUP_MTS, RGXFW_SF_MTS_BG_COMPLETE_DEPRECATED, "Bg Task complete DM = %u", 1) \
