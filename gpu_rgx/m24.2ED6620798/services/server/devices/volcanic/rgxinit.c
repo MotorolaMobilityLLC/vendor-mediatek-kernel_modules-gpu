@@ -463,6 +463,14 @@ static inline IMG_BOOL RGXAckHwIrq(PVRSRV_RGXDEV_INFO *psDevInfo,
 	{
 		/* acknowledge and clear the interrupt */
 		OSWriteHWReg32(psDevInfo->pvRegsBaseKM, ui32IRQClearReg, ui32IRQClearMask);
+		/* Perform a readback as barrier here after clearing the interrupt.
+		 * If host side mem read happens before we clear the interrupt it is possible
+		 * that we read the stale value then fw updates the second interrupt which is
+		 * ignored and then we clear interrupt which would mean host will end up with
+		 * a stale IRQCount value.
+		 */
+		(void) OSReadHWReg32(psDevInfo->pvRegsBaseKM, ui32IRQClearReg);
+
 		return IMG_TRUE;
 	}
 	else
@@ -531,14 +539,7 @@ static IMG_BOOL RGX_LISRHandler(void *pvData)
 #if defined(PVRSRV_DEBUG_LISR_EXECUTION)
 	IMG_UINT32 ui32idx, ui32IrqCnt;
 
-	for_each_irq_cnt(ui32idx)
-	{
-		get_irq_cnt_val(ui32IrqCnt, ui32idx, psDevInfo);
-		UPDATE_LISR_DBG_SNAPSHOT(ui32idx, ui32IrqCnt);
-	}
-
 	UPDATE_LISR_DBG_STATUS(RGX_LISR_INIT);
-	UPDATE_LISR_DBG_TIMESTAMP();
 #endif
 
 	UPDATE_LISR_DBG_COUNTER();
@@ -592,6 +593,16 @@ static IMG_BOOL RGX_LISRHandler(void *pvData)
 			UPDATE_LISR_DBG_STATUS(RGX_LISR_DEVICE_NOT_POWERED);
 		}
 	}
+
+#if defined(PVRSRV_DEBUG_LISR_EXECUTION)
+	for_each_irq_cnt(ui32idx)
+	{
+		/* Take snapshot after clearing the interrupt, this ensures the value to be up to date */
+		get_irq_cnt_val(ui32IrqCnt, ui32idx, psDevInfo);
+		UPDATE_LISR_DBG_SNAPSHOT(ui32idx, ui32IrqCnt);
+	}
+	UPDATE_LISR_DBG_TIMESTAMP();
+#endif
 
 	return bIrqAcknowledged;
 }
