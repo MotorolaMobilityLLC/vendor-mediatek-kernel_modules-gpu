@@ -296,9 +296,15 @@ struct kbase_kcpu_command_queue {
 	struct mutex lock;
 	struct kbase_context *kctx;
 	struct kbase_kcpu_command commands[KBASEP_KCPU_QUEUE_SIZE];
-	struct workqueue_struct *wq;
-	struct work_struct work;
-	struct work_struct timeout_work;
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+	struct kthread_worker *worker;
+	struct kthread_work work;
+	struct kthread_work timeout_work;
+#else
+ 	struct workqueue_struct *wq;
+ 	struct work_struct work;
+ 	struct work_struct timeout_work;
+#endif
 	u8 start_offset;
 	u8 id;
 	u16 num_pending_cmds;

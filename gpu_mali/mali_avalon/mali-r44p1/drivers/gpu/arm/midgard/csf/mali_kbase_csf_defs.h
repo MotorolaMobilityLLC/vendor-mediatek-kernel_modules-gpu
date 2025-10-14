@@ -779,8 +779,13 @@ struct kbase_csf_scheduler_context {
 	u32 num_runnable_grps;
 	struct list_head idle_wait_groups;
 	u32 num_idle_wait_grps;
-	struct workqueue_struct *sync_update_wq;
-	struct work_struct sync_update_work;
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+	struct kthread_worker *sync_update_worker;
+	struct kthread_work sync_update_work;
+#else
+ 	struct workqueue_struct *sync_update_wq;
+ 	struct work_struct sync_update_work;
+#endif
 	u32 ngrp_to_schedule;
 	struct kbase_csf_ctx_heap_reclaim_info heap_info;
 };
@@ -1199,8 +1204,13 @@ struct kbase_csf_scheduler {
 	struct kbase_context *top_ctx;
 	struct kbase_queue_group *top_grp;
 	struct kbase_queue_group *active_protm_grp;
-	struct workqueue_struct *idle_wq;
-	struct work_struct gpu_idle_work;
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+	struct kthread_worker *idle_worker;
+	struct kthread_work gpu_idle_work;
+#else
+ 	struct workqueue_struct *idle_wq;
+ 	struct work_struct gpu_idle_work;
+#endif
 	bool fast_gpu_idle_handling;
 	atomic_t gpu_no_longer_idle;
 	atomic_t non_idle_offslot_grps;

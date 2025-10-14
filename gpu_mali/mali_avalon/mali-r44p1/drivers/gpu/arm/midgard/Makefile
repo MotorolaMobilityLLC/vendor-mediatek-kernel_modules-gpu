@@ -73,6 +73,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_CSG_ERROR_HANDLING := y
         CONFIG_MALI_MTK_NO_THERMAL := n
         CONFIG_MALI_MTK_GPU_FREQUENCY_TRACE := y
+        CONFIG_MALI_MTK_KTHREAD_ENHANCE := y
     endif ## mt6878 ##
 endif
 
