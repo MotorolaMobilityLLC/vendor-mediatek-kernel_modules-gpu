@@ -61,7 +61,11 @@ static DEFINE_SPINLOCK(kbase_csf_fence_lock);
 static void kcpu_queue_process(struct kbase_kcpu_command_queue *kcpu_queue,
 			       bool drain_queue);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+static void kcpu_queue_process_worker(struct kthread_work *data);
+#else
 static void kcpu_queue_process_worker(struct work_struct *data);
+#endif
 
 static int kbase_kcpu_map_import_prepare(
 		struct kbase_kcpu_command_queue *kcpu_queue,
@@ -495,7 +499,11 @@ static void kbase_kcpu_jit_retry_pending_allocs(struct kbase_context *kctx)
 	 * kbase_csf_kcpu_queue_context.jit_lock .
 	 */
 	list_for_each_entry(blocked_queue, &kctx->csf.kcpu_queues.jit_blocked_queues, jit_blocked)
-		queue_work(blocked_queue->wq, &blocked_queue->work);
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+		kthread_queue_work(blocked_queue->worker, &blocked_queue->work);
+#else
+ 		queue_work(blocked_queue->wq, &blocked_queue->work);
+#endif
 }
 
 static int kbase_kcpu_jit_free_process(struct kbase_kcpu_command_queue *queue,
@@ -755,7 +763,11 @@ static enum kbase_csf_event_callback_action event_cqs_callback(void *param)
 	struct kbase_kcpu_command_queue *kcpu_queue =
 		(struct kbase_kcpu_command_queue *)param;
 
-	queue_work(kcpu_queue->wq, &kcpu_queue->work);
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+	kthread_queue_work(kcpu_queue->worker, &kcpu_queue->work);
+#else
+ 	queue_work(kcpu_queue->wq, &kcpu_queue->work);
+#endif
 
 	return KBASE_CSF_EVENT_CALLBACK_KEEP;
 }
@@ -1369,7 +1381,11 @@ static void kbase_csf_fence_wait_callback(struct dma_fence *fence,
 				  fence->context, fence->seqno);
 
 	/* Resume kcpu command queue processing. */
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+	kthread_queue_work(kcpu_queue->worker, &kcpu_queue->work);
+#else
 	queue_work(kcpu_queue->wq, &kcpu_queue->work);
+#endif
 }
 
 static void kbasep_kcpu_fence_wait_cancel(struct kbase_kcpu_command_queue *kcpu_queue,
@@ -1479,7 +1495,11 @@ static void fence_timeout_callback(struct timer_list *timer)
 	kbase_sync_fence_info_get(fence, &info);
 
 	if (info.status == 1) {
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+		kthread_queue_work(kcpu_queue->worker, &kcpu_queue->work);
+#else
 		queue_work(kcpu_queue->wq, &kcpu_queue->work);
+#endif
 	} else if (info.status == 0) {
 #if IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 		/* Use context#seqno as uniqe id of the fence to operate timeout counter */
@@ -1895,7 +1915,11 @@ static void fence_signal_timeout_cb(struct timer_list *timer)
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 			fence_signal_timeout_start(kcpu_queue);
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+		kthread_queue_work(kcpu_queue->worker, &kcpu_queue->timeout_work);
+#else
 		queue_work(kcpu_queue->wq, &kcpu_queue->timeout_work);
+#endif
 	}
 }
 
@@ -2325,7 +2349,11 @@ static void kcpu_queue_dump(struct kbase_kcpu_command_queue *queue)
 #endif /* CONFIG_MALI_MTK_FENCE_DEBUG */
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+static void kcpu_queue_timeout_worker(struct kthread_work *data)
+#else
 static void kcpu_queue_timeout_worker(struct work_struct *data)
+#endif
 {
 	struct kbase_kcpu_command_queue *queue =
 		container_of(data, struct kbase_kcpu_command_queue, timeout_work);
@@ -2335,7 +2363,11 @@ static void kcpu_queue_timeout_worker(struct work_struct *data)
 	kcpu_queue_force_fence_signal(queue);
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+static void kcpu_queue_process_worker(struct kthread_work *data)
+#else
 static void kcpu_queue_process_worker(struct work_struct *data)
+#endif
 {
 	struct kbase_kcpu_command_queue *queue = container_of(data,
 				struct kbase_kcpu_command_queue, work);
@@ -2390,10 +2422,15 @@ static int delete_queue(struct kbase_context *kctx, u32 id)
 
 		mutex_unlock(&queue->lock);
 
-		cancel_work_sync(&queue->timeout_work);
-		cancel_work_sync(&queue->work);
-
-		destroy_workqueue(queue->wq);
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+		kthread_cancel_work_sync(&queue->timeout_work);
+		kthread_cancel_work_sync(&queue->work);
+		kthread_destroy_worker(queue->worker);
+#else
+ 		cancel_work_sync(&queue->timeout_work);
+ 		cancel_work_sync(&queue->work);
+ 		destroy_workqueue(queue->wq);
+#endif
 
 		mutex_destroy(&queue->lock);
 
@@ -3257,8 +3294,13 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx, struct kbase_ioctl_kcpu
 #endif /* IS_ENABLED(CONFIG_SYNC_FILE) */
 	};
 
-	queue->wq = alloc_workqueue("mali_kbase_csf_kcpu_wq_%i", WQ_UNBOUND | WQ_HIGHPRI, 0, idx);
-	if (queue->wq == NULL) {
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+	queue->worker = kthread_create_worker(0, "%i_mali-kcpuq-kthread", idx);
+	if (IS_ERR(queue->worker)) {
+#else
+ 	queue->wq = alloc_workqueue("mali_kbase_csf_kcpu_wq_%i", WQ_UNBOUND | WQ_HIGHPRI, 0, idx);
+ 	if (queue->wq == NULL) {
+#endif
 #if IS_ENABLED(CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG)
 		dev_warn(kctx->kbdev->dev, "%s: Fail to allocate workqueue", __func__);
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
@@ -3273,8 +3315,14 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx, struct kbase_ioctl_kcpu
 	}
 
 	mutex_init(&queue->lock);
-	INIT_WORK(&queue->work, kcpu_queue_process_worker);
-	INIT_WORK(&queue->timeout_work, kcpu_queue_timeout_worker);
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+	sched_set_fifo(queue->worker->task);
+	kthread_init_work(&queue->work, kcpu_queue_process_worker);
+	kthread_init_work(&queue->timeout_work, kcpu_queue_timeout_worker);
+#else
+ 	INIT_WORK(&queue->work, kcpu_queue_process_worker);
+ 	INIT_WORK(&queue->timeout_work, kcpu_queue_timeout_worker);
+#endif
 	INIT_LIST_HEAD(&queue->jit_blocked);
 
 	if (IS_ENABLED(CONFIG_SYNC_FILE)) {
@@ -3288,7 +3336,11 @@ int kbase_csf_kcpu_queue_new(struct kbase_context *kctx, struct kbase_ioctl_kcpu
 				"%s: Allocate metadata (size=%zu) failed", __func__, sizeof(*metadata));
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 #endif
-			destroy_workqueue(queue->wq);
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+			kthread_destroy_worker(queue->worker);
+#else
+ 			destroy_workqueue(queue->wq);
+#endif
 			vfree(queue);
 			ret = -ENOMEM;
 			goto out;
