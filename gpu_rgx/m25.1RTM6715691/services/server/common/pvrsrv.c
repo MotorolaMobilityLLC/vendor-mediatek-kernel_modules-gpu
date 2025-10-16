@@ -2778,11 +2778,6 @@ PVRSRV_ERROR PVRSRVCommonDeviceInitialise(PVRSRV_DEVICE_NODE *psDeviceNode)
 	/* Initial zero-set for number of active threads on this device */
 	OSAtomicWrite(&psDeviceNode->iThreadsActive, 0);
 
-#if defined(ANDROID)
-	/* Initial zero-set for Android FBC surface counter */
-	OSAtomicWrite(&psDeviceNode->iFBCSurfaceCount, 0);
-#endif
-
 	/* Allocate devmem_history backing store for the device if we have
 	 * EnablePageFaultDebug set
 	 */

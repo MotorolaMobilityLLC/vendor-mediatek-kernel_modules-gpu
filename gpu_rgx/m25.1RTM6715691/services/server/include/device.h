@@ -648,9 +648,6 @@ typedef struct _PVRSRV_DEVICE_NODE_
 #if defined(PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD)
 	IMG_BOOL bGPUWorkPeriodFTraceEnabled;
 #endif
-#if defined(ANDROID)
-	ATOMIC_T                iFBCSurfaceCount;     /*< Android FBC surface counter */
-#endif
 #if defined(PVRSRV_MAX_REAL_TIME_CONTEXTS) && (PVRSRV_MAX_REAL_TIME_CONTEXTS > 1)
 	IMG_UINT32              *pui32RTContextCount;
 #endif
