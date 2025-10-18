@@ -449,22 +449,7 @@ void RGXWaitCycles(const void *hPrivate,
 
 ******************************************************************************/
 void RGXAcquireKernelMMUPC(const void *hPrivate, IMG_DEV_PHYADDR *psPCAddr);
-#if defined(SUPPORT_HW_BRN_76176)
-/*!
-*******************************************************************************
 
- @Function        RGXAcquireGPUMMUPC
-
- @Description     Acquire the GPU MMU Page Catalogue device physical address
-
- @Input           hPrivate  : Implementation specific data
- @Input           psPCAddr  : Returned page catalog address
-
- @Return          void
-
-******************************************************************************/
-void RGXAcquireGPUMMUPC(const void *hPrivate, IMG_DEV_PHYADDR *psPCAddr);
-#endif
 /*!
 *******************************************************************************
 
@@ -869,21 +854,6 @@ IMG_BOOL RGXDevicePA0IsValid(const void *hPrivate);
 
 ******************************************************************************/
 void RGXAcquireBootCodeAddr(const void *hPrivate, IMG_DEV_VIRTADDR *psBootCodeAddr);
-
-/*!
-*******************************************************************************
-
- @Function      RGXCalculateHostFWDataAddress
-
- @Description   Calculates the base host address of the RISCV firmware data
-
- @Input         hPrivate         : Implementation specific data
- @Input         pvHostFWDataAddr : Initial host address of the firmware data
-
- @Return:       Base host address of the RISCV firmware data
-
-******************************************************************************/
-void *RGXCalculateHostFWDataAddress(const void *hPrivate, void *pvHostFWDataAddr);
 
 /*!
 *******************************************************************************

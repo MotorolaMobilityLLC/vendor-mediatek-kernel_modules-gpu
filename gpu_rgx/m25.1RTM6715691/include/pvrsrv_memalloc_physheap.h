@@ -79,7 +79,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 	X(FW_PREMAP7)    /* Internal: Guest OS 7 premap fw heap */                                                                                   \
 	X(WRAP)          /* External: Wrap memory */                                                                                                 \
 	X(DISPLAY)       /* External: Display memory */                                                                                              \
-	X(GPU_PREMAP)    /* Internal: page tables + data for premapped GPU memory */                                                                 \
 	X(LAST)
 
 typedef enum _PVRSRV_PHYS_HEAP_

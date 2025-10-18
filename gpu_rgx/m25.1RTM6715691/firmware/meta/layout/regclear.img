@@ -1,0 +1,12 @@
+/* Register clear sections */
+
+EXTRACT regclear_general FROM EXEC THREAD 0 SECTION .regclear_general
+EXTRACT regclear_pds FROM EXEC THREAD 0 SECTION .regclear_pds
+EXTRACT regclear_usc FROM EXEC THREAD 0 SECTION .regclear_usc
+
+LAYOUT
+{
+	META_REG_CLEAR_HEAP_ADDR EXTRACT regclear_general BASE
+	EXTRACT regclear_pds BASE
+	EXTRACT regclear_usc BASE
+}

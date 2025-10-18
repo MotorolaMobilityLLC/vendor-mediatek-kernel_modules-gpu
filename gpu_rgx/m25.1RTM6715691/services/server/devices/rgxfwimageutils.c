@@ -121,14 +121,7 @@ static PVRSRV_ERROR FindMMUSegment(const void *hPrivate,
 					break;
 
 				case FW_DATA:
-					if (RGX_DEVICE_HAS_FEATURE(hPrivate, RISCV_FW_PROCESSOR))
-					{
-						*uiHostAddrOut = RGXCalculateHostFWDataAddress(hPrivate, pvHostFWDataAddr);
-					}
-					else
-					{
-						*uiHostAddrOut = pvHostFWDataAddr;
-					}
+					*uiHostAddrOut = pvHostFWDataAddr;
 					break;
 
 				case FW_COREMEM_CODE:

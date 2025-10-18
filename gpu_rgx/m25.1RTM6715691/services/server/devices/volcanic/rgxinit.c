@@ -2561,11 +2561,13 @@ PVRSRV_ERROR RGXInitAllocFWImgMem(PVRSRV_DEVICE_NODE   *psDeviceNode,
 
 	/*
 	 * Set up Allocation for FW data section
+	 * SUPPORT_HW_BRN_76176 requires non-PMMETA access to this heap. Context-based access permissions protect this.
 	 */
 	eError = RGXAllocateFWMemoryRegion(psDeviceNode,
 	                                   uiFWDataLen,
-	                                   RGX_FWCODEDATA_ALLOCFLAGS |
-	                                   PVRSRV_MEMALLOCFLAG_PHYS_HEAP_HINT(FW_PRIV_DATA),
+	                                   (RGX_FWCODEDATA_ALLOCFLAGS |
+	                                   PVRSRV_MEMALLOCFLAG_PHYS_HEAP_HINT(FW_PRIV_DATA))
+									   & ~PVRSRV_MEMALLOCFLAG_DEVICE_FLAG(PMMETA_PROTECT),
 	                                   "FwDataRegion",
 	                                   &psDevInfo->psRGXFWDataMemDesc);
 
@@ -4335,40 +4337,6 @@ static PVRSRV_ERROR RGXInitFwPageTableHeap(PVRSRV_DEVICE_NODE *psDeviceNode)
 		eError = PhysHeapAcquire(psDeviceNode->apsPhysHeap[PVRSRV_PHYS_HEAP_FW_PREMAP_PT]);
 		PVR_LOG_RETURN_IF_ERROR(eError, "PhysHeapAcquire:FwPageTableHeap");
 	}
-
-#if defined(SUPPORT_HW_BRN_76176)
-	if (!PVRSRV_VZ_MODE_IS(GUEST, DEVNODE, psDeviceNode))
-	{
-		PHYS_HEAP_CONFIG *psGPUPageTableHeapCfg = PVRSRVFindPhysHeapConfig(psDeviceNode->psDevConfig,
-																		  PHYS_HEAP_USAGE_GPU_PREMAP);
-
-		PVR_LOG_RETURN_IF_FALSE((psGPUPageTableHeapCfg != NULL),
-								"The GPU phys heap config not found.",
-								PVRSRV_ERROR_PHYSHEAP_CONFIG);
-
-
-		PVR_LOG_RETURN_IF_FALSE((psGPUPageTableHeapCfg->ui32UsageFlags == PHYS_HEAP_USAGE_GPU_PREMAP),
-								"The GPU heap must be used exclusively for this purpose",
-								PVRSRV_ERROR_PHYSHEAP_CONFIG);
-
-		PVR_LOG_RETURN_IF_FALSE((psGPUPageTableHeapCfg->eType == PHYS_HEAP_TYPE_LMA) ||
-								(psGPUPageTableHeapCfg->eType == PHYS_HEAP_TYPE_DMA),
-								"The GPU Page Table heap must be LMA or DMA memory.",
-								PVRSRV_ERROR_PHYSHEAP_CONFIG);
-
-		PVR_LOG_RETURN_IF_FALSE((psGPUPageTableHeapCfg->uConfig.sLMA.uiSize >= (RGX_GPU_PREMAP_MAX_PAGETABLE_SIZE + RGX_GPU_PREMAP_MAX_DATA_SIZE)),
-								"The GPU heap must be big enough",
-								PVRSRV_ERROR_PHYSHEAP_CONFIG);
-
-		eError = PhysHeapCreateHeapFromConfig(psDeviceNode,
-											  psGPUPageTableHeapCfg,
-											  &psDeviceNode->apsPhysHeap[PVRSRV_PHYS_HEAP_GPU_PREMAP]);
-		PVR_LOG_RETURN_IF_ERROR(eError, "PhysHeapCreateHeapFromConfig:GPUHeap");
-
-		eError = PhysHeapAcquire(psDeviceNode->apsPhysHeap[PVRSRV_PHYS_HEAP_GPU_PREMAP]);
-		PVR_LOG_RETURN_IF_ERROR(eError, "PhysHeapAcquire:GPUHeap");
-	}
-#endif
 #else
 	PVR_UNREFERENCED_PARAMETER(psDeviceNode);
 #endif /* defined(RGX_PREMAP_FW_HEAPS) */

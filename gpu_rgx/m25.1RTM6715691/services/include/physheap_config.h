@@ -74,7 +74,6 @@ typedef IMG_UINT32 PHYS_HEAP_USAGE_FLAGS;
 #define PHYS_HEAP_USAGE_FW_PREMAP      (1U <<PVRSRV_PHYS_HEAP_FW_PREMAP0)
 #define PHYS_HEAP_USAGE_WRAP           (1U <<PVRSRV_PHYS_HEAP_WRAP)
 #define PHYS_HEAP_USAGE_DISPLAY        (1U <<PVRSRV_PHYS_HEAP_DISPLAY)
-#define PHYS_HEAP_USAGE_GPU_PREMAP     (1U <<PVRSRV_PHYS_HEAP_GPU_PREMAP)
 #define PHYS_HEAP_USAGE_DLM            (1U <<29)
 #define PHYS_HEAP_USAGE_FW_SHARED      (1U <<30)
 #define PHYS_HEAP_USAGE_FW_PRIVATE     (1U <<31)
@@ -93,7 +92,6 @@ typedef IMG_UINT32 PHYS_HEAP_USAGE_FLAGS;
                               PHYS_HEAP_USAGE_FW_PREMAP_PT | \
                               PHYS_HEAP_USAGE_WRAP         | \
                               PHYS_HEAP_USAGE_DISPLAY      | \
-                              PHYS_HEAP_USAGE_GPU_PREMAP   | \
                               PHYS_HEAP_USAGE_DLM)
 
 #define FIRST_PHYSHEAP_MAPPED_TO_FW_MAIN_DEVMEM    PVRSRV_PHYS_HEAP_FW_CODE
