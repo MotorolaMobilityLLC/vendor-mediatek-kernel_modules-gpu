@@ -20,6 +20,7 @@
  */
 #include <linux/protected_memory_allocator.h>
 #include <mali_kbase.h>
+#include <mali_kbase_reg_track.h>
 #include "mali_kbase_csf.h"
 #include "mali_kbase_csf_mcu_shared_reg.h"
 
@@ -581,9 +582,7 @@ static int shared_mcu_csg_reg_init(struct kbase_device *kbdev,
 	int err, i;
 
 	INIT_LIST_HEAD(&csg_reg->link);
-
-	reg = kbase_alloc_free_region(&kbdev->csf.shared_reg_rbtree, 0, nr_csg_reg_pages,
-				      KBASE_REG_ZONE_MCU_SHARED);
+	reg = kbase_alloc_free_region(&kbdev->csf.mcu_shared_zone, 0, nr_csg_reg_pages);
 
 	if (!reg) {
 		dev_err(kbdev->dev, "%s: Failed to allocate a MCU shared region for %zu pages\n",
@@ -636,16 +635,16 @@ fail_userio_pages_map_fail:
 	while (i-- > 0) {
 		vpfn = CSG_REG_USERIO_VPFN(reg, i, nr_susp_pages);
 		kbase_mmu_teardown_pages(kbdev, &kbdev->csf.mcu_mmu, vpfn, shared_regs->dummy_phys,
-					 2, MCU_AS_NR);
+					 2, 2, MCU_AS_NR);
 	}
 
 	vpfn = CSG_REG_PMOD_BUF_VPFN(reg, nr_susp_pages);
 	kbase_mmu_teardown_pages(kbdev, &kbdev->csf.mcu_mmu, vpfn, shared_regs->dummy_phys,
-				 nr_susp_pages, MCU_AS_NR);
+				 nr_susp_pages, nr_susp_pages, MCU_AS_NR);
 fail_pmod_map_fail:
 	vpfn = CSG_REG_SUSP_BUF_VPFN(reg, nr_susp_pages);
 	kbase_mmu_teardown_pages(kbdev, &kbdev->csf.mcu_mmu, vpfn, shared_regs->dummy_phys,
-				 nr_susp_pages, MCU_AS_NR);
+				 nr_susp_pages, nr_susp_pages, MCU_AS_NR);
 fail_susp_map_fail:
 	mutex_lock(&kbdev->csf.reg_lock);
 	kbase_remove_va_region(kbdev, reg);
@@ -669,15 +668,15 @@ static void shared_mcu_csg_reg_term(struct kbase_device *kbdev,
 	for (i = 0; i < nr_csis; i++) {
 		vpfn = CSG_REG_USERIO_VPFN(reg, i, nr_susp_pages);
 		kbase_mmu_teardown_pages(kbdev, &kbdev->csf.mcu_mmu, vpfn, shared_regs->dummy_phys,
-					 2, MCU_AS_NR);
+					 2, 2, MCU_AS_NR);
 	}
 
 	vpfn = CSG_REG_PMOD_BUF_VPFN(reg, nr_susp_pages);
 	kbase_mmu_teardown_pages(kbdev, &kbdev->csf.mcu_mmu, vpfn, shared_regs->dummy_phys,
-				 nr_susp_pages, MCU_AS_NR);
+				 nr_susp_pages, nr_susp_pages, MCU_AS_NR);
 	vpfn = CSG_REG_SUSP_BUF_VPFN(reg, nr_susp_pages);
 	kbase_mmu_teardown_pages(kbdev, &kbdev->csf.mcu_mmu, vpfn, shared_regs->dummy_phys,
-				 nr_susp_pages, MCU_AS_NR);
+				 nr_susp_pages, nr_susp_pages, MCU_AS_NR);
 
 	mutex_lock(&kbdev->csf.reg_lock);
 	kbase_remove_va_region(kbdev, reg);

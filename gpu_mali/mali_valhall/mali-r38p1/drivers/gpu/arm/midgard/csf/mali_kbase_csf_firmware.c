@@ -25,6 +25,7 @@
 #include "mali_kbase_csf_trace_buffer.h"
 #include "mali_kbase_csf_timeout.h"
 #include "mali_kbase_mem.h"
+#include "mali_kbase_reg_track.h"
 #include "mali_kbase_mem_pool_group.h"
 #include "mali_kbase_reset_gpu.h"
 #include "mali_kbase_ctx_sched.h"
@@ -196,7 +197,7 @@ struct firmware_timeline_metadata {
 /* The shared interface area, used for communicating with firmware, is managed
  * like a virtual memory zone. Reserve the virtual space from that zone
  * corresponding to shared interface entry parsed from the firmware image.
- * The shared_reg_rbtree should have been initialized before calling this
+ * The MCU_SHARED_ZONE should have been initialized before calling this
  * function.
  */
 static int setup_shared_iface_static_region(struct kbase_device *kbdev)
@@ -209,8 +210,7 @@ static int setup_shared_iface_static_region(struct kbase_device *kbdev)
 	if (!interface)
 		return -EINVAL;
 
-	reg = kbase_alloc_free_region(&kbdev->csf.shared_reg_rbtree, 0,
-			interface->num_pages_aligned, KBASE_REG_ZONE_MCU_SHARED);
+	reg = kbase_alloc_free_region(&kbdev->csf.mcu_shared_zone, 0, interface->num_pages_aligned);
 	if (reg) {
 		mutex_lock(&kbdev->csf.reg_lock);
 		ret = kbase_add_va_region_rbtree(kbdev, reg,
@@ -2841,8 +2841,7 @@ int kbase_csf_firmware_mcu_shared_mapping_init(
 	if (!cpu_addr)
 		goto vmap_error;
 
-	va_reg = kbase_alloc_free_region(&kbdev->csf.shared_reg_rbtree, 0,
-			num_pages, KBASE_REG_ZONE_MCU_SHARED);
+	va_reg = kbase_alloc_free_region(&kbdev->csf.mcu_shared_zone, 0, num_pages);
 	if (!va_reg)
 		goto va_region_alloc_error;
 

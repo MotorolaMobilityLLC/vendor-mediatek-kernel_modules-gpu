@@ -2226,13 +2226,14 @@ static void kbase_mmu_update_and_free_parent_pgds(struct kbase_device *kbdev,
 /**
  * mmu_flush_invalidate_teardown_pages() - Perform flush operation after unmapping pages.
  *
- * @kbdev:       Pointer to kbase device.
- * @kctx:        Pointer to kbase context.
- * @as_nr:       Address space number, for GPU cache maintenance operations
- *               that happen outside a specific kbase context.
- * @phys:        Array of physical pages to flush.
- * @op_param:  Non-NULL pointer to struct containing information about the flush
- *             operation to perform.
+ * @kbdev:         Pointer to kbase device.
+ * @kctx:          Pointer to kbase context.
+ * @as_nr:         Address space number, for GPU cache maintenance operations
+ *                 that happen outside a specific kbase context.
+ * @phys:          Array of physical pages to flush.
+ * @phys_page_nr:  Number of physical pages to flush.
+ * @op_param:      Non-NULL pointer to struct containing information about the flush
+ *                 operation to perform.
  *
  * This function will do one of three things:
  * 1. Invalidate the MMU caches, followed by a partial GPU cache flush of the
@@ -2240,10 +2241,14 @@ static void kbase_mmu_update_and_free_parent_pgds(struct kbase_device *kbdev,
  * 2. Perform a full GPU cache flush through the GPU_CONTROL interface if feature is
  *    supported on GPU or,
  * 3. Perform a full GPU cache flush through the MMU_CONTROL interface.
+ *
+ * When performing a partial GPU cache flush, the number of physical
+ * pages does not have to be identical to the number of virtual pages on the MMU,
+ * to support a single physical address flush for an aliased page.
  */
 static void mmu_flush_invalidate_teardown_pages(struct kbase_device *kbdev,
 						struct kbase_context *kctx, int as_nr,
-						struct tagged_addr *phys,
+						struct tagged_addr *phys, size_t phys_page_nr,
 						struct kbase_mmu_hw_op_param *op_param)
 {
 
@@ -2257,74 +2262,15 @@ static void mmu_flush_invalidate_teardown_pages(struct kbase_device *kbdev,
 
 }
 
-/**
- * kbase_mmu_teardown_pages - Remove GPU virtual addresses from the MMU page table
- *
- * @kbdev:    Pointer to kbase device.
- * @mmut:     Pointer to GPU MMU page table.
- * @vpfn:     Start page frame number of the GPU virtual pages to unmap.
- * @phys:     Array of physical pages currently mapped to the virtual
- *            pages to unmap, or NULL. This is only used for GPU cache
- *            maintenance.
- * @nr:       Number of pages to unmap.
- * @as_nr:    Address space number, for GPU cache maintenance operations
- *            that happen outside a specific kbase context.
- *
- * We actually discard the ATE and free the page table pages if no valid entries
- * exist in PGD.
- *
- * IMPORTANT: This uses kbasep_js_runpool_release_ctx() when the context is
- * currently scheduled into the runpool, and so potentially uses a lot of locks.
- * These locks must be taken in the correct order with respect to others
- * already held by the caller. Refer to kbasep_js_runpool_release_ctx() for more
- * information.
- *
- * The @p phys pointer to physical pages is not necessary for unmapping virtual memory,
- * but it is used for fine-grained GPU cache maintenance. If @p phys is NULL,
- * GPU cache maintenance will be done as usual, that is invalidating the whole GPU caches
- * instead of specific physical address ranges.
- *
- * Return: 0 on success, otherwise an error code.
- */
-int kbase_mmu_teardown_pages(struct kbase_device *kbdev, struct kbase_mmu_table *mmut, u64 vpfn,
-			     struct tagged_addr *phys, size_t nr, int as_nr)
+static int kbase_mmu_teardown_pgd_pages(struct kbase_device *kbdev, struct kbase_mmu_table *mmut,
+					u64 vpfn, size_t nr, u64 *const dirty_pgds,
+					struct list_head *free_pgds_list,
+					enum kbase_mmu_op_type flush_op)
 {
-	u64 start_vpfn = vpfn;
-	size_t requested_nr = nr;
-	enum kbase_mmu_op_type flush_op = KBASE_MMU_OP_NONE;
-	struct kbase_mmu_mode const *mmu_mode;
-	struct kbase_mmu_hw_op_param op_param;
-	int err = -EFAULT;
-	u64 dirty_pgds = 0;
-	LIST_HEAD(free_pgds_list);
+	struct kbase_mmu_mode const *mmu_mode = kbdev->mmu_mode;
 
-	/* Calls to this function are inherently asynchronous, with respect to
-	 * MMU operations.
-	 */
-	const enum kbase_caller_mmu_sync_info mmu_sync_info = CALLER_MMU_ASYNC;
 
-	if (nr == 0) {
-		/* early out if nothing to do */
-		return 0;
-	}
-
-	/* MMU cache flush strategy depends on the number of pages to unmap. In both cases
-	 * the operation is invalidate but the granularity of cache maintenance may change
-	 * according to the situation.
-	 *
-	 * If GPU control command operations are present and the number of pages is "small",
-	 * then the optimal strategy is flushing on the physical address range of the pages
-	 * which are affected by the operation. That implies both the PGDs which are modified
-	 * or removed from the page table and the physical pages which are freed from memory.
-	 *
-	 * Otherwise, there's no alternative to invalidating the whole GPU cache.
-	 */
-	if (mmu_flush_cache_on_gpu_ctrl(kbdev) && phys && nr <= KBASE_PA_RANGE_THRESHOLD_NR_PAGES)
-		flush_op = KBASE_MMU_OP_FLUSH_PT;
-
-	mutex_lock(&mmut->mmu_lock);
-
-	mmu_mode = kbdev->mmu_mode;
+	lockdep_assert_held(&mmut->mmu_lock);
 
 	while (nr) {
 		unsigned int index = vpfn & 0x1FF;
@@ -2411,7 +2357,7 @@ int kbase_mmu_teardown_pages(struct kbase_device *kbdev, struct kbase_mmu_table 
 		}
 
 		if (pcount > 0)
-			dirty_pgds |= 1ULL << level;
+			*dirty_pgds |= 1ULL << level;
 
 		num_of_valid_entries = mmu_mode->get_num_valid_entries(page);
 		if (WARN_ON_ONCE(num_of_valid_entries < pcount))
@@ -2433,11 +2379,10 @@ int kbase_mmu_teardown_pages(struct kbase_device *kbdev, struct kbase_mmu_table 
 				pgd + (index * sizeof(u64)),
 				pcount * sizeof(u64), flush_op);
 
-			list_add(&p->lru, &free_pgds_list);
+			list_add(&p->lru, free_pgds_list);
 
 			kbase_mmu_update_and_free_parent_pgds(kbdev, mmut, pgds, vpfn, level,
-							      flush_op, &dirty_pgds,
-							      &free_pgds_list);
+							      flush_op, dirty_pgds, free_pgds_list);
 
 			vpfn += count;
 			nr -= count;
@@ -2454,26 +2399,83 @@ next:
 		vpfn += count;
 		nr -= count;
 	}
-	err = 0;
 out:
 	mutex_unlock(&mmut->mmu_lock);
+	return 0;
+}
+
+int kbase_mmu_teardown_pages(struct kbase_device *kbdev, struct kbase_mmu_table *mmut, u64 vpfn,
+			     struct tagged_addr *phys, size_t nr_phys_pages, size_t nr_virt_pages,
+			     int as_nr)
+{
+	u64 start_vpfn = vpfn;
+	enum kbase_mmu_op_type flush_op = KBASE_MMU_OP_NONE;
+	struct kbase_mmu_hw_op_param op_param;
+	int err = -EFAULT;
+	u64 dirty_pgds = 0;
+	LIST_HEAD(free_pgds_list);
+
+	/* Calls to this function are inherently asynchronous, with respect to
+	 * MMU operations.
+	 */
+	const enum kbase_caller_mmu_sync_info mmu_sync_info = CALLER_MMU_ASYNC;
+
+	/* This function performs two operations: MMU maintenance and flushing
+	 * the caches. To ensure internal consistency between the caches and the
+	 * MMU, it does not make sense to be able to flush only the physical pages
+	 * from the cache and keep the PTE, nor does it make sense to use this
+	 * function to remove a PTE and keep the physical pages in the cache.
+	 *
+	 * However, we have legitimate cases where we can try to tear down a mapping
+	 * with zero virtual and zero physical pages, so we must have the following
+	 * behaviour:
+	 *  - if both physical and virtual page counts are zero, return early
+	 *  - if either physical and virtual page counts are zero, return early
+	 *  - if there are fewer physical pages than virtual pages, return -EINVAL
+	 */
+	if (unlikely(nr_virt_pages == 0 || nr_phys_pages == 0))
+		return 0;
+
+	if (unlikely(nr_virt_pages < nr_phys_pages))
+		return -EINVAL;
+
+	/* MMU cache flush strategy depends on the number of pages to unmap. In both cases
+	 * the operation is invalidate but the granularity of cache maintenance may change
+	 * according to the situation.
+	 *
+	 * If GPU control command operations are present and the number of pages is "small",
+	 * then the optimal strategy is flushing on the physical address range of the pages
+	 * which are affected by the operation. That implies both the PGDs which are modified
+	 * or removed from the page table and the physical pages which are freed from memory.
+	 *
+	 * Otherwise, there's no alternative to invalidating the whole GPU cache.
+	 */
+	if (mmu_flush_cache_on_gpu_ctrl(kbdev) && phys &&
+	    nr_phys_pages <= KBASE_PA_RANGE_THRESHOLD_NR_PAGES)
+		flush_op = KBASE_MMU_OP_FLUSH_PT;
+
+	mutex_lock(&mmut->mmu_lock);
+
+	err = kbase_mmu_teardown_pgd_pages(kbdev, mmut, vpfn, nr_virt_pages, &dirty_pgds,
+					   &free_pgds_list, flush_op);
+
 	/* Set up MMU operation parameters. See above about MMU cache flush strategy. */
 	op_param = (struct kbase_mmu_hw_op_param){
 		.vpfn = start_vpfn,
-		.nr = requested_nr,
+		.nr = nr_virt_pages,
 		.mmu_sync_info = mmu_sync_info,
 		.kctx_id = mmut->kctx ? mmut->kctx->id : 0xFFFFFFFF,
 		.op = (flush_op == KBASE_MMU_OP_FLUSH_PT) ? KBASE_MMU_OP_FLUSH_PT :
 							    KBASE_MMU_OP_FLUSH_MEM,
 		.flush_skip_levels = pgd_level_to_skip_flush(dirty_pgds),
 	};
-	mmu_flush_invalidate_teardown_pages(kbdev, mmut->kctx, as_nr, phys, &op_param);
+	mmu_flush_invalidate_teardown_pages(kbdev, mmut->kctx, as_nr, phys, nr_phys_pages,
+					    &op_param);
 
 	kbase_mmu_free_pgds_list(kbdev, mmut, &free_pgds_list);
 
 	return err;
 }
-
 KBASE_EXPORT_TEST_API(kbase_mmu_teardown_pages);
 
 /**

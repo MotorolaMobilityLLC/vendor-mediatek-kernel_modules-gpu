@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2018-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -20,6 +20,7 @@
  */
 
 #include <mali_kbase.h>
+#include <mali_kbase_reg_track.h>
 #include <tl/mali_kbase_tracepoints.h>
 #include <mali_kbase_ctx_sched.h>
 #include "device/mali_kbase_device.h"
@@ -66,10 +67,6 @@ static int kbase_kcpu_map_import_prepare(
 {
 	struct kbase_context *const kctx = kcpu_queue->kctx;
 	struct kbase_va_region *reg;
-	struct kbase_mem_phy_alloc *alloc;
-	struct page **pages;
-	struct tagged_addr *pa;
-	long i;
 	int ret = 0;
 
 	lockdep_assert_held(&kcpu_queue->lock);
@@ -88,33 +85,39 @@ static int kbase_kcpu_map_import_prepare(
 	}
 
 	if (reg->gpu_alloc->type == KBASE_MEM_TYPE_IMPORTED_USER_BUF) {
-		/* Pin the physical pages backing the user buffer while
-		 * we are in the process context and holding the mmap lock.
-		 * The dma mapping & GPU mapping of the pages would be done
-		 * when the MAP_IMPORT operation is executed.
+		/* The only step done during the preparation of the MAP_IMPORT
+		 * command is pinning physical pages, if they're not already
+		 * pinned (which is a possibility). This can be done now while
+		 * the function is in the process context and holding the mmap lock.
+		 *
+		 * Successive steps like DMA mapping and GPU mapping of the pages
+		 * shall be done when the MAP_IMPORT operation is executed.
 		 *
 		 * Though the pages would be pinned, no reference is taken
 		 * on the physical pages tracking object. When the last
-		 * reference to the tracking object is dropped the pages
+		 * reference to the tracking object is dropped, the pages
 		 * would be unpinned if they weren't unpinned before.
-		 *
-		 * Region should be CPU cached: abort if it isn't.
 		 */
-		if (WARN_ON(!(reg->flags & KBASE_REG_CPU_CACHED))) {
+		switch (reg->gpu_alloc->imported.user_buf.state) {
+		case KBASE_USER_BUF_STATE_EMPTY: {
+			ret = kbase_user_buf_from_empty_to_pinned(kctx, reg);
+			if (ret)
+				goto out;
+			break;
+		}
+		case KBASE_USER_BUF_STATE_PINNED:
+		case KBASE_USER_BUF_STATE_DMA_MAPPED:
+		case KBASE_USER_BUF_STATE_GPU_MAPPED: {
+			/* Do nothing here. */
+			break;
+		}
+		default: {
+			WARN(1, "Imported user buffer in unexpected state %d\n",
+			     reg->gpu_alloc->imported.user_buf.state);
 			ret = -EINVAL;
 			goto out;
 		}
-
-		ret = kbase_jd_user_buf_pin_pages(kctx, reg);
-		if (ret)
-			goto out;
-
-		alloc = reg->gpu_alloc;
-		pa = kbase_get_gpu_phy_pages(reg);
-		pages = alloc->imported.user_buf.pages;
-
-		for (i = 0; i < alloc->nents; i++)
-			pa[i] = as_tagged(page_to_phys(pages[i]));
+		}
 	}
 
 	current_command->type = BASE_KCPU_COMMAND_TYPE_MAP_IMPORT;
@@ -705,12 +708,11 @@ static int kbase_csf_queue_group_suspend_prepare(
 		struct tagged_addr *page_array;
 		u64 start, end, i;
 
-		if (((reg->flags & KBASE_REG_ZONE_MASK) != KBASE_REG_ZONE_SAME_VA) ||
+		if ((kbase_bits_to_zone(reg->flags) != SAME_VA_ZONE) ||
 		    (kbase_reg_current_backed_size(reg) < nr_pages) ||
 		    !(reg->flags & KBASE_REG_CPU_WR) ||
 		    (reg->gpu_alloc->type != KBASE_MEM_TYPE_NATIVE) ||
-		    (kbase_is_region_shrinkable(reg)) ||
-		    (kbase_va_region_is_no_user_free(kctx, reg))) {
+		    (kbase_is_region_shrinkable(reg)) || (kbase_va_region_is_no_user_free(reg))) {
 			ret = -EINVAL;
 			goto out_clean_pages;
 		}
@@ -2336,7 +2338,7 @@ static void kcpu_queue_process(struct kbase_kcpu_command_queue *queue,
 
 				kbase_gpu_vm_lock_with_pmode_sync(queue->kctx);
 				meta = kbase_sticky_resource_acquire(queue->kctx,
-								     cmd->info.import.gpu_va);
+								     cmd->info.import.gpu_va, NULL);
 				kbase_gpu_vm_unlock_with_pmode_sync(queue->kctx);
 
 				if (meta == NULL) {

@@ -34,6 +34,7 @@
 #include <mmu/mali_kbase_mmu_hw.h>
 #include <backend/gpu/mali_kbase_instr_defs.h>
 #include <mali_kbase_pm.h>
+#include <mali_kbase_reg_track.h>
 #include <mali_kbase_gpuprops_types.h>
 #include <mali_kbase_hwcnt_watchdog_if.h>
 
@@ -126,15 +127,6 @@
  *                                   as a logarithm
  */
 #define KBASE_LOCK_REGION_MAX_SIZE_LOG2 (48) /*  256 TB */
-
-/**
- * KBASE_REG_ZONE_MAX - Maximum number of GPU memory region zones
- */
-#if MALI_USE_CSF
-#define KBASE_REG_ZONE_MAX 6ul
-#else
-#define KBASE_REG_ZONE_MAX 4ul
-#endif
 
 #include "mali_kbase_hwaccess_defs.h"
 
@@ -280,21 +272,6 @@ struct kbase_mmu_table {
 	phys_addr_t pgd;
 	u8 group_id;
 	struct kbase_context *kctx;
-};
-
-/**
- * struct kbase_reg_zone - Information about GPU memory region zones
- * @base_pfn: Page Frame Number in GPU virtual address space for the start of
- *            the Zone
- * @va_size_pages: Size of the Zone in pages
- *
- * Track information about a zone KBASE_REG_ZONE() and related macros.
- * In future, this could also store the &rb_root that are currently in
- * &kbase_context and &kbase_csf_device.
- */
-struct kbase_reg_zone {
-	u64 base_pfn;
-	u64 va_size_pages;
 };
 
 #if MALI_USE_CSF
@@ -487,7 +464,12 @@ struct kbase_mem_pool {
 	struct shrinker     reclaim;
 
 	struct kbase_mem_pool *next_pool;
-
+#if MALI_USE_CSF
+	struct list_head link_to_ctrl;
+	atomic_t deferred_size;
+	struct list_head deferred_pages_list;
+	atomic_t defer_seq;
+#endif
 	bool dying;
 	bool dont_reclaim;
 };
@@ -979,6 +961,7 @@ struct kbase_process {
  *                          memory handler.
  * @mmu_as_inactive_wait_time_ms: Maximum waiting time in ms for the completion of
  *                          a MMU operation
+ * @va_region_slab:         kmem_cache (slab) for allocated kbase_va_region structures.
  */
 struct kbase_device {
 	u32 hw_quirks_sc;
@@ -1251,6 +1234,7 @@ struct kbase_device {
 	struct notifier_block oom_notifier_block;
 
 	u32 mmu_as_inactive_wait_time_ms;
+	struct kmem_cache *va_region_slab;
 
 #if defined(CONFIG_MALI_MTK_GPU_BM_JM)
 	struct job_status_qos job_status_addr;
@@ -1537,22 +1521,6 @@ struct kbase_sub_alloc {
  *                        for the allocations >= 2 MB in size.
  * @reg_lock:             Lock used for GPU virtual address space management operations,
  *                        like adding/freeing a memory region in the address space.
- *                        Can be converted to a rwlock ?.
- * @reg_rbtree_same:      RB tree of the memory regions allocated from the SAME_VA
- *                        zone of the GPU virtual address space. Used for allocations
- *                        having the same value for GPU & CPU virtual address.
- * @reg_rbtree_custom:    RB tree of the memory regions allocated from the CUSTOM_VA
- *                        zone of the GPU virtual address space.
- * @reg_rbtree_exec:      RB tree of the memory regions allocated from the EXEC_VA
- *                        zone of the GPU virtual address space. Used for GPU-executable
- *                        allocations which don't need the SAME_VA property.
- * @reg_rbtree_exec_fixed: RB tree of the memory regions allocated from the
- *                         EXEC_FIXED_VA zone of the GPU virtual address space. Used for
- *                        GPU-executable allocations with FIXED/FIXABLE GPU virtual
- *                        addresses.
- * @reg_rbtree_fixed:     RB tree of the memory regions allocated from the FIXED_VA zone
- *                        of the GPU virtual address space. Used for allocations with
- *                        FIXED/FIXABLE GPU virtual addresses.
  * @num_fixable_allocs:   A count for the number of memory allocations with the
  *                        BASE_MEM_FIXABLE property.
  * @num_fixed_allocs:     A count for the number of memory allocations with the
@@ -1607,12 +1575,6 @@ struct kbase_sub_alloc {
  *                        device to powered on so as to dump the CPU/GPU timestamps.
  * @waiting_soft_jobs_lock: Lock to protect @waiting_soft_jobs list from concurrent
  *                        accesses.
- * @dma_fence:            Object containing list head for the list of dma-buf fence
- *                        waiting atoms and the waitqueue to process the work item
- *                        queued for the atoms blocked on the signaling of dma-buf
- *                        fences.
- * @dma_fence.waiting_resource: list head for the list of dma-buf fence
- * @dma_fence.wq:         waitqueue to process the work item queued
  * @as_nr:                id of the address space being used for the scheduled in
  *                        context. This is effectively part of the Run Pool, because
  *                        it only has a valid setting (!=KBASEP_AS_NR_INVALID) whilst
@@ -1674,7 +1636,6 @@ struct kbase_sub_alloc {
  *                        context, across all slots.
  * @slots_pullable:       Bitmask of slots, indicating the slots for which the
  *                        context has pullable atoms in the runnable tree.
- * @work:                 Work structure used for deferred ASID assignment.
  * @completed_jobs:       List containing completed atoms for which base_jd_event is
  *                        to be posted.
  * @work_count:           Number of work items, corresponding to atoms, currently
@@ -1800,17 +1761,11 @@ struct kbase_context {
 	struct list_head        mem_partials;
 
 	struct mutex            reg_lock;
-
-	struct rb_root reg_rbtree_same;
-	struct rb_root reg_rbtree_custom;
-	struct rb_root reg_rbtree_exec;
 #if MALI_USE_CSF
-	struct rb_root reg_rbtree_exec_fixed;
-	struct rb_root reg_rbtree_fixed;
 	atomic64_t num_fixable_allocs;
 	atomic64_t num_fixed_allocs;
 #endif
-	struct kbase_reg_zone reg_zone[KBASE_REG_ZONE_MAX];
+	struct kbase_reg_zone reg_zone[CONTEXT_ZONE_MAX];
 
 #if MALI_USE_CSF
 	struct kbase_csf_context csf;

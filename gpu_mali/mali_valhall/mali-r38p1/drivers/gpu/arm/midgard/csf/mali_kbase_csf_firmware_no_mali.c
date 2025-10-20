@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2018-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1501,8 +1501,7 @@ int kbase_csf_firmware_mcu_shared_mapping_init(
 	if (!cpu_addr)
 		goto vmap_error;
 
-	va_reg = kbase_alloc_free_region(&kbdev->csf.shared_reg_rbtree, 0,
-			num_pages, KBASE_REG_ZONE_MCU_SHARED);
+	va_reg = kbase_alloc_free_region(&kbdev->csf.mcu_shared_zone, 0, num_pages);
 	if (!va_reg)
 		goto va_region_alloc_error;
 

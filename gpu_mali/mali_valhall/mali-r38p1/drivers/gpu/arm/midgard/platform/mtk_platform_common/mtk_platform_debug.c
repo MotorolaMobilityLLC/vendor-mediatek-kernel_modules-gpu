@@ -36,6 +36,7 @@ static DEFINE_MUTEX(fence_debug_lock);
 static int mem_dump_mode = MTK_DEBUG_MEM_DUMP_DISABLE;
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
+/*
 static int mtk_debug_mem_dump_zone_open(struct mtk_debug_mem_view_dump_data *mem_dump_data,
 			struct rb_root *rbtree)
 {
@@ -64,13 +65,13 @@ static int mtk_debug_mem_dump_zone_open(struct mtk_debug_mem_view_dump_data *mem
 		}
 
 		if (reg->gpu_alloc == NULL)
-			/* Empty region - ignore */
+			/ * Empty region - ignore * /
 			continue;
 
 		if (reg->flags & KBASE_REG_PROTECTED) {
-			/* CPU access to protected memory is forbidden - so
+			/ * CPU access to protected memory is forbidden - so
 			 * skip this GPU virtual region.
-			 */
+			 * /
 			continue;
 		}
 
@@ -152,14 +153,14 @@ static int mtk_debug_mem_dump_init_mem_list(struct mtk_debug_mem_view_dump_data 
 		goto out;
 	}
 
-	/* setup packet header */
+	/ * setup packet header * /
 	mem_dump_data->packet_header.tag = MTK_DEBUG_MEM_DUMP_HEADER;
 	mem_dump_data->packet_header.tgid = (u32)kctx->tgid;
 	mem_dump_data->packet_header.id = (u32)kctx->id;
 	mem_dump_data->packet_header.nr_nodes = (u32)mem_dump_data->node_count;
 	mem_dump_data->packet_header.nr_pages = (u32)mem_dump_data->page_count;
 
-	/* calculate packet header size, node_idx < 0 means output starts from packet header */
+	/ * calculate packet header size, node_idx < 0 means output starts from packet header * /
 	mem_dump_data->node_idx = -(((mem_dump_data->node_count * 8 + 32) + PAGE_SIZE - 1) >> PAGE_SHIFT);
 
 	mem_dump_data->kctx_prev = kctx;
@@ -192,17 +193,17 @@ static void *mtk_debug_mem_dump_next_kctx(struct mtk_debug_mem_view_dump_data *m
 	struct kbase_context *kctx;
 	int match = (kctx_prev == NULL);
 
-	/* stop dump previous kctx */
+	/ * stop dump previous kctx * /
 	mtk_debug_mem_dump_free_mem_list(mem_dump_data);
 
-	/*
+	/ *
 	 * Using kctx_prev to trace previous dumped kctx. Althought kctx_list maybe changed,
 	 * but we still don't want to hold the list_lock too long.
-	 */
+	 * /
 	mutex_lock(&kbdev->kctx_list_lock);
 	list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
 		if (match) {
-			/* init memory list for next kctx */
+			/ * init memory list for next kctx * /
 			mtk_debug_mem_dump_init_mem_list(mem_dump_data, kctx);
 			if (mem_dump_data->kctx) {
 				mutex_unlock(&kbdev->kctx_list_lock);
@@ -258,12 +259,12 @@ static void *mtk_debug_mem_dump_next(struct seq_file *m, void *v, loff_t *pos)
 	} else {
 		mem_view_node = &mem_dump_data->mem_view_nodes[mem_dump_data->node_idx];
 
-		/* update and check page_offset */
+		/ * update and check page_offset * /
 		if (++mem_dump_data->page_offset >= mem_view_node->nr_pages) {
-			/* move to next node, if next node is the last node then move to next kctx */
+			/ * move to next node, if next node is the last node then move to next kctx * /
 			if (++mem_dump_data->node_idx >= mem_dump_data->node_count)
 				return mtk_debug_mem_dump_next_kctx(mem_dump_data);
-			/* reset page_offset */
+			/ * reset page_offset * /
 			mem_dump_data->page_offset = 0;
 		}
 	}
@@ -280,11 +281,11 @@ static int mtk_debug_mem_dump_show(struct seq_file *m, void *v)
 		return 0;
 
 	if (mem_dump_data->node_idx < 0) {
-		/* dump packet header */
+		/ * dump packet header * /
 		buf = ((char *)&mem_dump_data->packet_header) + (mem_dump_data->page_offset << PAGE_SHIFT);
 		seq_write(m, buf, PAGE_SIZE);
 	} else if (mem_dump_data->node_idx < mem_dump_data->node_count) {
-		/* dump mem_view data */
+		/ * dump mem_view data * /
 		struct mtk_debug_mem_view_node *mem_view_node;
 		unsigned long long gpu_addr;
 		struct page *page;
@@ -302,7 +303,7 @@ static int mtk_debug_mem_dump_show(struct seq_file *m, void *v)
 				seq_write(m, cpu_addr, PAGE_SIZE);
 				vunmap(cpu_addr);
 			} else {
-				/* packet_header already dumped, reuse it for unmapped page */
+				/ * packet_header already dumped, reuse it for unmapped page * /
 				memset(&mem_dump_data->packet_header, 0, PAGE_SIZE);
 				((u64 *)&mem_dump_data->packet_header)[0] = MTK_DEBUG_MEM_DUMP_HEADER;
 				((u64 *)&mem_dump_data->packet_header)[1] = MTK_DEBUG_MEM_DUMP_FAIL;
@@ -321,6 +322,7 @@ static const struct seq_operations full_mem_ops = {
 	.stop	= mtk_debug_mem_dump_stop,
 	.show	= mtk_debug_mem_dump_show,
 };
+
 
 static int mtk_debug_mem_dump_open(struct inode *in, struct file *file)
 {
@@ -421,6 +423,7 @@ static ssize_t mtk_debug_mem_dump_mode_write(struct file *file, const char __use
 
 	return count;
 }
+*/
 
 #if IS_ENABLED(CONFIG_MALI_CSF_SUPPORT) && IS_ENABLED(CONFIG_MALI_MTK_FENCE_DEBUG)
 /**
@@ -761,6 +764,7 @@ static int mtk_debug_cpu_queues_open(struct inode *in, struct file *file)
 	                   in->i_private);
 }
 
+/*
 static const struct file_operations mtk_debug_mem_dump_mode_fops = {
 	.open    = mtk_debug_mem_dump_mode_open,
 	.release = mtk_debug_mem_dump_mode_release,
@@ -768,6 +772,7 @@ static const struct file_operations mtk_debug_mem_dump_mode_fops = {
 	.write   = mtk_debug_mem_dump_mode_write,
 	.llseek  = seq_lseek
 };
+*/
 
 static const struct file_operations mtk_debug_kcpu_queues_fops = {
 	.open    = mtk_debug_kcpu_queues_open,
@@ -788,6 +793,7 @@ int mtk_debug_csf_debugfs_init(struct kbase_device *kbdev)
 	if (IS_ERR_OR_NULL(kbdev))
 		return -1;
 
+	/*
 	debugfs_create_file("mem_dump", 0444,
 			kbdev->mali_debugfs_directory, kbdev,
 			&mtk_debug_mem_dump_fops);
@@ -800,6 +806,7 @@ int mtk_debug_csf_debugfs_init(struct kbase_device *kbdev)
 	debugfs_create_file("cpu_queues", 0444,
 			kbdev->debugfs_ctx_directory, kbdev,
 			&mtk_debug_cpu_queues_fops);
+	*/
 
 	return 0;
 }

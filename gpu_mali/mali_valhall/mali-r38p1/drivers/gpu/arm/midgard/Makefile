@@ -330,6 +330,7 @@ mali_kbase-y += \
     mali_kbase_cache_policy.o \
     mali_kbase_ccswe.o \
     mali_kbase_mem.o \
+    mali_kbase_reg_track.o \
     mali_kbase_mem_pool_group.o \
     mali_kbase_native_mgm.o \
     mali_kbase_ctx_sched.o \

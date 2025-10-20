@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2017, 2019-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -29,7 +29,6 @@
 #include <linux/mm.h>
 #include <mali_malisw.h>
 #include <backend/gpu/mali_kbase_backend_config.h>
-#include <linux/rbtree.h>
 
 /* Forward declaration of struct kbase_device */
 struct kbase_device;

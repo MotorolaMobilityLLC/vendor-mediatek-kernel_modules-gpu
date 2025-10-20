@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -144,14 +144,9 @@ void kbase_csf_heap_context_allocator_term(
 
 	if (ctx_alloc->region) {
 		kbase_gpu_vm_lock(kctx);
-		/*
-		 * We can't enforce (nor check) the no_user_free refcount
-		 * to be 0 here as other code regions can take such a reference.
-		 * Anyway, this isn't an issue as the region will eventually
-		 * be freed by the region tracker if its refcount didn't drop
-		 * to 0.
-		 */
-		kbase_va_region_no_user_free_put(kctx, ctx_alloc->region);
+		WARN_ON(!kbase_va_region_is_no_user_free(ctx_alloc->region));
+
+		kbase_va_region_no_user_free_dec(ctx_alloc->region);
 		kbase_mem_free_region(kctx, ctx_alloc->region);
 		kbase_gpu_vm_unlock(kctx);
 	}

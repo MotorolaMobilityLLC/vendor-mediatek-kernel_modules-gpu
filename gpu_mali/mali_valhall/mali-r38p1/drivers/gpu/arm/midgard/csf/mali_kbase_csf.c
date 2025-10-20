@@ -418,7 +418,7 @@ static void release_queue(struct kbase_queue *queue)
 		 * would free up the GPU queue memory.
 		 */
 		kbase_gpu_vm_lock(queue->kctx);
-		kbase_va_region_no_user_free_put(queue->kctx, queue->queue_reg);
+		kbase_va_region_no_user_free_dec(queue->queue_reg);
 		kbase_gpu_vm_unlock(queue->kctx);
 
 		kfree(queue);
@@ -524,7 +524,10 @@ static int csf_queue_register_internal(struct kbase_context *kctx,
 
 	queue->kctx = kctx;
 	queue->base_addr = queue_addr;
-	queue->queue_reg = kbase_va_region_no_user_free_get(kctx, region);
+
+	queue->queue_reg = region;
+	kbase_va_region_no_user_free_inc(region);
+
 	queue->size = (queue_size << PAGE_SHIFT);
 	queue->csi_index = KBASEP_IF_NR_INVALID;
 	queue->enabled = false;
@@ -816,9 +819,9 @@ static int pending_submission_worker_kthread(void* data)
 				struct kbase_queue_group *group = get_bound_queue_group(queue);
 
 				if (!group || queue->bind_state != KBASE_CSF_QUEUE_BOUND)
-					dev_vdbg(kbdev->dev, "queue is not bound to a group");
+					dev_err(kbdev->dev, "queue is not bound to a group");
 				else if (kbase_csf_scheduler_queue_start(queue))
-					dev_vdbg(kbdev->dev, "Failed to start queue");
+					dev_err(kbdev->dev, "Failed to start queue");
 			}
 		}
 
@@ -1206,8 +1209,8 @@ static int create_normal_suspend_buffer(struct kbase_context *const kctx,
 		kfree(s_buf->phy);
 		return err;
 	}
-	return 0;
 
+	return 0;
 }
 
 /**
@@ -1345,7 +1348,6 @@ static int create_queue_group(struct kbase_context *const kctx,
 			group->cs_unrecoverable = false;
 			group->reevaluate_idle_status = false;
 			group->csg_reg = NULL;
-
 			group->group_uid = generate_group_uid();
 			create->out.group_uid = group->group_uid;
 
@@ -3105,7 +3107,10 @@ static inline void check_protm_enter_req_complete(struct kbase_device *kbdev,
 	    (glb_ack & GLB_REQ_PROTM_ENTER_MASK))
 		return;
 
-	dev_vdbg(kbdev->dev, "Protected mode entry interrupt received");
+	kbase_csf_scheduler_append_protm_flag(kbdev, CSF_SCHED_PROTM_EVENT_ENTER_FW_ACK);
+	dev_vdbg(kbdev->dev, "Protected mode entry interrupt received, event_seq: %d",
+		GET_PROTM_EVENT_ID_SEQ(
+			atomic_read(&kbdev->csf.scheduler.pages_defer_ctrl.protm_event_id)));
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 	mtk_logbuffer_print(&kbdev->logbuf_regular,
@@ -3159,6 +3164,7 @@ static inline void process_protm_exit(struct kbase_device *kbdev, u32 glb_ack)
 
 	if (!WARN_ON(!kbdev->protected_mode)) {
 		kbdev->protected_mode = false;
+		kbase_csf_scheduler_complete_protm_event(kbdev);
 		kbase_ipa_control_protm_exited(kbdev);
 		kbase_hwcnt_backend_csf_protm_exited(&kbdev->hwcnt_gpu_iface);
 	}

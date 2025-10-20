@@ -774,6 +774,8 @@ void kbasep_js_kctx_term(struct kbase_context *kctx)
 		}
 		break;
 	}
+
+	kbase_ctx_sched_remove_ctx(kctx);
 }
 
 /*

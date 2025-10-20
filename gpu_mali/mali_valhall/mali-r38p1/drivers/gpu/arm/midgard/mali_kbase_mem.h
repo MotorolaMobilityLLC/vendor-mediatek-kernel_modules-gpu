@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -37,6 +37,8 @@
 #include "mali_kbase_defs.h"
 /* Required for kbase_mem_evictable_unmake */
 #include "mali_kbase_mem_linux.h"
+#include "mali_kbase_reg_track.h"
+#include "mali_kbase_refcount_defs.h"
 
 static inline void kbase_process_page_usage_inc(struct kbase_context *kctx,
 		int pages);
@@ -60,6 +62,119 @@ static inline void kbase_process_page_usage_inc(struct kbase_context *kctx,
 #define KBASEP_TMEM_GROWABLE_BLOCKSIZE_PAGES_HW_ISSUE_8316 (1u << KBASEP_TMEM_GROWABLE_BLOCKSIZE_PAGES_LOG2_HW_ISSUE_8316)
 #define KBASEP_TMEM_GROWABLE_BLOCKSIZE_PAGES_HW_ISSUE_9630 (1u << KBASEP_TMEM_GROWABLE_BLOCKSIZE_PAGES_LOG2_HW_ISSUE_9630)
 
+/* Free region */
+#define KBASE_REG_FREE (1ul << 0)
+/* CPU write access */
+#define KBASE_REG_CPU_WR (1ul << 1)
+/* GPU write access */
+#define KBASE_REG_GPU_WR (1ul << 2)
+/* No eXecute flag */
+#define KBASE_REG_GPU_NX (1ul << 3)
+/* Is CPU cached? */
+#define KBASE_REG_CPU_CACHED (1ul << 4)
+/* Is GPU cached?
+ * Some components within the GPU might only be able to access memory that is
+ * GPU cacheable. Refer to the specific GPU implementation for more details.
+ */
+#define KBASE_REG_GPU_CACHED (1ul << 5)
+
+#define KBASE_REG_GROWABLE (1ul << 6)
+/* Can grow on pf? */
+#define KBASE_REG_PF_GROW (1ul << 7)
+
+/* Allocation doesn't straddle the 4GB boundary in GPU virtual space */
+#define KBASE_REG_GPU_VA_SAME_4GB_PAGE (1ul << 8)
+
+/* inner shareable coherency */
+#define KBASE_REG_SHARE_IN (1ul << 9)
+/* inner & outer shareable coherency */
+#define KBASE_REG_SHARE_BOTH (1ul << 10)
+
+/* Bits 11-13 (inclusive) are reserved for indicating the zone. */
+
+/* GPU read access */
+#define KBASE_REG_GPU_RD (1ul << 14)
+/* CPU read access */
+#define KBASE_REG_CPU_RD (1ul << 15)
+
+/* Index of chosen MEMATTR for this region (0..7) */
+#define KBASE_REG_MEMATTR_MASK (7ul << 16)
+#define KBASE_REG_MEMATTR_INDEX(x) (((x)&7) << 16)
+#define KBASE_REG_MEMATTR_VALUE(x) (((x)&KBASE_REG_MEMATTR_MASK) >> 16)
+
+#define KBASE_REG_PROTECTED (1ul << 19)
+
+/* Region belongs to a shrinker.
+ *
+ * This can either mean that it is part of the JIT/Ephemeral or tiler heap
+ * shrinker paths. Should be removed only after making sure that there are
+ * no references remaining to it in these paths, as it may cause the physical
+ * backing of the region to disappear during use.
+ */
+#define KBASE_REG_DONT_NEED (1ul << 20)
+
+/* Imported buffer is padded? */
+#define KBASE_REG_IMPORT_PAD (1ul << 21)
+
+#if MALI_USE_CSF
+/* CSF event memory */
+#define KBASE_REG_CSF_EVENT (1ul << 22)
+/* Bit 23 is reserved.
+ *
+ * Do not remove, use the next unreserved bit for new flags
+ */
+#define KBASE_REG_RESERVED_BIT_23 (1ul << 23)
+#else
+/* Bit 22 is reserved.
+ *
+ * Do not remove, use the next unreserved bit for new flags
+ */
+#define KBASE_REG_RESERVED_BIT_22 (1ul << 22)
+/* The top of the initial commit is aligned to extension pages.
+ * Extent must be a power of 2
+ */
+#define KBASE_REG_TILER_ALIGN_TOP (1ul << 23)
+#endif /* MALI_USE_CSF */
+
+/* Bit 24 is currently unused and is available for use for a new flag */
+
+/* Memory has permanent kernel side mapping */
+#define KBASE_REG_PERMANENT_KERNEL_MAPPING (1ul << 25)
+
+/* GPU VA region has been freed by the userspace, but still remains allocated
+ * due to the reference held by CPU mappings created on the GPU VA region.
+ *
+ * A region with this flag set has had kbase_gpu_munmap() called on it, but can
+ * still be looked-up in the region tracker as a non-free region. Hence must
+ * not create or update any more GPU mappings on such regions because they will
+ * not be unmapped when the region is finally destroyed.
+ *
+ * Since such regions are still present in the region tracker, new allocations
+ * attempted with BASE_MEM_SAME_VA might fail if their address intersects with
+ * a region with this flag set.
+ *
+ * In addition, this flag indicates the gpu_alloc member might no longer valid
+ * e.g. in infinite cache simulation.
+ */
+#define KBASE_REG_VA_FREED (1ul << 26)
+
+/* If set, the heap info address points to a u32 holding the used size in bytes;
+ * otherwise it points to a u64 holding the lowest address of unused memory.
+ */
+#define KBASE_REG_HEAP_INFO_IS_SIZE (1ul << 27)
+
+/* Allocation is actively used for JIT memory */
+#define KBASE_REG_ACTIVE_JIT_ALLOC (1ul << 28)
+
+#if MALI_USE_CSF
+/* This flag only applies to allocations in the EXEC_FIXED_VA and FIXED_VA
+ * memory zones, and it determines whether they were created with a fixed
+ * GPU VA address requested by the user.
+ */
+#define KBASE_REG_FIXED_ADDRESS (1ul << 29)
+#else
+#define KBASE_REG_RESERVED_BIT_29 (1ul << 29)
+#endif
 /*
  * A CPU mapping
  */
@@ -93,6 +208,21 @@ struct kbase_aliased {
 #define KBASE_MEM_PHY_ALLOC_ACCESSED_CACHED  (1u << 0)
 #define KBASE_MEM_PHY_ALLOC_LARGE            (1u << 1)
 
+/* enum kbase_user_buf_state - State of a USER_BUF handle.
+ * @KBASE_USER_BUF_STATE_EMPTY: Empty handle with no resources.
+ * @KBASE_USER_BUF_STATE_PINNED: Physical pages have been pinned.
+ * @KBASE_USER_BUF_STATE_DMA_MAPPED: DMA addresses for cache maintenance
+ *                                   operations have been mapped.
+ * @KBASE_USER_BUF_STATE_GPU_MAPPED: Mapped on GPU address space.
+ */
+enum kbase_user_buf_state {
+	KBASE_USER_BUF_STATE_EMPTY,
+	KBASE_USER_BUF_STATE_PINNED,
+	KBASE_USER_BUF_STATE_DMA_MAPPED,
+	KBASE_USER_BUF_STATE_GPU_MAPPED,
+	KBASE_USER_BUF_STATE_COUNT = 4
+};
+
 /* struct kbase_mem_phy_alloc - Physical pages tracking object.
  *
  * Set up to track N pages.
@@ -112,7 +242,7 @@ struct kbase_aliased {
  *                   to the physical pages to prevent flag changes or shrink
  *                   while maps are still held.
  * @nents: 0..N
- * @pages: N elements, only 0..nents are valid
+ * @pages: N elements, only 0..(nents - 1) are valid
  * @mappings: List of CPU mappings of this physical memory allocation.
  * @evict_node: Node used to store this allocation on the eviction list
  * @evicted: Physical backing size when the pages where evicted
@@ -124,6 +254,8 @@ struct kbase_aliased {
  *                 kbase_phy_alloc_mapping_put() pair should be used
  *                 around access to the kernel-side CPU mapping so that
  *                 mapping doesn't disappear whilst it is being accessed.
+ * @delegate_hook: List head to hook onto kbdev deferral control for
+ *                 deferred releases of certain imported buffer types.
  * @properties: Bitmask of properties, e.g. KBASE_MEM_PHY_ALLOC_LARGE.
  * @group_id: A memory group ID to be passed to a platform-specific
  *            memory group manager, if present.
@@ -142,6 +274,7 @@ struct kbase_mem_phy_alloc {
 	struct kbase_va_region *reg;
 	enum kbase_memory_type type;
 	struct kbase_vmap_struct *permanent_map;
+	struct list_head delegate_hook;
 	u8 properties;
 	u8 group_id;
 
@@ -171,25 +304,17 @@ struct kbase_mem_phy_alloc {
 			unsigned long size;
 			unsigned long nr_pages;
 			struct page **pages;
-			/* top bit (1<<31) of current_mapping_usage_count
-			 * specifies that this import was pinned on import
-			 * See PINNED_ON_IMPORT
-			 */
 			u32 current_mapping_usage_count;
 			struct mm_struct *mm;
 			dma_addr_t *dma_addrs;
+#if MALI_USE_CSF
+			struct kbase_device *kbdev;
+#endif
+			enum kbase_user_buf_state state;
 		} user_buf;
 	} imported;
 };
 
-/* The top bit of kbase_alloc_import_user_buf::current_mapping_usage_count is
- * used to signify that a buffer was pinned when it was imported. Since the
- * reference count is limited by the number of atoms that can be submitted at
- * once there should be no danger of overflowing into this bit.
- * Stealing the top bit also has the benefit that
- * current_mapping_usage_count != 0 if and only if the buffer is mapped.
- */
-#define PINNED_ON_IMPORT	(1<<31)
 
 /**
  * enum kbase_jit_report_flags - Flags for just-in-time memory allocation
@@ -266,6 +391,11 @@ int kbase_mem_init(struct kbase_device *kbdev);
 void kbase_mem_halt(struct kbase_device *kbdev);
 void kbase_mem_term(struct kbase_device *kbdev);
 
+static inline unsigned int kbase_mem_phy_alloc_ref_read(struct kbase_mem_phy_alloc *alloc)
+{
+	return kref_read(&alloc->kref);
+}
+
 static inline struct kbase_mem_phy_alloc *kbase_mem_phy_alloc_get(struct kbase_mem_phy_alloc *alloc)
 {
 	kref_get(&alloc->kref);
@@ -303,8 +433,8 @@ static inline struct kbase_mem_phy_alloc *kbase_mem_phy_alloc_put(struct kbase_m
  * @jit_usage_id: The last just-in-time memory usage ID for this region.
  * @jit_bin_id:   The just-in-time memory bin this region came from.
  * @va_refcnt:    Number of users of this region. Protected by reg_lock.
- * @no_user_free_refcnt:    Number of users that want to prevent the region from
- *                          being freed by userspace.
+ * @no_user_free_count:    Number of contexts that want to prevent the region
+ *                         from being freed by userspace.
  * @heap_info_gpu_addr: Pointer to an object in GPU memory defining an end of
  *                      an allocated region
  *                      The object can be one of:
@@ -332,204 +462,6 @@ struct kbase_va_region {
 	size_t nr_pages;
 	size_t initial_commit;
 	size_t threshold_pages;
-
-/* Free region */
-#define KBASE_REG_FREE              (1ul << 0)
-/* CPU write access */
-#define KBASE_REG_CPU_WR            (1ul << 1)
-/* GPU write access */
-#define KBASE_REG_GPU_WR            (1ul << 2)
-/* No eXecute flag */
-#define KBASE_REG_GPU_NX            (1ul << 3)
-/* Is CPU cached? */
-#define KBASE_REG_CPU_CACHED        (1ul << 4)
-/* Is GPU cached?
- * Some components within the GPU might only be able to access memory that is
- * GPU cacheable. Refer to the specific GPU implementation for more details.
- */
-#define KBASE_REG_GPU_CACHED        (1ul << 5)
-
-#define KBASE_REG_GROWABLE          (1ul << 6)
-/* Can grow on pf? */
-#define KBASE_REG_PF_GROW           (1ul << 7)
-
-/* Allocation doesn't straddle the 4GB boundary in GPU virtual space */
-#define KBASE_REG_GPU_VA_SAME_4GB_PAGE (1ul << 8)
-
-/* inner shareable coherency */
-#define KBASE_REG_SHARE_IN          (1ul << 9)
-/* inner & outer shareable coherency */
-#define KBASE_REG_SHARE_BOTH        (1ul << 10)
-
-#if MALI_USE_CSF
-/* Space for 8 different zones */
-#define KBASE_REG_ZONE_BITS 3
-#else
-/* Space for 4 different zones */
-#define KBASE_REG_ZONE_BITS 2
-#endif
-
-#define KBASE_REG_ZONE_MASK (((1 << KBASE_REG_ZONE_BITS) - 1ul) << 11)
-#define KBASE_REG_ZONE(x) (((x) & ((1 << KBASE_REG_ZONE_BITS) - 1ul)) << 11)
-#define KBASE_REG_ZONE_IDX(x)       (((x) & KBASE_REG_ZONE_MASK) >> 11)
-
-#if KBASE_REG_ZONE_MAX > (1 << KBASE_REG_ZONE_BITS)
-#error "Too many zones for the number of zone bits defined"
-#endif
-
-/* GPU read access */
-#define KBASE_REG_GPU_RD (1ul << 14)
-/* CPU read access */
-#define KBASE_REG_CPU_RD (1ul << 15)
-
-/* Index of chosen MEMATTR for this region (0..7) */
-#define KBASE_REG_MEMATTR_MASK      (7ul << 16)
-#define KBASE_REG_MEMATTR_INDEX(x)  (((x) & 7) << 16)
-#define KBASE_REG_MEMATTR_VALUE(x)  (((x) & KBASE_REG_MEMATTR_MASK) >> 16)
-
-#define KBASE_REG_PROTECTED         (1ul << 19)
-
-/* Region belongs to a shrinker.
- *
- * This can either mean that it is part of the JIT/Ephemeral or tiler heap
- * shrinker paths. Should be removed only after making sure that there are
- * no references remaining to it in these paths, as it may cause the physical
- * backing of the region to disappear during use.
- */
-#define KBASE_REG_DONT_NEED         (1ul << 20)
-
-/* Imported buffer is padded? */
-#define KBASE_REG_IMPORT_PAD        (1ul << 21)
-
-#if MALI_USE_CSF
-/* CSF event memory */
-#define KBASE_REG_CSF_EVENT         (1ul << 22)
-#else
-/* Bit 22 is reserved.
- *
- * Do not remove, use the next unreserved bit for new flags
- */
-#define KBASE_REG_RESERVED_BIT_22   (1ul << 22)
-#endif
-
-#if !MALI_USE_CSF
-/* The top of the initial commit is aligned to extension pages.
- * Extent must be a power of 2
- */
-#define KBASE_REG_TILER_ALIGN_TOP   (1ul << 23)
-#else
-/* Bit 23 is reserved.
- *
- * Do not remove, use the next unreserved bit for new flags
- */
-#define KBASE_REG_RESERVED_BIT_23   (1ul << 23)
-#endif /* !MALI_USE_CSF */
-
-/* Bit 24 is currently unused and is available for use for a new flag */
-
-/* Memory has permanent kernel side mapping */
-#define KBASE_REG_PERMANENT_KERNEL_MAPPING (1ul << 25)
-
-/* GPU VA region has been freed by the userspace, but still remains allocated
- * due to the reference held by CPU mappings created on the GPU VA region.
- *
- * A region with this flag set has had kbase_gpu_munmap() called on it, but can
- * still be looked-up in the region tracker as a non-free region. Hence must
- * not create or update any more GPU mappings on such regions because they will
- * not be unmapped when the region is finally destroyed.
- *
- * Since such regions are still present in the region tracker, new allocations
- * attempted with BASE_MEM_SAME_VA might fail if their address intersects with
- * a region with this flag set.
- *
- * In addition, this flag indicates the gpu_alloc member might no longer valid
- * e.g. in infinite cache simulation.
- */
-#define KBASE_REG_VA_FREED (1ul << 26)
-
-/* If set, the heap info address points to a u32 holding the used size in bytes;
- * otherwise it points to a u64 holding the lowest address of unused memory.
- */
-#define KBASE_REG_HEAP_INFO_IS_SIZE (1ul << 27)
-
-/* Allocation is actively used for JIT memory */
-#define KBASE_REG_ACTIVE_JIT_ALLOC (1ul << 28)
-
-#if MALI_USE_CSF
-/* This flag only applies to allocations in the EXEC_FIXED_VA and FIXED_VA
- * memory zones, and it determines whether they were created with a fixed
- * GPU VA address requested by the user.
- */
-#define KBASE_REG_FIXED_ADDRESS (1ul << 29)
-#else
-#define KBASE_REG_RESERVED_BIT_29 (1ul << 29)
-#endif
-
-#define KBASE_REG_ZONE_SAME_VA      KBASE_REG_ZONE(0)
-
-#define KBASE_REG_ZONE_CUSTOM_VA         KBASE_REG_ZONE(1)
-#define KBASE_REG_ZONE_CUSTOM_VA_BASE    (0x100000000ULL >> PAGE_SHIFT)
-
-#if MALI_USE_CSF
-/* only used with 32-bit clients */
-/* On a 32bit platform, custom VA should be wired from 4GB to 2^(43).
- */
-#define KBASE_REG_ZONE_CUSTOM_VA_SIZE \
-		(((1ULL << 43) >> PAGE_SHIFT) - KBASE_REG_ZONE_CUSTOM_VA_BASE)
-#else
-/* only used with 32-bit clients */
-/* On a 32bit platform, custom VA should be wired from 4GB to the VA limit of the
- * GPU. Unfortunately, the Linux mmap() interface limits us to 2^32 pages (2^44
- * bytes, see mmap64 man page for reference).  So we put the default limit to the
- * maximum possible on Linux and shrink it down, if required by the GPU, during
- * initialization.
- */
-#define KBASE_REG_ZONE_CUSTOM_VA_SIZE \
-		(((1ULL << 44) >> PAGE_SHIFT) - KBASE_REG_ZONE_CUSTOM_VA_BASE)
-/* end 32-bit clients only */
-#endif
-
-/* The starting address and size of the GPU-executable zone are dynamic
- * and depend on the platform and the number of pages requested by the
- * user process, with an upper limit of 4 GB.
- */
-#define KBASE_REG_ZONE_EXEC_VA           KBASE_REG_ZONE(2)
-#define KBASE_REG_ZONE_EXEC_VA_MAX_PAGES ((1ULL << 32) >> PAGE_SHIFT) /* 4 GB */
-
-#if MALI_USE_CSF
-#define KBASE_REG_ZONE_MCU_SHARED      KBASE_REG_ZONE(3)
-#define KBASE_REG_ZONE_MCU_SHARED_BASE (0x04000000ULL >> PAGE_SHIFT)
-#define KBASE_REG_ZONE_MCU_SHARED_SIZE (((0x08000000ULL) >> PAGE_SHIFT) - \
-		KBASE_REG_ZONE_MCU_SHARED_BASE)
-
-/* For CSF GPUs, the EXEC_VA zone is always 4GB in size, and starts at 2^47 for 64-bit
- * clients, and 2^43 for 32-bit clients.
- */
-#define KBASE_REG_ZONE_EXEC_VA_BASE_64 ((1ULL << 47) >> PAGE_SHIFT)
-#define KBASE_REG_ZONE_EXEC_VA_BASE_32 ((1ULL << 43) >> PAGE_SHIFT)
-#define KBASE_REG_ZONE_EXEC_VA_SIZE KBASE_REG_ZONE_EXEC_VA_MAX_PAGES
-
-/* Executable zone supporting FIXED/FIXABLE allocations.
- * It is always 4GB in size.
- */
-
-#define KBASE_REG_ZONE_EXEC_FIXED_VA KBASE_REG_ZONE(4)
-#define KBASE_REG_ZONE_EXEC_FIXED_VA_SIZE KBASE_REG_ZONE_EXEC_VA_MAX_PAGES
-
-/* Non-executable zone supporting FIXED/FIXABLE allocations.
- * It extends from (2^47) up to (2^48)-1, for 64-bit userspace clients, and from
- * (2^43) up to (2^44)-1 for 32-bit userspace clients.
- */
-#define KBASE_REG_ZONE_FIXED_VA KBASE_REG_ZONE(5)
-
-/* Again - 32-bit userspace cannot map addresses beyond 2^44, but 64-bit can - and so
- * the end of the FIXED_VA zone for 64-bit clients is (2^48)-1.
- */
-#define KBASE_REG_ZONE_FIXED_VA_END_64 ((1ULL << 48) >> PAGE_SHIFT)
-#define KBASE_REG_ZONE_FIXED_VA_END_32 ((1ULL << 44) >> PAGE_SHIFT)
-
-#endif
-
 	unsigned long flags;
 	size_t extension;
 	struct kbase_mem_phy_alloc *cpu_alloc;
@@ -565,26 +497,9 @@ struct kbase_va_region {
 	size_t used_pages;
 #endif /* MALI_JIT_PRESSURE_LIMIT_BASE */
 
-	int    va_refcnt;
-	int no_user_free_refcnt;
+	kbase_refcount_t va_refcnt;
+	atomic_t no_user_free_count;
 };
-
-/**
- * kbase_is_ctx_reg_zone - determine whether a KBASE_REG_ZONE_<...> is for a
- *                         context or for a device
- * @zone_bits: A KBASE_REG_ZONE_<...> to query
- *
- * Return: True if the zone for @zone_bits is a context zone, False otherwise
- */
-static inline bool kbase_is_ctx_reg_zone(unsigned long zone_bits)
-{
-	WARN_ON((zone_bits & KBASE_REG_ZONE_MASK) != zone_bits);
-	return (zone_bits == KBASE_REG_ZONE_SAME_VA ||
-#if MALI_USE_CSF
-		zone_bits == KBASE_REG_ZONE_EXEC_FIXED_VA || zone_bits == KBASE_REG_ZONE_FIXED_VA ||
-#endif
-		zone_bits == KBASE_REG_ZONE_CUSTOM_VA || zone_bits == KBASE_REG_ZONE_EXEC_VA);
-}
 
 /* Special marker for failed JIT allocations that still must be marked as
  * in-use
@@ -643,15 +558,12 @@ static inline void kbase_region_refcnt_free(struct kbase_device *kbdev,
 static inline struct kbase_va_region *kbase_va_region_alloc_get(
 		struct kbase_context *kctx, struct kbase_va_region *region)
 {
-	lockdep_assert_held(&kctx->reg_lock);
+	WARN_ON(!kbase_refcount_read(&region->va_refcnt));
+	WARN_ON(kbase_refcount_read(&region->va_refcnt) == INT_MAX);
 
-	WARN_ON(!region->va_refcnt);
-	WARN_ON(region->va_refcnt == INT_MAX);
-
-	/* non-atomic as kctx->reg_lock is held */
 	dev_vdbg(kctx->kbdev->dev, "va_refcnt %d before get %pK\n",
-		region->va_refcnt, (void *)region);
-	region->va_refcnt++;
+		kbase_refcount_read(&region->va_refcnt), (void *)region);
+	kbase_refcount_inc(&region->va_refcnt);
 
 	return region;
 }
@@ -659,17 +571,14 @@ static inline struct kbase_va_region *kbase_va_region_alloc_get(
 static inline struct kbase_va_region *kbase_va_region_alloc_put(
 		struct kbase_context *kctx, struct kbase_va_region *region)
 {
-	lockdep_assert_held(&kctx->reg_lock);
-
-	WARN_ON(region->va_refcnt <= 0);
+	WARN_ON(kbase_refcount_read(&region->va_refcnt) <= 0);
 	WARN_ON(region->flags & KBASE_REG_FREE);
 
-	/* non-atomic as kctx->reg_lock is held */
-	region->va_refcnt--;
-	dev_vdbg(kctx->kbdev->dev, "va_refcnt %d after put %pK\n",
-		region->va_refcnt, (void *)region);
-	if (!region->va_refcnt)
+	if (kbase_refcount_dec_and_test(&region->va_refcnt))
 		kbase_region_refcnt_free(kctx->kbdev, region);
+
+	dev_vdbg(kctx->kbdev->dev, "va_refcnt %d after put %pK\n",
+		kbase_refcount_read(&region->va_refcnt), (void *)region);
 
 	return NULL;
 }
@@ -683,58 +592,44 @@ static inline struct kbase_va_region *kbase_va_region_alloc_put(
  * Hence, callers cannot rely on this check alone to determine if a region might be shrunk
  * by any part of kbase. Instead they should use kbase_is_region_shrinkable().
  *
- * @kctx: Pointer to kbase context.
  * @region: Pointer to region.
  *
  * Return: true if userspace cannot free the region, false if userspace can free the region.
  */
-static inline bool kbase_va_region_is_no_user_free(struct kbase_context *kctx,
-						   struct kbase_va_region *region)
+static inline bool kbase_va_region_is_no_user_free(struct kbase_va_region *region)
 {
-	lockdep_assert_held(&kctx->reg_lock);
-	return region->no_user_free_refcnt > 0;
+	return atomic_read(&region->no_user_free_count) > 0;
 }
 
 /**
- * kbase_va_region_no_user_free_get - Increment "no user free" refcount for a region.
+ * kbase_va_region_no_user_free_inc - Increment "no user free" count for a region.
  * Calling this function will prevent the region to be shrunk by parts of kbase that
- * don't own the region (as long as the refcount stays above zero). Refer to
+ * don't own the region (as long as the count stays above zero). Refer to
  * kbase_va_region_is_no_user_free() for more information.
  *
- * @kctx: Pointer to kbase context.
  * @region: Pointer to region (not shrinkable).
  *
  * Return: the pointer to the region passed as argument.
  */
-static inline struct kbase_va_region *
-kbase_va_region_no_user_free_get(struct kbase_context *kctx, struct kbase_va_region *region)
+static inline void kbase_va_region_no_user_free_inc(struct kbase_va_region *region)
 {
-	lockdep_assert_held(&kctx->reg_lock);
-
 	WARN_ON(kbase_is_region_shrinkable(region));
-	WARN_ON(region->no_user_free_refcnt == INT_MAX);
+	WARN_ON(atomic_read(&region->no_user_free_count) == INT_MAX);
 
 	/* non-atomic as kctx->reg_lock is held */
-	region->no_user_free_refcnt++;
-
-	return region;
+	atomic_inc(&region->no_user_free_count);
 }
 
 /**
- * kbase_va_region_no_user_free_put - Decrement "no user free" refcount for a region.
+ * kbase_va_region_no_user_free_dec - Decrement "no user free" count for a region.
  *
- * @kctx: Pointer to kbase context.
  * @region: Pointer to region (not shrinkable).
  */
-static inline void kbase_va_region_no_user_free_put(struct kbase_context *kctx,
-						    struct kbase_va_region *region)
+static inline void kbase_va_region_no_user_free_dec(struct kbase_va_region *region)
 {
-	lockdep_assert_held(&kctx->reg_lock);
+	WARN_ON(!kbase_va_region_is_no_user_free(region));
 
-	WARN_ON(!kbase_va_region_is_no_user_free(kctx, region));
-
-	/* non-atomic as kctx->reg_lock is held */
-	region->no_user_free_refcnt--;
+	atomic_dec(&region->no_user_free_count);
 }
 
 /* Common functions */
@@ -828,9 +723,14 @@ static inline struct kbase_mem_phy_alloc *kbase_alloc_create(
 	alloc->type = type;
 	alloc->group_id = group_id;
 
-	if (type == KBASE_MEM_TYPE_IMPORTED_USER_BUF)
-		alloc->imported.user_buf.dma_addrs =
-				(void *) (alloc->pages + nr_pages);
+	if (type == KBASE_MEM_TYPE_IMPORTED_USER_BUF) {
+		alloc->imported.user_buf.dma_addrs = (void *)(alloc->pages + nr_pages);
+#if MALI_USE_CSF
+		alloc->imported.user_buf.kbdev = kctx->kbdev;
+#endif
+	}
+
+	INIT_LIST_HEAD(&alloc->delegate_hook);
 
 	return alloc;
 }
@@ -1204,86 +1104,14 @@ void kbase_mem_pool_mark_dying(struct kbase_mem_pool *pool);
 struct page *kbase_mem_alloc_page(struct kbase_mem_pool *pool);
 
 /**
- * kbase_region_tracker_init - Initialize the region tracker data structure
- * @kctx: kbase context
+ * kbase_mem_pool_free_page - Free a page from a memory pool.
+ * @pool:  Memory pool to free a page from
+ * @p:     Page to free
  *
- * Return: 0 if success, negative error code otherwise.
+ * This will free any associated data stored for the page and release
+ * the page back to the kernel.
  */
-int kbase_region_tracker_init(struct kbase_context *kctx);
-
-/**
- * kbase_region_tracker_init_jit - Initialize the just-in-time memory
- *                                 allocation region
- * @kctx:             Kbase context.
- * @jit_va_pages:     Size of the JIT region in pages.
- * @max_allocations:  Maximum number of allocations allowed for the JIT region.
- *                    Valid range is 0..%BASE_JIT_ALLOC_COUNT.
- * @trim_level:       Trim level for the JIT region.
- *                    Valid range is 0..%BASE_JIT_MAX_TRIM_LEVEL.
- * @group_id:         The physical group ID from which to allocate JIT memory.
- *                    Valid range is 0..(%MEMORY_GROUP_MANAGER_NR_GROUPS-1).
- * @phys_pages_limit: Maximum number of physical pages to use to back the JIT
- *                    region. Must not exceed @jit_va_pages.
- *
- * Return: 0 if success, negative error code otherwise.
- */
-int kbase_region_tracker_init_jit(struct kbase_context *kctx, u64 jit_va_pages,
-		int max_allocations, int trim_level, int group_id,
-		u64 phys_pages_limit);
-
-/**
- * kbase_region_tracker_init_exec - Initialize the GPU-executable memory region
- * @kctx: kbase context
- * @exec_va_pages: Size of the JIT region in pages.
- *                 It must not be greater than 4 GB.
- *
- * Return: 0 if success, negative error code otherwise.
- */
-int kbase_region_tracker_init_exec(struct kbase_context *kctx, u64 exec_va_pages);
-
-/**
- * kbase_region_tracker_term - Terminate the JIT region
- * @kctx: kbase context
- */
-void kbase_region_tracker_term(struct kbase_context *kctx);
-
-/**
- * kbase_region_tracker_term_rbtree - Free memory for a region tracker
- *
- * @rbtree: Region tracker tree root
- *
- * This will free all the regions within the region tracker
- */
-void kbase_region_tracker_term_rbtree(struct rb_root *rbtree);
-
-struct kbase_va_region *kbase_region_tracker_find_region_enclosing_address(
-		struct kbase_context *kctx, u64 gpu_addr);
-struct kbase_va_region *kbase_find_region_enclosing_address(
-		struct rb_root *rbtree, u64 gpu_addr);
-
-/**
- * kbase_region_tracker_find_region_base_address - Check that a pointer is
- *                                                 actually a valid region.
- * @kctx: kbase context containing the region
- * @gpu_addr: pointer to check
- *
- * Must be called with context lock held.
- *
- * Return: pointer to the valid region on success, NULL otherwise
- */
-struct kbase_va_region *kbase_region_tracker_find_region_base_address(
-		struct kbase_context *kctx, u64 gpu_addr);
-struct kbase_va_region *kbase_find_region_base_address(struct rb_root *rbtree,
-		u64 gpu_addr);
-
-struct kbase_va_region *kbase_alloc_free_region(struct rb_root *rbtree,
-		u64 start_pfn, size_t nr_pages, int zone);
-void kbase_free_alloced_region(struct kbase_va_region *reg);
-int kbase_add_va_region(struct kbase_context *kctx, struct kbase_va_region *reg,
-		u64 addr, size_t nr_pages, size_t align);
-int kbase_add_va_region_rbtree(struct kbase_device *kbdev,
-		struct kbase_va_region *reg, u64 addr, size_t nr_pages,
-		size_t align);
+void kbase_mem_pool_free_page(struct kbase_mem_pool *pool, struct page *p);
 
 bool kbase_check_alloc_flags(unsigned long flags);
 bool kbase_check_import_flags(unsigned long flags);
@@ -1979,10 +1807,15 @@ bool kbase_has_exec_va_zone(struct kbase_context *kctx);
  * kbase_map_external_resource - Map an external resource to the GPU.
  * @kctx:              kbase context.
  * @reg:               External resource to map.
- * @locked_mm:         The mm_struct which has been locked for this operation.
+ * @locked_mm:         The mm_struct which has been locked for this operation,
+ *                     or NULL if none is available.
  *
  * On successful mapping, the VA region and the gpu_alloc refcounts will be
  * increased, making it safe to use and store both values directly.
+ *
+ * For imported user buffers, this function will acquire the necessary
+ * resources if they've not already been acquired before, in order to
+ * create a valid GPU mapping.
  *
  * Return: Zero on success, or negative error code.
  */
@@ -1998,6 +1831,10 @@ int kbase_map_external_resource(struct kbase_context *kctx, struct kbase_va_regi
  * be decreased. If the refcount reaches zero, both @reg and the corresponding
  * allocation may be freed, so using them after returning from this function
  * requires the caller to explicitly check their state.
+ *
+ * For imported user buffers, in the case where the refcount reaches zero,
+ * the function shall release all the resources acquired by the user buffer,
+ * including DMA mappings and physical pages.
  */
 void kbase_unmap_external_resource(struct kbase_context *kctx, struct kbase_va_region *reg);
 
@@ -2012,18 +1849,217 @@ void kbase_unmap_external_resource(struct kbase_context *kctx, struct kbase_va_r
 void kbase_unpin_user_buf_page(struct page *page);
 
 /**
- * kbase_jd_user_buf_pin_pages - Pin the pages of a user buffer.
+ * kbase_user_buf_pin_pages - Pin the pages of a user buffer.
  * @kctx: kbase context.
  * @reg:  The region associated with the imported user buffer.
  *
  * To successfully pin the pages for a user buffer the current mm_struct must
- * be the same as the mm_struct of the user buffer. After successfully pinning
- * the pages further calls to this function succeed without doing work.
+ * be the same as the mm_struct of the user buffer. Further calls to this 
+ * function fail if pages have already been pinned successfully.
  *
  * Return: zero on success or negative number on failure.
  */
-int kbase_jd_user_buf_pin_pages(struct kbase_context *kctx,
-		struct kbase_va_region *reg);
+int kbase_user_buf_pin_pages(struct kbase_context *kctx, struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_unpin_pages - Release the pinned pages of a user buffer.
+ * @alloc: The allocation for the imported user buffer.
+ *
+ * The caller must have ensured that previous stages of the termination of
+ * the physical allocation have already been completed, which implies that
+ * GPU mappings have been destroyed and DMA addresses have been unmapped.
+ *
+ * This function does not affect CPU mappings: if there are any, they should
+ * be unmapped by the caller prior to calling this function.
+ */
+void kbase_user_buf_unpin_pages(struct kbase_mem_phy_alloc *alloc);
+
+/**
+ * kbase_user_buf_dma_map_pages - DMA map pages of a user buffer.
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * Acquire DMA addresses for the pages of the user buffer. Automatic CPU cache
+ * synchronization will be disabled because, in the general case, DMA mappings
+ * might be larger than the region to import. Further calls to this function
+ * fail if DMA addresses have already been obtained successfully.
+ *
+ * The caller must have ensured that physical pages have already been pinned
+ * prior to calling this function.
+ *
+ * Return: zero on success or negative number on failure.
+ */
+int kbase_user_buf_dma_map_pages(struct kbase_context *kctx, struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_dma_unmap_pages - DMA unmap pages of a user buffer.
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * The caller must have ensured that GPU mappings have been destroyed prior to
+ * calling this function.
+ */
+void kbase_user_buf_dma_unmap_pages(struct kbase_context *kctx, struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_empty_init - Initialize a user buffer as "empty".
+ * @reg: The region associated with the imported user buffer.
+ *
+ * This function initializes a user buffer as "empty".
+ */
+void kbase_user_buf_empty_init(struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_from_empty_to_pinned - Transition user buffer from "empty" to "pinned".
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * This function transitions a user buffer from the "empty" state, in which no resources are
+ * attached to it, to the "pinned" state, in which physical pages have been acquired and pinned.
+ *
+ * Return: zero on success or negative number on failure.
+ */
+int kbase_user_buf_from_empty_to_pinned(struct kbase_context *kctx, struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_from_empty_to_dma_mapped - Transition user buffer from "empty" to "DMA mapped".
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * This function transitions a user buffer from the "empty" state, in which no resources are
+ * attached to it, to the "DMA mapped" state, in which physical pages have been acquired, pinned
+ * and DMA mappings for cache synchronization have been obtained.
+ *
+ * Notice that the "empty" state is preserved in case of failure.
+ *
+ * Return: zero on success or negative number on failure.
+ */
+int kbase_user_buf_from_empty_to_dma_mapped(struct kbase_context *kctx,
+					    struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_from_empty_to_gpu_mapped - Transition user buffer from "empty" to "GPU mapped".
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * This function transitions a user buffer from the "empty" state, in which no resources are
+ * attached to it, to the "GPU mapped" state, in which DMA mappings for cache synchronization
+ * have been obtained and GPU mappings have been created.
+ *
+ * However, the function does not update the counter of GPU mappings in usage, because different
+ * policies may be applied in different points of the driver.
+ *
+ * Notice that the "empty" state is preserved in case of failure.
+ *
+ * Return: zero on success or negative number on failure.
+ */
+int kbase_user_buf_from_empty_to_gpu_mapped(struct kbase_context *kctx,
+					    struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_from_pinned_to_empty - Transition user buffer from "pinned" to "empty".
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * This function transitions a user buffer from the "pinned" state, in which physical pages
+ * have been acquired and pinned but no mappings are present, to the "empty" state, in which
+ * physical pages have been unpinned.
+ */
+void kbase_user_buf_from_pinned_to_empty(struct kbase_context *kctx, struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_from_pinned_to_gpu_mapped - Transition user buffer from "pinned" to "GPU mapped".
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * This function transitions a user buffer from the "pinned" state, in which physical pages
+ * have been acquired and pinned but no mappings are present, to the "GPU mapped" state, in which
+ * DMA mappings for cache synchronization have been obtained and GPU mappings have been created.
+ *
+ * However, the function does not update the counter of GPU mappings in use, because different
+ * policies may be applied in different points of the driver.
+ *
+ * Notice that the "pinned" state is preserved in case of failure.
+ *
+ * Return: zero on success or negative number on failure.
+ */
+int kbase_user_buf_from_pinned_to_gpu_mapped(struct kbase_context *kctx,
+					     struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_from_dma_mapped_to_pinned - Transition user buffer from "DMA mapped" to "pinned".
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * This function transitions a user buffer from the "DMA mapped" state, in which physical pages
+ * have been acquired and pinned and DMA mappings have been obtained, to the "pinned" state,
+ * in which DMA mappings have been released but physical pages are still pinned.
+ */
+void kbase_user_buf_from_dma_mapped_to_pinned(struct kbase_context *kctx,
+					      struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_from_dma_mapped_to_empty - Transition user buffer from "DMA mapped" to "empty".
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * This function transitions a user buffer from the "DMA mapped" state, in which physical pages
+ * have been acquired and pinned and DMA mappings have been obtained, to the "empty" state,
+ * in which DMA mappings have been released and physical pages have been unpinned.
+ */
+void kbase_user_buf_from_dma_mapped_to_empty(struct kbase_context *kctx,
+					     struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_from_dma_mapped_to_gpu_mapped - Transition user buffer from "DMA mapped" to "GPU mapped".
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * This function transitions a user buffer from the "DMA mapped" state, in which physical pages
+ * have been acquired and pinned and DMA mappings have been obtained, to the "GPU mapped" state,
+ * in which GPU mappings have been created.
+ *
+ * However, the function does not update the counter of GPU mappings in usage, because different
+ * policies may be applied in different points of the driver.
+ *
+ * Notice that the "DMA mapped" state is preserved in case of failure.
+ *
+ * Return: zero on success or negative number on failure.
+ */
+int kbase_user_buf_from_dma_mapped_to_gpu_mapped(struct kbase_context *kctx,
+						 struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_from_gpu_mapped_to_pinned - Transition user buffer from "GPU mapped" to "pinned".
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * This function transitions a user buffer from the "GPU mapped" state, in which physical pages
+ * have been acquired and pinned, DMA mappings have been obtained, and GPU mappings have been
+ * created, to the "pinned" state, in which all mappings have been torn down but physical pages
+ * are still pinned.
+ *
+ * However, the function does not update the counter of GPU mappings in usage, because different
+ * policies may be applied in different points of the driver.
+ */
+void kbase_user_buf_from_gpu_mapped_to_pinned(struct kbase_context *kctx,
+					      struct kbase_va_region *reg);
+
+/**
+ * kbase_user_buf_from_gpu_mapped_to_empty - Transition user buffer from "GPU mapped" to "empty".
+ * @kctx: kbase context.
+ * @reg:  The region associated with the imported user buffer.
+ *
+ * This function transitions a user buffer from the "GPU mapped" state, in which physical pages
+ * have been acquired and pinned, DMA mappings have been obtained, and GPU mappings have been
+ * created, to the "empty" state, in which all mappings have been torn down and physical pages
+ * have been unpinned.
+ *
+ * However, the function does not update the counter of GPU mappings in usage, because different
+ * policies may be applied in different points of the driver.
+ */
+void kbase_user_buf_from_gpu_mapped_to_empty(struct kbase_context *kctx,
+					     struct kbase_va_region *reg);
 
 /**
  * kbase_sticky_resource_init - Initialize sticky resource management.
@@ -2037,12 +2073,15 @@ int kbase_sticky_resource_init(struct kbase_context *kctx);
  * kbase_sticky_resource_acquire - Acquire a reference on a sticky resource.
  * @kctx:     kbase context.
  * @gpu_addr: The GPU address of the external resource.
+ * @locked_mm:         The mm_struct which has been locked for this operation,
+ *                     or NULL if none is available.
  *
  * Return: The metadata object which represents the binding between the
  * external resource and the kbase context on success or NULL on failure.
  */
-struct kbase_ctx_ext_res_meta *kbase_sticky_resource_acquire(
-		struct kbase_context *kctx, u64 gpu_addr);
+struct kbase_ctx_ext_res_meta *kbase_sticky_resource_acquire(struct kbase_context *kctx,
+							     u64 gpu_addr,
+							     struct mm_struct *locked_mm);
 
 /**
  * kbase_sticky_resource_release - Release a reference on a sticky resource.
@@ -2197,19 +2236,19 @@ void kbase_mem_umm_unmap(struct kbase_context *kctx,
 		struct kbase_va_region *reg, struct kbase_mem_phy_alloc *alloc);
 
 /**
- * kbase_mem_do_sync_imported - Sync caches for imported memory
+ * kbase_sync_imported_umm - Sync caches for imported UMM memory
  * @kctx: Pointer to the kbase context
  * @reg: Pointer to the region with imported memory to sync
  * @sync_fn: The type of sync operation to perform
  *
- * Sync CPU caches for supported (currently only dma-buf (UMM)) memory.
+ * Sync CPU caches for supported dma-buf (UMM) memory.
  * Attempting to sync unsupported imported memory types will result in an error
  * code, -EINVAL.
  *
  * Return: 0 on success, or a negative error code.
  */
-int kbase_mem_do_sync_imported(struct kbase_context *kctx,
-		struct kbase_va_region *reg, enum kbase_sync_type sync_fn);
+int kbase_sync_imported_umm(struct kbase_context *kctx, struct kbase_va_region *reg,
+			    enum kbase_sync_type sync_fn);
 
 /**
  * kbase_mem_copy_to_pinned_user_pages - Memcpy from source input page to
@@ -2236,77 +2275,61 @@ int kbase_mem_copy_to_pinned_user_pages(struct page **dest_pages,
 		void *src_page, size_t *to_copy, unsigned int nr_pages,
 		unsigned int *target_page_nr, size_t offset);
 
+#if MALI_USE_CSF
 /**
- * kbase_reg_zone_end_pfn - return the end Page Frame Number of @zone
- * @zone: zone to query
+ * kbase_mem_pool_free_pages_from_deferred_list() - Free pages from deferred_pages_list
  *
- * Return: The end of the zone corresponding to @zone
+ * @pool: Pointer to the memory pool.
+ * @from_defer_ctrl: Indicating the caller is defer_controller.
+ *
+ * This function frees pages from the deferred list. The destination of the pages
+ * depends on the pool capacity: firstly it tries to promote pages to the internal
+ * free_pages list, and then it releases the excess pages to kernel.
+ *
+ * The deferred pages shall be freed only if the derferral window is passed.
  */
-static inline u64 kbase_reg_zone_end_pfn(struct kbase_reg_zone *zone)
-{
-	return zone->base_pfn + zone->va_size_pages;
-}
-
-/**
- * kbase_ctx_reg_zone_init - initialize a zone in @kctx
- * @kctx: Pointer to kbase context
- * @zone_bits: A KBASE_REG_ZONE_<...> to initialize
- * @base_pfn: Page Frame Number in GPU virtual address space for the start of
- *            the Zone
- * @va_size_pages: Size of the Zone in pages
- */
-static inline void kbase_ctx_reg_zone_init(struct kbase_context *kctx,
-					   unsigned long zone_bits,
-					   u64 base_pfn, u64 va_size_pages)
-{
-	struct kbase_reg_zone *zone;
-
-	lockdep_assert_held(&kctx->reg_lock);
-	WARN_ON(!kbase_is_ctx_reg_zone(zone_bits));
-
-	zone = &kctx->reg_zone[KBASE_REG_ZONE_IDX(zone_bits)];
-	*zone = (struct kbase_reg_zone){
-		.base_pfn = base_pfn, .va_size_pages = va_size_pages,
-	};
-}
+void kbase_mem_pool_free_pages_from_deferred_list(struct kbase_mem_pool *pool,
+						  bool from_defer_ctrl);
 
 /**
- * kbase_ctx_reg_zone_get_nolock - get a zone from @kctx where the caller does
- *                                 not have @kctx 's region lock
- * @kctx: Pointer to kbase context
- * @zone_bits: A KBASE_REG_ZONE_<...> to retrieve
+ * kbase_mem_pool_deferred_list_size() - get size of deferred page list
  *
- * This should only be used in performance-critical paths where the code is
- * resilient to a race with the zone changing.
+ * @pool: Pointer to the memory pool.
  *
- * Return: The zone corresponding to @zone_bits
+ * This function return number of pages stored in deferred pages list
+ *
+ * Return: size of deferred page list
  */
-static inline struct kbase_reg_zone *
-kbase_ctx_reg_zone_get_nolock(struct kbase_context *kctx,
-			      unsigned long zone_bits)
-{
-	WARN_ON(!kbase_is_ctx_reg_zone(zone_bits));
-
-	return &kctx->reg_zone[KBASE_REG_ZONE_IDX(zone_bits)];
-}
+size_t kbase_mem_pool_deferred_list_size(struct kbase_mem_pool *pool);
 
 /**
- * kbase_ctx_reg_zone_get - get a zone from @kctx
- * @kctx: Pointer to kbase context
- * @zone_bits: A KBASE_REG_ZONE_<...> to retrieve
+ * kbase_mem_is_pmode_deferral_required() - check if a GPU protm session is inflight
+ *                                          and actions have to be deferred
  *
- * The get is not refcounted - there is no corresponding 'put' operation
+ * @kbdev: Pointer to the device.
  *
- * Return: The zone corresponding to @zone_bits
+ * If a protected mode session is currently in progress, it could be the case that
+ * some actions concerning memory pages need to be deferred, like for instance
+ * migrating pages or adding them to a memory pool.
+ * The function returns true if protected mode is active and do_defer
+ * is true, otherwise return false.
+ *
+ * Return: true on deferral required, otherwise false.
  */
-static inline struct kbase_reg_zone *
-kbase_ctx_reg_zone_get(struct kbase_context *kctx, unsigned long zone_bits)
+static inline bool kbase_mem_is_pmode_deferral_required(struct kbase_device *kbdev)
 {
-	lockdep_assert_held(&kctx->reg_lock);
-	WARN_ON(!kbase_is_ctx_reg_zone(zone_bits));
+	struct kbase_csf_protm_mem_pages_defer_ctrl *ctrl = &kbdev->csf.scheduler.pages_defer_ctrl;
 
-	return &kctx->reg_zone[KBASE_REG_ZONE_IDX(zone_bits)];
+	return (ctrl->do_defer &&
+		(atomic_read(&ctrl->protm_event_id) & CSF_SCHED_PROTM_EVENT_FLAGS_MASK));
 }
+#else
+static inline bool kbase_mem_is_pmode_deferral_required(struct kbase_device *kbdev)
+{
+	CSTD_UNUSED(kbdev);
+	return false;
+}
+#endif
 
 /**
  * kbase_mem_allow_alloc - Check if allocation of GPU memory is allowed
