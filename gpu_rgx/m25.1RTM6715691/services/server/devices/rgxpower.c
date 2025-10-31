@@ -76,10 +76,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pvr_dvfs_proactive.h"
 #endif
 
-#if defined(PVRSRV_ANDROID_TRACE_GPU_FREQ)
-#include "pvr_gpufreq.h"
-#endif /* defined(PVRSRV_ANDROID_TRACE_GPU_FREQ) */
-
 #if defined(SUPPORT_PDVFS) && (PDVFS_COM == PDVFS_COM_HOST)
 #include "rgxpdvfs.h"
 #endif
@@ -1435,11 +1431,6 @@ PVRSRV_ERROR RGXPostClockSpeedChange(PVRSRV_DEVICE_NODE		*psDeviceNode,
 			PVR_DPF((PVR_DBG_ERROR, "RGXPostClockSpeedChange: Scheduling KCCB command failed. Error:%u", eError));
 			return eError;
 		}
-
-#if defined(PVRSRV_ANDROID_TRACE_GPU_FREQ)
-		GpuTraceFrequency(psDeviceNode->sDevId.ui32InternalID,
-				psRGXData->psRGXTimingInfo->ui32CoreClockSpeed);
-#endif /* defined(PVRSRV_ANDROID_TRACE_GPU_FREQ) */
 
 		PVR_DPF((PVR_DBG_MESSAGE, "RGXPostClockSpeedChange: RGX clock speed changed to %uHz",
 				psRGXData->psRGXTimingInfo->ui32CoreClockSpeed));

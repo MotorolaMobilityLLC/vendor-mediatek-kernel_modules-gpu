@@ -423,8 +423,6 @@ define_mgk_ddk_ko(
 						"**/*.mk",
 						"services/server/env/linux/physmem_test.c",
 						"services/server/env/linux/pvr_gputrace.c",
-						# SUPPORT_RGX && PVRSRV_ANDROID_TRACE_GPU_FREQ
-						"services/server/env/linux/pvr_gpufreq.c",
 						# SUPPORT_RGX && UPPORT_RGXKICKSYNC_BRIDGE
 						"services/server/devices/rgxkicksync.c",
 						# SUPPORT_RGX_and_SUPPORT_USC_BREAKPOINT
@@ -531,10 +529,6 @@ define_mgk_ddk_ko(
 		#	":cs_SUPPORT_SECURE_EXPORT": ["services/server/env/linux/ossecure_export.c"],
 		#	"//conditions:default": [],
 		#})
-		+ select({
-		    ":cs_PVRSRV_ANDROID_TRACE_GPU_FREQ": ["services/server/env/linux/pvr_gpufreq.c"],
-			"//conditions:default": ["services/server/env/linux/pvr_gpufreq.c"],
-		})
 		+ select({
 			":cs_PVRSRV_ENABLE_DYNAMIC_PHYSHEAPS": FILES_PVRSRV_ENABLE_DYNAMIC_PHYSHEAPS,
 			"//conditions:default": [],

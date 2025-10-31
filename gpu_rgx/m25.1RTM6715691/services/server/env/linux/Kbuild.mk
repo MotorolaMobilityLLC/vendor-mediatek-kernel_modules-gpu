@@ -220,11 +220,6 @@ ifneq (, $(filter 1,$(PVRSRV_TRACE_ROGUE_EVENTS) $(PVRSRV_ANDROID_TRACE_GPU_WORK
 $(PVRSRV_MODNAME)-$(CONFIG_EVENT_TRACING) += services/server/env/linux/pvr_gputrace.o
 endif
 
-ifeq ($(PVRSRV_ANDROID_TRACE_GPU_FREQ),1)
-$(PVRSRV_MODNAME)-y += \
- services/server/env/linux/pvr_gpufreq.o
-endif
-
 ifeq ($(SUPPORT_RGXKICKSYNC_BRIDGE),1)
 $(PVRSRV_MODNAME)-y += \
  services/server/devices/rgxkicksync.o

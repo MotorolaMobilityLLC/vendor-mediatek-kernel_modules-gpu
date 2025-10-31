@@ -65,10 +65,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "rogue_trace_events.h"
 #endif
 
-#if defined(PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD)
+#if defined(PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD) || \
+	defined(PVRSRV_ANDROID_TRACE_GPU_FREQ)
 #define CREATE_TRACE_POINTS
-#include "gpu_work.h"
-#endif /* defined(PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD) */
+#include "power_trace_events.h"
+#endif
 
 #if defined(SUPPORT_RGX)
 
@@ -134,7 +135,10 @@ static IMG_CHAR gszLastClockSource[32] = {0};
  * events and enable/disable operation on firmware event are performed as
  * one atomic operation. This should ensure that there are no race conditions
  * between reference counting and firmware event state change.
- * See below comment for guiUfoEventRef.
+ * Additionally, it protects the GPU frequency event control path to ensure
+ * consistent enabling and disabling of GPU frequency monitoring and prevents
+ * duplicate GPU frequency event emissions.
+ * See below comment for guiUfoEventRef and gui8EmitFlags.
  */
 static POS_LOCK ghLockFTraceEventLock;
 
@@ -145,6 +149,16 @@ static POS_LOCK ghLockFTraceEventLock;
  * enabled we enabled the firmware event. When all FTrace UFO events are disabled
  * we disable firmware event. */
 static IMG_UINT guiUfoEventRef;
+
+/* The variables gui8EmitFlags are protected by ghLockFTraceEventLock to
+ * ensure that the GPU frequency is emitted correctly in the notifier.
+ */
+#if defined(PVRSRV_ANDROID_TRACE_GPU_FREQ)
+#define EMIT_FLAG_READY_TO_EMIT (0)
+#define EMIT_FLAG_HAS_CLKS_CHG  (1)
+
+static IMG_UINT8  gui8EmitFlags;
+#endif /* defined(PVRSRV_ANDROID_TRACE_GPU_FREQ) */
 
 /******************************************************************************
  Module In-bound API
@@ -1058,6 +1072,57 @@ static void _GpuTraceFirmwareEvent(PVRSRV_RGXDEV_INFO *psDevInfo,
 }
 #endif /* defined(PVRSRV_TRACE_ROGUE_EVENTS) */
 
+#if defined(PVRSRV_ANDROID_TRACE_GPU_FREQ)
+static void _GpuTraceEmitDefaultFrequency(PVRSRV_RGXDEV_INFO *psDevInfo)
+{
+	RGX_DATA *psRGXData =
+		(RGX_DATA*)psDevInfo->psDeviceNode->psDevConfig->hDevData;
+	IMG_UINT32 ui32CoreClockSpeed =
+		psRGXData->psRGXTimingInfo->ui32CoreClockSpeed;
+
+	OSLockAcquire(ghLockFTraceEventLock);
+
+	if (BIT_ISSET(gui8EmitFlags, EMIT_FLAG_READY_TO_EMIT) &&
+		!BIT_ISSET(gui8EmitFlags, EMIT_FLAG_HAS_CLKS_CHG))
+	{
+		trace_gpu_frequency(ui32CoreClockSpeed,
+			psDevInfo->psDeviceNode->sDevId.ui32InternalID);
+	}
+
+	OSLockRelease(ghLockFTraceEventLock);
+}
+
+static void _GpuTraceClockChangeEvent(PVRSRV_RGXDEV_INFO *psDevInfo,
+		RGX_HWPERF_V2_PACKET_HDR* psHWPerfPkt)
+{
+	RGX_HWPERF_CLKS_CHG_DATA *psHWPerfPktData;
+
+	OSLockAcquire(ghLockFTraceEventLock);
+
+	if (!BIT_ISSET(gui8EmitFlags, EMIT_FLAG_READY_TO_EMIT))
+	{
+		goto unlock;
+	}
+
+	psHWPerfPktData = RGX_HWPERF_GET_PACKET_DATA_BYTES(psHWPerfPkt);
+	switch (psHWPerfPktData->eClockName)
+	{
+		case RGX_HWPERF_CLKS_CHG_NAME_CORE:
+		{
+			trace_gpu_frequency(psHWPerfPktData->ui64NewClockSpeed,
+				psDevInfo->psDeviceNode->sDevId.ui32InternalID);
+
+			BIT_SET(gui8EmitFlags, EMIT_FLAG_HAS_CLKS_CHG);
+			break;
+		}
+		default: break;
+	}
+
+unlock:
+	OSLockRelease(ghLockFTraceEventLock);
+}
+#endif /* defined(PVRSRV_ANDROID_TRACE_GPU_FREQ) */
+
 static IMG_BOOL ValidAndEmitFTraceEvent(PVRSRV_RGXDEV_INFO *psDevInfo,
 		RGX_HWPERF_V2_PACKET_HDR* psHWPerfPkt)
 {
@@ -1364,6 +1429,17 @@ static IMG_BOOL ValidAndEmitFTraceEvent(PVRSRV_RGXDEV_INFO *psDevInfo,
 			ui64StartTimestamp += (((ui64EndTimestamp - ui64StartTimestamp) > ONE_SEC_IN_NSECS) ? (ONE_SEC_IN_NSECS + 1) : (ui64EndTimestamp - ui64StartTimestamp));
 		} while (ui64EndTimestamp > ui64StartTimestamp);
 
+#if defined(PVRSRV_ANDROID_TRACE_GPU_FREQ)
+		/* Some devices do not support DVFS, so clock change events are not
+		 * generated. As a result, Perfetto is unable to receive valid GPU
+		 * frequency events. The exact start time of Perfetto capture is
+		 * uncertain, which means a clock change event might occur just before
+		 * data collection begins. An event is emitted after GPU is kicked to
+		 * ensure that Perfetto captures at least one valid GPU frequency event.
+		 */
+		_GpuTraceEmitDefaultFrequency(psDevInfo);
+#endif /* defined(PVRSRV_ANDROID_TRACE_GPU_FREQ) */
+
 		return IMG_TRUE;
 	}
 #endif
@@ -1378,6 +1454,13 @@ static IMG_BOOL ValidAndEmitFTraceEvent(PVRSRV_RGXDEV_INFO *psDevInfo,
 		return IMG_TRUE;
 	}
 #endif /* defined(PVRSRV_TRACE_ROGUE_EVENTS) */
+
+#if defined(PVRSRV_ANDROID_TRACE_GPU_FREQ)
+	if (eType == RGX_HWPERF_CLKS_CHG)
+	{
+		_GpuTraceClockChangeEvent(psDevInfo, psHWPerfPkt);
+	}
+#endif /* defined(PVRSRV_ANDROID_TRACE_GPU_FREQ) */
 
 #if defined(PVRSRV_TRACE_ROGUE_EVENTS) || defined(PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD)
 err_unsupported:
@@ -1935,6 +2018,39 @@ void PVRGpuTraceDisableWorkPeriodCallback(void)
 	OSWRLockReleaseRead(psPVRSRVData->hDeviceNodeListLock);
 }
 #endif
+
+#if defined(PVRSRV_ANDROID_TRACE_GPU_FREQ)
+int PVRGpuTraceEnableFreqCallback(void)
+{
+	OSLockAcquire(ghLockFTraceEventLock);
+
+	BIT_SET(gui8EmitFlags, EMIT_FLAG_READY_TO_EMIT);
+	BIT_UNSET(gui8EmitFlags, EMIT_FLAG_HAS_CLKS_CHG);
+
+	OSLockRelease(ghLockFTraceEventLock);
+
+	return 0;
+}
+
+void PVRGpuTraceDisableFreqCallback(void)
+{
+	/* We have to check if lock is valid because on driver unload
+	 * PVRGpuTraceSupportDeInit is called before kernel disables the ftrace
+	 * events. This means that the lock will be destroyed before this callback
+	 * is called.
+	 * We can safely return if that situation happens because driver will be
+	 * unloaded so we don't care about HWPerf state anymore. */
+	if (ghLockFTraceEventLock == NULL)
+		return;
+
+	OSLockAcquire(ghLockFTraceEventLock);
+
+	BIT_UNSET(gui8EmitFlags, EMIT_FLAG_READY_TO_EMIT);
+
+	OSLockRelease(ghLockFTraceEventLock);
+}
+#endif /* defined(PVRSRV_ANDROID_TRACE_GPU_FREQ) */
+
 /******************************************************************************
  End of file (pvr_gputrace.c)
 ******************************************************************************/

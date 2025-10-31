@@ -41,10 +41,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM power
 
-#if !defined(TRACE_GPU_WORK_PERIOD_H) || defined(TRACE_HEADER_MULTI_READ)
-#define TRACE_GPU_WORK_PERIOD_H
+#if !defined(POWER_TRACE_EVENTS_H) || defined(TRACE_HEADER_MULTI_READ)
+#define POWER_TRACE_EVENTS_H
 
 #include <linux/tracepoint.h>
+
+#if defined(PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD)
 
 int PVRGpuTraceEnableWorkPeriodCallback(void);
 void PVRGpuTraceDisableWorkPeriodCallback(void);
@@ -106,14 +108,51 @@ TRACE_EVENT_FN(gpu_work_period,
 	PVRGpuTraceDisableWorkPeriodCallback
 );
 
-#endif /* TRACE_GPU_WORK_PERIOD_H */
+#endif /* defined(PVRSRV_ANDROID_TRACE_GPU_WORK_PERIOD) */
+
+#if defined(PVRSRV_ANDROID_TRACE_GPU_FREQ)
+
+int PVRGpuTraceEnableFreqCallback(void);
+void PVRGpuTraceDisableFreqCallback(void);
+
+/*
+ * gpu_frequency - Reports the GPU frequency in GPU clock domains.
+ *
+ * @state : New frequency (in KHz)
+ * @gpu_id: Id for each GPU clock domain
+ */
+TRACE_EVENT_FN(gpu_frequency,
+
+	TP_PROTO(uint32_t state, uint32_t gpu_id),
+
+	TP_ARGS(state, gpu_id),
+
+	TP_STRUCT__entry(
+		__field(unsigned int, state)
+		__field(unsigned int, gpu_id)
+	),
+
+	TP_fast_assign(
+		__entry->state = state;
+		__entry->gpu_id = gpu_id;
+	),
+
+	TP_printk("state=%u gpu_id=%u",
+		__entry->state, __entry->gpu_id),
+
+	PVRGpuTraceEnableFreqCallback,
+	PVRGpuTraceDisableFreqCallback
+);
+
+#endif /*defined(PVRSRV_ANDROID_TRACE_GPU_FREQ)*/
+#endif /* POWER_TRACE_EVENTS_H */
 
 #undef TRACE_INCLUDE_PATH
 #undef TRACE_INCLUDE_FILE
 #define TRACE_INCLUDE_PATH .
 
 /* This is needed because the name of this file doesn't match TRACE_SYSTEM. */
-#define TRACE_INCLUDE_FILE gpu_work
+#define TRACE_INCLUDE_FILE power_trace_events
 
 /* This part must be outside protection */
 #include <trace/define_trace.h>
