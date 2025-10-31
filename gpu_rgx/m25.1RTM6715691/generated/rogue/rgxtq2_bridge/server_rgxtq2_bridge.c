@@ -267,8 +267,20 @@ RGXTDMCreateTransferContext_exit:
 		PVR_ASSERT(ui32BufferSize == ui32NextOffset);
 #endif /* PVRSRV_NEED_PVR_ASSERT */
 
-	if (!bHaveEnoughSpace && pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
+	if (pArrayArgsBuffer != NULL)
+	{
+		if (bHaveEnoughSpace)
+		{
+			/* Clear buffer to prevent next bridge call from using stale data.
+			 * This could for example happen if the call errors before initialising
+			 * all of the data. */
+			OSCachedMemSet(pArrayArgsBuffer, 0, ui32BufferSize);
+		}
+		else
+		{
+			OSFreeMemNoStats(pArrayArgsBuffer);
+		}
+	}
 
 	return offsetof(PVRSRV_BRIDGE_OUT_RGXTDMCREATETRANSFERCONTEXT, eError);
 }
@@ -606,9 +618,6 @@ PVRSRVBridgeRGXTDMSubmitTransfer2(IMG_UINT32 ui32DispatchTableEntry,
 	{
 		psUpdateUFOSyncPrimBlockInt =
 		    (SYNC_PRIMITIVE_BLOCK **) IMG_OFFSET_ADDR(pArrayArgsBuffer, ui32NextOffset);
-		OSCachedMemSet(psUpdateUFOSyncPrimBlockInt, 0,
-			       psRGXTDMSubmitTransfer2IN->ui32ClientUpdateCount *
-			       sizeof(SYNC_PRIMITIVE_BLOCK *));
 		ui32NextOffset +=
 		    psRGXTDMSubmitTransfer2IN->ui32ClientUpdateCount *
 		    sizeof(SYNC_PRIMITIVE_BLOCK *);
@@ -740,8 +749,6 @@ PVRSRVBridgeRGXTDMSubmitTransfer2(IMG_UINT32 ui32DispatchTableEntry,
 	if (psRGXTDMSubmitTransfer2IN->ui32SyncPMRCount != 0)
 	{
 		psSyncPMRsInt = (PMR **) IMG_OFFSET_ADDR(pArrayArgsBuffer, ui32NextOffset);
-		OSCachedMemSet(psSyncPMRsInt, 0,
-			       psRGXTDMSubmitTransfer2IN->ui32SyncPMRCount * sizeof(PMR *));
 		ui32NextOffset += psRGXTDMSubmitTransfer2IN->ui32SyncPMRCount * sizeof(PMR *);
 		hSyncPMRsInt2 = (IMG_HANDLE *) IMG_OFFSET_ADDR(pArrayArgsBuffer, ui32NextOffset);
 		ui32NextOffset += psRGXTDMSubmitTransfer2IN->ui32SyncPMRCount * sizeof(IMG_HANDLE);
@@ -894,8 +901,20 @@ RGXTDMSubmitTransfer2_exit:
 		PVR_ASSERT(ui32BufferSize == ui32NextOffset);
 #endif /* PVRSRV_NEED_PVR_ASSERT */
 
-	if (!bHaveEnoughSpace && pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
+	if (pArrayArgsBuffer != NULL)
+	{
+		if (bHaveEnoughSpace)
+		{
+			/* Clear buffer to prevent next bridge call from using stale data.
+			 * This could for example happen if the call errors before initialising
+			 * all of the data. */
+			OSCachedMemSet(pArrayArgsBuffer, 0, ui32BufferSize);
+		}
+		else
+		{
+			OSFreeMemNoStats(pArrayArgsBuffer);
+		}
+	}
 
 	return offsetof(PVRSRV_BRIDGE_OUT_RGXTDMSUBMITTRANSFER2, eError);
 }

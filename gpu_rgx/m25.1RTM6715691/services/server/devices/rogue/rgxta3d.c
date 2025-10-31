@@ -1618,6 +1618,24 @@ static void RGXDestroyHWRTData_aux(RGX_KM_HW_RT_DATASET *psKMHWRTDataSet)
 	OSFreeMem(psKMHWRTDataSet);
 }
 
+#if defined(FIX_HW_BRN_63142_BIT_MASK)
+static PVRSRV_ERROR
+_ValidatePMAddrs_BRN63142(IMG_DEV_VIRTADDR* psDevVAddr, IMG_UINT32 ui32NumAddr)
+{
+	IMG_UINT32 i;
+
+	for (i=0; i<ui32NumAddr; i++)
+	{
+		if (psDevVAddr[i].uiAddr >= (RGX_RGNHDR_BRN_63142_HEAP_BASE + RGX_RGNHDR_BRN_63142_HEAP_SIZE))
+		{
+			return PVRSRV_ERROR_INVALID_PARAMS;
+		}
+	}
+
+	return PVRSRV_OK;
+}
+#endif
+
 /* Create set of HWRTData(s) and bind it with a shared FW HWRTDataCommon */
 PVRSRV_ERROR RGXCreateHWRTDataSet(
         CONNECTION_DATA         *psConnection,
@@ -1682,6 +1700,37 @@ PVRSRV_ERROR RGXCreateHWRTDataSet(
 	                                          &psMListsPMR,
 	                                          &sMListsDevVAddr);
 	PVR_LOG_RETURN_IF_ERROR(eError, "Failed to obtain or validate MLIST buffer");
+
+	eError = ValidatePMAddrs(asTailPtrsDevVAddr, RGXMKIF_NUM_GEOMDATAS);
+	PVR_LOG_GOTO_IF_ERROR(eError,
+	    "Validation failed for tail ptr addresses", err_ValidationDevPtr);
+
+	eError = ValidatePMAddrs(asMacrotileArrayDevVAddr, RGXMKIF_NUM_RTDATAS);
+	PVR_LOG_GOTO_IF_ERROR(eError,
+	    "Validation failed for macrotile array addresses", err_ValidationDevPtr);
+
+	eError = ValidatePMAddrs(asVHeapTableDevVAddr, RGXMKIF_NUM_GEOMDATAS);
+	PVR_LOG_GOTO_IF_ERROR(eError,
+	    "Validation failed for vheap table addresses", err_ValidationDevPtr);
+
+#if defined(FIX_HW_BRN_63142_BIT_MASK)
+	/* With BRN_63142 permit region headers to be allocated of a different heap */
+	if (RGX_IS_BRN_SUPPORTED(psDevInfo, 63142))
+	{
+		eError = _ValidatePMAddrs_BRN63142(asRgnHeaderDevVAddr, RGXMKIF_NUM_RTDATAS);
+	}
+	else
+#endif
+	{
+		eError = ValidatePMAddrs(asRgnHeaderDevVAddr, RGXMKIF_NUM_RTDATAS);
+	}
+
+	PVR_LOG_GOTO_IF_ERROR(eError,
+	    "Validation failed for rgn header addresses", err_ValidationDevPtr);
+
+	eError = ValidatePMAddrs(asRTCDevVAddr, RGXMKIF_NUM_GEOMDATAS);
+	PVR_LOG_GOTO_IF_ERROR(eError,
+	    "Validation failed for RTC addresses", err_ValidationDevPtr);
 
 	/* Prepare KM cleanup object for HWRTDataCommon FW object */
 	psHWRTDataCommonCookie = OSAllocZMem(sizeof(*psHWRTDataCommonCookie));
@@ -1804,6 +1853,7 @@ err_HWRTDataCommonFwAddr:
 err_HWRTDataCommonAlloc:
 	OSFreeMem(psHWRTDataCommonCookie);
 err_HWRTDataCommonCookieAlloc:
+err_ValidationDevPtr:
 	UnrefAndReleaseCriticalBuffer(psPMMListsReservation);
 	return eError;
 }

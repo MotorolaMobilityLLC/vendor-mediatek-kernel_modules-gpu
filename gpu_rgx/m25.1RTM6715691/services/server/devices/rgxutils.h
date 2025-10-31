@@ -295,6 +295,20 @@ PVRSRV_ERROR AcquireValidateRefCriticalBuffer(PVRSRV_DEVICE_NODE*     psDevNode,
 */ /**************************************************************************/
 void UnrefAndReleaseCriticalBuffer(DEVMEMINT_RESERVATION* psReservation);
 
+/*************************************************************************/ /*!
+@Function       ValidatePMAddrs
+@Description    Helper function for RGXCreateHWRTDataSet
+                Check if device virtual addresses are not allocated against
+                PMMETA_PROTECT (or PM_ONLY) heaps.
+@Input          psDevVAddr The array of virtual addresses to verify
+@Input          ui32NumAddr number of elements in psDevVAddr array
+
+@Return         PVRSRV_ERROR PVRSRV_OK if validation successful
+                PVRSRV_ERROR_INVALID_PARAMS if any address within
+                PMMETA_PROTECT or PM_ONLY heap.
+*/ /**************************************************************************/
+PVRSRV_ERROR ValidatePMAddrs(IMG_DEV_VIRTADDR* psDevVAddr, IMG_UINT32 ui32NumAddr);
+
 /******************************************************************************
  End of file (rgxutils.h)
 ******************************************************************************/

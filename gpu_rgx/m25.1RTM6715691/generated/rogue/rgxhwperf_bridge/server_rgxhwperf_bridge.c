@@ -169,8 +169,20 @@ RGXGetConfiguredHWPerfCounters_exit:
 		PVR_ASSERT(ui32BufferSize == ui32NextOffset);
 #endif /* PVRSRV_NEED_PVR_ASSERT */
 
-	if (!bHaveEnoughSpace && pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
+	if (pArrayArgsBuffer != NULL)
+	{
+		if (bHaveEnoughSpace)
+		{
+			/* Clear buffer to prevent next bridge call from using stale data.
+			 * This could for example happen if the call errors before initialising
+			 * all of the data. */
+			OSCachedMemSet(pArrayArgsBuffer, 0, ui32BufferSize);
+		}
+		else
+		{
+			OSFreeMemNoStats(pArrayArgsBuffer);
+		}
+	}
 
 	return offsetof(PVRSRV_BRIDGE_OUT_RGXGETCONFIGUREDHWPERFCOUNTERS, eError);
 }
@@ -289,8 +301,20 @@ RGXGetEnabledHWPerfBlocks_exit:
 		PVR_ASSERT(ui32BufferSize == ui32NextOffset);
 #endif /* PVRSRV_NEED_PVR_ASSERT */
 
-	if (!bHaveEnoughSpace && pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
+	if (pArrayArgsBuffer != NULL)
+	{
+		if (bHaveEnoughSpace)
+		{
+			/* Clear buffer to prevent next bridge call from using stale data.
+			 * This could for example happen if the call errors before initialising
+			 * all of the data. */
+			OSCachedMemSet(pArrayArgsBuffer, 0, ui32BufferSize);
+		}
+		else
+		{
+			OSFreeMemNoStats(pArrayArgsBuffer);
+		}
+	}
 
 	return offsetof(PVRSRV_BRIDGE_OUT_RGXGETENABLEDHWPERFBLOCKS, eError);
 }
@@ -459,8 +483,20 @@ RGXControlHWPerfBlocks_exit:
 		PVR_ASSERT(ui32BufferSize == ui32NextOffset);
 #endif /* PVRSRV_NEED_PVR_ASSERT */
 
-	if (!bHaveEnoughSpace && pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
+	if (pArrayArgsBuffer != NULL)
+	{
+		if (bHaveEnoughSpace)
+		{
+			/* Clear buffer to prevent next bridge call from using stale data.
+			 * This could for example happen if the call errors before initialising
+			 * all of the data. */
+			OSCachedMemSet(pArrayArgsBuffer, 0, ui32BufferSize);
+		}
+		else
+		{
+			OSFreeMemNoStats(pArrayArgsBuffer);
+		}
+	}
 
 	return offsetof(PVRSRV_BRIDGE_OUT_RGXCONTROLHWPERFBLOCKS, eError);
 }
@@ -697,8 +733,20 @@ RGXWriteHWPerfClientEvent_exit:
 		PVR_ASSERT(ui32BufferSize == ui32NextOffset);
 #endif /* PVRSRV_NEED_PVR_ASSERT */
 
-	if (!bHaveEnoughSpace && pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
+	if (pArrayArgsBuffer != NULL)
+	{
+		if (bHaveEnoughSpace)
+		{
+			/* Clear buffer to prevent next bridge call from using stale data.
+			 * This could for example happen if the call errors before initialising
+			 * all of the data. */
+			OSCachedMemSet(pArrayArgsBuffer, 0, ui32BufferSize);
+		}
+		else
+		{
+			OSFreeMemNoStats(pArrayArgsBuffer);
+		}
+	}
 
 	return offsetof(PVRSRV_BRIDGE_OUT_RGXWRITEHWPERFCLIENTEVENT, eError);
 }
@@ -812,8 +860,20 @@ RGXConfigMuxHWPerfCounters_exit:
 		PVR_ASSERT(ui32BufferSize == ui32NextOffset);
 #endif /* PVRSRV_NEED_PVR_ASSERT */
 
-	if (!bHaveEnoughSpace && pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
+	if (pArrayArgsBuffer != NULL)
+	{
+		if (bHaveEnoughSpace)
+		{
+			/* Clear buffer to prevent next bridge call from using stale data.
+			 * This could for example happen if the call errors before initialising
+			 * all of the data. */
+			OSCachedMemSet(pArrayArgsBuffer, 0, ui32BufferSize);
+		}
+		else
+		{
+			OSFreeMemNoStats(pArrayArgsBuffer);
+		}
+	}
 
 	return offsetof(PVRSRV_BRIDGE_OUT_RGXCONFIGMUXHWPERFCOUNTERS, eError);
 }
@@ -925,8 +985,20 @@ RGXConfigCustomCounters_exit:
 		PVR_ASSERT(ui32BufferSize == ui32NextOffset);
 #endif /* PVRSRV_NEED_PVR_ASSERT */
 
-	if (!bHaveEnoughSpace && pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
+	if (pArrayArgsBuffer != NULL)
+	{
+		if (bHaveEnoughSpace)
+		{
+			/* Clear buffer to prevent next bridge call from using stale data.
+			 * This could for example happen if the call errors before initialising
+			 * all of the data. */
+			OSCachedMemSet(pArrayArgsBuffer, 0, ui32BufferSize);
+		}
+		else
+		{
+			OSFreeMemNoStats(pArrayArgsBuffer);
+		}
+	}
 
 	return offsetof(PVRSRV_BRIDGE_OUT_RGXCONFIGCUSTOMCOUNTERS, eError);
 }
@@ -1037,8 +1109,20 @@ RGXConfigureHWPerfBlocks_exit:
 		PVR_ASSERT(ui32BufferSize == ui32NextOffset);
 #endif /* PVRSRV_NEED_PVR_ASSERT */
 
-	if (!bHaveEnoughSpace && pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
+	if (pArrayArgsBuffer != NULL)
+	{
+		if (bHaveEnoughSpace)
+		{
+			/* Clear buffer to prevent next bridge call from using stale data.
+			 * This could for example happen if the call errors before initialising
+			 * all of the data. */
+			OSCachedMemSet(pArrayArgsBuffer, 0, ui32BufferSize);
+		}
+		else
+		{
+			OSFreeMemNoStats(pArrayArgsBuffer);
+		}
+	}
 
 	return offsetof(PVRSRV_BRIDGE_OUT_RGXCONFIGUREHWPERFBLOCKS, eError);
 }
@@ -1155,8 +1239,20 @@ RGXGetConfiguredHWPerfMuxCounters_exit:
 		PVR_ASSERT(ui32BufferSize == ui32NextOffset);
 #endif /* PVRSRV_NEED_PVR_ASSERT */
 
-	if (!bHaveEnoughSpace && pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
+	if (pArrayArgsBuffer != NULL)
+	{
+		if (bHaveEnoughSpace)
+		{
+			/* Clear buffer to prevent next bridge call from using stale data.
+			 * This could for example happen if the call errors before initialising
+			 * all of the data. */
+			OSCachedMemSet(pArrayArgsBuffer, 0, ui32BufferSize);
+		}
+		else
+		{
+			OSFreeMemNoStats(pArrayArgsBuffer);
+		}
+	}
 
 	return offsetof(PVRSRV_BRIDGE_OUT_RGXGETCONFIGUREDHWPERFMUXCOUNTERS, eError);
 }

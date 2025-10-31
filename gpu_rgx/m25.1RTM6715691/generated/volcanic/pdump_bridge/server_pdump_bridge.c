@@ -235,8 +235,20 @@ PDumpImageDescriptor_exit:
 		PVR_ASSERT(ui32BufferSize == ui32NextOffset);
 #endif /* PVRSRV_NEED_PVR_ASSERT */
 
-	if (!bHaveEnoughSpace && pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
+	if (pArrayArgsBuffer != NULL)
+	{
+		if (bHaveEnoughSpace)
+		{
+			/* Clear buffer to prevent next bridge call from using stale data.
+			 * This could for example happen if the call errors before initialising
+			 * all of the data. */
+			OSCachedMemSet(pArrayArgsBuffer, 0, ui32BufferSize);
+		}
+		else
+		{
+			OSFreeMemNoStats(pArrayArgsBuffer);
+		}
+	}
 
 	return offsetof(PVRSRV_BRIDGE_OUT_PDUMPIMAGEDESCRIPTOR, eError);
 }
@@ -343,8 +355,20 @@ PVRSRVPDumpComment_exit:
 		PVR_ASSERT(ui32BufferSize == ui32NextOffset);
 #endif /* PVRSRV_NEED_PVR_ASSERT */
 
-	if (!bHaveEnoughSpace && pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
+	if (pArrayArgsBuffer != NULL)
+	{
+		if (bHaveEnoughSpace)
+		{
+			/* Clear buffer to prevent next bridge call from using stale data.
+			 * This could for example happen if the call errors before initialising
+			 * all of the data. */
+			OSCachedMemSet(pArrayArgsBuffer, 0, ui32BufferSize);
+		}
+		else
+		{
+			OSFreeMemNoStats(pArrayArgsBuffer);
+		}
+	}
 
 	return offsetof(PVRSRV_BRIDGE_OUT_PVRSRVPDUMPCOMMENT, eError);
 }
@@ -509,8 +533,20 @@ PDumpDataDescriptor_exit:
 		PVR_ASSERT(ui32BufferSize == ui32NextOffset);
 #endif /* PVRSRV_NEED_PVR_ASSERT */
 
-	if (!bHaveEnoughSpace && pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
+	if (pArrayArgsBuffer != NULL)
+	{
+		if (bHaveEnoughSpace)
+		{
+			/* Clear buffer to prevent next bridge call from using stale data.
+			 * This could for example happen if the call errors before initialising
+			 * all of the data. */
+			OSCachedMemSet(pArrayArgsBuffer, 0, ui32BufferSize);
+		}
+		else
+		{
+			OSFreeMemNoStats(pArrayArgsBuffer);
+		}
+	}
 
 	return offsetof(PVRSRV_BRIDGE_OUT_PDUMPDATADESCRIPTOR, eError);
 }
