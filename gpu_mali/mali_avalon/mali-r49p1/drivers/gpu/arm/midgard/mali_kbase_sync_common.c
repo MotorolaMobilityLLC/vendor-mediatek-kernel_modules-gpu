@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2012-2016, 2018-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2012-2016, 2018-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -25,12 +25,12 @@
  * Common code for our explicit fence functionality
  */
 
-#include <linux/workqueue.h>
+#include <linux/kthread.h>
 #include "mali_kbase.h"
 #include "mali_kbase_sync.h"
 
 #if !MALI_USE_CSF
-void kbase_sync_fence_wait_worker(struct work_struct *data)
+void kbase_sync_fence_wait_worker(struct kthread_work *data)
 {
 	struct kbase_jd_atom *katom;
 

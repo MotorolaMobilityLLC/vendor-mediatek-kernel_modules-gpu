@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -28,7 +28,6 @@
 #define _KBASE_JM_DEFS_H_
 
 #include "mali_kbase_js_defs.h"
-
 #include <linux/version_compat_defs.h>
 
 /* Dump Job slot trace on error (only active if KBASE_KTRACE_ENABLE != 0) */
@@ -358,7 +357,10 @@ enum kbase_atom_exit_protected_state {
 /**
  * struct kbase_jd_atom  - object representing the atom, containing the complete
  *                         state and attributes of an atom.
- * @work:                  work item for the bottom half processing of the atom,
+ * @qwork:                 Workqueue work item for the bottom half processing of the atom,
+ *                         by JD or JS, after it got executed on GPU or the
+ *                         input fence got signaled
+ * @work:                  kthread work item for the bottom half processing of the atom,
  *                         by JD or JS, after it got executed on GPU or the
  *                         input fence got signaled
  * @start_timestamp:       time at which the atom was submitted to the GPU, by
@@ -502,7 +504,8 @@ enum kbase_atom_exit_protected_state {
  * @jobslot: Job slot to use when BASE_JD_REQ_JOB_SLOT is specified.
  */
 struct kbase_jd_atom {
-	struct work_struct work;
+	struct work_struct qwork;
+	struct kthread_work work;
 	ktime_t start_timestamp;
 
 	struct base_jd_udata udata;
@@ -706,9 +709,8 @@ static inline bool kbase_jd_atom_is_earlier(const struct kbase_jd_atom *katom_a,
  *                            the waiter should also briefly obtain and drop
  *                            @lock to guarantee that the setter has completed
  *                            its work on the kbase_context
- * @job_done_wq:              Workqueue to which the per atom work item is
- *                            queued for bottom half processing when the
- *                            atom completes
+ * @job_done_worker:          kthread worker of bottom half processing when the
+ *                            atom completes.
  *                            execution on GPU or the input fence get signaled.
  * @tb_lock:                  Lock to serialize the write access made to @tb to
  *                            store the register access trace messages.
@@ -733,7 +735,7 @@ struct kbase_jd_context {
 	struct mutex lock;
 	struct kbasep_js_kctx_info sched_info;
 	struct kbase_jd_atom atoms[BASE_JD_ATOM_COUNT];
-	struct workqueue_struct *job_done_wq;
+	struct kthread_worker *job_done_worker;
 
 	wait_queue_head_t zero_jobs_wait;
 	spinlock_t tb_lock;

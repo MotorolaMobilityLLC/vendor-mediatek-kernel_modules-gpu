@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -105,7 +105,7 @@ KBASE_EXPORT_TEST_API(kbase_event_dequeue);
  */
 static void kbase_event_process_noreport_worker(struct work_struct *data)
 {
-	struct kbase_jd_atom *katom = container_of(data, struct kbase_jd_atom, work);
+	struct kbase_jd_atom *katom = container_of(data, struct kbase_jd_atom, qwork);
 	struct kbase_context *kctx = katom->kctx;
 
 	if (katom->core_req & BASE_JD_REQ_EXTERNAL_RESOURCES)
@@ -128,8 +128,8 @@ static void kbase_event_process_noreport_worker(struct work_struct *data)
 static void kbase_event_process_noreport(struct kbase_context *kctx, struct kbase_jd_atom *katom)
 {
 	if (katom->core_req & BASE_JD_REQ_EXTERNAL_RESOURCES) {
-		INIT_WORK(&katom->work, kbase_event_process_noreport_worker);
-		queue_work(kctx->event_workq, &katom->work);
+		INIT_WORK(&katom->qwork, kbase_event_process_noreport_worker);
+		queue_work(kctx->event_workq, &katom->qwork);
 	} else {
 		kbase_event_process(kctx, katom);
 	}

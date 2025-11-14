@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -282,7 +282,7 @@ int kbase_jd_submit(struct kbase_context *kctx, void __user *user_addr, u32 nr_a
  * Handles retrying submission outside of IRQ context if it failed from within
  * IRQ context.
  */
-void kbase_jd_done_worker(struct work_struct *data);
+void kbase_jd_done_worker(struct kthread_work *data);
 
 void kbase_jd_done(struct kbase_jd_atom *katom, unsigned int slot_nr, ktime_t *end_timestamp,
 		   kbasep_js_atom_done_code done_code);

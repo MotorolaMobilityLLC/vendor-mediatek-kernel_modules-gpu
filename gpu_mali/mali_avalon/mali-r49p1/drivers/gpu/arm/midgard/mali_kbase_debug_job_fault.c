@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2012-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2012-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -21,6 +21,7 @@
 
 #include <mali_kbase.h>
 #include <linux/spinlock.h>
+#include <linux/kthread.h>
 #include <mali_kbase_hwaccess_jm.h>
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
@@ -160,9 +161,9 @@ static void kbase_job_fault_resume_event_cleanup(struct kbase_context *kctx)
 
 		event = kbase_job_fault_event_dequeue(kctx->kbdev,
 						      &kctx->job_fault_resume_event_list);
-		WARN_ON(work_pending(&event->katom->work));
-		INIT_WORK(&event->katom->work, kbase_jd_done_worker);
-		queue_work(kctx->jctx.job_done_wq, &event->katom->work);
+		WARN_ON(work_pending(&event->katom->qwork));
+		kthread_init_work(&event->katom->work, kbase_jd_done_worker);
+		kthread_queue_work(kctx->jctx.job_done_worker, &event->katom->work);
 	}
 }
 
@@ -191,9 +192,9 @@ static void kbase_job_fault_resume_worker(struct work_struct *data)
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	atomic_set(&kctx->job_fault_count, 0);
-	WARN_ON(work_pending(&katom->work));
-	INIT_WORK(&katom->work, kbase_jd_done_worker);
-	queue_work(kctx->jctx.job_done_wq, &katom->work);
+	WARN_ON(work_pending(&katom->qwork));
+	kthread_init_work(&katom->work, kbase_jd_done_worker);
+	kthread_queue_work(kctx->jctx.job_done_worker, &katom->work);
 
 	/* In case the following atoms were scheduled during failed job dump
 	 * the job_done_worker was held. We need to rerun it after the dump

@@ -39,6 +39,7 @@
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
 #include <mali_kbase_gpu_metrics.h>
 #endif
+#include <linux/kthread.h>
 
 /*
  * Private types
@@ -2651,7 +2652,7 @@ struct kbase_jd_atom *kbase_js_pull(struct kbase_context *kctx, unsigned int js)
 	return katom;
 }
 
-static void js_return_worker(struct work_struct *data)
+static void js_return_worker(struct kthread_work *data)
 {
 	struct kbase_jd_atom *katom = container_of(data, struct kbase_jd_atom, work);
 	struct kbase_context *kctx = katom->kctx;
@@ -2769,15 +2770,15 @@ void kbase_js_unpull(struct kbase_context *kctx, struct kbase_jd_atom *katom)
 
 	jsctx_rb_unpull(kctx, katom);
 
-	WARN_ON(work_pending(&katom->work));
+	WARN_ON(work_pending(&katom->qwork));
 
 	/* Block re-submission until workqueue has run */
 	atomic_inc(&katom->blocked);
 
 	kbase_job_check_leave_disjoint(kctx->kbdev, katom);
 
-	INIT_WORK(&katom->work, js_return_worker);
-	queue_work(kctx->jctx.job_done_wq, &katom->work);
+	kthread_init_work(&katom->work, js_return_worker);
+	kthread_queue_work(kctx->jctx.job_done_worker, &katom->work);
 }
 
 bool kbase_js_complete_atom_wq(struct kbase_context *kctx, struct kbase_jd_atom *katom)

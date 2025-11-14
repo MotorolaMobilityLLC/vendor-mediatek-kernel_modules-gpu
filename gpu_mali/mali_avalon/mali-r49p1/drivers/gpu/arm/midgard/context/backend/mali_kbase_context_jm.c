@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -23,6 +23,7 @@
  * Base kernel context APIs for Job Manager GPUs
  */
 
+#include <linux/kthread.h>
 #include <context/mali_kbase_context_internal.h>
 #include <hw_access/mali_kbase_hw_access_regmap.h>
 #include <mali_kbase.h>
@@ -109,8 +110,10 @@ static int kbase_context_submit_check(struct kbase_context *kctx)
 static void kbase_context_flush_jobs(struct kbase_context *kctx)
 {
 	kbase_jd_zap_context(kctx);
-	flush_workqueue(kctx->jctx.job_done_wq);
+	if (likely(!IS_ERR_OR_NULL(kctx->jctx.job_done_worker)))
+		kthread_flush_worker(kctx->jctx.job_done_worker);
 }
+
 
 /**
  * kbase_context_free - Free kcontext at its destruction

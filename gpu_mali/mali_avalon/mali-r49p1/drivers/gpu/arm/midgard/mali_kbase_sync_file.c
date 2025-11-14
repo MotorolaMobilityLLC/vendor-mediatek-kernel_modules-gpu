@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2012-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2012-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -169,8 +169,8 @@ static void kbase_fence_wait_callback(struct dma_fence *fence, struct dma_fence_
 	 * kctx->jctx.lock and the callbacks are run synchronously from
 	 * sync_timeline_signal. So we simply defer the work.
 	 */
-	INIT_WORK(&katom->work, kbase_sync_fence_wait_worker);
-	queue_work(kctx->jctx.job_done_wq, &katom->work);
+	kthread_init_work(&katom->work, kbase_sync_fence_wait_worker);
+	kthread_queue_work(kctx->jctx.job_done_worker, &katom->work);
 }
 
 int kbase_sync_fence_in_wait(struct kbase_jd_atom *katom)
