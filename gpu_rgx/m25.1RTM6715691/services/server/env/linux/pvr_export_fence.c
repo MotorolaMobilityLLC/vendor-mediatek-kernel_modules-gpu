@@ -159,7 +159,12 @@ pvr_exp_fence_transition_state(struct pvr_exp_fence *exp_fence,
 	prev_state = atomic_cmpxchg(&exp_fence->resolve_state, current_state, new_state);
 	if (prev_state != current_state)
 	{
-		pr_err("%s: Export fence in invalid state for transition", __func__);
+		pr_err("%s: Export fence in invalid state for transition. "
+		       "States - Current: %u, Prev: %u New: %u",
+		       __func__,
+		       current_state,
+		       prev_state,
+		       new_state);
 		return PVRSRV_ERROR_INVALID_PARAMS;
 	}
 
@@ -280,27 +285,21 @@ static void pvr_exp_fence_timeline_value_str(struct dma_fence *fence,
 static bool pvr_exp_fence_enable_signaling(struct dma_fence *fence)
 {
 	struct pvr_exp_fence *exp_fence = to_pvr_exp_fence(fence);
-	unsigned long flags;
 
 	if (!exp_fence)
 		return false;
 
-
 	/* We must not take the exp_fence lock in this function.
 	 * It can be called by dma_fence_add_callback() which already holds the lock,
-	 * Waiting on the fence from UM can trigger this. We can also check for finalised
-	 * state before checking the checkpoint as we know it cannot have been signalled if
-	 * it hasn't been finalised.
+	 * Waiting on the fence from UM can trigger this.
+	 * We can also check for finalised state before checking the checkpoint as we
+	 * know it cannot have been signalled if it hasn't been finalised.
+	 * We add this fence to the signal list when we know it is possible to signal it,
+	 * this state is represented by finalised.
 	 */
 	if (pvr_exp_fence_sync_is_finalised(exp_fence) &&
 	    pvr_exp_fence_sync_is_signaled(exp_fence, PVRSRV_FENCE_FLAG_SUPPRESS_HWP_PKT))
 		return false;
-
-	dma_fence_get(&exp_fence->base);
-
-	spin_lock_irqsave(&exp_fence->fence_context->list_lock, flags);
-	list_add_tail(&exp_fence->signal_head, &exp_fence->fence_context->signal_list);
-	spin_unlock_irqrestore(&exp_fence->fence_context->list_lock, flags);
 
 	return true;
 }
@@ -623,6 +622,7 @@ pvr_exp_fence_finalise(struct dma_fence *fence)
 {
 	struct pvr_exp_fence *pvr_exp_fence;
 	PVRSRV_ERROR err = PVRSRV_OK;
+	unsigned long flags;
 
 	pvr_exp_fence = to_pvr_exp_fence(fence);
 	if (!pvr_exp_fence) {
@@ -634,6 +634,16 @@ pvr_exp_fence_finalise(struct dma_fence *fence)
 	err = pvr_exp_fence_transition_state(pvr_exp_fence,
 	                                     EXPORT_FENCE_UPDATE_RESOLVE_STATE_RESOLVED,
 	                                     EXPORT_FENCE_UPDATE_RESOLVE_STATE_FINALISED);
+	if (err != PVRSRV_OK)
+	{
+		goto err_out;
+	}
+
+	dma_fence_get(&pvr_exp_fence->base);
+
+	spin_lock_irqsave(&pvr_exp_fence->fence_context->list_lock, flags);
+	list_add_tail(&pvr_exp_fence->signal_head, &pvr_exp_fence->fence_context->signal_list);
+	spin_unlock_irqrestore(&pvr_exp_fence->fence_context->list_lock, flags);
 
 err_out:
 	return err;
