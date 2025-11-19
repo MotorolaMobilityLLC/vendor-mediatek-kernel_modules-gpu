@@ -1552,8 +1552,15 @@ void kbase_jd_exit(struct kbase_context *kctx)
 	KBASE_DEBUG_ASSERT(kctx);
 
 	/* Work queue is emptied by this */
-	kthread_flush_worker(kctx->jctx.job_done_worker);
-	kthread_destroy_worker(kctx->jctx.job_done_worker);
+	struct kthread_worker *worker = kctx->jctx.job_done_worker;
+
+        if (IS_ERR_OR_NULL(worker))
+               return;
+
+        kthread_flush_worker(worker);
+        kthread_destroy_worker(worker);
+        kctx->jctx.job_done_worker = NULL;
+
 }
 
 KBASE_EXPORT_TEST_API(kbase_jd_exit);
