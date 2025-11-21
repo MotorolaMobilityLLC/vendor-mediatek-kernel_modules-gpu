@@ -28,6 +28,7 @@
 #include <linux/version.h>
 #include <linux/ratelimit.h>
 #include <linux/priority_control_manager.h>
+#include <linux/kthread.h>
 #include <linux/sched/signal.h>
 
 #include <mali_kbase_jm.h>
@@ -38,7 +39,9 @@
 
 #include "mali_kbase_dma_fence.h"
 #include <mali_kbase_cs_experimental.h>
-
+#include <uapi/linux/sched/types.h>
+#include <linux/sched/types.h>
+#include <linux/sched.h>
 #include <mali_kbase_caps.h>
 
 /* Return whether katom will run on the GPU or not. Currently only soft jobs and
@@ -1404,7 +1407,7 @@ while (false)
 
 KBASE_EXPORT_TEST_API(kbase_jd_submit);
 
-void kbase_jd_done_worker(struct work_struct *data)
+void kbase_jd_done_worker(struct kthread_work *data)
 {
 	struct kbase_jd_atom *katom = container_of(data, struct kbase_jd_atom, work);
 	struct kbase_jd_context *jctx;
@@ -1592,7 +1595,7 @@ void kbase_jd_done_worker(struct work_struct *data)
  * running (by virtue of only being called on contexts that aren't
  * scheduled).
  */
-static void jd_cancel_worker(struct work_struct *data)
+static void jd_cancel_worker(struct kthread_work *data)
 {
 	struct kbase_jd_atom *katom = container_of(data, struct kbase_jd_atom, work);
 	struct kbase_jd_context *jctx;
@@ -1690,9 +1693,9 @@ void kbase_jd_done(struct kbase_jd_atom *katom, int slot_nr,
 		return;
 #endif
 
-	WARN_ON(work_pending(&katom->work));
-	INIT_WORK(&katom->work, kbase_jd_done_worker);
-	queue_work(kctx->jctx.job_done_wq, &katom->work);
+	WARN_ON(work_pending(&katom->qwork));
+	kthread_init_work(&katom->work, kbase_jd_done_worker);
+	kthread_queue_work(kctx->jctx.job_done_worker, &katom->work);
 }
 
 KBASE_EXPORT_TEST_API(kbase_jd_done);
@@ -1712,12 +1715,12 @@ void kbase_jd_cancel(struct kbase_device *kbdev, struct kbase_jd_atom *katom)
 	/* This should only be done from a context that is not scheduled */
 	KBASE_DEBUG_ASSERT(!kbase_ctx_flag(kctx, KCTX_SCHEDULED));
 
-	WARN_ON(work_pending(&katom->work));
+	WARN_ON(work_pending(&katom->qwork));
 
 	katom->event_code = BASE_JD_EVENT_JOB_CANCELLED;
 
-	INIT_WORK(&katom->work, jd_cancel_worker);
-	queue_work(kctx->jctx.job_done_wq, &katom->work);
+	kthread_init_work(&katom->work, jd_cancel_worker);
+	kthread_queue_work(kctx->jctx.job_done_worker, &katom->work);
 }
 
 
@@ -1776,18 +1779,19 @@ int kbase_jd_init(struct kbase_context *kctx)
 	int i;
 	int mali_err = 0;
 	struct priority_control_manager_device *pcm_device = NULL;
+	struct sched_param sp = { .sched_priority = 1 };
 
 	KBASE_DEBUG_ASSERT(kctx);
 	pcm_device = kctx->kbdev->pcm_dev;
 	kctx->jctx.max_priority = KBASE_JS_ATOM_SCHED_PRIO_REALTIME;
 
-	kctx->jctx.job_done_wq = alloc_workqueue("mali_jd",
-			WQ_HIGHPRI | WQ_UNBOUND, 1);
-	if (kctx->jctx.job_done_wq == NULL) {
+	kctx->jctx.job_done_worker = kthread_create_worker(0, "mali_jd");
+	if (IS_ERR_OR_NULL(kctx->jctx.job_done_worker)) {
 		mali_err = -ENOMEM;
 		goto out1;
 	}
 
+	sched_setscheduler_nocheck(kctx->jctx.job_done_worker->task, SCHED_FIFO, &sp);
 	for (i = 0; i < BASE_JD_ATOM_COUNT; i++) {
 		init_waitqueue_head(&kctx->jctx.atoms[i].completed);
 
@@ -1835,9 +1839,12 @@ KBASE_EXPORT_TEST_API(kbase_jd_init);
 void kbase_jd_exit(struct kbase_context *kctx)
 {
 	KBASE_DEBUG_ASSERT(kctx);
+	if (IS_ERR_OR_NULL(kctx->jctx.job_done_worker))
+		    return;
 
 	/* Work queue is emptied by this */
-	destroy_workqueue(kctx->jctx.job_done_wq);
+	kthread_flush_worker(kctx->jctx.job_done_worker);
+	kthread_destroy_worker(kctx->jctx.job_done_worker);
 }
 
 KBASE_EXPORT_TEST_API(kbase_jd_exit);

@@ -21,6 +21,7 @@
 
 #include <mali_kbase.h>
 #include <linux/spinlock.h>
+#include <linux/kthread.h>
 #include <mali_kbase_hwaccess_jm.h>
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)

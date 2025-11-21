@@ -23,6 +23,7 @@
  * Base kernel context APIs for Job Manager GPUs
  */
 
+#include <linux/kthread.h>
 #include <context/mali_kbase_context_internal.h>
 #include <gpu/mali_kbase_gpu_regmap.h>
 #include <mali_kbase.h>
@@ -109,7 +110,8 @@ static int kbase_context_submit_check(struct kbase_context *kctx)
 static void kbase_context_flush_jobs(struct kbase_context *kctx)
 {
 	kbase_jd_zap_context(kctx);
-	flush_workqueue(kctx->jctx.job_done_wq);
+	if (likely(!IS_ERR_OR_NULL(kctx->jctx.job_done_worker)))
+	    kthread_flush_worker(kctx->jctx.job_done_worker);
 }
 
 /**
