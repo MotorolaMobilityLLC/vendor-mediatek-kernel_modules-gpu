@@ -55,14 +55,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 #include "rgxfwimageutils.h"
 #include "rgxstartstop.h"
-#if defined(SUPPORT_HW_BRN_76176)
-extern unsigned int general_bin_len;
-extern unsigned char general_bin[];
-extern unsigned int pds_bin_len;
-extern unsigned char pds_bin[];
-extern unsigned int usc_bin_len;
-extern unsigned char usc_bin[];
-#endif
+
 TEE_DDK_INIT gsInit;
 
 PVRSRV_ERROR TEE_LoadFirmware(IMG_HANDLE hSysData, PVRSRV_FW_PARAMS *psTDFWParams)
@@ -74,10 +67,6 @@ PVRSRV_ERROR TEE_LoadFirmware(IMG_HANDLE hSysData, PVRSRV_FW_PARAMS *psTDFWParam
 	void *fwcode, *fwdata, *fwcorememcode, *fwcorememdata;
 	RGX_FW_INFO_HEADER sFWInfoHeader;
 	IMG_UINT64 ui64FwBinarySize;
-#if defined(SUPPORT_HW_BRN_76176)
-	void *general, *pds, *usc;
-	IMG_UINT64 generalpa, pdspa, uscpa;
-#endif
 
 	if (psSysData == NULL)
 	{
@@ -171,24 +160,6 @@ PVRSRV_ERROR TEE_LoadFirmware(IMG_HANDLE hSysData, PVRSRV_FW_PARAMS *psTDFWParam
 	                           fwcorememdata,
 	                           &psTDFWParams->uFWP);
 
-#if defined(SUPPORT_HW_BRN_76176)
-	generalpa = psSysData->ui64GPUDataCpuBase;
-	pdspa = generalpa + RGX_GPU_PREMAP_MAX_GENERAL_SIZE;
-	uscpa = pdspa + RGX_GPU_PREMAP_MAX_PDS_SIZE;
-
-	general = (void __iomem*)ioremap(generalpa, general_bin_len);
-	memcpy(general, general_bin, general_bin_len);
-	iounmap(general);
-
-	pds = (void __iomem*)ioremap(pdspa, pds_bin_len);
-	memcpy(pds, pds_bin, pds_bin_len);
-	iounmap(pds);
-
-	usc = (void __iomem*)ioremap(uscpa, usc_bin_len);
-	memcpy(usc, usc_bin, usc_bin_len);
-	iounmap(usc);
-#endif
-
 	iounmap(fwcorememdata);
 fwcorememdata_fail:
 	iounmap(fwcorememcode);
@@ -231,14 +202,6 @@ PVRSRV_ERROR TEE_RGXStart(IMG_HANDLE hSysData)
 		RGXErrorLog(NULL, "%s: PVRSRVConfigureMMU() failed (%u)", __func__, eErr);
 		return eErr;
 	}
-#if defined(SUPPORT_HW_BRN_76176)
-	eErr = PVRSRVConfigureGPUMMU(psSysData);
-	if (eErr != PVRSRV_OK)
-	{
-		RGXErrorLog(NULL, "%s: PVRSRVConfigureGPUMMU() failed (%u)", __func__, eErr);
-		return eErr;
-	}
-#endif
 #endif
 
 	eErr = RGXStart(hSysData);

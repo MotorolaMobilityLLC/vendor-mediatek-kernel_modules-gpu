@@ -85,15 +85,11 @@ void RGXWaitCycles(const void *hPrivate,
                    IMG_UINT32 ui32WaitUs);
 
 void RGXAcquireKernelMMUPC(const void *hPrivate, IMG_DEV_PHYADDR *psPCAddr);
-#if defined(SUPPORT_HW_BRN_76176)
-void RGXAcquireGPUMMUPC(const void *hPrivate, IMG_DEV_PHYADDR *psPCAddr);
-#endif
 IMG_BOOL RGXDoFWSlaveBoot(const void *hPrivate);
 PVRSRV_ERROR RGXFabricCoherencyTest(const void *hPrivate);
 IMG_UINT32 RGXGetDeviceSLCBanks(const void *hPrivate);
 IMG_UINT32 RGXGetDeviceCacheLineSize(const void *hPrivate);
 void RGXAcquireBootCodeAddr(const void *hPrivate, IMG_DEV_VIRTADDR *psBootCodeAddr);
-void *RGXCalculateHostFWDataAddress(const void *hPrivate, void *pvHostFWDataAddr);
 void RGXAcquireBootDataAddr(const void *hPrivate, IMG_DEV_VIRTADDR *psBootDataAddr);
 IMG_BOOL RGXDeviceAckIrq(const void *hPrivate);
 IMG_UINT64 RGXMMUInitRangeValue(IMG_UINT32 ui32MMURange);

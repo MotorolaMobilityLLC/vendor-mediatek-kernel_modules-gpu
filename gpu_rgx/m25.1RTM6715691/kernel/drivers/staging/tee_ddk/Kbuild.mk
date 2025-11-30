@@ -53,10 +53,4 @@ tee_ddk-y += \
  kernel/drivers/staging/tee_ddk/tee_fw_premap.o
 endif
 
-ifeq ($(SUPPORT_HW_BRN_76176),1)
-tee_ddk-y += \
- firmware/$(PVR_ARCH)/tee_blobgen_general.o \
- firmware/$(PVR_ARCH)/tee_blobgen_usc.o \
- firmware/$(PVR_ARCH)/tee_blobgen_pds.o
-endif
 

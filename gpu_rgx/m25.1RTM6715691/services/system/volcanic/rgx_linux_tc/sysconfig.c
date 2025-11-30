@@ -164,14 +164,6 @@ static const CARD_PHYS_HEAP_CONFIG_SPEC gasCardHeapTemplate[] =
 	 PHYSHEAP_ONLY_VZ
 #endif
 	},
-#if defined(SUPPORT_HW_BRN_76176)
-	{
-	 PHYS_HEAP_USAGE_GPU_PREMAP,
-	 RGX_GPU_PREMAP_MAX_PAGETABLE_SIZE + RGX_GPU_PREMAP_MAX_DATA_SIZE,
-	 true,
-	 PHYSHEAP_NO_GUESTS
-	},
-#endif
 };
 
 #define ODIN_MEMORY_HYBRID_DEVICE_BASE 0x400000000
@@ -294,13 +286,6 @@ struct _SYS_DATA_
 	IMG_UINT64 ui64FwPageTableHeapCpuBase;
 	IMG_UINT64 ui64FwPageTableHeapGpuBase;
 	IMG_UINT64 ui64FwPageTableHeapSize;
-#if defined(SUPPORT_HW_BRN_76176)
-	IMG_UINT64 ui64GPUPageTableHeapCpuBase;
-	IMG_UINT64 ui64GPUPageTableHeapGpuBase;
-	IMG_UINT64 ui64GPUPageTableHeapSize;
-	IMG_UINT64 ui64GPUDataCpuBase;
-	IMG_UINT64 ui64GPUDataGpuBase;
-#endif
 #endif
 
 	PVRSRV_DEVICE_FEATURE_CONFIG sDevFeatureCfg;
@@ -504,9 +489,6 @@ IMG_CHAR* GetHeapName(PHYS_HEAP_USAGE_FLAGS ui32Flags)
 	if (BITMASK_HAS(ui32Flags,PHYS_HEAP_USAGE_FW_PREMAP_PT)) return "lma_fw_pagetables";
 	if (BITMASK_HAS(ui32Flags,PHYS_HEAP_USAGE_CPU_LOCAL))    return "lma_cpu_local";
 	if (BITMASK_HAS(ui32Flags,PHYS_HEAP_USAGE_DISPLAY))      return "lma_gpu_display";
-#if defined(SUPPORT_HW_BRN_76176)
-	if (BITMASK_HAS(ui32Flags,PHYS_HEAP_USAGE_GPU_PREMAP))   return "lma_gpu_premap";
-#endif
 	else                                                     return "Unexpected Heap";
 }
 
@@ -572,17 +554,6 @@ CreateCardGPUHeaps(SYS_DATA *psSysData,
 				psSysData->ui64FwPageTableHeapGpuBase = ui64CardAddr;
 				psSysData->ui64FwPageTableHeapSize = pasCardHeapSpec[ui32SpecIdx].uiSize;
 			}
-#if defined(SUPPORT_HW_BRN_76176)
-			else if (BITMASK_HAS(pasCardHeapSpec[ui32SpecIdx].ui32UsageFlags, PHYS_HEAP_USAGE_GPU_PREMAP))
-			{
-				psSysData->ui64GPUPageTableHeapCpuBase = ui64StartAddr;
-				psSysData->ui64GPUPageTableHeapGpuBase = ui64CardAddr;
-				psSysData->ui64GPUPageTableHeapSize = pasCardHeapSpec[ui32SpecIdx].uiSize;
-
-				psSysData->ui64GPUDataCpuBase = ui64StartAddr + RGX_GPU_PREMAP_MAX_PAGETABLE_SIZE;
-				psSysData->ui64GPUDataGpuBase = ui64CardAddr + RGX_GPU_PREMAP_MAX_PAGETABLE_SIZE;
-			}
-#endif
 			else if (BITMASK_HAS(pasCardHeapSpec[ui32SpecIdx].ui32UsageFlags, PHYS_HEAP_USAGE_FW_SHARED))
 			{
 				psSysData->ui64FwTotalHeapSize = RGX_FIRMWARE_RAW_HEAP_SIZE;

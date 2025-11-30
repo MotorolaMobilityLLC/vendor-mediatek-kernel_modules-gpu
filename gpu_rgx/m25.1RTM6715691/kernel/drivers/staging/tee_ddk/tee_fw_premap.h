@@ -154,9 +154,7 @@ typedef struct _MMU_CONTEXT_
 	/*! For allocation and deallocation of the physical memory where
 	    the pagetables live */
 	struct _MMU_PHYSMEM_CONTEXT_ *psPhysMemCtx;
-#if defined(SUPPORT_HW_BRN_76176)
-	IMG_BOOL bGPU;
-#endif
+
 	/*! Base level info structure. Must be last member in structure */
 	MMU_LEVEL_INFO sBaseLevelInfo;
 	/* NO OTHER MEMBERS AFTER THIS STRUCTURE ! */
@@ -269,8 +267,5 @@ typedef struct _MMU_DEVVADDR_CONFIG_
  */
 /*****************************************************************************/
 PVRSRV_ERROR PVRSRVConfigureMMU(SYS_DATA *psSysData);
-#if defined(SUPPORT_HW_BRN_76176)
-PVRSRV_ERROR PVRSRVConfigureGPUMMU(SYS_DATA *psSysData);
-#endif
 
 #endif /* #ifdef TEE_FW_PREMAP_H */

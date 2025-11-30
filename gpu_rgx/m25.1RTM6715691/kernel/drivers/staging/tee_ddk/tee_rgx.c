@@ -272,18 +272,7 @@ void RGXAcquireKernelMMUPC(const void *hPrivate, IMG_DEV_PHYADDR *psPCAddr)
 	psPCAddr->uiAddr = gsInit.sPCAddr.uiAddr;
 #endif
 }
-#if defined(SUPPORT_HW_BRN_76176)
-void RGXAcquireGPUMMUPC(const void *hPrivate, IMG_DEV_PHYADDR *psPCAddr)
-{
-#if defined(RGX_PREMAP_FW_HEAPS)
-	const SYS_DATA *psSysData = hPrivate;
 
-	psPCAddr->uiAddr = psSysData->ui64GPUPageTableHeapGpuBase;
-#else
-	psPCAddr->uiAddr = 0;
-#endif
-}
-#endif
 IMG_BOOL RGXDoFWSlaveBoot(const void *hPrivate)
 {
 	return false;
@@ -311,13 +300,6 @@ void RGXAcquireBootCodeAddr(const void *hPrivate, IMG_DEV_VIRTADDR *psBootCodeAd
 
 void RGXAcquireBootDataAddr(const void *hPrivate, IMG_DEV_VIRTADDR *psBootDataAddr)
 {
-}
-
-void *RGXCalculateHostFWDataAddress(const void *hPrivate, void *pvHostFWDataAddr)
-{
-	PVR_UNREFERENCED_PARAMETER(hPrivate);
-
-	return pvHostFWDataAddr;
 }
 
 IMG_BOOL RGXDeviceAckIrq(const void *hPrivate)

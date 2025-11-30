@@ -45,12 +45,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <linux/slab.h>
 #include <linux/compiler_types.h>
 #include <asm/io.h>
-#if defined(SUPPORT_HW_BRN_76176)
-extern unsigned int general_bin_len;
-extern unsigned int usc_bin_len;
-extern unsigned int pds_bin_len;
-#endif
-static IMG_UINT64 ui64MemCursor = 0;
 
 static const MMU_PxE_CONFIG sRGXMMUPCEConfig = {
 	.ePxLevel			= MMU_LEVEL_3,
@@ -484,6 +478,7 @@ static PVRSRV_ERROR _CarveoutAllocator(IMG_UINT64 ui64PageTableHeapGpuBase,
                                        IMG_UINT32 uiAlignment,
                                        IMG_UINT64 *pui64PhysAddr)
 {
+	static IMG_UINT64 ui64MemCursor = 0;
 
 	if (ui64MemCursor == 0)
 	{
@@ -523,38 +518,14 @@ static PVRSRV_ERROR _MMU_PhysMemAlloc(SYS_DATA *psSysData,
 {
 	PVRSRV_ERROR eError;
 	IMG_UINT64 ui64PhysAddr;
-	IMG_UINT64 ui64CpuGpuPAOffset;
-
-#if defined(SUPPORT_HW_BRN_76176)
-	if (psPhysMemCtx->psMMUContext->bGPU)
-	{
-		ui64CpuGpuPAOffset = (psSysData->ui64GPUPageTableHeapCpuBase > psSysData->ui64GPUPageTableHeapGpuBase) ?
-							 (psSysData->ui64GPUPageTableHeapCpuBase - psSysData->ui64GPUPageTableHeapGpuBase) :
-							 (psSysData->ui64GPUPageTableHeapGpuBase - psSysData->ui64GPUPageTableHeapCpuBase);
-	}
-	else
-#endif
-	{
-		ui64CpuGpuPAOffset = (psSysData->ui64FwPageTableHeapCpuBase > psSysData->ui64FwPageTableHeapGpuBase) ?
-							 (psSysData->ui64FwPageTableHeapCpuBase - psSysData->ui64FwPageTableHeapGpuBase) :
-							 (psSysData->ui64FwPageTableHeapGpuBase - psSysData->ui64FwPageTableHeapCpuBase);
-	}
+	IMG_UINT64 ui64CpuGpuPAOffset = (psSysData->ui64FwPageTableHeapCpuBase > psSysData->ui64FwPageTableHeapGpuBase) ?
+	                                (psSysData->ui64FwPageTableHeapCpuBase - psSysData->ui64FwPageTableHeapGpuBase) :
+	                                (psSysData->ui64FwPageTableHeapGpuBase - psSysData->ui64FwPageTableHeapCpuBase);
 
 	PVR_ASSERT(psConfig->uiBytesPerEntry != 0);
-#if defined(SUPPORT_HW_BRN_76176)
-	if (psPhysMemCtx->psMMUContext->bGPU)
-	{
-		eError = _CarveoutAllocator(psSysData->ui64GPUPageTableHeapGpuBase,
-									psSysData->ui64GPUPageTableHeapSize,
-									uiBytes, uiAlignment, &ui64PhysAddr);
-	}
-	else
-#endif
-	{
-		eError = _CarveoutAllocator(psSysData->ui64FwPageTableHeapGpuBase,
-									psSysData->ui64FwPageTableHeapSize,
-									uiBytes, uiAlignment, &ui64PhysAddr);
-	}
+	eError = _CarveoutAllocator(psSysData->ui64FwPageTableHeapGpuBase,
+	                            psSysData->ui64FwPageTableHeapSize,
+	                            uiBytes, uiAlignment, &ui64PhysAddr);
 
 	if (eError != PVRSRV_OK)
 	{
@@ -1100,7 +1071,8 @@ static PVRSRV_ERROR MMU_MapRange(IMG_UINT64 ui64BasePA,
                                  IMG_DEV_VIRTADDR sDevVAddrBase,
                                  IMG_DEVMEM_SIZE_T uiSizeBytes,
                                  MMU_CONTEXT *psMMUContext,
-                                 IMG_UINT32 uiLog2HeapPageSize)
+                                 IMG_UINT32 uiLog2HeapPageSize,
+                                 IMG_UINT64 uiProtFlags)
 {
 	const MMU_PxE_CONFIG *psConfig = &sRGXMMUPTEConfig;
 
@@ -1108,7 +1080,7 @@ static PVRSRV_ERROR MMU_MapRange(IMG_UINT64 ui64BasePA,
 	IMG_UINT32 ui32PagesDone=0, uiPTEIndex=0;
 
 	IMG_UINT8 uiAddrLog2Align, uiAddrShift;
-	IMG_UINT64 uiAddrMask, uiProtFlags;
+	IMG_UINT64 uiAddrMask;
 	IMG_UINT32 uiBytesPerEntry;
 
 	IMG_UINT64* pui64LevelBase;
@@ -1125,14 +1097,6 @@ static PVRSRV_ERROR MMU_MapRange(IMG_UINT64 ui64BasePA,
 	uiAddrShift = psConfig->uiAddrShift;
 	uiAddrMask = psConfig->uiAddrMask;
 	uiBytesPerEntry = psConfig->uiBytesPerEntry;
-	uiProtFlags = ~RGX_MMUCTRL_PT_DATA_AXCACHE_CLRMSK |
-	              RGX_MMUCTRL_PT_DATA_VALID_EN;
-#if defined(SUPPORT_HW_BRN_76176)
-	if (!psMMUContext->bGPU)
-#endif
-	{
-		uiProtFlags |= RGX_MMUCTRL_PT_DATA_PM_META_PROTECT_EN;
-	}
 
 	do
 	{
@@ -1191,22 +1155,20 @@ PVRSRV_ERROR PVRSRVConfigureMMU(SYS_DATA *psSysData)
 	const IMG_UINT32 ui32ContextSize = sizeof(MMU_CONTEXT) +
 			(sRGXMMUDevVAddrConfig.uiNumEntriesPC - 1) * sizeof(MMU_LEVEL_INFO*);
 
+	IMG_UINT64 uiProtFlags = RGX_MMUCTRL_PT_DATA_PM_META_PROTECT_EN |
+							 ~RGX_MMUCTRL_PT_DATA_AXCACHE_CLRMSK |
+							 RGX_MMUCTRL_PT_DATA_VALID_EN;
+
 	sDevVAddrStart.uiAddr = FWHEAP_GPU_VA;
 	sDevVAddrEnd.uiAddr  = FWHEAP_GPU_VA + RGX_NUM_DRIVERS_SUPPORTED*psSysData->ui64FwTotalHeapSize;
-#if defined(SUPPORT_HW_BRN_76176)
-	ui64MemCursor = 0;
-#endif
+
 	psMMUContext = kzalloc(ui32ContextSize, GFP_KERNEL);
 	if (psMMUContext == NULL)
 	{
 		eError = PVRSRV_ERROR_OUT_OF_MEMORY;
 		goto err;
 	}
-	psMMUContext->psPhysMemCtx = kzalloc(sizeof(*psMMUContext->psPhysMemCtx), GFP_KERNEL);
-	psMMUContext->psPhysMemCtx->psMMUContext = psMMUContext;
-#if defined(SUPPORT_HW_BRN_76176)
-	psMMUContext->bGPU = IMG_FALSE;
-#endif
+
 	_MMU_GetLevelData(sDevVAddrStart, sDevVAddrEnd,
 	                  auiStartArray, auiEndArray,
 	                  auiEntriesPerPx, aeMMULevel, ui32Log2PageSize);
@@ -1246,8 +1208,9 @@ PVRSRV_ERROR PVRSRVConfigureMMU(SYS_DATA *psSysData)
 		             sDevVAddrStart.uiAddr - FWHEAP_GPU_VA -
 		             ui32DriverID*psSysData->ui64FwTotalHeapSize;
 
+		/* SUPPORT_HW_BRN_76176 requires non-PMMETA access to this heap. Context-based access permissions protect this. */
 		MMU_MapRange(ui64BasePA, sDevVAddrStart, psSysData->ui64FwTotalHeapSize,
-		             psMMUContext, ui32Log2PageSize);
+		             psMMUContext, ui32Log2PageSize, uiProtFlags & RGX_MMUCTRL_PT_DATA_PM_META_PROTECT_CLRMSK);
 	}
 
 #if defined(FW_CUSTOM_REGION0_GPU_VA)
@@ -1270,7 +1233,7 @@ PVRSRV_ERROR PVRSRVConfigureMMU(SYS_DATA *psSysData)
 	}
 
 	MMU_MapRange(FW_CUSTOM_REGION0_GPU_PA, sDevVAddrStart,
-	             FW_CUSTOM_REGION0_SIZE, psMMUContext, ui32Log2PageSize);
+	             FW_CUSTOM_REGION0_SIZE, psMMUContext, ui32Log2PageSize, uiProtFlags);
 #endif
 
 #if defined(FW_CUSTOM_REGION1_GPU_VA)
@@ -1293,11 +1256,10 @@ PVRSRV_ERROR PVRSRVConfigureMMU(SYS_DATA *psSysData)
 	}
 
 	MMU_MapRange(FW_CUSTOM_REGION1_GPU_PA, sDevVAddrStart,
-	             FW_CUSTOM_REGION1_SIZE, psMMUContext, ui32Log2PageSize);
+	             FW_CUSTOM_REGION1_SIZE, psMMUContext, ui32Log2PageSize, uiProtFlags);
 #endif
 
 err:
-	kfree(psMMUContext->psPhysMemCtx);
 	kfree(psMMUContext);
 
 	return PVRSRV_OK;

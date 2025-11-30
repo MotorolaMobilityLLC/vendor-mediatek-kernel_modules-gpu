@@ -108,13 +108,6 @@ typedef struct _SYS_DATA_
 	IMG_UINT64 ui64FwPageTableHeapCpuBase;
 	IMG_UINT64 ui64FwPageTableHeapGpuBase;
 	IMG_UINT64 ui64FwPageTableHeapSize;
-#if defined(SUPPORT_HW_BRN_76176)
-	IMG_UINT64 ui64GPUPageTableHeapCpuBase;
-	IMG_UINT64 ui64GPUPageTableHeapGpuBase;
-	IMG_UINT64 ui64GPUPageTableHeapSize;
-	IMG_UINT64 ui64GPUDataCpuBase;
-	IMG_UINT64 ui64GPUDataGpuBase;
-#endif
 #endif
 
 	PVRSRV_DEVICE_FEATURE_CONFIG sDevFeatureCfg;
