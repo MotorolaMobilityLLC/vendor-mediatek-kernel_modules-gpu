@@ -514,15 +514,31 @@ AcquireValidateRefCriticalBuffer(PVRSRV_DEVICE_NODE*     psDevNode,
 		    "%s: Failed to acquire reservation for critical buffer", __func__);
 	}
 
+	/* Prevent unmapping the PMR from the reservation while used as critical buffer */
+	if (!DevmemIntLockReservationMapping(psReservation))
+	{
+		eError = PVRSRV_ERROR_INVALID_PARAMS;
+		PVR_LOG_GOTO_IF_ERROR_VA(eError, RollbackReservationAcquire,
+		    "%s: Failed to lock reservation mapping for critical buffer. Already locked!", __func__);
+	}
+
 	eError = DevmemIntGetReservationData(psReservation, ppsPMR, psDevVAddr);
-	PVR_LOG_GOTO_IF_ERROR_VA(eError, RollbackReservation,
+	PVR_LOG_GOTO_IF_ERROR_VA(eError, RollbackReservationMapping,
 	    "%s: Error from DevmemIntGetReservationData for critical buffer: %s",
 	    __func__, PVRSRVGetErrorString(eError));
 
+	/* Make sure that the reservation is on a heap with correct policy */
+	if (psDevVAddr->uiAddr < RGX_PMMETA_PROTECT_HEAP_BASE ||
+	    psDevVAddr->uiAddr >= RGX_PMMETA_PROTECT_HEAP_BASE + RGX_PMMETA_PROTECT_HEAP_SIZE)
+	{
+		eError = PVRSRV_ERROR_INVALID_HEAP;
+		PVR_LOG_GOTO_IF_ERROR_VA(eError, RollbackReservationMapping,
+		    "%s: Invalid heap policy for the critical buffer", __func__);
+	}
 
 	/* Check buffer sizes and flags are as required */
 	eError = _ValidateCriticalPMR(*ppsPMR, ui64MinSize);
-	PVR_LOG_GOTO_IF_ERROR_VA(eError, RollbackReservation,
+	PVR_LOG_GOTO_IF_ERROR_VA(eError, RollbackReservationMapping,
 	    "%s: Validation of critical PMR failed: %s",
 	    __func__, PVRSRVGetErrorString(eError));
 
@@ -532,7 +548,7 @@ AcquireValidateRefCriticalBuffer(PVRSRV_DEVICE_NODE*     psDevNode,
 		PVR_DPF((PVR_DBG_ERROR,
 		     "%s: Critical PMR already in use (exclusive flag)!",
 		     __func__));
-		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_INVALID_PARAMS, RollbackReservation);
+		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_INVALID_PARAMS, RollbackReservationMapping);
 	}
 
 	/* If no error on validation ref the PMR */
@@ -545,7 +561,9 @@ AcquireValidateRefCriticalBuffer(PVRSRV_DEVICE_NODE*     psDevNode,
 
 UnsetExclusive:
 	PMR_SetExclusiveUse(*ppsPMR, IMG_FALSE);
-RollbackReservation:
+RollbackReservationMapping:
+	DevmemIntUnLockReservationMapping(psReservation);
+RollbackReservationAcquire:
 	DevmemIntReservationRelease(psReservation);
 ReturnError:
 	return eError;
@@ -567,6 +585,7 @@ void UnrefAndReleaseCriticalBuffer(DEVMEMINT_RESERVATION* psReservation)
 	eError = PMRUnrefPMR(psPMR);
 	PVR_LOG_IF_ERROR(eError, "PMRUnrefPMR");
 
+	DevmemIntUnLockReservationMapping(psReservation);
 	DevmemIntReservationRelease(psReservation);
 }
 

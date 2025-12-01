@@ -419,6 +419,25 @@ void
 DevmemIntReservationRelease(DEVMEMINT_RESERVATION *psDevmemReservation);
 
 /*************************************************************************/ /*!
+@Function       DevmemIntLockReservationMapping
+@Description    Prevents un-mapping the PMR from provided device memory
+                reservation.
+@Return         true if locking succeeded (and reservation wasn't locked),
+                false if locking failed (reservation was already locked).
+*/ /**************************************************************************/
+IMG_BOOL
+DevmemIntLockReservationMapping(DEVMEMINT_RESERVATION* psReservation);
+
+/*************************************************************************/ /*!
+@Function       DevmemIntUnLockReservationMapping
+@Description    Reallow un-mapping the PMR from provided device memory
+                reservation.
+@Return         None.
+*/ /**************************************************************************/
+void
+DevmemIntUnLockReservationMapping(DEVMEMINT_RESERVATION* psReservation);
+
+/*************************************************************************/ /*!
  * @Function    DevmemXIntMapPages()
  * @Description Maps an arbitrary amount of pages from a PMR to a reserved range
  *              and takes references on the PMR.

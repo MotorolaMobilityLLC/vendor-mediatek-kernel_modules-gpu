@@ -65,6 +65,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 #define DEVMEMCTX_FLAGS_FAULT_ADDRESS_AVAILABLE (1 << 0)
+#define DEVMEMCTX_FLAGS_IS_KERNEL_CONTEXT (1 << 1)
+
 #define DEVMEMHEAP_REFCOUNT_MIN 1
 #define DEVMEMHEAP_REFCOUNT_MAX IMG_INT32_MAX
 #define DEVMEMRESERVATION_ACQUISITION_MIN 0
@@ -227,11 +229,15 @@ typedef enum _RESERVATION_USAGE_
 	RESERVATION_USAGE_CLIENT          // Reservations used by client apps (includes dma_bufs)
 } RESERVATION_USAGE;
 
+typedef IMG_UINT32 DEVMEMINT_RESERVATION_FLAGS;
+#define DEVMEMINT_RESERVATION_FLAGS_FIX_MAPPING (0U) // Reservation has a fixed mapping. When set prevents unmapping of psMappedPMR
+
 struct _DEVMEMINT_RESERVATION_
 {
 	struct _DEVMEMINT_HEAP_ *psDevmemHeap;
 	IMG_DEV_VIRTADDR sBase;
 	IMG_DEVMEM_SIZE_T uiLength;
+	DEVMEMINT_RESERVATION_FLAGS uiReservationFlags;
 
 	/* lock used to guard against potential race when freeing reservation, also protects
 	 * parallel operations occurring on the same reservation such as a (un)mapping operation
@@ -1548,6 +1554,11 @@ DevmemIntCtxCreate(CONNECTION_DATA *psConnection,
 
 	psDevmemCtx->uiCreatedHeaps = 0;
 
+	if (bKernelFWMemoryCtx)
+	{
+		BITMASK_SET(psDevmemCtx->ui32Flags, DEVMEMCTX_FLAGS_IS_KERNEL_CONTEXT);
+	}
+
 	return PVRSRV_OK;
 
 fail_register:
@@ -1590,6 +1601,13 @@ DevmemIntHeapCreate(DEVMEMINT_CTX *psDevmemCtx,
 	IMG_UINT32 ui32BlueprintLog2ImportAlignment;
 
 	PVR_DPF((PVR_DBG_MESSAGE, "%s", __func__));
+
+	/* Don't allow creating Firmware heaps on client contexts. */
+	if (!BITMASK_HAS(psDevmemCtx->ui32Flags, DEVMEMCTX_FLAGS_IS_KERNEL_CONTEXT) &&
+	    uiHeapConfigIndex == DEVMEM_HEAPCFG_FORFW)
+	{
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
 
 	if (!DevmemIntCtxAcquire(psDevmemCtx))
 	{
@@ -2610,17 +2628,51 @@ ErrorReturnError:
 	return eError;
 }
 
+IMG_BOOL
+DevmemIntLockReservationMapping(DEVMEMINT_RESERVATION* psReservation)
+{
+	OSLockAcquireNested(psReservation->hLock, psReservation->eLockClass);
+
+	if (BIT_ISSET(psReservation->uiReservationFlags,
+		          DEVMEMINT_RESERVATION_FLAGS_FIX_MAPPING))
+	{
+		OSLockRelease(psReservation->hLock);
+		return IMG_FALSE;
+	}
+
+	BIT_SET(psReservation->uiReservationFlags,
+	        DEVMEMINT_RESERVATION_FLAGS_FIX_MAPPING);
+	OSLockRelease(psReservation->hLock);
+
+	return IMG_TRUE;
+}
+
+void
+DevmemIntUnLockReservationMapping(DEVMEMINT_RESERVATION* psReservation)
+{
+	OSLockAcquireNested(psReservation->hLock, psReservation->eLockClass);
+	BIT_UNSET(psReservation->uiReservationFlags,
+	          DEVMEMINT_RESERVATION_FLAGS_FIX_MAPPING);
+	OSLockRelease(psReservation->hLock);
+}
+
 PVRSRV_ERROR
 DevmemIntGetReservationData(DEVMEMINT_RESERVATION* psReservation, PMR** ppsPMR, IMG_DEV_VIRTADDR* psDevVAddr)
 {
-	/* Reservation might not have a PMR if a mapping was not yet performed */
-	if (psReservation->psMappedPMR == NULL)
+	OSLockAcquireNested(psReservation->hLock, psReservation->eLockClass);
+
+	/* Check that reservation has a PMR mapped and that mapping is fixed. */
+	if (psReservation->psMappedPMR == NULL ||
+	   (!BIT_ISSET(psReservation->uiReservationFlags,
+	               DEVMEMINT_RESERVATION_FLAGS_FIX_MAPPING)))
 	{
+		OSLockRelease(psReservation->hLock);
 		return PVRSRV_ERROR_INVALID_PARAMS;
 	}
 
 	psDevVAddr->uiAddr = psReservation->sBase.uiAddr;
 	*ppsPMR = psReservation->psMappedPMR;
+	OSLockRelease(psReservation->hLock);
 	return PVRSRV_OK;
 }
 
@@ -2676,16 +2728,7 @@ DevmemIntUnmapPMR(DEVMEMINT_RESERVATION *psReservation)
 	OSLockAcquireNested(psReservation->hLock, psReservation->eLockClass);
 
 	PVR_GOTO_IF_INVALID_PARAM(psReservation->psMappedPMR != NULL, eError, ErrUnlockRes);
-
-
-	if (_DevmemGetRemapPolicy(sReservationVAddr) == MMU_PTE_REMAP_POLICY_BLOCK)
-	{
-		/* For reservations with MMU_PTE_REMAP_POLICY_BLOCK remap policy
-		 * don't allow unmapping acquired reservations.
-		 */
-		PVR_GOTO_IF_INVALID_PARAM(psReservation->i32DevResAcquisitionCount == 0, eError, ErrUnlockRes);
-	}
-
+	PVR_GOTO_IF_INVALID_PARAM(!BIT_ISSET(psReservation->uiReservationFlags, DEVMEMINT_RESERVATION_FLAGS_FIX_MAPPING), eError, ErrUnlockRes);
 
 	PMRLockPMR(psReservation->psMappedPMR);
 
