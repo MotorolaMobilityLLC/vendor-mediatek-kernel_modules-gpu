@@ -51,6 +51,7 @@
 #include <mali_kbase_trace_gpu_mem.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
 #include <platform/mtk_platform_utils.h> /* MTK_INLINE */
+#include "mali_kbase_gmc.h"
 
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
@@ -995,6 +996,88 @@ static bool page_fault_try_alloc(struct kbase_context *kctx,
 
 	return true;
 }
+#if MALI_GMC
+int kbase_gmc_handle_gpu_page_fault(struct kbase_as *faulting_as,
+                                    struct kbase_va_region *region)
+{
+  int err = 0;
+  u32 op;
+  /* We may map 8 pages (or more) because of in case of large
+   * textures other page faults are expected, it will
+   * seed up mapping pages back on gpu.
+   * Or may use other heuristics (also) */
+  u64 fault_block_pfn, fault_rel_pfn;
+  size_t map_block_size;
+  struct kbase_context *kctx = kbase_reg_to_kctx(region);
+  if (!kctx) return 0;
+  struct kbase_device *kbdev = kctx->kbdev;
+  struct kbase_fault *fault = & faulting_as->pf_data;
+  fault_rel_pfn = (fault->addr >> PAGE_SHIFT) - region->start_pfn;
+  fault_block_pfn = fault_rel_pfn & (~(u64)PAGE_FAULT_MAP_BLOCK_MASK);
+  map_block_size = MIN(PAGE_FAULT_MAP_BLOCK, region->cpu_alloc->nents - fault_block_pfn);
+  const enum kbase_caller_mmu_sync_info mmu_sync_info = CALLER_MMU_SYNC;
+
+  /* Out of bounds access, possibly growable region. Skip this. */
+  if (fault_rel_pfn >= kbase_reg_current_backed_size(region))
+    return GMC_PF_OUT_OF_BOUNDS;
+
+  pr_debug("%s kctx %d region %pK, pfn range [%llu, %llu]\n",
+           __func__, (int)kctx->tgid, region, region->start_pfn + fault_block_pfn,
+           region->start_pfn + fault_block_pfn + map_block_size);
+
+  err = kbase_get_compressed_region(region, region->start_pfn +
+                                    fault_block_pfn, map_block_size);
+  if (!err) {
+    /* insert gpu mappings */
+    //err = kbase_mmu_insert_pages(region->kctx, region->start_pfn + fault_block_pfn,
+                                 //&region->cpu_alloc->pages[fault_block_pfn], map_block_size, region->flags);
+    err = kbase_mmu_insert_pages(kctx->kbdev, &kctx->mmu, region->start_pfn + fault_block_pfn,&region->cpu_alloc->pages[fault_block_pfn],
+                           map_block_size,  region->flags, kctx->as_nr,
+                           region->cpu_alloc->group_id, mmu_sync_info, region);
+  }
+
+  mutex_lock(&kbdev->mmu_hw_mutex);
+	struct kbase_mmu_hw_op_param op_param;
+	/* flush L2 and unlock the VA (resumes the MMU) */
+	op_param.vpfn = region->start_pfn + fault_block_pfn;
+	op_param.nr = map_block_size;
+	op_param.op = KBASE_MMU_OP_FLUSH_PT;
+	op_param.kctx_id = kctx->id;
+	op_param.mmu_sync_info = mmu_sync_info;
+
+	unsigned long irq_flags;
+
+	kbase_mmu_hw_clear_fault(kbdev, faulting_as,
+				KBASE_MMU_FAULT_TYPE_PAGE);
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, irq_flags);
+	err = kbase_mmu_hw_do_flush(kbdev, faulting_as,
+			&op_param);
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, irq_flags);
+
+	op_param.flush_skip_levels = 0xF;
+	op_param.vpfn = region->start_pfn + fault_block_pfn;
+	op_param.nr = 1;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, irq_flags);
+	err = kbase_mmu_hw_do_unlock(kbdev, faulting_as,
+				   &op_param);
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, irq_flags);
+
+  /* [1] in case another page fault occurred while we were
+   * handling the (duplicate) page fault we need to ensure we
+   * don't loose the other page fault as result of us clearing
+   * the MMU IRQ. Therefore, after we clear the MMU IRQ we send
+   * an UNLOCK command that will retry any stalled memory
+   * transaction (which should cause the other page fault to be
+   * raised again).
+   */
+  kbase_mmu_hw_enable_fault(kbdev, faulting_as,
+                            KBASE_MMU_FAULT_TYPE_PAGE);
+  mutex_unlock(&kbdev->mmu_hw_mutex);
+  return err;
+}
+#endif
 
 void kbase_mmu_page_fault_worker(struct work_struct *data)
 {
@@ -1155,7 +1238,40 @@ page_fault_retry:
 				"DMA-BUF is not mapped on the GPU", fault);
 		goto fault_done;
 	}
+#if MALI_GMC
+	if ((region->flags & KBASE_REG_DONT_NEED)) {
+          kbase_gpu_vm_unlock(kctx);
+          kbase_mmu_report_fault_and_kill(kctx, faulting_as,
+                                          "Don't need memory can't be grown",fault);
+          goto fault_done;
+	}
 
+	err = kbase_gmc_handle_gpu_page_fault(faulting_as, region);
+	if (!err) {
+          kbase_gpu_vm_unlock(kctx);
+          goto fault_done;
+	} else if (err != GMC_PF_OUT_OF_BOUNDS) {
+          kbase_gpu_vm_unlock(kctx);
+          pr_emerg("can't decompress page on page fault, err %d\n", err);
+          kbase_mmu_report_fault_and_kill(kctx, faulting_as,
+                                          "GMC can't decompress pages",fault);
+          goto fault_done;
+	}
+
+	if ((region->flags & GROWABLE_FLAGS_REQUIRED)
+            != GROWABLE_FLAGS_REQUIRED) {
+          kbase_gpu_vm_unlock(kctx);
+          kbase_mmu_report_fault_and_kill(kctx, faulting_as,
+                                          "Memory is not growable",fault);
+          goto fault_done;
+	}
+
+	/* find the size we need to grow it by */
+	/* we know the result fit in a size_t due to kbase_region_tracker_find_region_enclosing_address
+	 * validating the fault_adress to be within a size_t from the start_pfn */
+	fault_rel_pfn = fault_pfn - region->start_pfn;
+	current_backed_size = kbase_reg_current_backed_size(region);
+#else
 	if (region->gpu_alloc->group_id >= MEMORY_GROUP_MANAGER_NR_GROUPS) {
 		kbase_gpu_vm_unlock(kctx);
 		kbase_mmu_report_fault_and_kill(kctx, faulting_as,
@@ -1248,7 +1364,7 @@ page_fault_retry:
 
 		goto fault_done;
 	}
-
+#endif
 	new_pages = reg_grow_calc_extra_pages(kbdev, region, fault_rel_pfn);
 
 	/* cap to max vsize */
@@ -2490,6 +2606,8 @@ repeat_page_table_walk:
 			for (i = 0; i < count; i++) {
 				unsigned int ofs = vindex + i;
 				u64 *target = &pgd_page[ofs];
+#if MALI_GMC
+				if (!kbase_is_entry_compressed(phys[i])) {
 
 				/* Warn if the current page is a valid ATE
 				 * entry. The page table shouldn't have anything
@@ -2498,18 +2616,32 @@ repeat_page_table_walk:
 				 * should be performed with
 				 * kbase_mmu_update_pages()
 				 */
-				WARN_ON((*target & 1UL) != 0);
+			//`	WARN_ON((*target & 1UL) != 0);
 
+					*target = kbase_mmu_create_ate(kbdev,
+						phys[i], flags, cur_level, group_id);
+					/* If page migration is enabled, this is the right time
+					* to update the status of the page.
+					*/
+					if (kbase_is_page_migration_enabled() && !ignore_page_migration &&
+						!is_huge(phys[i]) && !is_partial(phys[i]))
+						kbase_mmu_progress_migration_on_insert(phys[i], reg, mmut,
+											insert_vpfn + i);
+				} else {
+					kbdev->mmu_mode->entries_invalidate(target,1);
+				}
+#else
 				*target = kbase_mmu_create_ate(kbdev,
 					phys[i], flags, cur_level, group_id);
 
 				/* If page migration is enabled, this is the right time
-				 * to update the status of the page.
-				 */
+				* to update the status of the page.
+				*/
 				if (kbase_is_page_migration_enabled() && !ignore_page_migration &&
-				    !is_huge(phys[i]) && !is_partial(phys[i]))
+					!is_huge(phys[i]) && !is_partial(phys[i]))
 					kbase_mmu_progress_migration_on_insert(phys[i], reg, mmut,
-									       insert_vpfn + i);
+										insert_vpfn + i);
+#endif
 			}
 			num_of_valid_entries += count;
 		}

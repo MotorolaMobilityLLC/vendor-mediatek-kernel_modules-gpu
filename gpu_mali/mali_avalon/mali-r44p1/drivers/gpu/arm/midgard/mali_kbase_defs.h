@@ -51,7 +51,7 @@
 #include <linux/slab.h>
 #include <linux/file.h>
 #include <linux/sizes.h>
-
+#include "gmc.h"
 
 #include "mali_kbase_fence_defs.h"
 
@@ -465,6 +465,7 @@ struct kbasep_mem_device {
 #if IS_ENABLED(CONFIG_MALI_MTK_COMMON)
 	atomic_t cache_pool_pages;
 #endif
+	atomic_t compressed_pages;
 };
 
 struct kbase_clk_rate_listener;
@@ -1554,6 +1555,9 @@ struct kbase_device {
 	bool bit_stuck;
 	bool trans_timeout;
 #endif /* CONFIG_MALI_MTK_TRIGGER_KE */
+#if MALI_GMC
+        struct gmc_device kbase_gmc_device;
+#endif
 };
 
 /**
@@ -2084,6 +2088,7 @@ struct kbase_context {
 	atomic_t used_pages;
 	atomic_t nonmapped_pages;
 	atomic_t permanent_mapped_pages;
+	atomic_t compressed_pages;
 
 	struct kbase_mem_pool_group mem_pools;
 
@@ -2177,6 +2182,7 @@ struct kbase_context {
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
 	char group_leader_comm[TASK_COMM_LEN];
 #endif /* CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
+        bool set_pt_flag;
 };
 
 #ifdef CONFIG_MALI_CINSTR_GWT

@@ -35,11 +35,11 @@ static void kbase_trace_gpu_mem_usage(struct kbase_device *kbdev,
 	lockdep_assert_held(&kbdev->gpu_mem_usage_lock);
 
 	trace_gpu_mem_total(kbdev->id, DEVICE_TGID,
-			    kbdev->total_gpu_pages << PAGE_SHIFT);
+			    (kbdev->total_gpu_pages -atomic_read(&kbdev->memdev.compressed_pages)) << PAGE_SHIFT);
 
 	if (likely(kctx))
 		trace_gpu_mem_total(kbdev->id, kctx->kprcs->tgid,
-				kctx->kprcs->total_gpu_pages << PAGE_SHIFT);
+				(kctx->kprcs->total_gpu_pages-atomic_read(&kctx->compressed_pages)) << PAGE_SHIFT);
 #endif
 }
 

@@ -128,6 +128,7 @@ ifeq ($(BUILD_RULE),OOT)
         CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG_NO_KLOG := n
         CONFIG_MALI_MTK_CREATE_KCPU_QUEUE_DEBUG := y
         CONFIG_MALI_MTK_CSG_ERROR_HANDLING := y
+        CONFIG_MALI_GMC :=y
     endif ## mt6897 ##
 endif
 
@@ -265,6 +266,8 @@ else
     MALI_CUSTOMER_RELEASE ?= 1
 endif
 MALI_COVERAGE ?= 0
+MALI_GMC ?= 1
+GPU_GMC_DEBUG ?= 1
 
 CONFIG_MALI_PLATFORM_NAME ?= "devicetree"
 
@@ -308,7 +311,7 @@ ccflags-y += \
     -DMALI_RELEASE_NAME=$(MALI_RELEASE_NAME) \
     -DMALI_JIT_PRESSURE_LIMIT_BASE=$(MALI_JIT_PRESSURE_LIMIT_BASE) \
     -DMALI_INCREMENTAL_RENDERING_JM=$(MALI_INCREMENTAL_RENDERING_JM) \
-    -DMALI_KBASE_BUILD \
+    -DMALI_KBASE_BUILD -DMALI_GMC=$(MALI_GMC) -DGPU_GMC_DEBUG=$(GPU_GMC_DEBUG)\
 #    -DMALI_PLATFORM_DIR=$(MALI_PLATFORM_DIR)
 
 
@@ -378,6 +381,9 @@ mali_kbase-y += \
     mali_kbase_gpu_memory_debugfs.o \
     mali_kbase_gator_api.o \
     mali_kbase_mem_linux.o \
+    mali_kbase_gmc.o \
+    gmc.o \
+    gmc_storage.o \
     mali_kbase_core_linux.o \
     mali_kbase_mem_profile_debugfs.o \
     mali_kbase_disjoint_events.o \
