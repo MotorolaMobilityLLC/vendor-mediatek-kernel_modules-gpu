@@ -291,14 +291,33 @@ static void kbase_remove_kctx_from_process(struct kbase_context *kctx)
 	}
 }
 
+static void kbase_context_add_mm_counter(struct mm_struct *mm, int member, long value)
+{
+#if (KERNEL_VERSION(6, 2, 0) <= LINUX_VERSION_CODE)
+	/* To avoid the build breakage due to the type change in rss_stat,
+	 * we inline here the equivalent of 'add_mm_counter()' from linux kernel V6.2.
+	 */
+	percpu_counter_add(&mm->rss_stat[member], value);
+#elif (KERNEL_VERSION(5, 5, 0) <= LINUX_VERSION_CODE)
+	/* To avoid the build breakage due to an unexported kernel symbol 'mm_trace_rss_stat',
+	 * we inline here the equivalent of 'add_mm_counter()' from linux kernel V5.5.
+	 */
+	atomic_long_add(value, &mm->rss_stat.count[member]);
+#else
+	add_mm_counter(mm, member, value);
+#endif
+}
+
 void kbase_context_common_term(struct kbase_context *kctx)
 {
 	int pages;
 	pages = atomic_read(&kctx->used_pages);
-	if (pages != 0)
+	if (pages != 0){
 		dev_warn(kctx->kbdev->dev,
 			"%s: %d pages in use!\n", __func__, pages);
-
+		//clear the mm file pages counter before process exit
+		kbase_context_add_mm_counter(kctx->process_mm, MM_FILEPAGES, -get_mm_counter(kctx->process_mm, MM_FILEPAGES));
+	}
 	WARN_ON(atomic_read(&kctx->nonmapped_pages) != 0);
 
 	mutex_lock(&kctx->kbdev->kctx_list_lock);

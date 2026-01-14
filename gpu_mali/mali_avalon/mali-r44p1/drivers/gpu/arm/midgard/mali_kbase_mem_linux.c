@@ -47,6 +47,7 @@
 #include <mali_kbase_trace_gpu_mem.h>
 #include <mali_kbase_reset_gpu.h>
 #include <platform/mtk_platform_utils.h> /* MTK_INLINE */
+#include "mali_kbase_gmc.h"
 
 #if IS_ENABLED(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && IS_ENABLED(CONFIG_MTK_GZ_KREE) && IS_ENABLED(CONFIG_MALI_MTK_PROTECTED_PATCH)
 #include <trusted_mem_api.h>
@@ -2579,7 +2580,6 @@ static vm_fault_t kbase_cpu_vm_fault(struct vm_fault *vmf)
 	}
 
 	map_start_pgoff = vma->vm_pgoff - map->region->start_pfn;
-
 	if (unlikely(map->region->cpu_alloc->type == KBASE_MEM_TYPE_ALIAS)) {
 		struct kbase_aliased *aliased =
 		      get_aliased_alloc(vma, map->region, &map_start_pgoff, 1);
@@ -2602,7 +2602,13 @@ static vm_fault_t kbase_cpu_vm_fault(struct vm_fault *vmf)
 	/* Fault on access to DONT_NEED regions */
 	if (map->alloc->reg && (map->alloc->reg->flags & KBASE_REG_DONT_NEED))
 		goto exit;
-
+#if MALI_GMC
+        /* Decompress the entire VMA range that we are about to map to the CPU */
+        if (kbase_get_compressed_alloc(map->alloc, map_start_pgoff, nents - map_start_pgoff)) {
+                ret = VM_FAULT_SIGBUS;
+                goto exit;
+        }
+#endif
 	/* We are inserting all valid pages from the start of CPU mapping and
 	 * not from the fault location (the mmap handler was previously doing
 	 * the same).
@@ -2611,7 +2617,13 @@ static vm_fault_t kbase_cpu_vm_fault(struct vm_fault *vmf)
 	addr = (pgoff_t)(vma->vm_start >> PAGE_SHIFT);
 	mgm_dev = map->kctx->kbdev->mgm_dev;
 	while (i < nents && (addr < vma->vm_end >> PAGE_SHIFT)) {
-
+#if MALI_GMC
+                if (kbase_is_entry_compressed(pages[i])) {
+                        /* Should have been decompressed. If still compressed, mapping it would crash the app. */
+                        ret = VM_FAULT_SIGBUS;
+                        goto exit;
+                }
+#endif
 		ret = mgm_dev->ops.mgm_vmf_insert_pfn_prot(mgm_dev,
 			map->alloc->group_id, vma, addr << PAGE_SHIFT,
 			PFN_DOWN(as_phys_addr_t(pages[i])), vma->vm_page_prot);
@@ -3088,11 +3100,12 @@ void kbase_sync_mem_regions(struct kbase_context *kctx,
 	size_t sz = MIN(((size_t) PAGE_SIZE - offset), map->size);
 	struct tagged_addr cpu_pa = map->cpu_pages[0];
 	struct tagged_addr gpu_pa = map->gpu_pages[0];
-
-	kbase_sync_single(kctx, cpu_pa, gpu_pa, offset, sz, dest);
+	if(!kbase_is_entry_compressed(cpu_pa))
+		kbase_sync_single(kctx, cpu_pa, gpu_pa, offset, sz, dest);
 
 	/* Sync middle pages (if any) */
 	for (i = 1; page_count > 2 && i < page_count - 1; i++) {
+		if(kbase_is_entry_compressed(cpu_pa)) continue;
 		cpu_pa = map->cpu_pages[i];
 		gpu_pa = map->gpu_pages[i];
 		kbase_sync_single(kctx, cpu_pa, gpu_pa, 0, PAGE_SIZE, dest);
@@ -3103,7 +3116,8 @@ void kbase_sync_mem_regions(struct kbase_context *kctx,
 		cpu_pa = map->cpu_pages[page_count - 1];
 		gpu_pa = map->gpu_pages[page_count - 1];
 		sz = ((offset + map->size - 1) & ~PAGE_MASK) + 1;
-		kbase_sync_single(kctx, cpu_pa, gpu_pa, 0, sz, dest);
+		if(!kbase_is_entry_compressed(cpu_pa))
+			kbase_sync_single(kctx, cpu_pa, gpu_pa, 0, sz, dest);
 	}
 }
 
@@ -3269,8 +3283,26 @@ static int kbase_vmap_phy_pages(struct kbase_context *kctx, struct kbase_va_regi
 	if (!pages)
 		return -ENOMEM;
 
-	for (i = 0; i < page_count; i++)
-		pages[i] = as_page(page_array[page_index + i]);
+	for (i = 0; i < page_count; i++) {
+				struct tagged_addr cpu_pa = page_array[page_index + i];
+		/* PREVENT KERNEL PANIC: Check if address is compressed tag */
+		if (kbase_is_entry_compressed(cpu_pa)) {
+#if MALI_GMC
+				/* Decompress the individual allocation piece instantly */
+				int err = kbase_get_compressed_alloc(reg->cpu_alloc, page_index + i, 1);
+				if (err) {
+						kfree(pages);
+						return -ENOMEM;
+				}
+				/* Address is now real physical backing */
+				cpu_pa = page_array[page_index + i];
+#else
+				kfree(pages);
+				return -EINVAL;
+#endif
+		}
+		pages[i] = as_page(cpu_pa);
+	}
 
 	/* Note: enforcing a RO prot_request onto prot is not done, since:
 	 * - CPU-arch-specific integration required

@@ -46,9 +46,12 @@ enum kbase_sync_type {
 	KBASE_SYNC_TO_CPU,
 	KBASE_SYNC_TO_DEVICE
 };
-
+#if MALI_GMC
+struct tagged_addr { phys_addr_t tagged_addr;
+                    u8 gmc_flag;};  // only used when the page is compressed
+#else
 struct tagged_addr { phys_addr_t tagged_addr; };
-
+#endif
 #define HUGE_PAGE    (1u << 0)
 #define HUGE_HEAD    (1u << 1)
 #define FROM_PARTIAL (1u << 2)
@@ -105,6 +108,9 @@ static inline struct tagged_addr as_tagged(phys_addr_t phys)
 	struct tagged_addr t;
 
 	t.tagged_addr = phys & PAGE_MASK;
+#if MALI_GMC
+    t.gmc_flag =0;
+#endif
 	return t;
 }
 
@@ -123,6 +129,9 @@ static inline struct tagged_addr as_tagged_tag(phys_addr_t phys, int tag)
 	struct tagged_addr t;
 
 	t.tagged_addr = (phys & PAGE_MASK) | (tag & ~PAGE_MASK);
+#if MALI_GMC
+        t.gmc_flag =0;
+#endif
 	return t;
 }
 

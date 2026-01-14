@@ -769,6 +769,10 @@ struct kbase_va_region {
 #if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
 	u64 last_used_ts;
 #endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
+#if MALI_GMC
+    struct work_struct gmc_work;
+    int op;
+#endif
 };
 
 /**
@@ -2956,7 +2960,7 @@ static inline base_mem_alloc_flags kbase_mem_group_id_set(int id)
 {
 	return BASE_MEM_GROUP_ID_SET(id);
 }
-
+struct kbase_context *kbase_reg_to_kctx(struct kbase_va_region *reg);
 #if IS_ENABLED(CONFIG_MALI_MTK_MEMORY_TP_DEBUG)
 #define kbase_trace_alloc_pages(gpu_id, kctx, size, gpu_addr) \
 	trace_mali_mem_alloc(kbdev->id, (kctx != NULL) ? kctx->kprcs->tgid : 0, size << PAGE_SHIFT, gpu_addr);
