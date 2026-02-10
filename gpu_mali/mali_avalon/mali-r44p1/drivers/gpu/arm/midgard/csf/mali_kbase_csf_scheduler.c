@@ -757,7 +757,11 @@ static void update_on_slot_queues_offsets(struct kbase_device *kbdev)
 static void enqueue_gpu_idle_work(struct kbase_csf_scheduler *const scheduler)
 {
 	atomic_set(&scheduler->gpu_no_longer_idle, false);
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+	kthread_queue_work(scheduler->idle_worker, &scheduler->gpu_idle_work);
+#else
 	queue_work(scheduler->idle_wq, &scheduler->gpu_idle_work);
+#endif
 }
 
 void kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev)
@@ -5267,7 +5271,11 @@ static bool scheduler_suspend_on_idle(struct kbase_device *kbdev)
 	return true;
 }
 
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+static void gpu_idle_worker(struct kthread_work *work)
+#else
 static void gpu_idle_worker(struct work_struct *work)
+#endif
 {
 	struct kbase_device *kbdev = container_of(
 		work, struct kbase_device, csf.scheduler.gpu_idle_work);
@@ -6142,7 +6150,11 @@ static void scheduler_inner_reset(struct kbase_device *kbdev)
 	WARN_ON(kbase_csf_scheduler_get_nr_active_csgs(kbdev));
 
 	/* Cancel any potential queued delayed work(s) */
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+	kthread_cancel_work_sync(&kbdev->csf.scheduler.gpu_idle_work);
+#else
 	cancel_work_sync(&kbdev->csf.scheduler.gpu_idle_work);
+#endif
 	cancel_tick_work(scheduler);
 	cancel_tock_work(scheduler);
 	cancel_delayed_work_sync(&scheduler->ping_work);
@@ -6802,7 +6814,11 @@ static void check_sync_update_in_sleep_mode(struct kbase_device *kbdev)
  * runnable groups so that Scheduler can consider scheduling the group
  * in next tick or exit protected mode.
  */
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+static void check_group_sync_update_worker(struct kthread_work *work)
+#else
 static void check_group_sync_update_worker(struct work_struct *work)
+#endif
 {
 	struct kbase_context *const kctx = container_of(work,
 		struct kbase_context, csf.sched.sync_update_work);
@@ -6814,8 +6830,13 @@ static void check_group_sync_update_worker(struct work_struct *work)
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	if (unlikely(scheduler->state == SCHED_BUSY)) {
-		queue_work(kctx->csf.sched.sync_update_wq,
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+		kthread_queue_work(kctx->csf.sched.sync_update_worker,
 			&kctx->csf.sched.sync_update_work);
+#else
+ 		queue_work(kctx->csf.sched.sync_update_wq,
+ 			&kctx->csf.sched.sync_update_work);
+#endif
 		mutex_unlock(&scheduler->lock);
 		return;
 	}
@@ -6863,8 +6884,13 @@ enum kbase_csf_event_callback_action check_group_sync_update_cb(void *param)
 
 	KBASE_KTRACE_ADD(kctx->kbdev, SCHEDULER_GROUP_SYNC_UPDATE_EVENT, kctx, 0u);
 
-	queue_work(kctx->csf.sched.sync_update_wq,
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+	kthread_queue_work(kctx->csf.sched.sync_update_worker,
 		&kctx->csf.sched.sync_update_work);
+#else
+ 	queue_work(kctx->csf.sched.sync_update_wq,
+ 		&kctx->csf.sched.sync_update_work);
+#endif
 
 	return KBASE_CSF_EVENT_CALLBACK_KEEP;
 }
@@ -6893,17 +6919,28 @@ int kbase_csf_scheduler_context_init(struct kbase_context *kctx)
 	kctx->csf.sched.num_idle_wait_grps = 0;
 	kctx->csf.sched.ngrp_to_schedule = 0;
 
-	kctx->csf.sched.sync_update_wq =
-		alloc_ordered_workqueue("mali_kbase_csf_sync_update_wq",
-			WQ_HIGHPRI);
-	if (!kctx->csf.sched.sync_update_wq) {
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+	kctx->csf.sched.sync_update_worker = kthread_create_worker(0, "%i_mali-sync-kthread", kctx->tgid);
+	if (IS_ERR(kctx->csf.sched.sync_update_worker)) {
+#else
+ 	kctx->csf.sched.sync_update_wq =
+ 		alloc_ordered_workqueue("mali_kbase_csf_sync_update_wq",
+ 			WQ_HIGHPRI);
+ 	if (!kctx->csf.sched.sync_update_wq) {
+#endif
 		dev_err(kbdev->dev, "Failed to initialize scheduler context workqueue");
 		err = -ENOMEM;
 		goto alloc_wq_failed;
 	}
 
-	INIT_WORK(&kctx->csf.sched.sync_update_work,
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+	sched_set_fifo(kctx->csf.sched.sync_update_worker->task);
+	kthread_init_work(&kctx->csf.sched.sync_update_work,
 		check_group_sync_update_worker);
+#else
+ 	INIT_WORK(&kctx->csf.sched.sync_update_work,
+ 		check_group_sync_update_worker);
+#endif
 
 	kbase_csf_tiler_heap_reclaim_ctx_init(kctx);
 
@@ -6917,7 +6954,11 @@ int kbase_csf_scheduler_context_init(struct kbase_context *kctx)
 	return err;
 
 event_wait_add_failed:
-	destroy_workqueue(kctx->csf.sched.sync_update_wq);
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+	kthread_destroy_worker(kctx->csf.sched.sync_update_worker);
+#else
+ 	destroy_workqueue(kctx->csf.sched.sync_update_wq);
+#endif
 alloc_wq_failed:
 	kbase_ctx_sched_remove_ctx(kctx);
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
@@ -6929,8 +6970,13 @@ alloc_wq_failed:
 void kbase_csf_scheduler_context_term(struct kbase_context *kctx)
 {
 	kbase_csf_event_wait_remove(kctx, check_group_sync_update_cb, kctx);
-	cancel_work_sync(&kctx->csf.sched.sync_update_work);
-	destroy_workqueue(kctx->csf.sched.sync_update_wq);
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+	kthread_cancel_work_sync(&kctx->csf.sched.sync_update_work);
+	kthread_destroy_worker(kctx->csf.sched.sync_update_worker);
+#else
+ 	cancel_work_sync(&kctx->csf.sched.sync_update_work);
+ 	destroy_workqueue(kctx->csf.sched.sync_update_wq);
+#endif
 
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
 	gpu_metrics_ctx_term(kctx);
@@ -7102,12 +7148,22 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 
 	atomic_set(&scheduler->timer_enabled, true);
 
-	scheduler->idle_wq = alloc_ordered_workqueue(
-		"csf_scheduler_gpu_idle_wq", WQ_HIGHPRI);
-	if (!scheduler->idle_wq) {
-		dev_err(kbdev->dev, "Failed to allocate GPU idle scheduler workqueue\n");
-		return -ENOMEM;
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+	scheduler->idle_worker = kthread_create_worker(0, "mali_gpu_idle_worker");
+	if (IS_ERR(scheduler->idle_worker)) {
+		dev_err(kbdev->dev,
+			"Failed to allocate GPU idle scheduler worker\n");
+		return PTR_ERR(scheduler->idle_worker);
 	}
+	sched_set_fifo(scheduler->idle_worker->task);
+#else
+ 	scheduler->idle_wq = alloc_ordered_workqueue(
+ 		"csf_scheduler_gpu_idle_wq", WQ_HIGHPRI);
+ 	if (!scheduler->idle_wq) {
+ 		dev_err(kbdev->dev, "Failed to allocate GPU idle scheduler workqueue\n");
+ 		return -ENOMEM;
+ 	}
+#endif
 
 	atomic_set(&scheduler->pending_tick_work, false);
 	atomic_set(&scheduler->pending_tock_work, false);
@@ -7137,7 +7193,11 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 	scheduler->csg_scheduling_period_ms = CSF_SCHEDULER_TIME_TICK_MS;
 	scheduler_doorbell_init(kbdev);
 
-	INIT_WORK(&scheduler->gpu_idle_work, gpu_idle_worker);
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+	kthread_init_work(&scheduler->gpu_idle_work, gpu_idle_worker);
+#else
+ 	INIT_WORK(&scheduler->gpu_idle_work, gpu_idle_worker);
+#endif
 	scheduler->fast_gpu_idle_handling = false;
 	atomic_set(&scheduler->gpu_no_longer_idle, false);
 	atomic_set(&scheduler->non_idle_offslot_grps, 0);
@@ -7173,7 +7233,11 @@ void kbase_csf_scheduler_term(struct kbase_device *kbdev)
 		 * to be active at the time of Driver unload.
 		 */
 		WARN_ON(kbase_csf_scheduler_get_nr_active_csgs(kbdev));
-		flush_work(&kbdev->csf.scheduler.gpu_idle_work);
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+		kthread_flush_work(&kbdev->csf.scheduler.gpu_idle_work);
+#else
+ 		flush_work(&kbdev->csf.scheduler.gpu_idle_work);
+#endif
 		mutex_lock(&kbdev->csf.scheduler.lock);
 
 		if (kbdev->csf.scheduler.state != SCHED_SUSPENDED) {
@@ -7200,8 +7264,13 @@ void kbase_csf_scheduler_term(struct kbase_device *kbdev)
 
 void kbase_csf_scheduler_early_term(struct kbase_device *kbdev)
 {
-	if (kbdev->csf.scheduler.idle_wq)
-		destroy_workqueue(kbdev->csf.scheduler.idle_wq);
+#if IS_ENABLED(CONFIG_MALI_MTK_KTHREAD_ENHANCE)
+	if (!IS_ERR(kbdev->csf.scheduler.idle_worker))
+		kthread_destroy_worker(kbdev->csf.scheduler.idle_worker);
+#else
+ 	if (kbdev->csf.scheduler.idle_wq)
+ 		destroy_workqueue(kbdev->csf.scheduler.idle_wq);
+#endif
 
 	kbase_csf_tiler_heap_reclaim_mgr_term(kbdev);
 	mutex_destroy(&kbdev->csf.scheduler.lock);
