@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2020-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -20,6 +20,7 @@
  */
 
 #include <mali_kbase.h>
+#include <uapi/gpu/arm/midgard/gpu/mali_kbase_gpu_id.h>
 #include <gpu/mali_kbase_gpu_fault.h>
 #include <backend/gpu/mali_kbase_instr_internal.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
@@ -37,45 +38,22 @@
 #include <platform/mtk_platform_common/mtk_platform_logbuffer.h>
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 
-/**
- * kbase_report_gpu_fault - Report a GPU fault of the device.
- *
- * @kbdev:    Kbase device pointer
- * @status:   Fault status
- * @as_nr:    Faulty address space
- * @as_valid: true if address space is valid
- *
- * This function is called from the interrupt handler when a GPU fault occurs.
- */
-static void kbase_report_gpu_fault(struct kbase_device *kbdev, u32 status,
-		u32 as_nr, bool as_valid)
+static void kbase_gpu_fault_dispatch_interrupt(struct kbase_device *kbdev, const u32 status)
 {
-	u64 address = (u64) kbase_reg_read(kbdev,
-			GPU_CONTROL_REG(GPU_FAULTADDRESS_HI)) << 32;
-
-	address |= kbase_reg_read(kbdev,
-			GPU_CONTROL_REG(GPU_FAULTADDRESS_LO));
-
-	/* Report GPU fault for all contexts in case either
-	 * the address space is invalid or it's MCU address space.
-	 */
-	kbase_mmu_gpu_fault_interrupt(kbdev, status, as_nr, address, as_valid);
-}
-
-static void kbase_gpu_fault_interrupt(struct kbase_device *kbdev)
-{
-	const u32 status = kbase_reg_read(kbdev,
-			GPU_CONTROL_REG(GPU_FAULTSTATUS));
 	const bool as_valid = status & GPU_FAULTSTATUS_JASID_VALID_MASK;
 	const u32 as_nr = (status & GPU_FAULTSTATUS_JASID_MASK) >>
 			GPU_FAULTSTATUS_JASID_SHIFT;
 	bool bus_fault = (status & GPU_FAULTSTATUS_EXCEPTION_TYPE_MASK) ==
 			GPU_FAULTSTATUS_EXCEPTION_TYPE_GPU_BUS_FAULT;
 
+	/* The exact fault address is of no further use in fault notification, in particular
+	 * with later fault information to the user land. Here the address is marked as
+	 * U64_MAX for hinting the case coming from gpu_fault_interrupt.
+	 */
 	if (bus_fault) {
 		/* If as_valid, reset gpu when ASID is for MCU. */
 		if (!as_valid || (as_nr == MCU_AS_NR)) {
-			kbase_report_gpu_fault(kbdev, status, as_nr, as_valid);
+			kbase_mmu_gpu_fault_interrupt(kbdev, status, as_nr, U64_MAX, as_valid);
 
 			dev_err(kbdev->dev, "GPU bus fault triggering gpu-reset ...\n");
 #if IS_ENABLED(CONFIG_MALI_MTK_LOG_BUFFER)
@@ -96,15 +74,26 @@ static void kbase_gpu_fault_interrupt(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_MTK_LOG_BUFFER */
 			}
 		}
-	} else
-		kbase_report_gpu_fault(kbdev, status, as_nr, as_valid);
+	} else {
+		dev_warn(kbdev->dev, "GPU fault of exception type-%lu occurred\n",
+			 (status & GPU_FAULTSTATUS_EXCEPTION_TYPE_MASK) >>
+				 GPU_FAULTSTATUS_EXCEPTION_TYPE_SHIFT);
+		kbase_mmu_gpu_fault_interrupt(kbdev, status, as_nr, U64_MAX, as_valid);
+	}
+}
+
+static void kbase_gpu_fault_interrupt(struct kbase_device *kbdev)
+{
+	const u32 status = kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_FAULTSTATUS));
+	kbase_gpu_fault_dispatch_interrupt(kbdev, status);
+ }
 
 #ifndef MALI_STRIP_KBASE_DEVELOPMENT
 #if IS_ENABLED(CONFIG_MALI_BUSLOG) && IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
 	queue_work(kbdev->buslog_callback_wq, &kbdev->buslog_callback_work);
 #endif /* CONFIG_MALI_BUSLOG && CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG */
 #endif /* MALI_STRIP_KBASE_DEVELOPMENT */
-}
+
 
 void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 {
