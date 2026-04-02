@@ -626,6 +626,15 @@ PVRSRV_MMap(struct file *pFile, struct vm_area_struct *ps_vma)
 		pvr_vm_flags_clear(ps_vma, VM_MAYWRITE);
 	}
 
+	/* Forcibly clear the VM_MAYREAD flag as this is inherited from the
+	 * kernel mmap code and we do not want to produce a potentially readable
+	 * mapping if we didn't originally request it.
+	 */
+	if (!BITMASK_HAS(ps_vma->vm_flags, VM_READ))
+	{
+		pvr_vm_flags_clear(ps_vma, VM_MAYREAD);
+	}
+
 	/* Note: PMRMMapPMR will take a reference on the PMR.
 	 * Unref the handle immediately, because we have now done
 	 * the required operation on the PMR (whether it succeeded or not)

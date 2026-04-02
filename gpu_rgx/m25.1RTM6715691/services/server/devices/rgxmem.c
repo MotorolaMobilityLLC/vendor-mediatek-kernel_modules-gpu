@@ -61,7 +61,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "rgx_bvnc_defs_km.h"
 #include "info_page.h"
 #include "rgx_heaps.h"
-
+#if defined(RGX_SUPPORT_DUAL_MEMCTX)
+#include "physheap.h"
+#include "physmem.h"
+#endif
 # include "rgxmmudefs_km.h"
 
 #if defined(PDUMP)
@@ -85,6 +88,14 @@ struct SERVER_MMU_CONTEXT_TAG
 	DLLIST_NODE sNode;
 	PVRSRV_RGXDEV_INFO *psDevInfo;
 	DEVMEMINT_CTX *psDevMemCtx;
+#if defined(RGX_SUPPORT_DUAL_MEMCTX)
+	PG_HANDLE sPMDualMemCtxPCMemHandle;
+	IMG_DEV_PHYADDR sPMDualMemCtxPCPhysAddr;
+	IMG_UINT32* pui32PMDualMemCtxPC;
+#if defined(PDUMP)
+	IMG_HANDLE hPMDualMemCtxPCPdumpPages;
+#endif
+#endif
 }; /* SERVER_MMU_CONTEXT is typedef-ed in rgxmem.h */
 
 PVRSRV_ERROR RGXInvalidateFBSCTable(PVRSRV_DEVICE_NODE *psDeviceNode,
@@ -490,6 +501,132 @@ void RGXMMUTweakProtFlags(struct _PVRSRV_DEVICE_NODE_ *psDevNode,
 }
 #endif
 
+#if defined(RGX_SUPPORT_DUAL_MEMCTX)
+PVRSRV_ERROR RGXInterceptCriticalBufferPxEWrite(PVRSRV_DEVICE_NODE *psDeviceNode,
+                                MMU_CONTEXT *psMMUContext,
+                                const IMG_UINT32 uiIndex,
+                                const MMU_PxE_CONFIG *psConfig,
+                                const MMU_LEVEL eMMULevel,
+                                const IMG_DEV_PHYADDR *psDevPAddr,
+                                const MMU_PROTFLAGS_T uiProtFlags,
+                                const IMG_UINT32 uiLog2DataPageSize,
+                                IMG_BOOL* bSkipWrite)
+{
+	PVRSRV_RGXDEV_INFO *psDevInfo = psDeviceNode->pvDevice;
+	IMG_UINT32 ui32PCE = 0U;
+	IMG_DEV_VIRTADDR sIncomingVa;
+
+	SERVER_MMU_CONTEXT *psServerMMUContext = NULL;
+	const IMG_UINT64 ui64SizeOfPCEEntry = 1ULL << RGX_MMUCTRL_VADDR_PC_INDEX_SHIFT;
+
+	if (eMMULevel != MMU_LEVEL_3)
+	{
+		/* Apply only for PCs */
+		*bSkipWrite = false;
+		return PVRSRV_OK;
+	}
+
+	/* Assumes there can only be 1 PCE entry for target PM_ONLY heap */
+	sIncomingVa.uiAddr = ui64SizeOfPCEEntry * uiIndex;
+	if (sIncomingVa.uiAddr != RGX_PM_ONLY_HEAP_BASE &&
+	    sIncomingVa.uiAddr != RGX_PMMETA_PROTECT_HEAP_BASE)
+	{
+		/* Don't apply to mappings outside of PM_ONLY heap*/
+		*bSkipWrite = false;
+		return PVRSRV_OK;
+	}
+
+#if !defined(PDUMP)
+	/* Compatibility check to see if FW supports dualctx */
+	RGXFwSharedMemCacheOpValue(psDevInfo->psRGXFWIfFwOsData->ui32FwOsDataFlags, INVALIDATE);
+	if (!BITMASK_HAS(psDevInfo->psRGXFWIfFwOsData->ui32FwOsDataFlags,
+					RGXFWIF_OSDATA_FLAG_FW_SUPPORTS_DUALCTX))
+	{
+		/* If running with old-FW don't intercept writes */
+		*bSkipWrite = false;
+		return PVRSRV_OK;
+	}
+#endif
+
+	/* Find parent server MMU context (this could be improved by using a hash-table if needed) */
+	{
+		DLLIST_NODE *psNode, *psNext;
+
+		OSWRLockAcquireRead(psDevInfo->hMemoryCtxListLock);
+		dllist_foreach_node(&psDevInfo->sMemoryContextList, psNode, psNext)
+		{
+			SERVER_MMU_CONTEXT *psIter = IMG_CONTAINER_OF(psNode, SERVER_MMU_CONTEXT, sNode);
+			if (psIter->psMMUContext == psMMUContext)
+			{
+				psServerMMUContext = psIter;
+				break;
+			}
+		}
+		OSWRLockReleaseRead(psDevInfo->hMemoryCtxListLock);
+
+		if (!psServerMMUContext)
+		{
+			/* Skip write if can't find mmu context.
+			   This will result in page fault but will not circumvent protections */
+			*bSkipWrite = true;
+			PVR_DPF((PVR_DBG_ERROR, "Couldn't obtain mmu ctx in %s", __func__));
+			return PVRSRV_ERROR_MMU_CONTEXT_NOT_FOUND;
+		}
+	}
+
+	/* Apply proper format to the PCE */
+	if (psDevPAddr != NULL)
+	{
+		ui32PCE = psDevPAddr->uiAddr
+		          >> psConfig->uiAddrLog2Align
+		          << psConfig->uiAddrShift
+		          & psConfig->uiAddrMask;
+	}
+
+
+	/* Set the PCE */
+	if (uiProtFlags & MMU_PROTFLAGS_INVALID)
+	{
+		psServerMMUContext->pui32PMDualMemCtxPC[uiIndex] = 0U;
+	}
+	else
+	{
+		psServerMMUContext->pui32PMDualMemCtxPC[uiIndex] = ui32PCE | RGX_MMUCTRL_PC_DATA_VALID_EN;
+	}
+
+#if defined(PDUMP)
+	PDumpMMUDumpPxEntries(psDeviceNode,
+	                      eMMULevel,
+	                      psDeviceNode->psMMUDevAttrs->pszMMUPxPDumpMemSpaceName,
+	                      psServerMMUContext->pui32PMDualMemCtxPC,
+	                      psServerMMUContext->sPMDualMemCtxPCPhysAddr,
+	                      uiIndex,
+	                      1,
+	                      NULL,
+	                      NULL,
+	                      0,
+	                      psConfig->uiBytesPerEntry,
+	                      psConfig->uiAddrLog2Align,
+	                      psConfig->uiAddrShift,
+	                      psConfig->uiAddrMask,
+	                      psConfig->uiProtMask,
+	                      psConfig->uiValidEnMask,
+	                      0,
+	                      0, /* Unused */
+	                      0, /* Unused */
+	                      0, /* Unused */
+	                      psDeviceNode->psMMUDevAttrs->eMMUType);
+#endif
+
+	psDeviceNode->pfnMMUCacheInvalidate(psDeviceNode, psMMUContext,
+	                                    eMMULevel,
+	                                    uiProtFlags & MMU_PROTFLAGS_INVALID);
+
+	/* for PMMETA_PROTECT don't skip write */
+	*bSkipWrite = (sIncomingVa.uiAddr == RGX_PM_ONLY_HEAP_BASE);
+	return PVRSRV_OK;
+}
+#endif
 
 /* page fault debug is the only current use case for needing to find process info
  * after that process device memory context has been destroyed
@@ -563,6 +700,31 @@ void RGXUnregisterMemoryContext(IMG_HANDLE hPrivData)
 	}
 #endif
 
+#if defined(RGX_SUPPORT_DUAL_MEMCTX)
+#if defined(PDUMP)
+	if (psServerMMUContext->sPMDualMemCtxPCMemHandle.u.pvHandle != NULL)
+	{
+		PDUMPCOMMENT(psDevInfo->psDeviceNode, "Free dual-memctx PCE MMU object");
+		PDumpMMUFree(psDevInfo->psDeviceNode,
+			psDevInfo->psDeviceNode->psMMUDevAttrs->pszMMUPxPDumpMemSpaceName,
+			MMU_LEVEL_3,
+			&psServerMMUContext->sPMDualMemCtxPCPhysAddr,
+			psDevInfo->psDeviceNode->psMMUDevAttrs->eMMUType);
+	}
+#endif
+
+	if (psServerMMUContext->pui32PMDualMemCtxPC != NULL)
+	{
+		PhysHeapPagesUnMap(psDevInfo->psDeviceNode->psMMUPhysHeap,
+		                   &psServerMMUContext->sPMDualMemCtxPCMemHandle,
+		                   psServerMMUContext->pui32PMDualMemCtxPC);
+
+		PhysHeapPagesFree(psDevInfo->psDeviceNode->psMMUPhysHeap,
+		                  &psServerMMUContext->sPMDualMemCtxPCMemHandle);
+	}
+
+#endif
+
 	OSWRLockAcquireWrite(psDevInfo->hMemoryCtxListLock);
 	dllist_remove_node(&psServerMMUContext->sNode);
 	OSWRLockReleaseWrite(psDevInfo->hMemoryCtxListLock);
@@ -604,7 +766,11 @@ IMG_BOOL RGXValidateAddressPermissions(PVRSRV_DEVICE_NODE *psDeviceNode,
 	{
 		/* Virtual allocations with the PMMETA_PROTECT flag must only made in
 		 * specific virtual heaps. */
-		if (sVDevAddr.uiAddr != RGX_PMMETA_PROTECT_HEAP_BASE)
+		if (
+#if defined(RGX_SUPPORT_DUAL_MEMCTX)
+		    sVDevAddr.uiAddr != RGX_PM_ONLY_HEAP_BASE &&
+#endif
+		    sVDevAddr.uiAddr != RGX_PMMETA_PROTECT_HEAP_BASE)
 		{
 			PVR_DPF((PVR_DBG_ERROR,
 			         "%s: PMMETA_PROTECT flag set but valid heap was not used.",
@@ -616,10 +782,17 @@ IMG_BOOL RGXValidateAddressPermissions(PVRSRV_DEVICE_NODE *psDeviceNode,
 	{
 		/* Allocations without the flag must not be made in the
 		 * PMMETA_PROTECT heap. */
-		if (sVDevAddr.uiAddr == RGX_PMMETA_PROTECT_HEAP_BASE)
+		if (sVDevAddr.uiAddr == RGX_PMMETA_PROTECT_HEAP_BASE
+#if defined(RGX_SUPPORT_DUAL_MEMCTX)
+			|| sVDevAddr.uiAddr == RGX_PM_ONLY_HEAP_BASE
+#endif
+		   )
 		{
 			PVR_DPF((PVR_DBG_ERROR,
 			         "%s: Attempt to allocate virtual range within "
+#if defined(RGX_SUPPORT_DUAL_MEMCTX)
+			         RGX_PM_ONLY_HEAP_IDENT " or "
+#endif
 			         RGX_PMMETA_PROTECT_HEAP_IDENT " without PMMETA_PROTECT flag",
 			         __func__));
 			return IMG_FALSE;
@@ -665,7 +838,7 @@ PVRSRV_ERROR RGXRegisterMemoryContext(PVRSRV_DEVICE_NODE *psDeviceNode,
 	}
 	else
 	{
-		psServerMMUContext = OSAllocMem(sizeof(*psServerMMUContext));
+		psServerMMUContext = OSAllocZMem(sizeof(*psServerMMUContext));
 		if (psServerMMUContext == NULL)
 		{
 			eError = PVRSRV_ERROR_OUT_OF_MEMORY;
@@ -677,6 +850,57 @@ PVRSRV_ERROR RGXRegisterMemoryContext(PVRSRV_DEVICE_NODE *psDeviceNode,
 		psServerMMUContext->sFWMemContextDevVirtAddr.ui32Addr = 0;
 		psServerMMUContext->psDevMemCtx = psDevMemCtx;
 
+#if defined(RGX_SUPPORT_DUAL_MEMCTX)
+		/* Compatibility check to see if FW supports dualctx */
+#if !defined(PDUMP)
+		RGXFwSharedMemCacheOpValue(psDevInfo->psRGXFWIfFwOsData->ui32FwOsDataFlags, INVALIDATE);
+		if (BITMASK_HAS(psDevInfo->psRGXFWIfFwOsData->ui32FwOsDataFlags,
+					RGXFWIF_OSDATA_FLAG_FW_SUPPORTS_DUALCTX))
+#endif
+		{
+			/* Allocate page for PM PC */
+			eError = DevPhysMemAlloc(psDeviceNode,
+			                         0x1000,
+			                         0U,
+			                         0U,
+			                         true,
+#if defined(PDUMP)
+			                         NULL, /* Unused */
+			                         NULL, /* Unused */
+			                         NULL, /* Unused */
+#endif
+			                         psServerMMUContext->uiPID,
+			                         (IMG_HANDLE*)&psServerMMUContext->sPMDualMemCtxPCMemHandle,
+			                         &psServerMMUContext->sPMDualMemCtxPCPhysAddr);
+
+			if (eError != PVRSRV_OK)
+			{
+				goto fail_alloc_dualctx_catbase;
+			}
+
+			/* Map the page to the CPU VA space */
+			eError = PhysHeapPagesMap(psDeviceNode->psMMUPhysHeap,
+			                          &psServerMMUContext->sPMDualMemCtxPCMemHandle,
+			                          0x1000,
+			                          &psServerMMUContext->sPMDualMemCtxPCPhysAddr,
+			                          (void**)&psServerMMUContext->pui32PMDualMemCtxPC);
+			if (eError != PVRSRV_OK)
+			{
+				goto fail_map_dualctx_catbase;
+			}
+
+#if defined(PDUMP)
+			PDUMPCOMMENT(psDeviceNode, "Alloc dual-memctx PCE MMU object");
+			PDumpMMUMalloc(psDeviceNode,
+			               psDeviceNode->psMMUDevAttrs->pszMMUPxPDumpMemSpaceName,
+			               MMU_LEVEL_3,
+			               &psServerMMUContext->sPMDualMemCtxPCPhysAddr,
+			               0x1000,
+			               0x1000,
+			               psDeviceNode->psMMUDevAttrs->eMMUType);
+#endif
+		}
+#endif
 		/*
 			Allocate device memory for the firmware memory context for the new
 			application.
@@ -725,7 +949,9 @@ PVRSRV_ERROR RGXRegisterMemoryContext(PVRSRV_DEVICE_NODE *psDeviceNode,
 			DevmemReleaseCpuVirtAddr(psFWMemContextMemDesc);
 			goto fail_acquire_base_addr;
 		}
-
+#if defined(RGX_SUPPORT_DUAL_MEMCTX)
+		psFWMemContext->sPCPMDevPAddr = psServerMMUContext->sPMDualMemCtxPCPhysAddr;
+#endif
 		/*
 		 * Set default values for the rest of the structure.
 		 */
@@ -794,6 +1020,40 @@ PVRSRV_ERROR RGXRegisterMemoryContext(PVRSRV_DEVICE_NODE *psDeviceNode,
 				DevmemReleaseCpuVirtAddr(psFWMemContextMemDesc);
 				goto fail_pdump_cat_base;
 			}
+
+#if defined(RGX_SUPPORT_DUAL_MEMCTX)
+			/* Pdump PM dual mem ctx phys addr */
+			{
+				IMG_CHAR pszDualMemCtxTagName[256];
+
+				(void) OSSNPrintf(pszDualMemCtxTagName,
+								  256,
+								  ":%s:%s%016"IMG_UINT64_FMTSPECX,
+								  psDeviceNode->psMMUDevAttrs->pszMMUPxPDumpMemSpaceName,
+								  "MMUPC_",
+								  psServerMMUContext->sPMDualMemCtxPCPhysAddr.uiAddr);
+
+				eError = PDumpWriteSymbAddress(psDeviceNode,
+										aszName,
+										offsetof(RGXFWIF_FWMEMCONTEXT, sPCPMDevPAddr),
+										pszDualMemCtxTagName,
+										0,
+										psDeviceNode->psMMUDevAttrs->pszMMUPxPDumpMemSpaceName,
+										8,
+										0,
+										0,
+										PDUMP_FLAGS_CONTINUOUS);
+				if (eError != PVRSRV_OK)
+				{
+					PVR_DPF((PVR_DBG_ERROR,
+					         "%s: Failed to pdump dual ctx PM Page Catalogue address (%u)",
+					         __func__,
+					         eError));
+					DevmemReleaseCpuVirtAddr(psFWMemContextMemDesc);
+					goto fail_pdump_dualctx_cat_base;
+				}
+			}
+#endif
 		}
 #endif
 
@@ -830,6 +1090,9 @@ PVRSRV_ERROR RGXRegisterMemoryContext(PVRSRV_DEVICE_NODE *psDeviceNode,
 	return PVRSRV_OK;
 
 #if defined(PDUMP)
+#if defined(RGX_SUPPORT_DUAL_MEMCTX)
+fail_pdump_dualctx_cat_base:
+#endif
 fail_pdump_cat_base:
 fail_pdump_cat_base_addr:
 	MMU_ReleaseBaseAddr(NULL);
@@ -839,6 +1102,18 @@ fail_acquire_base_addr:
 fail_acquire_cpu_addr:
 	DevmemFwUnmapAndFree(psDevInfo, psServerMMUContext->psFWMemContextMemDesc);
 fail_alloc_fw_ctx:
+#if defined(RGX_SUPPORT_DUAL_MEMCTX)
+	if (psServerMMUContext->pui32PMDualMemCtxPC != NULL)
+	{
+		PhysHeapPagesUnMap(psDeviceNode->psMMUPhysHeap,&psServerMMUContext->sPMDualMemCtxPCMemHandle, psServerMMUContext->pui32PMDualMemCtxPC);
+	}
+fail_map_dualctx_catbase:
+	if (psServerMMUContext->sPMDualMemCtxPCMemHandle.u.pvHandle != NULL)
+	{
+		PhysHeapPagesFree(psDeviceNode->psMMUPhysHeap, &psServerMMUContext->sPMDualMemCtxPCMemHandle);
+	}
+fail_alloc_dualctx_catbase:
+#endif
 	OSFreeMem(psServerMMUContext);
 fail_alloc_server_ctx:
 	PVR_ASSERT(eError != PVRSRV_OK);

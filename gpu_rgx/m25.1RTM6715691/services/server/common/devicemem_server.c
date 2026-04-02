@@ -1773,10 +1773,18 @@ static INLINE MMU_PTE_REMAP_POLICY _DevmemGetRemapPolicy(IMG_DEV_VIRTADDR sReser
 	 * to come from a single heap
 	 */
 	if (sReservationVAddr.uiAddr >= RGX_PMMETA_PROTECT_HEAP_BASE &&
-	    sReservationVAddr.uiAddr < RGX_PMMETA_PROTECT_HEAP_BASE + RGX_PMMETA_PROTECT_HEAP_SIZE)
+	    sReservationVAddr.uiAddr < (RGX_PMMETA_PROTECT_HEAP_BASE + RGX_PMMETA_PROTECT_HEAP_SIZE))
 	{
 		return MMU_PTE_REMAP_POLICY_BLOCK;
 	}
+
+#if defined(RGX_SUPPORT_DUAL_MEMCTX)
+	if (sReservationVAddr.uiAddr >= RGX_PM_ONLY_HEAP_BASE &&
+	    sReservationVAddr.uiAddr < (RGX_PM_ONLY_HEAP_BASE + RGX_PM_ONLY_HEAP_SIZE))
+	{
+		return MMU_PTE_REMAP_POLICY_BLOCK;
+	}
+#endif
 
 	return MMU_PTE_REMAP_POLICY_ALLOW;
 }

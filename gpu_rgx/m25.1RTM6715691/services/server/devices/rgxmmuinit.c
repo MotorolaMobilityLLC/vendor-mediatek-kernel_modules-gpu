@@ -1127,9 +1127,14 @@ static IMG_UINT64 RGXDerivePTEProt8(IMG_UINT32 uiProtFlags, IMG_UINT32 uiLog2Dat
 		/* write only */
 		PVR_DPF((PVR_DBG_WARNING, "RGXDerivePTEProt8: write-only is not possible on this device"));
 	}
-	else if ((MMU_PROTFLAGS_INVALID & uiProtFlags) == 0)
+	else
 	{
-		PVR_DPF((PVR_DBG_ERROR, "RGXDerivePTEProt8: neither read nor write specified..."));
+		if ((MMU_PROTFLAGS_INVALID & uiProtFlags) == 0)
+		{
+			PVR_DPF((PVR_DBG_ERROR, "RGXDerivePTEProt8: neither read nor write specified, disabling write..."));
+		}
+		/* read only */
+		ui64MMUFlags |= RGX_MMUCTRL_PT_DATA_READ_ONLY_EN;
 	}
 
 	/* cache coherency */

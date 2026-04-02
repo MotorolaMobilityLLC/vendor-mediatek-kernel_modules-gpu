@@ -654,6 +654,25 @@ PVRSRV_ERROR RGXPrePowerState(PVRSRV_DEVICE_NODE *psDeviceNode,
 	return RGXFinalisePowerOff(psDeviceNode);
 }
 
+#if defined(RGX_SUPPORT_DUAL_MEMCTX) && !defined(PDUMP)
+static void _RGXSetOsDataDualCtxFlag(PVRSRV_RGXDEV_INFO *psDevInfo)
+{
+	if (RGX_IS_FEATURE_SUPPORTED(psDevInfo, ALBIORIX_TOP_INFRASTRUCTURE))
+	{
+		RGXFwSharedMemCacheOpValue(psDevInfo->psRGXFWIfFwOsData->ui32FwOsDataFlags, INVALIDATE);
+		if (BITMASK_HAS(psDevInfo->psRGXFWIfFwOsData->ui32FwOsDataFlags,
+		                RGXFWIF_OSDATA_FLAG_FW_SUPPORTS_DUALCTX))
+		{
+			RGXFwSharedMemCacheOpValue(psDevInfo->psRGXFWIfFwOsData->ui32FwOsConfigFlags, INVALIDATE);
+			/* Set the flag to let FW know that KM configured the dual-ctx PC address */
+			BITMASK_SET(psDevInfo->psRGXFWIfFwOsData->ui32FwOsConfigFlags,
+			            RGXFWIF_INICFG_OS_KM_SUPPORTS_DUALCTX);
+			RGXFwSharedMemCacheOpValue(psDevInfo->psRGXFWIfFwOsData->ui32FwOsConfigFlags, FLUSH);
+		}
+	}
+}
+#endif
+
 #if defined(SUPPORT_AUTOVZ)
 static PVRSRV_ERROR _RGXWaitForGuestsToDisconnect(PVRSRV_DEVICE_NODE *psDeviceNode)
 {
@@ -1015,6 +1034,10 @@ PVRSRV_ERROR RGXVzPostPowerState(PVRSRV_DEVICE_NODE		*psDeviceNode,
 			} END_LOOP_UNTIL_TIMEOUT_US();
 
 			PVR_LOG_RETURN_IF_FALSE(*pbUpdatedFlag, "Firmware does not respond with compatibility data.", PVRSRV_ERROR_TIMEOUT);
+
+#if defined(RGX_SUPPORT_DUAL_MEMCTX) && !defined(PDUMP)
+			_RGXSetOsDataDualCtxFlag(psDevInfo);
+#endif
 		}
 
 		KM_SET_OS_CONNECTION(ACTIVE, psDevInfo);
@@ -1319,6 +1342,10 @@ PVRSRV_ERROR RGXPostPowerState(PVRSRV_DEVICE_NODE		*psDeviceNode,
 	}
 
 #endif /* defined(PDUMP) */
+
+#if defined(RGX_SUPPORT_DUAL_MEMCTX) && !defined(PDUMP)
+	_RGXSetOsDataDualCtxFlag(psDevInfo);
+#endif
 
 #if defined(SUPPORT_GPUVIRT_VALIDATION_MTS)
 	eError = RGXVirtualisationPowerupSidebandTest(psDeviceNode, psDevInfo->psRGXFWIfSysInit, psDevInfo);

@@ -93,6 +93,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 #include "kernel_compatibility.h"
+#include "rgx_memallocflags.h"
 
 typedef struct _PMR_DMA_BUF_WRAPPER_
 {
@@ -636,6 +637,15 @@ static int PVRDmaBufOpsMMapCommon(PMR_DMA_BUF_WRAPPER *psPMRWrapper, struct vm_a
 	if (!BITMASK_HAS(psVMA->vm_flags, VM_WRITE))
 	{
 		pvr_vm_flags_clear(psVMA, VM_MAYWRITE);
+	}
+
+	/* Forcibly clear the VM_MAYREAD flag as this is inherited from the
+	 * kernel mmap code and we do not want to produce a potentially readable
+	 * mapping if we didn't originally request it.
+	 */
+	if (!BITMASK_HAS(psVMA->vm_flags, VM_READ))
+	{
+		pvr_vm_flags_clear(psVMA, VM_MAYREAD);
 	}
 
 	eError = PMRMMapPMR(psPMR, psVMA, uiProtFlags);
@@ -2282,7 +2292,7 @@ fail_get_pmr_wrapper:
 }
 
 /* Validate permissions of dma_buf FD against PMR flags */
-static void
+static PVRSRV_ERROR
 ValidatePMRFlags(fmode_t uiDmaBufFileMode,
                  PVRSRV_MEMALLOCFLAGS_T ui64PMRFlags)
 {
@@ -2323,6 +2333,13 @@ ValidatePMRFlags(fmode_t uiDmaBufFileMode,
 		         uiDmaBufFileMode,
 		         ui64PMRFlags));
 	}
+
+	/* Disallow importing as PMMETA_PROTECT PMR */
+	PVR_LOG_RETURN_IF_TRUE(ui64PMRFlags & PVRSRV_MEMALLOCFLAG_DEVICE_FLAG(PMMETA_PROTECT),
+	                       "Tried to import a dma-buf as PMMETA_PROTECT PMR",
+	                       PVRSRV_ERROR_INVALID_FLAGS);
+
+	return PVRSRV_OK;
 }
 
 static PVRSRV_MEMALLOCFLAGS_T
@@ -2472,7 +2489,13 @@ PhysmemImportSparseDmaBuf(CONNECTION_DATA *psConnection,
 		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_BAD_MAPPING, errUnlockReturn);
 	}
 
-	ValidatePMRFlags(psDmaBuf->file->f_mode, uiFlags);
+	eError = ValidatePMRFlags(psDmaBuf->file->f_mode, uiFlags);
+	if (eError != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Validation of PMR flags failed", __func__));
+		goto errUnlockAndDMAPut;
+	}
+
 	uiFlags = GetAdjustedPMRAccessFlags(psDmaBuf->file->f_mode, uiFlags);
 
 	if (DMABufIsReimport(psDmaBuf))

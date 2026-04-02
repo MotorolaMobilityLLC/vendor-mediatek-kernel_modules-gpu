@@ -408,6 +408,15 @@ _ValidateCriticalPMR(PMR* psPMR, IMG_DEVMEM_SIZE_T ui64MinSize)
 		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_INVALID_PARAMS, return_error);
 	}
 
+	if (PMR_GetType(psPMR) != PMR_TYPE_OSMEM &&
+	    PMR_GetType(psPMR) != PMR_TYPE_LMA)
+	{
+		PVR_DPF((PVR_DBG_ERROR,
+		         "%s: Critical PMR must be of OSMEM or LMA type",
+		         __func__));
+		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_INVALID_PARAMS, return_error);
+	}
+
 	/* Critical PMR cannot be user CPU mappable */
 	if (PVRSRV_CHECK_CPU_READABLE(uiFlags) ||
 	    PVRSRV_CHECK_CPU_WRITEABLE(uiFlags))
@@ -531,9 +540,15 @@ AcquireValidateRefCriticalBuffer(PVRSRV_DEVICE_NODE*     psDevNode,
 	if (psDevVAddr->uiAddr < RGX_PMMETA_PROTECT_HEAP_BASE ||
 	    psDevVAddr->uiAddr >= RGX_PMMETA_PROTECT_HEAP_BASE + RGX_PMMETA_PROTECT_HEAP_SIZE)
 	{
-		eError = PVRSRV_ERROR_INVALID_HEAP;
-		PVR_LOG_GOTO_IF_ERROR_VA(eError, RollbackReservationMapping,
-		    "%s: Invalid heap policy for the critical buffer", __func__);
+#if defined(RGX_SUPPORT_DUAL_MEMCTX)
+		if ((psDevVAddr->uiAddr < RGX_PM_ONLY_HEAP_BASE) ||
+		    (psDevVAddr->uiAddr >= (RGX_PM_ONLY_HEAP_BASE + RGX_PM_ONLY_HEAP_SIZE)))
+#endif
+		{
+			eError = PVRSRV_ERROR_INVALID_HEAP;
+			PVR_LOG_GOTO_IF_ERROR_VA(eError, RollbackReservationMapping,
+			    "%s: Invalid heap policy for the critical buffer", __func__);
+		}
 	}
 
 	/* Check buffer sizes and flags are as required */
@@ -602,6 +617,10 @@ void UnrefAndReleaseCriticalBuffer(DEVMEMINT_RESERVATION* psReservation)
 
 static_assert(RGX_PMMETA_PROTECT_HEAP_BASE - (RGX_GENERAL_HEAP_BASE + RGX_GENERAL_HEAP_SIZE) > PM_BUFFER_SIZE_UPPER_BOUND,
 			  "Distance between PMMETA_PROTECT and GENERAL heaps is less than PM buffer size upper bound");
+#if defined(RGX_PM_ONLY_HEAP_BASE)
+static_assert(RGX_PM_ONLY_HEAP_BASE > RGX_PMMETA_PROTECT_HEAP_BASE,
+			  "PM_ONLY heap should be above PMMETA_PROTECT to be protected");
+#endif
 PVRSRV_ERROR ValidatePMAddrs(IMG_DEV_VIRTADDR* psDevVAddr, IMG_UINT32 ui32NumAddr)
 {
 	IMG_UINT32 i;

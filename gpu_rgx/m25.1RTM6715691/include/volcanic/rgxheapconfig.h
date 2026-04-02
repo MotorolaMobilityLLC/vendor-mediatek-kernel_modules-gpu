@@ -284,8 +284,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 	#define RGX_PMMETA_PROTECT_HEAP_BASE        IMG_UINT64_C(0xFA00000000)
 	#define RGX_PMMETA_PROTECT_HEAP_SIZE        RGX_HEAP_SIZE_1GiB
 
-/* 0xFA_4000_000 - 0xFF_FFFF_FFFF **/
-	/* 1001 GiB to 1024 GiB, size of 23 GiB : FREE **/
+/* 0xFA_4000_0000 - 0xFA_7FFF_FFFF **/
+	/* 1001 GiB to 1002 GiB, size of 1 GiB : PM_ONLY_HEAP **/
+	#define RGX_PM_ONLY_HEAP_BASE        IMG_UINT64_C(0xFA40000000)
+	#define RGX_PM_ONLY_HEAP_SIZE        RGX_HEAP_SIZE_1GiB
+
+/* 0xFA_8000_000 - 0xFF_FFFF_FFFF **/
+	/* 1001 GiB to 1024 GiB, size of 22 GiB : FREE **/
 
 
 /* 0xFF_FFFF_FFFF ************************************************************/

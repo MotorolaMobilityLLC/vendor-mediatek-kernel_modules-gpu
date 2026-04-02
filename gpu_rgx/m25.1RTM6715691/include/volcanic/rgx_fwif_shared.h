@@ -621,7 +621,10 @@ typedef enum
 #define RGXFWIF_PHR_MODE_RD_RESET		(1UL)
 
 /* Firmware SysData Flags */
-#define RGXFWIF_SYSDATA_FLAG_BLOCKED_GPU_WORK	(IMG_UINT32_C(0x1) << 0U)	/*!< GPU has pending workloads that are blocked */
+#define RGXFWIF_SYSDATA_FLAG_BLOCKED_GPU_WORK		(IMG_UINT32_C(0x1) << 0U)	/*!< GPU has pending workloads that are blocked */
+
+/* Firmware OsData Flags */
+#define RGXFWIF_OSDATA_FLAG_FW_SUPPORTS_DUALCTX	    (IMG_UINT32_C(0x1) << 0U)	/*!< FW supports dual-ctx setup with PM */
 
 typedef IMG_UINT32 RGXFWIF_HWR_STATEFLAGS;
 

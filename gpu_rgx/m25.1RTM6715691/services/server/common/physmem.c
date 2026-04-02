@@ -101,7 +101,7 @@ PVRSRV_ERROR DevPhysMemAlloc(PVRSRV_DEVICE_NODE	*psDevNode,
 	PDUMP_FILEOFFSET_T uiOffsetOut;
 	IMG_UINT32 ui32PageSize;
 	IMG_UINT32 ui32PDumpMemSize = ui32MemSize;
-	PVRSRV_ERROR ePDumpError;
+	PVRSRV_ERROR ePDumpError = PVRSRV_OK;
 #endif
 	PG_HANDLE *psMemHandle;
 	IMG_UINT64 uiMask;
@@ -141,21 +141,24 @@ PVRSRV_ERROR DevPhysMemAlloc(PVRSRV_DEVICE_NODE	*psDevNode,
 
 #if defined(PDUMP)
 	ui32PageSize = ui32Log2Align? IMG_PAGE2BYTES32(ui32Log2Align) : OSGetPageSize();
-	eError = PDumpMalloc(psDevNode,
-	                     pszDevSpace,
-	                     pszSymbolicAddress,
-	                     ui32PDumpMemSize,
-	                     ui32PageSize,
-	                     IMG_FALSE,
-	                     0,
-	                     phHandlePtr,
-	                     PDUMP_NONE);
-	if (PVRSRV_OK != eError)
+	if (phHandlePtr != NULL)
 	{
-		PDUMPCOMMENT(psDevNode, "Allocating pages failed");
-		*phHandlePtr = NULL;
+		eError = PDumpMalloc(psDevNode,
+		                     pszDevSpace,
+		                     pszSymbolicAddress,
+		                     ui32PDumpMemSize,
+		                     ui32PageSize,
+		                     IMG_FALSE,
+		                     0,
+		                     phHandlePtr,
+		                     PDUMP_NONE);
+		if (PVRSRV_OK != eError)
+		{
+			PDUMPCOMMENT(psDevNode, "Allocating pages failed");
+			*phHandlePtr = NULL;
+		}
+		ePDumpError = eError;
 	}
-	ePDumpError = eError;
 #endif
 
 	if (bInitPage)
@@ -190,7 +193,8 @@ PVRSRV_ERROR DevPhysMemAlloc(PVRSRV_DEVICE_NODE	*psDevNode,
 		}
 
 #if defined(PDUMP)
-		if (ePDumpError != PVRSRV_ERROR_PDUMP_CAPTURE_BOUND_TO_ANOTHER_DEVICE)
+		if (ePDumpError != PVRSRV_ERROR_PDUMP_CAPTURE_BOUND_TO_ANOTHER_DEVICE &&
+		    phHandlePtr != NULL)
 		{
 			/* PDumping of the page contents can be done in two ways
 			 * 1. Store the single byte init value to the .prm file

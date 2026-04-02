@@ -62,5 +62,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define RGX_TEXTURE_STATE_HEAP_IDENT        "Texture State"             /*!< Texture State Heap Identifier */
 #define RGX_VISIBILITY_TEST_HEAP_IDENT      "Visibility Test"           /*!< Visibility Test Heap Identifier */
 #define RGX_PMMETA_PROTECT_HEAP_IDENT       "PM Meta Protected"         /*!< Parameter Memory and Meta Protected Heap Identifier */
+#define RGX_PM_ONLY_HEAP_IDENT              "PM Only"                   /*!< Parameter Memory only to be accessed from PM context */
 
 #endif /* RGX_HEAPS_H */

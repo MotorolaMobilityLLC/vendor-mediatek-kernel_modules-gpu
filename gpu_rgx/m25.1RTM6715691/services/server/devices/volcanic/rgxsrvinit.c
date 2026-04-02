@@ -709,6 +709,15 @@ static INLINE void GetFWConfigFlags(PVRSRV_DEVICE_NODE *psDeviceNode,
 	}
 #endif /* defined(RGX_FEATURE_TFBC_VERSION_MAX_VALUE_IDX) */
 
+#if defined(RGX_SUPPORT_DUAL_MEMCTX) && defined(PDUMP)
+	/* Only set for PDUMP drivers. For DL cases, to work around compat
+	   issues, the flag is set in RGXPostPowerState */
+	if (RGX_IS_FEATURE_SUPPORTED(psDevInfo, ALBIORIX_TOP_INFRASTRUCTURE))
+	{
+		ui32FwOsCfgFlags |= RGXFWIF_INICFG_OS_KM_SUPPORTS_DUALCTX;
+	}
+#endif
+
 	*pui32FWConfigFlags    = ui32FWConfigFlags;
 	*pui32FWConfigFlagsExt = ui32FWConfigFlagsExt;
 	*pui32FwOsCfgFlags     = ui32FwOsCfgFlags;

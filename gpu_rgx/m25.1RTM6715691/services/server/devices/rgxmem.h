@@ -184,6 +184,18 @@ void RGXMMUTweakProtFlags(struct _PVRSRV_DEVICE_NODE_ *psDevNode,
 		                  MMU_PROTFLAGS_T *uiMMUProtFlags);
 #endif
 
+#if defined(RGX_SUPPORT_DUAL_MEMCTX)
+PVRSRV_ERROR RGXInterceptCriticalBufferPxEWrite(PVRSRV_DEVICE_NODE *psDeviceNode,
+                                MMU_CONTEXT *psMMUContext,
+                                const IMG_UINT32 uiIndex,
+                                const MMU_PxE_CONFIG *psConfig,
+                                const MMU_LEVEL eMMULevel,
+                                const IMG_DEV_PHYADDR *psDevPAddr,
+                                const MMU_PROTFLAGS_T uiProtFlags,
+                                const IMG_UINT32 uiLog2DataPageSize,
+                                IMG_BOOL* bSkipWrite);
+#endif
+
 void RGXUnregisterMemoryContext(IMG_HANDLE hPrivData);
 PVRSRV_ERROR RGXRegisterMemoryContext(PVRSRV_DEVICE_NODE *psDevNode,
 									  MMU_CONTEXT *psMMUContext,

@@ -388,7 +388,18 @@ typedef struct _PVRSRV_DEVICE_NODE_
 			                     PVRSRV_MEMALLOCFLAGS_T uiMappingFlags,
 			                     MMU_PROTFLAGS_T *uiMMUProtFlags);
 
-
+#if defined(RGX_SUPPORT_DUAL_MEMCTX)
+	/* Callback pfnInterceptMMUEntry may be NULL if not required */
+	PVRSRV_ERROR (*pfnInterceptMMUEntry)(struct _PVRSRV_DEVICE_NODE_ *psDevNode,
+                                MMU_CONTEXT *psMMUContext,
+                                const IMG_UINT32 uiIndex,
+                                const MMU_PxE_CONFIG *psConfig,
+                                const MMU_LEVEL eMMULevel,
+                                const IMG_DEV_PHYADDR *psDevPAddr,
+                                const MMU_PROTFLAGS_T uiProtFlags,
+                                const IMG_UINT32 uiLog2DataPageSize,
+                                IMG_BOOL* bSkipWrite);
+#endif
 	void (*pfnDumpDebugInfo)(struct _PVRSRV_DEVICE_NODE_ *psDevNode);
 
 	PVRSRV_ERROR (*pfnUpdateHealthStatus)(struct _PVRSRV_DEVICE_NODE_ *psDevNode,

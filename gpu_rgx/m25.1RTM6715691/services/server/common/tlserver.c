@@ -167,6 +167,15 @@ TLServerOpenStreamKM(const IMG_CHAR*   pszName,
 		if (psNode->psWDesc == NULL)
 		{
 			psNewSD = TLMakeStreamDesc(psNode, ui32Mode, NULL);
+			PVR_LOG_GOTO_IF_NOMEM(psNewSD, eError, e0);
+
+			// take one extra reference on the node to accommodate
+			// for the reference dropped in TLDeactivateDeferredFree()
+			if (TL_HAS_DEFERRED_FREE(psGD->uiTLDeferredFrees))
+			{
+				psNewSD->uiRefCount++;
+			}
+
 			psNode->psWDesc = psNewSD;
 		}
 		else
@@ -174,8 +183,6 @@ TLServerOpenStreamKM(const IMG_CHAR*   pszName,
 			psNewSD = psNode->psWDesc;
 			psNode->psWDesc->uiRefCount++;
 		}
-
-		PVR_LOG_GOTO_IF_NOMEM(psNewSD, eError, e0);
 
 		psNode->uiWRefCount++;
 
@@ -206,6 +213,14 @@ TLServerOpenStreamKM(const IMG_CHAR*   pszName,
 		}
 
 		psNewSD = TLMakeStreamDesc(psNode, ui32Mode, hEvent);
+
+		// take one extra reference on the node to accommodate
+		// for the reference dropped in TLDeactivateDeferredFree()
+		if (TL_HAS_DEFERRED_FREE(psGD->uiTLDeferredFrees))
+		{
+			psNewSD->uiRefCount++;
+		}
+
 		psNode->psRDesc = psNewSD;
 
 		if (!psNewSD)
@@ -382,6 +397,8 @@ TLServerCloseStreamKM(PTL_STREAM_DESC psSD)
 				PVR_LOG_ERROR(eError, "OSEventObjectClose");
 				eError = PVRSRV_ERROR_UNABLE_TO_DESTROY_EVENT;
 			}
+
+			psSD->hReadEvent = NULL;
 		}
 		else if (psNode->uiWRefCount == 2 && psStream->psNotifStream != NULL)
 		{

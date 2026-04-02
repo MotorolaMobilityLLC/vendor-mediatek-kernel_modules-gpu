@@ -3645,6 +3645,21 @@ static IMG_BOOL BPHandlerHeapPresent(PVRSRV_RGXDEV_INFO* psDevInfo, const RGX_HE
 #endif
 }
 
+static IMG_BOOL PMOnlyHeapPresent(PVRSRV_RGXDEV_INFO* psDevInfo, const RGX_HEAP_INFO* pksHeapInfo)
+{
+	PVR_UNREFERENCED_PARAMETER(pksHeapInfo);
+#if defined(RGX_SUPPORT_DUAL_MEMCTX)
+	if (RGX_IS_FEATURE_SUPPORTED(psDevInfo, ALBIORIX_TOP_INFRASTRUCTURE))
+	{
+		return IMG_TRUE;
+	}
+	else
+#endif
+	{
+		return IMG_FALSE;
+	}
+}
+
 static RGX_HEAP_INFO gasRGXHeapLayoutApp[] =
 {
 	/* Name                             HeapBase                                 HeapLength                               HeapReservedRegionLength                     Log2ImportAlignment pfnIsHeapPresent      pfnDynamicBaseSize pfnInit           pfnDeInit          HeapInstanceFlags   */
@@ -3663,7 +3678,8 @@ static RGX_HEAP_INFO gasRGXHeapLayoutApp[] =
 	{RGX_CMP_SAFETY_RMW_HEAP_IDENT,     RGX_CMP_SAFETY_RMW_HEAP_BASE,            RGX_CMP_SAFETY_RMW_HEAP_SIZE,            0,                                           0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
 	{RGX_TEXTURE_STATE_HEAP_IDENT,      RGX_TEXTURE_STATE_HEAP_BASE,             RGX_TEXTURE_STATE_HEAP_SIZE,             RGX_HEAP_TEX_STATE_RESERVED_TOTAL_SIZE,      0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
 	{RGX_VISIBILITY_TEST_HEAP_IDENT,    RGX_VISIBILITY_TEST_HEAP_BASE,           RGX_VISIBILITY_TEST_HEAP_SIZE,           0,                                           0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
-	{RGX_PMMETA_PROTECT_HEAP_IDENT,     RGX_PMMETA_PROTECT_HEAP_BASE,            RGX_PMMETA_PROTECT_HEAP_SIZE,            0,                                           0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE }
+	{RGX_PMMETA_PROTECT_HEAP_IDENT,     RGX_PMMETA_PROTECT_HEAP_BASE,            RGX_PMMETA_PROTECT_HEAP_SIZE,            0,                                           0,                  NULL,                 NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
+	{RGX_PM_ONLY_HEAP_IDENT,            RGX_PM_ONLY_HEAP_BASE,                   RGX_PM_ONLY_HEAP_SIZE,                   0,                                           0,                  PMOnlyHeapPresent,    NULL,              NULL,             NULL,              HEAP_INST_DEFAULT_VALUE },
 };
 
 static RGX_HEAP_INFO gasRGXHeapLayoutFW[] =
@@ -4527,6 +4543,10 @@ PVRSRV_ERROR RGXRegisterDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 	psDeviceNode->pfnInvalFBSCTable = RGXInvalidateFBSCTable;
 
 	psDeviceNode->pfnValidateOrTweakPhysAddrs = NULL;
+
+#if defined(RGX_SUPPORT_DUAL_MEMCTX)
+	psDeviceNode->pfnInterceptMMUEntry = RGXInterceptCriticalBufferPxEWrite;
+#endif
 
 	/* Callback for getting the MMU device attributes */
 	psDeviceNode->pfnGetMMUDeviceAttributes = RGXDevMMUAttributes;

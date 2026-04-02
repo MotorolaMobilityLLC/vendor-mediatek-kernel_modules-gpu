@@ -1933,6 +1933,24 @@ PVRSRV_ERROR RGXCreateFreeList(CONNECTION_DATA       *psConnection,
 
 	sFreeListBaseDevVAddr.uiAddr = sFreeListStateDevVAddr.uiAddr + uiFreeListOffset;
 
+#if defined(RGX_SUPPORT_DUAL_MEMCTX)
+	if (RGX_IS_FEATURE_SUPPORTED(psDevInfo, ALBIORIX_TOP_INFRASTRUCTURE))
+	{
+		/* Check if freelist and state buffer is within the bounds of the heap.
+		No need to check for base+size as this is verified on mapping
+		in ReserveRangeParamValidation */
+		if (sFreeListStateDevVAddr.uiAddr < RGX_PM_ONLY_HEAP_BASE ||
+			sFreeListStateDevVAddr.uiAddr >= (RGX_PM_ONLY_HEAP_BASE + RGX_PM_ONLY_HEAP_SIZE))
+		{
+			PVR_DPF((PVR_DBG_ERROR,
+			        "%s: Freelist needs to be allocated on PM_ONLY_HEAP",
+			        __func__));
+			eError = PVRSRV_ERROR_INVALID_PARAMS;
+			goto ErrorAllocHost;
+		}
+	}
+#endif
+
 	/* Allocate kernel freelist struct */
 	psFreeList = OSAllocZMem(sizeof(*psFreeList));
 	if (psFreeList == NULL)
