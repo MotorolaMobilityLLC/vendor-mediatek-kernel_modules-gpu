@@ -1240,6 +1240,12 @@ void RGXDumpRGXDebugSummary(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 			{
 				aui64RegValMMUStatus[0] = OSReadHWReg64(psDevInfo->pvRegsBaseKM, RGX_CR_MMU_FAULT_STATUS1);
 				aui64RegValMMUStatus[1] = OSReadHWReg64(psDevInfo->pvRegsBaseKM, RGX_CR_MMU_FAULT_STATUS2);
+#if defined(FIX_HW_BRN_77899_BIT_MASK)
+				if (RGX_IS_BRN_SUPPORTED(psDevInfo, 77899))
+				{
+					RGX_BRN77899_REDACT_PHYSICAL_ADDRESS(RGX_CR_MMU_FAULT_STATUS1, aui64RegValMMUStatus[0]);
+				}
+#endif
 				_RGXDumpRGXMMUFaultStatus(pfnDumpDebugPrintf, pvDumpDebugFile, psDevInfo, &aui64RegValMMUStatus[0], "Core", DD_SUMMARY_INDENT);
 			}
 			else
@@ -1248,6 +1254,12 @@ void RGXDumpRGXDebugSummary(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 			}
 
 			aui64RegValMMUStatus[0] = OSReadHWReg64(psDevInfo->pvRegsBaseKM, RGX_CR_MMU_FAULT_STATUS_META);
+#if defined(FIX_HW_BRN_77899_BIT_MASK)
+			if (RGX_IS_BRN_SUPPORTED(psDevInfo, 77899))
+			{
+				RGX_BRN77899_REDACT_PHYSICAL_ADDRESS(RGX_CR_MMU_FAULT_STATUS_META, aui64RegValMMUStatus[0]);
+			}
+#endif
 			_RGXDumpRGXMMUFaultStatus(pfnDumpDebugPrintf, pvDumpDebugFile, psDevInfo, &aui64RegValMMUStatus[0], pszMetaOrRiscv, DD_SUMMARY_INDENT);
 		}
 
@@ -1689,11 +1701,33 @@ void RGXDumpMMURegisters(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 #endif
 		(psDevInfo->psRGXFWIfTraceBufCtl->sTraceBuf[0].sAssertBuf.szInfo[0] != 0))
 	{
-		DDLOG64(MMU_FAULT_STATUS1);
+		IMG_UINT64  ui64MMUFaultStatus = OSReadHWReg64(pvRegsBaseKM, RGX_CR_MMU_FAULT_STATUS1);
+
+#if defined(FIX_HW_BRN_77899_BIT_MASK)
+		if (RGX_IS_BRN_SUPPORTED(psDevInfo, 77899))
+		{
+			RGX_BRN77899_REDACT_PHYSICAL_ADDRESS(RGX_CR_MMU_FAULT_STATUS1, ui64MMUFaultStatus);
+		}
+#endif
+
+		DDLOGVAL64("MMU_FAULT_STATUS1", ui64MMUFaultStatus);
 		DDLOG64(MMU_FAULT_STATUS2);
 	}
 	DDLOG64(MMU_FAULT_STATUS_PM);
-	DDLOG64(MMU_FAULT_STATUS_META);
+
+	{
+		IMG_UINT64  ui64MMUFaultStatusMeta = OSReadHWReg64(pvRegsBaseKM, RGX_CR_MMU_FAULT_STATUS_META);
+
+#if defined(FIX_HW_BRN_77899_BIT_MASK)
+		if (RGX_IS_BRN_SUPPORTED(psDevInfo, 77899))
+		{
+			RGX_BRN77899_REDACT_PHYSICAL_ADDRESS(RGX_CR_MMU_FAULT_STATUS_META, ui64MMUFaultStatusMeta);
+		}
+#endif
+
+		DDLOGVAL64("MMU_FAULT_STATUS_META", ui64MMUFaultStatusMeta);
+	}
+
 	DDLOG64(SLC_STATUS1);
 	DDLOG64(SLC_STATUS2);
 	DDLOG64(SLC_STATUS3);

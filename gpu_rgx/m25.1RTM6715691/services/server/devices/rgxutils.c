@@ -439,6 +439,17 @@ _ValidateCriticalPMR(PMR* psPMR, IMG_DEVMEM_SIZE_T ui64MinSize)
 		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_DEVICEMEM_INVALID_PMR_FLAGS, return_error);
 	}
 
+	/* Critical PMR must not be GPU cacheable */
+	if (PVRSRV_CHECK_GPU_CACHE_COHERENT(uiFlags) ||
+	    PVRSRV_CHECK_GPU_CACHE_INCOHERENT(uiFlags) ||
+	    PVRSRV_CHECK_GPU_CACHED(uiFlags))
+	{
+		PVR_DPF((PVR_DBG_ERROR,
+		         "%s: Critical PMR allows GPU caching (0x%" PVRSRV_MEMALLOCFLAGS_FMTSPEC ")",
+		         __func__, uiFlags));
+		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_DEVICEMEM_INVALID_PMR_FLAGS, return_error);
+	}
+
 	/* Critical PMRs must be allocated with PMMETA_PROTECT */
 	if ((uiFlags & PVRSRV_MEMALLOCFLAG_DEVICE_FLAG(PMMETA_PROTECT)) == 0)
 	{

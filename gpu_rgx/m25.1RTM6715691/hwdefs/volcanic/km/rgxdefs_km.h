@@ -415,6 +415,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define RGX_BRN71422_WORKAROUND_READ_SIZE           (32U)
 #endif
 
+/*
+ * BRN77899 emits physical page addresses (rather than virtual addresses) for
+ * some page faults. Redact the physical address if the type of fault was
+ * 1=FBCDC Cache Coherent region, 2=read-only or 3=PM/Meta protected
+ * (basically any non-zero fault TYPE value).
+ */
+#define  RGX_BRN77899_REDACT_PHYSICAL_ADDRESS(R,V) \
+    (V) |= ((((V) & ~R##_TYPE_CLRMSK) != 0U) ? ~R##_ADDRESS_CLRMSK: 0)
+
 #define RGX_SUPPORT_DUAL_MEMCTX
 #define SUPPORT_VOLCANIC_TB
 #define RGX_FEATURE_SECURITY_VOLCANIC
