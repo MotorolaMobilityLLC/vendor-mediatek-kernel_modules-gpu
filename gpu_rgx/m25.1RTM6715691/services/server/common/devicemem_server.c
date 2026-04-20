@@ -3178,7 +3178,7 @@ DevmemIntComputeVirtualIndicesFromLogical(DEVMEMINT_RESERVATION *psReservation,
 		IMG_UINT32 *paui32VirtualIndices;
 		IMG_UINT32 i = 0;
 
-		paui32VirtualIndices = OSAllocMem(*pui32VirtualIndexCount * sizeof(IMG_UINT32));
+		paui32VirtualIndices = OSAllocMem(*pui32VirtualIndexCount * ui32PagesPerOrder * sizeof(IMG_UINT32));
 		PVR_RETURN_IF_NOMEM(paui32VirtualIndices);
 
 		for (i = 0; i < ui32LogicalIndexCount; i++)
@@ -3193,6 +3193,7 @@ DevmemIntComputeVirtualIndicesFromLogical(DEVMEMINT_RESERVATION *psReservation,
 			}
 		}
 
+		*pui32VirtualIndexCount *= ui32PagesPerOrder;
 		*ppaui32VirtualIndices = paui32VirtualIndices;
 	}
 

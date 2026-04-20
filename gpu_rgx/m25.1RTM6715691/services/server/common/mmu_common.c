@@ -1592,6 +1592,64 @@ static void _SetupPxE(MMU_CONTEXT *psMMUContext,
  *                   MMU host control functions (Level Info)                 *
  *****************************************************************************/
 
+/*************************************************************************/ /*!
+@Function       _MMU_ReleaseEntry
+
+@Description    Un-wires an entry from the current level and frees the physical
+                memory associated with the level underneath.
+
+                This function will remove a reference count from the psLevel but
+                will not free or cleanup the psNextLevel from psLevel! That clean
+                up must be done by the caller.
+
+@Input          psMMUContext        MMU context to operate on
+@Input          psConfig            The PxE config for the current level.
+@Input          psLevel             Level info on which to release the entry.
+@Input          psNextLevel         Level info that is to be released.
+@Input          uiIndex             The index of the next level in the current.
+@Input          eCurrentMMULevel    The level enum value of psLevel.
+@Input          eNextMMULevel       The level enum value of psNextLevel.
+@Input          uiLog2DataPageSize  The Log2 page size.
+@Return         void
+ */
+/*****************************************************************************/
+static inline void _MMU_ReleaseEntry(MMU_CONTEXT *psMMUContext,
+                                     const MMU_PxE_CONFIG *psConfig,
+                                     MMU_Levelx_INFO *psLevel,
+                                     MMU_Levelx_INFO *psNextLevel,
+                                     IMG_UINT32 uiIndex,
+                                     MMU_LEVEL eCurrentMMULevel,
+                                     MMU_LEVEL eNextMMULevel,
+                                     IMG_UINT32 uiLog2DataPageSize)
+{
+	PVR_ASSERT(psMMUContext != NULL);
+	PVR_ASSERT(psConfig != NULL);
+	PVR_ASSERT(psLevel != NULL);
+	PVR_ASSERT(psNextLevel != NULL);
+	PVR_ASSERT(eCurrentMMULevel != MMU_LEVEL_1);
+
+	OSLockHeldAssert(psMMUContext->hLock);
+
+	_SetupPxE(psMMUContext,
+	          psLevel,
+	          uiIndex,
+	          psConfig,
+	          eCurrentMMULevel,
+	          NULL,
+#if defined(PDUMP)
+	          NULL, /* Only required for data page */
+	          NULL, /* Only required for data page */
+	          0,    /* Only required for data page */
+#endif
+	          MMU_PROTFLAGS_INVALID,
+	          uiLog2DataPageSize);
+
+	/* Free table of the level below, pointed to by this table entry.
+	 * We don't destroy the table inside the above _MMU_FreeLevel call because we
+	 * first have to set the table entry of the level above to invalid. */
+	_PxMemFree(psMMUContext, &psNextLevel->sMemDesc, eNextMMULevel);
+	psLevel->ui32RefCount--;
+}
 
 /*************************************************************************/ /*!
 @Function       _MMU_FreeLevel
@@ -1719,30 +1777,17 @@ static IMG_BOOL _MMU_FreeLevel(MMU_CONTEXT *psMMUContext,
 			                   uiNextStartIndex, uiNextEndIndex,
 			                   bNextFirst, bNextLast, uiLog2DataPageSize))
 			{
-				/* Un-wire the entry */
-				_SetupPxE(psMMUContext,
-				          psLevel,
-				          i,
-				          psConfig,
-				          aeMMULevel[uiThisLevel],
-				          NULL,
-#if defined(PDUMP)
-				          NULL,	/* Only required for data page */
-				          NULL,	/* Only required for data page */
-				          0,      /* Only required for data page */
-#endif
-				          MMU_PROTFLAGS_INVALID,
-				          uiLog2DataPageSize);
+				_MMU_ReleaseEntry(psMMUContext,
+				                  psConfig,
+				                  psLevel,
+				                  psNextLevel,
+				                  i,
+				                  aeMMULevel[uiThisLevel],
+				                  aeMMULevel[*pui32CurrentLevel],
+				                  uiLog2DataPageSize);
 
-				/* Free table of the level below, pointed to by this table entry.
-				 * We don't destroy the table inside the above _MMU_FreeLevel call because we
-				 * first have to set the table entry of the level above to invalid. */
-				_PxMemFree(psMMUContext, &psNextLevel->sMemDesc, aeMMULevel[*pui32CurrentLevel]);
-				OSFreeMem(psNextLevel);
-
-				/* The level below us is empty, drop the refcount and clear the pointer */
-				psLevel->ui32RefCount--;
 				psLevel->apsNextLevel[i] = NULL;
+				OSFreeMem(psNextLevel);
 
 				/* Check we haven't wrapped around */
 				PVR_ASSERT(psLevel->ui32RefCount <= psLevel->ui32NumOfEntries);
@@ -2058,26 +2103,21 @@ e0:
 		 *   operation for the failing PD have been freed. So we just need to
 		 *   free that failing PD and the rest of them in a recursive manner
 		 *   in the loop below. */
-		if (uiAllocState >= 3)
-		{
-			if (psLevel->apsNextLevel[i] != NULL &&
-			    psLevel->apsNextLevel[i]->ui32RefCount == 0)
-			{
-				psLevel->ui32RefCount--;
-			}
-		}
-		if (uiAllocState >= 2)
-		{
-			if (psLevel->apsNextLevel[i] != NULL &&
-			    psLevel->apsNextLevel[i]->ui32RefCount == 0)
-			{
-				_PxMemFree(psMMUContext, &psLevel->apsNextLevel[i]->sMemDesc,
-				           aeMMULevel[uiThisLevel + 1]);
-			}
-		}
 		if (psLevel->apsNextLevel[i] != NULL &&
 		    psLevel->apsNextLevel[i]->ui32RefCount == 0)
 		{
+			if (uiAllocState >= 3)
+			{
+				_MMU_ReleaseEntry(psMMUContext,
+				                  psConfig,
+				                  psLevel,
+				                  psLevel->apsNextLevel[i],
+				                  i,
+				                  aeMMULevel[uiThisLevel],
+				                  aeMMULevel[uiThisLevel + 1],
+				                  uiLog2DataPageSize);
+			}
+
 			OSFreeMem(psLevel->apsNextLevel[i]);
 			psLevel->apsNextLevel[i] = NULL;
 		}
@@ -2141,12 +2181,17 @@ e1:
 			                   uiNextStartIndex, uiNextEndIndex,
 			                   bNextFirst, bNextLast, uiLog2DataPageSize))
 			{
-				_PxMemFree(psMMUContext, &psLevel->apsNextLevel[i]->sMemDesc,
-				           aeMMULevel[uiThisLevel + 1]);
+				_MMU_ReleaseEntry(psMMUContext,
+				                  psConfig,
+				                  psLevel,
+				                  psLevel->apsNextLevel[i],
+				                  i,
+				                  aeMMULevel[uiThisLevel],
+				                  aeMMULevel[*pui32CurrentLevel],
+				                  uiLog2DataPageSize);
+
 				OSFreeMem(psLevel->apsNextLevel[i]);
 				psLevel->apsNextLevel[i] = NULL;
-
-				psLevel->ui32RefCount--;
 
 				/* Check we haven't wrapped around */
 				PVR_ASSERT(psLevel->ui32RefCount <= psLevel->ui32NumOfEntries);
