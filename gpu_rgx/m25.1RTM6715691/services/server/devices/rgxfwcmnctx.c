@@ -125,7 +125,7 @@ static PVRSRV_ERROR _CheckPriority(PVRSRV_RGXDEV_INFO *psDevInfo,
 				RGXGetPIDFromServerMMUContext(psThisContext->psServerMMUContext) != OSGetCurrentClientProcessIDKM())
 			{
 #if defined(PVRSRV_MAX_REAL_TIME_CONTEXTS) && (PVRSRV_MAX_REAL_TIME_CONTEXTS > 1)
-				PVR_LOG(("Only %d process can have contexts with real time priority", PVRSRV_MAX_REAL_TIME_CONTEXTS));
+				PVR_LOG(("Only %ld process can have contexts with real time priority", PVRSRV_MAX_REAL_TIME_CONTEXTS));
 #else
 				PVR_LOG(("Only one process can have contexts with real time priority"));
 #endif
