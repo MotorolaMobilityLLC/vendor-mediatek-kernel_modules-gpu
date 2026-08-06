@@ -5137,6 +5137,56 @@ static const struct file_operations
 };
 #endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
 
+static int kbase_device_debugfs_heap_reclaim_offslot_show(struct seq_file *sfile, void *data)
+{
+	struct kbase_csf_heap_reclaim_offslot *const setting = sfile->private;
+
+	CSTD_UNUSED(data);
+
+	seq_printf(sfile, "%u %u\n", setting->timeout_ms, setting->pages);
+
+	return 0;
+}
+
+static ssize_t kbase_device_debugfs_heap_reclaim_offslot_write(struct file *file,
+							       const char __user *ubuf,
+							       size_t count, loff_t *ppos)
+{
+	const struct seq_file *const sfile = (struct seq_file *)file->private_data;
+	struct kbase_csf_heap_reclaim_offslot *const setting = sfile->private;
+	u32 read_len, timeout_ms, pages;
+	char kbuf[32];
+
+	CSTD_UNUSED(ppos);
+
+	read_len = count < (sizeof(kbuf) - 1) ? count : (sizeof(kbuf) - 1);
+	if (copy_from_user(kbuf, ubuf, read_len))
+		return -EFAULT;
+	kbuf[read_len] = '\0';
+
+	if (sscanf(kbuf, "%u %u", &timeout_ms, &pages) != 2)
+		return -EINVAL;
+
+	setting->timeout_ms = timeout_ms;
+	setting->pages = pages;
+
+	return count;
+}
+
+static int kbase_device_debugfs_heap_reclaim_offslot_open(struct inode *in, struct file *file)
+{
+	return single_open(file, kbase_device_debugfs_heap_reclaim_offslot_show, in->i_private);
+}
+
+static const struct file_operations kbase_device_debugfs_heap_reclaim_offslot_fops = {
+	.owner = THIS_MODULE,
+	.open = kbase_device_debugfs_heap_reclaim_offslot_open,
+	.read = seq_read,
+	.write = kbase_device_debugfs_heap_reclaim_offslot_write,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
 /**
  * debugfs_ctx_defaults_init - Create the default configuration of new contexts in debugfs
  * @kbdev: An instance of the GPU platform device, allocated from the probe method of the driver.
@@ -5294,6 +5344,20 @@ static struct dentry *init_debugfs(struct kbase_device *kbdev)
 			    &kbdev->pt_clustering_enable,
 			    &kbase_device_debugfs_pt_clustering_fops);
 #endif /* CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING */
+
+	{
+		struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
+		struct kbase_csf_sched_heap_reclaim_mgr *const mgr = &scheduler->reclaim_mgr;
+
+		dentry = debugfs_create_file("heap_reclaim_offslot", 0644,
+					     kbdev->mali_debugfs_directory, &mgr->offslot_setting,
+					     &kbase_device_debugfs_heap_reclaim_offslot_fops);
+		if (IS_ERR_OR_NULL(dentry)) {
+			dev_err(kbdev->dev,
+				"Unable to create heap_reclaim_offslot debugfs entry\n");
+			return dentry;
+		}
+	}
 
 	kbase_ktrace_debugfs_init(kbdev);
 

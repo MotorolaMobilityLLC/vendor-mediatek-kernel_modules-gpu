@@ -2021,6 +2021,7 @@ struct kbase_sub_alloc {
  *                        contexts created by the Userspace and not for the contexts
  *                        created internally by the Kbase.
  * @comm:                 Record the process name
+ * @offslot_ts:           System time in ns when all CSGs belonged to this kctx become offslot.
  *
  * A kernel base context is an entity among which the GPU is scheduled.
  * Each context has its own GPU address space.
@@ -2178,6 +2179,8 @@ struct kbase_context {
 #endif
 
 	char comm[TASK_COMM_LEN];
+
+	u64 offslot_ts;
 
 #if IS_ENABLED(CONFIG_MALI_MTK_UNHANDLED_PAGE_FAULT_DEBUG)
 	char group_leader_comm[TASK_COMM_LEN];
