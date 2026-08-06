@@ -222,6 +222,7 @@ int kbase_context_common_init(struct kbase_context *kctx)
 		}
 	}
 
+	kctx->offslot_ts = 0;
 	return err;
 }
 

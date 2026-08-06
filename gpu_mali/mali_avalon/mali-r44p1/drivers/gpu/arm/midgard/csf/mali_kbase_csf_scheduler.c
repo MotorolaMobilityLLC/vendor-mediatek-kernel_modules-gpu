@@ -5915,7 +5915,7 @@ exit_no_schedule_unlock:
 static void schedule_on_tick(struct kbase_device *kbdev)
 {
 	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
-
+	struct kbase_csf_sched_heap_reclaim_mgr *mgr = &kbdev->csf.scheduler.reclaim_mgr;
 	int err = kbase_reset_gpu_try_prevent(kbdev);
 	/* Regardless of whether reset failed or is currently happening, exit
 	 * early
@@ -5955,6 +5955,8 @@ static void schedule_on_tick(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
 	emit_gpu_metrics_to_frontend(kbdev);
 #endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
+	if (atomic_read(&mgr->unused_pages))
+		kbase_csf_tiler_heap_reclaim_unused_pages(kbdev, HEAP_RECLAIM_SCENARIO_SCHEDULER);
 	mutex_unlock(&scheduler->lock);
 	KBASE_KTRACE_ADD(kbdev, SCHED_INACTIVE, NULL, scheduler->state);
 	kbase_reset_gpu_allow(kbdev);

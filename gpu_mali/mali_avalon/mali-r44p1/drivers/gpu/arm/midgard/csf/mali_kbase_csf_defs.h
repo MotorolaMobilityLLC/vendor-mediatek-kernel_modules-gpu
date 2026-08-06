@@ -939,6 +939,17 @@ struct kbase_csf_csg_slot {
 };
 
 /**
+ * struct kbase_csf_heap_reclaim_offslot - Setting for reclaiming offslot CSG's heap.
+ *
+ * @timeout_ms:   Reclaim from CSGs being offslot longer than this.
+ * @pages:        Max number of pages for each reclaim.
+ */
+struct kbase_csf_heap_reclaim_offslot {
+	u32 timeout_ms;
+	u32 pages;
+};
+
+/**
  * struct kbase_csf_sched_heap_reclaim_mgr - Object for managing tiler heap reclaim
  *                                           kctx lists inside the CSF device's scheduler.
  *
@@ -947,11 +958,13 @@ struct kbase_csf_csg_slot {
  *                  lists track the kctxs attached to the reclaim manager.
  * @unused_pages:   Estimated number of unused pages from the @ctxlist array. The
  *                  number is indicative for use with reclaim shrinker's count method.
+ * @offslot_setting: Setting for reclaiming offslot CSG's heap.
  */
 struct kbase_csf_sched_heap_reclaim_mgr {
 	struct shrinker heap_reclaim;
 	struct list_head ctx_lists[KBASE_QUEUE_GROUP_PRIORITY_COUNT];
 	atomic_t unused_pages;
+	struct kbase_csf_heap_reclaim_offslot offslot_setting;
 };
 
 /**
