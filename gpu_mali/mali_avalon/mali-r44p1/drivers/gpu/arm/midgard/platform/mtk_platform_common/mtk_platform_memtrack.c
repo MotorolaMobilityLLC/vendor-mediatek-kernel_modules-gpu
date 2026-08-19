@@ -48,16 +48,14 @@ static int mtk_gpu_memory_show(struct seq_file *m, void *v)
 	/* output the total memory usage */
 	seq_printf(m, "%-16s  %10u\n",
 	           kbdev->devname,
-	           atomic_read(&(kbdev->memdev.used_pages))-
-				atomic_read(&(kbdev->memdev.compressed_pages)));
+	           atomic_read(&(kbdev->memdev.used_pages)));
 
 	list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
 		/* output the memory usage and cap for each kctx */
 		seq_printf(m, "  %s-0x%p %10u %10u\n",
 		           "kctx",
 		           kctx,
-		           atomic_read(&(kctx->used_pages)) -
-				atomic_read(&(kctx->compressed_pages)),
+		           atomic_read(&(kctx->used_pages)),
 		           kctx->tgid);
 	}
 	mutex_unlock(&kbdev->kctx_list_lock);

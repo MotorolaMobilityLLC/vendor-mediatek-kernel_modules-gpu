@@ -74,7 +74,7 @@
 #endif /* MALI_USE_CSF */
 
 #include "ipa/mali_kbase_ipa.h"
-#include "mali_kbase_gmc.h"
+
 #if IS_ENABLED(CONFIG_GPU_TRACEPOINTS)
 #include <trace/events/gpu.h>
 #endif

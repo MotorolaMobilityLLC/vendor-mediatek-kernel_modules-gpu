@@ -182,14 +182,7 @@ static const struct mali_kbase_capability_def kbase_caps_table[MALI_KBASE_NUM_CA
 /* Mutex to synchronize the probe of multiple kbase instances */
 static struct mutex kbase_probe_mutex;
 #endif
-#if MALI_GMC
-#include "mali_kbase_gmc.h"
-struct gmc_ops kbase_gmc_ops = {
-	.compress_kctx = kbase_gmc_compress,
-	.decompress_kctx=kbase_gmc_decompress,
-	.meminfo_open = kbase_gmc_meminfo_open,
-};
-#endif
+
 /**
  * mali_kbase_supports_cap - Query whether a kbase capability is supported
  *
@@ -6085,13 +6078,11 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 	struct kbase_device *kbdev;
 	int err = 0;
 
-	pr_err("MALI_KBASE_PROBE: kbase_platform_device_probe entry\n");
-
 	mali_kbase_print_cs_experimental();
 
 	kbdev = kbase_device_alloc();
 	if (!kbdev) {
-		dev_err(&pdev->dev, "MALI_KBASE_PROBE: Allocate device failed\n");
+		dev_err(&pdev->dev, "Allocate device failed\n");
 		return -ENOMEM;
 	}
 
@@ -6110,9 +6101,9 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 	if (err) {
 		if (err == -EPROBE_DEFER)
 			dev_info(kbdev->dev,
-				"MALI_KBASE_PROBE: Device initialization Deferred\n");
+				"Device initialization Deferred\n");
 		else
-			dev_err(kbdev->dev, "MALI_KBASE_PROBE: Device initialization failed with %d\n", err);
+			dev_err(kbdev->dev, "Device initialization failed\n");
 
 		dev_set_drvdata(kbdev->dev, NULL);
 		kbase_device_free(kbdev);
@@ -6120,19 +6111,18 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		mutex_unlock(&kbase_probe_mutex);
 #endif
 	} else {
-		pr_err("MALI_KBASE_PROBE: kbase_device_init succeeded\n");
 
 #if defined(CONFIG_MALI_MTK_GPU_BM_CSF)
 		err = mtk_bandwidth_resource_init();
 		if (err)
-			pr_err("@%s: MALI_KBASE_PROBE: GPU BM init failed (CSF)\n", __func__);
+			pr_info("@%s: GPU BM init failed (CSF)\n", __func__);
 #endif /* CONFIG_MALI_MTK_GPU_BM_CSF */
 #if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
 		/* Since upstream is not exporting mmap_min_addr, kbase at the
 		 * moment is unable to track possible kernel changes via sysfs.
 		 * Flag this out in a device info message.
 		 */
-		//dev_info(kbdev->dev, KBASE_COMPILED_MMAP_MIN_ADDR_MSG);
+		dev_info(kbdev->dev, KBASE_COMPILED_MMAP_MIN_ADDR_MSG);
 #endif
 
 		dev_info(kbdev->dev,
@@ -6151,16 +6141,7 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		mutex_unlock(&kbdev->pm.lock);
 #endif
 	}
-#if MALI_GMC
-	pr_err("MALI_KBASE_PROBE: Registering GMC device\n");
-	err = gmc_register_device(&kbase_gmc_ops, &kbdev->kbase_gmc_device);
-	if (err){
-		dev_warn(kbdev->dev, "MALI_KBASE_PROBE: GMC initialization failed with %d\n", err);
-	} else {
-		pr_err("MALI_KBASE_PROBE: GMC initialization succeeded\n");
-	}
-#endif
-	pr_err("MALI_KBASE_PROBE: kbase_platform_device_probe finished with %d\n", err);
+
 	return err;
 }
 
@@ -6391,39 +6372,24 @@ static struct platform_driver kbase_platform_driver = {
 		   .probe_type = PROBE_PREFER_ASYNCHRONOUS,
 	},
 };
-extern int gmc_storage_init(void);
-extern void gmc_storage_exit(void);
+
 #if (KERNEL_VERSION(5, 3, 0) > LINUX_VERSION_CODE) && IS_ENABLED(CONFIG_OF)
 module_platform_driver(kbase_platform_driver);
 #else
 static int __init kbase_driver_init(void)
 {
 	int ret;
-	pr_err("MALI_KBASE_INIT: kbase_driver_init entry\n");
-	ret = gmc_storage_init();
-	if (ret) {
-		pr_err("MALI_KBASE_INIT: gmc_storage_init failed with %d\n", ret);
-	} else {
-		pr_err("MALI_KBASE_INIT: gmc_storage_init succeeded\n");
-	}
+
 #if (KERNEL_VERSION(5, 3, 0) <= LINUX_VERSION_CODE)
 	mutex_init(&kbase_probe_mutex);
 #endif
 
 #ifndef CONFIG_OF
 	ret = kbase_platform_register();
-	if (ret) {
-		pr_err("MALI_KBASE_INIT: kbase_platform_register failed with %d\n", ret);
+	if (ret)
 		return ret;
-	}
-	pr_err("MALI_KBASE_INIT: kbase_platform_register succeeded\n");
 #endif
 	ret = platform_driver_register(&kbase_platform_driver);
-	if (ret) {
-		pr_err("MALI_KBASE_INIT: platform_driver_register failed with %d\n", ret);
-	} else {
-		pr_err("MALI_KBASE_INIT: platform_driver_register succeeded with %d\n", ret);
-	}
 #ifndef CONFIG_OF
 	if (ret) {
 		kbase_platform_unregister();
@@ -6431,18 +6397,15 @@ static int __init kbase_driver_init(void)
 	}
 #endif
 
-	pr_err("MALI_KBASE_INIT: kbase_driver_init returning %d\n", ret);
 	return ret;
 }
 
 static void __exit kbase_driver_exit(void)
 {
-
 	platform_driver_unregister(&kbase_platform_driver);
 #ifndef CONFIG_OF
 	kbase_platform_unregister();
 #endif
-	gmc_storage_exit();
 }
 
 module_init(kbase_driver_init);
