@@ -34,7 +34,7 @@
 #include <linux/signal.h>
 #endif
 #include <platform/mtk_platform_utils.h> /* MTK_INLINE */
-#include "mali_kbase_gmc.h"
+
 #define pool_dbg(pool, format, ...) \
 	dev_dbg(pool->kbdev->dev, "%s-pool [%zu/%zu]: " format,	\
 		(pool->next_pool) ? "kctx" : "kbdev",	\
@@ -1436,15 +1436,13 @@ static void kbase_mem_pool_add_array(struct kbase_mem_pool *pool,
 
 		if (is_huge_head(pages[i]) || !is_huge(pages[i])) {
 			p = as_page(pages[i]);
-			if (!kbase_is_entry_compressed(pages[i])) {
-				if (zero)
-					kbase_mem_pool_zero_page(pool, p);
-				else if (sync)
-					kbase_mem_pool_sync_page(pool, p);
+			if (zero)
+				kbase_mem_pool_zero_page(pool, p);
+			else if (sync)
+				kbase_mem_pool_sync_page(pool, p);
 
-				list_add(&p->lru, &new_page_list);
-				nr_to_pool++;
-			}
+			list_add(&p->lru, &new_page_list);
+			nr_to_pool++;
 		}
 		pages[i] = as_tagged(0);
 	}
@@ -1548,8 +1546,8 @@ void kbase_mem_pool_free_pages(struct kbase_mem_pool *pool, size_t nr_pages,
 			continue;
 		}
 		p = as_page(pages[i]);
-		if (!kbase_is_entry_compressed(pages[i]))
-			kbase_mem_pool_free_page(pool, p);
+
+		kbase_mem_pool_free_page(pool, p);
 		pages[i] = as_tagged(0);
 		pages_released = true;
 	}

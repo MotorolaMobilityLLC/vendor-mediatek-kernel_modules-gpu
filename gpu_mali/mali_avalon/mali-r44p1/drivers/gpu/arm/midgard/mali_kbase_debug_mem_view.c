@@ -146,7 +146,7 @@ static int debug_mem_show(struct seq_file *m, void *v)
 
 	if (!(map->flags & KBASE_REG_CPU_CACHED))
 		prot = pgprot_writecombine(prot);
-	kbase_get_compressed_alloc(map->alloc,(u64)data->offset, 1);
+
 	page = as_page(map->alloc->pages[data->offset]);
 	cpu_addr = vmap(&page, 1, VM_MAP, prot);
 	if (!cpu_addr)

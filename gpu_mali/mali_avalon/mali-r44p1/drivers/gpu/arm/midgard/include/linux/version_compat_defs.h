@@ -82,10 +82,10 @@ typedef unsigned int __poll_t;
 #endif /* (CONFIG_LSM_MMAP_MIN_ADDR > CONFIG_DEFAULT_MMAP_MIN_ADDR) */
 #endif /* CONFIG_LSM_MMAP_MIN_ADDR */
 
-//#if (kbase_mmap_min_addr == CONFIG_DEFAULT_MMAP_MIN_ADDR)
-//#define KBASE_COMPILED_MMAP_MIN_ADDR_MSG                                                           \
-//	"* MALI kbase_mmap_min_addr compiled to CONFIG_DEFAULT_MMAP_MIN_ADDR, no runtime update possible! *"
-//#endif
+#if (kbase_mmap_min_addr == CONFIG_DEFAULT_MMAP_MIN_ADDR)
+#define KBASE_COMPILED_MMAP_MIN_ADDR_MSG                                                           \
+	"* MALI kbase_mmap_min_addr compiled to CONFIG_DEFAULT_MMAP_MIN_ADDR, no runtime update possible! *"
+#endif
 
 #else /* CONFIG_MMU */
 #define kbase_mmap_min_addr (0UL)

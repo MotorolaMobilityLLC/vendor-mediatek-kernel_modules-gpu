@@ -56,7 +56,7 @@
 	IS_ENABLED(CONFIG_MALI_MTK_PAGE_TABLE_CLUSTERING)
 #include <soc/mediatek/emi.h>
 #endif
-#include <mali_kbase_gmc.h>
+
 #define VA_REGION_SLAB_NAME_PREFIX "va-region-slab-"
 #define VA_REGION_SLAB_NAME_SIZE (DEVNAME_SIZE + sizeof(VA_REGION_SLAB_NAME_PREFIX) + 1)
 
@@ -826,7 +826,7 @@ exit:
  * * NULL if the region does not belong to a kbase context (for instance,
  *   if the allocation corresponds to a shared MCU region on CSF).
  */
-struct kbase_context *kbase_reg_to_kctx(struct kbase_va_region *reg)
+static struct kbase_context *kbase_reg_to_kctx(struct kbase_va_region *reg)
 {
 	struct rb_root *rbtree = reg->rbtree;
 	struct kbase_reg_zone *zone = container_of(rbtree, struct kbase_reg_zone, reg_rbtree);
@@ -1662,6 +1662,7 @@ struct kbase_va_region *kbase_alloc_free_region(struct kbase_reg_zone *zone, u64
 	new_reg->flags = kbase_zone_to_bits(zone->id) | KBASE_REG_FREE;
 
 	new_reg->flags |= KBASE_REG_GROWABLE;
+
 	new_reg->start_pfn = start_pfn;
 	new_reg->nr_pages = nr_pages;
 
@@ -1671,9 +1672,7 @@ struct kbase_va_region *kbase_alloc_free_region(struct kbase_reg_zone *zone, u64
 #if IS_ENABLED(CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING)
 	new_reg->last_used_ts = 0;
 #endif /* CONFIG_MALI_MTK_JIT_RECLAIM_ANTITHRASHING */
-#if MALI_GMC
-	INIT_WORK(&new_reg->gmc_work, kbase_gmc_walk_region_work);
-#endif
+
 	return new_reg;
 }
 KBASE_EXPORT_TEST_API(kbase_alloc_free_region);
@@ -1683,7 +1682,8 @@ struct kbase_va_region *kbase_ctx_alloc_free_region(struct kbase_context *kctx,
 						    size_t nr_pages)
 {
 	struct kbase_reg_zone *zone = kbase_ctx_reg_zone_get_nolock(kctx, id);
-        return kbase_alloc_free_region(zone, start_pfn, nr_pages);;
+
+	return kbase_alloc_free_region(zone, start_pfn, nr_pages);
 }
 
 /**
@@ -3206,9 +3206,7 @@ int kbase_free_phy_pages_helper(
 	start_free = alloc->pages + alloc->nents - nr_pages_to_free;
 
 	syncback = alloc->properties & KBASE_MEM_PHY_ALLOC_ACCESSED_CACHED;
-#if MALI_GMC
-	kbase_gmc_invalidate_alloc(alloc->imported.native.kctx, start_free, nr_pages_to_free);
-#endif
+
 	/* pad start_free to a valid start location */
 	while (nr_pages_to_free && is_huge(*start_free) &&
 	       !is_huge_head(*start_free)) {
@@ -3333,9 +3331,7 @@ void kbase_free_phy_pages_helper_locked(struct kbase_mem_phy_alloc *alloc,
 	start_free = pages;
 
 	syncback = alloc->properties & KBASE_MEM_PHY_ALLOC_ACCESSED_CACHED;
-#if MALI_GMC
-	kbase_gmc_invalidate_alloc(alloc->imported.native.kctx, start_free, nr_pages_to_free);
-#endif
+
 	/* pad start_free to a valid start location */
 	while (nr_pages_to_free && is_huge(*start_free) &&
 	       !is_huge_head(*start_free)) {
